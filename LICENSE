@@ -1,0 +1,46 @@
+HCEP — Human Communication Eye Protocol
+Copyright © 2026 Kirk LaSalle. All rights reserved.
+
+PROPRIETARY SOFTWARE LICENSE
+
+This software, including all source code, algorithms, and associated documentation files (collectively, the "Software"), constitutes the exclusive property of Kirk LaSalle. The Software is protected by copyright law, trade secret law, and international treaties.
+
+PROPRIETARY ASSETS AND TRADE SECRETS:
+Specifically protected under trade secret and proprietary ownership are:
+  1. The HCEP (Human Communication Eye Protocol) Theory, including the 5-mode cognitive-emotional classification system and ocular hemispheric lateralization mappings.
+  2. The HCEP engineering implementation and supported mathematical formulations (including perspective-n-point extrinsics, 3-stage hybrid gaze vectors, and vergence-parallax correction models).
+  3. The Permanent Active Directives (PAD) governing safety, alignment, and ethical constraints.
+  4. The Body Language Protocols, including the postural lean, shoulder squaring, arm crossing, and sitting vs. standing classifiers.
+
+GRANT OF LICENSE
+No license is granted under this file. All rights are reserved by the author.
+Unauthorized copying, distribution, modification, public display, or
+public performance of this Software is strictly prohibited.
+
+RESTRICTIONS
+You may NOT:
+  1. Copy, modify, merge, publish, distribute, sublicense, or sell copies
+     of the Software without express written permission from Kirk LaSalle.
+  2. Reverse engineer, decompile, or disassemble the Software.
+  3. Use the Software for any purpose without a valid license agreement.
+  4. Remove or alter any proprietary notices, labels, or marks on the Software.
+
+BIOMETRIC DATA NOTICE
+This Software processes biometric data including facial embeddings, gaze
+coordinates, and voice recordings. All biometric data is subject to
+applicable privacy laws including GDPR (Article 9), CCPA, and BIPA.
+Users must obtain appropriate consent before processing biometric data.
+
+DISCLAIMER OF WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+LIMITATION OF LIABILITY
+IN NO EVENT SHALL KIRK LASALLE BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+CONTACT
+For licensing inquiries: See https://github.com/kirklasalle/HCEP

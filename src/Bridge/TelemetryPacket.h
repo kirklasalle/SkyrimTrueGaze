@@ -1,0 +1,67 @@
+#pragma once
+
+#include <cstdint>
+
+namespace TrueGaze::Bridge {
+
+#pragma pack(push, 1)
+
+/// @brief 64-byte aligned real-time telemetry packet received from HCEP Desktop Suite (D:\Projects\HCEP).
+struct TrueGazeTelemetryPacket
+{
+    // --- Header (8 bytes) ---
+    uint32_t magic;           // 0x48434550 ("HCEP" ASCII)
+    uint16_t version;         // Protocol version (e.g. 0x0100 -> v1.0)
+    uint16_t sequenceId;      // Monotonically increasing frame index
+
+    // --- Timestamp (8 bytes) ---
+    uint64_t timestampUs;     // Microseconds since session start
+
+    // --- Player Real-World Gaze Vector (16 bytes) ---
+    float gazePitch;          // Look angle up/down in radians (-pi/2 to +pi/2)
+    float gazeYaw;            // Look angle left/right in radians (-pi to +pi)
+    float gazeConvergence;    // Estimated focal distance in meters
+    float gazeConfidence;     // 0.0f (lost) to 1.0f (solid tracking)
+
+    // --- Cognitive & Emotional State (8 bytes) ---
+    uint8_t hcepMode;         // 0=LOGIC, 1=AFFECT, 2=SPIRIT, 3=HEART, 4=THINK
+    uint8_t cognitiveState;   // 12 classified cognitive states
+    int8_t  emotionalValence; // Range: -100 to +100
+    uint8_t blinkBitmask;     // Bit 0 = Left Eye Blink, Bit 1 = Right Eye Blink
+    uint8_t socialTriangle;   // 0=None, 1=Left Eye, 2=Right Eye, 3=Mouth
+    uint8_t reserved[3];      // Padding (0x00)
+
+    // --- Player Head Pose (12 bytes) ---
+    float headPitch;          // Head pitch rotation in radians
+    float headYaw;            // Head yaw rotation in radians
+    float headRoll;           // Head roll rotation in radians
+
+    // --- Synchronization & Integrity (12 bytes) ---
+    uint32_t trackedPersonId; // Active tracked person ID
+    float mutualGazeHoldSec;  // Sustained mutual gaze duration
+    uint32_t crc32;           // CRC32 checksum
+};
+static_assert(sizeof(TrueGazeTelemetryPacket) == 64, "TrueGazeTelemetryPacket must be exactly 64 bytes");
+
+/// @brief 32-byte feedback packet sent from TrueGaze.dll back to HCEP Desktop Suite.
+struct SkyrimFeedbackPacket
+{
+    uint32_t magic;           // 0x534B5952 ("SKYR" ASCII)
+    uint16_t version;         // Protocol version (0x0100)
+    uint16_t reserved;
+
+    uint32_t targetFormId;    // FormID of the targeted NPC
+    int16_t  relationshipRank;// Relationship rank (-4 to +4)
+    uint8_t  combatState;     // 0=Peace, 1=Combat, 2=Searching
+    uint8_t  isDialogueActive;// 1 if dialogue menu is open
+
+    float    distanceToTarget;// World distance in meters
+    float    mutualGazeAngle; // Degrees between NPC gaze ray and Player gaze ray
+    uint32_t gameFrameNumber; // Skyrim internal frame counter
+    uint32_t crc32;           // CRC32 checksum
+};
+static_assert(sizeof(SkyrimFeedbackPacket) == 32, "SkyrimFeedbackPacket must be exactly 32 bytes");
+
+#pragma pack(pop)
+
+} // namespace TrueGaze::Bridge

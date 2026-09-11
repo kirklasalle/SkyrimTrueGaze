@@ -1,0 +1,26 @@
+$TRUEGAZE_TITLE	True Gaze
+$TRUEGAZE_PAGE_GENERAL	全般設定
+$TRUEGAZE_PAGE_BRIDGE	HCEP 連携モード
+$TRUEGAZE_HEADER_ENGINE	True Gaze - 生体力学視線エンジン
+$TRUEGAZE_ENABLE_MOD	True Gaze を有効化
+$TRUEGAZE_ENABLE_MOD_DESC	スカイリム全体の生物学的眼球運動キネマティクスエンジンを切り替えます。
+$TRUEGAZE_ENABLE_CREATURES	クリーチャーの視線を有効化
+$TRUEGAZE_ENABLE_CREATURES_DESC	捕食者、獲物、ドラゴンの視線キネマティクスを有効にします。
+$TRUEGAZE_HEADER_KINEMATICS	キネマティクスと生物学的ダイナミクス
+$TRUEGAZE_SACCADE_SPEED	サッカード速度倍率
+$TRUEGAZE_SACCADE_SPEED_DESC	眼球跳躍の最高速度を調整します（人間の平均：700〜900度/秒）。
+$TRUEGAZE_MICRO_JITTER	微小サッカード振幅
+$TRUEGAZE_MICRO_JITTER_DESC	凝視による硬直を防ぐ微小ブラウン運動の振幅を制御します。
+$TRUEGAZE_HEADER_SOCIAL	社会的ダイナミクスと HCEP モード
+$TRUEGAZE_GAZE_AVERSION	認知的視線回避（THINK モード）
+$TRUEGAZE_GAZE_AVERSION_DESC	NPCが思考中や複雑な対話時に自然に視線を外します。
+$TRUEGAZE_SOCIAL_TRIANGLE	ソーシャルトライアングル走査（AFFECT モード）
+$TRUEGAZE_SOCIAL_TRIANGLE_DESC	NPCが会話中に両目と口の間で視線を巡回させます。
+$TRUEGAZE_HEADER_HCEP	HCEP デスクトップ同期
+$TRUEGAZE_CONNECT_HCEP	HCEP デスクトップに接続（Named Pipe）
+$TRUEGAZE_CONNECT_HCEP_DESC	\\\\.\\pipe\\TrueGazeBridge 経由で Kirk LaSalle の HCEP デスクトップと接続します。
+$TRUEGAZE_MUTUAL_GAZE	相互視線成立時間（秒）
+$TRUEGAZE_MUTUAL_GAZE_DESC	親密な反応をトリガーするのに必要な連続アイコンタクト時間です。
+$TRUEGAZE_HEADER_DEBUG	診断と可視化
+$TRUEGAZE_DEBUG_RAYS	視線レイを表示（デバッグ）
+$TRUEGAZE_DEBUG_RAYS_DESC	NPCの視線方向を示す3Dレイをゲーム内に描画します。

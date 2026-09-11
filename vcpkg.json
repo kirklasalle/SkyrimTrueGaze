@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "truegaze",
+  "version-string": "1.0.0",
+  "description": "True Gaze - Biological NPC Gaze & Kinematics Engine for Skyrim SE/AE/VR (An HCEP Product)",
+  "homepage": "https://github.com/kirklasalle/SkyrimTrueGaze",
+  "dependencies": [
+    "fmt",
+    "spdlog",
+    "nlohmann-json"
+  ]
+}

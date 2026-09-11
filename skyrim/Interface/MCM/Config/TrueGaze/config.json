@@ -1,0 +1,135 @@
+{
+  "modName": "True Gaze",
+  "minMcmVersion": 2,
+  "pages": [
+    {
+      "pageDisplayName": "General Settings",
+      "entries": [
+        {
+          "text": "True Gaze - Biomechanical Engine",
+          "type": "header"
+        },
+        {
+          "text": "Enable True Gaze",
+          "type": "toggle",
+          "valueOptions": {
+            "sourceType": "ModSettingBool",
+            "sourceForm": "TrueGaze.esp",
+            "setting": "bEnableTrueGaze:General"
+          },
+          "help": "Toggles the entire biological gaze kinematics engine on or off."
+        },
+        {
+          "text": "Enable Creature Gaze",
+          "type": "toggle",
+          "valueOptions": {
+            "sourceType": "ModSettingBool",
+            "sourceForm": "TrueGaze.esp",
+            "setting": "bEnableCreatures:General"
+          },
+          "help": "Enables specialized predator, prey, and dragon gaze kinematics for animals and monsters."
+        },
+        {
+          "text": "Kinematics & Biological Dynamics",
+          "type": "header"
+        },
+        {
+          "text": "Saccade Velocity Multiplier",
+          "type": "slider",
+          "valueOptions": {
+            "sourceType": "ModSettingFloat",
+            "sourceForm": "TrueGaze.esp",
+            "setting": "fSaccadeSpeedMult:Kinematics",
+            "min": 0.5,
+            "max": 2.0,
+            "step": 0.1
+          },
+          "help": "Adjusts the peak velocity of ballistic eye jumps. Normal human range: 700 to 900 deg/s."
+        },
+        {
+          "text": "Micro-Saccadic Jitter Amplitude",
+          "type": "slider",
+          "valueOptions": {
+            "sourceType": "ModSettingFloat",
+            "sourceForm": "TrueGaze.esp",
+            "setting": "fMicroJitterAmp:Kinematics",
+            "min": 0.0,
+            "max": 1.0,
+            "step": 0.05
+          },
+          "help": "Controls the amplitude of continuous Brownian drift preventing visual freezing."
+        },
+        {
+          "text": "Social Dynamics & HCEP Modes",
+          "type": "header"
+        },
+        {
+          "text": "Cognitive Gaze Aversion (THINK Mode)",
+          "type": "toggle",
+          "valueOptions": {
+            "sourceType": "ModSettingBool",
+            "sourceForm": "TrueGaze.esp",
+            "setting": "bEnableGazeAversion:Social"
+          },
+          "help": "When enabled, NPCs break eye contact naturally when thinking or processing complex dialogue."
+        },
+        {
+          "text": "Social Triangle Scanning (AFFECT Mode)",
+          "type": "toggle",
+          "valueOptions": {
+            "sourceType": "ModSettingBool",
+            "sourceForm": "TrueGaze.esp",
+            "setting": "bEnableSocialTriangle:Social"
+          },
+          "help": "When enabled, NPCs cycle gaze between eyes and mouth during conversational speech."
+        }
+      ]
+    },
+    {
+      "pageDisplayName": "HCEP Connected Mode",
+      "entries": [
+        {
+          "text": "HCEP Desktop Live Perception Sync",
+          "type": "header"
+        },
+        {
+          "text": "Connect to HCEP Desktop (Named Pipe)",
+          "type": "toggle",
+          "valueOptions": {
+            "sourceType": "ModSettingBool",
+            "sourceForm": "TrueGaze.esp",
+            "setting": "bConnectHcepBridge:Bridge"
+          },
+          "help": "Connects to Kirk LaSalle's HCEP Desktop suite via \\\\.\\pipe\\TrueGazeBridge to stream real webcam/Kinect gaze."
+        },
+        {
+          "text": "Mutual Gaze Threshold (Seconds)",
+          "type": "slider",
+          "valueOptions": {
+            "sourceType": "ModSettingFloat",
+            "sourceForm": "TrueGaze.esp",
+            "setting": "fMutualGazeThreshold:Bridge",
+            "min": 0.5,
+            "max": 5.0,
+            "step": 0.25
+          },
+          "help": "Seconds of unbroken mutual eye contact required to trigger social and intimate dialogue reactions."
+        },
+        {
+          "text": "Diagnostics & Visualizers",
+          "type": "header"
+        },
+        {
+          "text": "Show In-Game Gaze Rays (Debug)",
+          "type": "toggle",
+          "valueOptions": {
+            "sourceType": "ModSettingBool",
+            "sourceForm": "TrueGaze.esp",
+            "setting": "bDebugGazeRays:Debug"
+          },
+          "help": "Draws 3D colored line-of-sight rays in the game world indicating where NPCs are looking."
+        }
+      ]
+    }
+  ]
+}

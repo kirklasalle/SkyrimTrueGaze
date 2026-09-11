@@ -1,0 +1,44 @@
+# Visual Studio & MSVC
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build artifacts
+out/
+build/
+CMakeSettings.json
+CMakeUserPresets.json
+
+# vcpkg
+vcpkg_installed/
+
+# Compiled Binaries & PDBs
+*.dll
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.obj
+*.o
+
+# Package archives
+*.zip
+*.7z
+*.rar
+*.tar.gz
+
+# Logs & temp
+*.log
+tmp/
+temp/
+
+# ---------------------------------------------------------------------------
+# Required shipping artifacts — keep these tracked despite the patterns above.
+# The packaging pipeline (scripts/PackageMod.ps1) depends on TrueGaze.dll
+# being present in skyrim/SKSE/Plugins/.
+# ---------------------------------------------------------------------------
+!skyrim/SKSE/Plugins/TrueGaze.dll
+!dist/
+!dist/*.zip

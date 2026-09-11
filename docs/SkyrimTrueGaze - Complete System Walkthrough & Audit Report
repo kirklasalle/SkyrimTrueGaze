@@ -1,0 +1,169 @@
+# SkyrimTrueGaze: Complete System Walkthrough & Audit Report
+
+> [!CAUTION]
+> **⚠️ SUPERSEDED — THIS DOCUMENT OVER-CLAIMS. DO NOT RELY ON IT.**
+>
+> This report was written from design intent rather than from verified code behaviour. It asserts "100% Implemented, Verified, Packaged" for features that are **not functional**. An independent audit on **September 11, 2026** found the project to be at approximately **30%** of a shippable 1.0.0.
+>
+> **Specifically, the following claims in this document are inaccurate:**
+>
+> | Claim here | Verified reality |
+> | :--- | :--- |
+> | "Animation Hooks — Implemented & Built" | 🔴 No hook is installed. `Install()` constructs no `REL::Relocation`; the bone-application body is a comment. |
+> | "OAR Conditions — Implemented & Built" | 🔴 Registration is a `// Future:` comment that logs a false success. The state cache is never written. |
+> | "Modding SDK — Exported & Packaged" | 🔴 All `TrueGazeAPI.cpp` bodies are stubs returning hardcoded values. |
+> | "SkyUI In-Game MCM — Packaged" | 🔴 No `TrueGaze.esp` exists to bind to; no `.pex` scripts ship. |
+> | "Configuration Engine — Implemented & Built" | 🔴 `ConfigManager::Load()` is never called on the real plugin path. |
+> | "Performance Budget — Implemented & Built" | 🔴 `PerformanceProfiler` is never instantiated. |
+> | "Skyrim VR Support — Implemented & Built" | 🔴 `IsSkyrimVr()` returns `false` in the shipped build. |
+> | "Passed Test Suite" (kinematics) | ⚠️ True, but the tested modules have **no production call sites**. |
+>
+> **The root cause:** `extern/CommonLibSSE-NG` does not exist, so the CMake guards silently skip the SDK and the build produces a standalone skeleton. Every `#if __has_include(<RE/Skyrim.h>)` block resolves to a stub.
+>
+> **Authoritative sources going forward:**
+>
+> - **[`STATUS.md`](STATUS.md)** — verified capability matrix
+> - **[`AUDIT_REPORT_2026-09-11.md`](AUDIT_REPORT_2026-09-11.md)** — full independent audit
+>
+> This document is retained for historical reference only.
+
+---
+
+**Project Root:** `D:\Projects\SkyrimTrueGaze`  
+**Product Binary:** `TrueGaze.dll` (SKSE64 x64)  
+**Distribution Archive:** `dist/TrueGaze-v1.0.0-rc1-SkyrimSE-AE-VR.zip` (36.2 KB)  
+**Author & Product Owner:** Kirk LaSalle  
+**Status:** ~~100% Implemented, Verified, Packaged & Ready for In-Engine Audit~~ → **Superseded; see caution notice above**
+
+---
+
+## 1. Executive Summary & Audit Matrix
+
+| Category / Requirement | Implementation Detail | Audit Status |
+| :--- | :--- | :--- |
+| **Directory Rename** | Refactored all references from `D:\Projects\TrueGaze` to `D:\Projects\SkyrimTrueGaze` across README, documentation, build presets, and `.nexus`. | **100% Verified** |
+| **Immutable Directives** | [Permanent_Active_Directives.txt](file:///d:/Projects/SkyrimTrueGaze/Permanent_Active_Directives.txt) preserved completely untouched. | **100% Compliant** |
+| **Biomechanical Saccades** | Main Sequence velocity equation ($V_{\text{peak}} = V_{\text{max}}(1 - e^{-\theta/c})$) and duration scaling implemented in [SaccadeGenerator.hpp](file:///d:/Projects/SkyrimTrueGaze/src/Kinematics/SaccadeGenerator.hpp). | **Passed Test Suite** |
+| **VOR Decoupling** | Eye leads target in 20-30ms; head follows with inertial damping; eye counter-rotates in [VorCoordinator.hpp](file:///d:/Projects/SkyrimTrueGaze/src/Kinematics/VorCoordinator.hpp). | **Passed Test Suite** |
+| **Micro-Jitter Drift** | 1–3 Hz bounded Brownian random-walk motion in [MicroJitter.hpp](file:///d:/Projects/SkyrimTrueGaze/src/Kinematics/MicroJitter.hpp). | **Passed Test Suite** |
+| **Social Triangle** | Argyle & Cook cyclical scanning between Left Eye $\rightarrow$ Right Eye $\rightarrow$ Mouth in [SocialTriangle.hpp](file:///d:/Projects/SkyrimTrueGaze/src/Kinematics/SocialTriangle.hpp). | **Passed Test Suite** |
+| **Bone Hierarchy Strain** | NetImmerse distribution: Spine2 (10%), Neck (25%), Head (65%), Eye Nodes (100%) in [BoneController.hpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/BoneController.hpp). | **Passed Test Suite** |
+| **Spatial LOD Culling** | 3-tier distance culling (<5m, 5–15m, >15m) in [LodManager.hpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/LodManager.hpp). | **Passed Test Suite** |
+| **Saccadic Eyelid Blinks** | Micro-blink curves on saccades $>20^\circ$ and morph targets in [EfmBlinkController.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Integrations/EfmBlinkController.cpp). | **Passed Test Suite** |
+| **Wire Protocol Integrity** | 64-byte `TrueGazeTelemetryPacket` & 32-byte `SkyrimFeedbackPacket` with CRC-32 integrity in [TelemetryPacket.h](file:///d:/Projects/SkyrimTrueGaze/src/Bridge/TelemetryPacket.h). | **Passed Test Suite** |
+| **HCEP Bridge IPC** | Double-buffered lock-free named pipe server on `\\.\pipe\TrueGazeBridge` ([NamedPipeServer.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Bridge/NamedPipeServer.cpp)) with non-blocking `PeekNamedPipe`. | **Passed End-to-End Test** |
+| **Target Salience** | Dialogue partner, combat target, and nearby actor resolution in [TargetSelector.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/TargetSelector.cpp). | **Implemented & Built** |
+| **Animation Hooks** | Post-Havok evaluation hook and actor eligibility filter (dead/paralyzed/sleeping/ragdoll) in [AnimationHook.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/AnimationHook.cpp). | **Implemented & Built** |
+| **OAR Conditions** | Native condition functions and rule definitions for all 5 HCEP modes in [OarConditions.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Integrations/OarConditions.cpp) and [config.json](file:///d:/Projects/SkyrimTrueGaze/skyrim/meshes/actors/character/animations/OpenAnimationReplacer/TrueGaze/config.json). | **Implemented & Built** |
+| **Configuration Engine** | Dynamic INI loader with Win32 profile queries and filesystem discovery in [ConfigManager.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/ConfigManager.cpp) reading [TrueGaze.ini](file:///d:/Projects/SkyrimTrueGaze/skyrim/SKSE/Plugins/TrueGaze.ini). | **Implemented & Built** |
+| **Multi-Version SKSE Plugin** | `SKSEPlugin_Query` & `SKSEPlugin_Load` (Skyrim SE 1.5.97) + `SKSEPlugin_Version` (Skyrim AE 1.6+ Address Library) in [Main.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Main.cpp). | **7 Exports Verified** |
+| **SkyUI In-Game MCM** | Papyrus script [TrueGaze_MCM.psc](file:///d:/Projects/SkyrimTrueGaze/skyrim/scripts/source/TrueGaze_MCM.psc) + 6 language translations (EN, FR, DE, ES, JA, ZH) in `skyrim/Interface/Translations/`. | **Packaged** |
+| **Skyrim VR Support** | OpenVR 6DOF HMD tracking and foveated gaze direction projection in [VrController.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/VrController.cpp). | **Implemented & Built** |
+| **Performance Budget** | Microsecond ScopedTimer enforcing $< 0.15\text{ ms}$ frame budget in [PerformanceProfiler.hpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/PerformanceProfiler.hpp). | **Implemented & Built** |
+| **Modding SDK** | C/C++ public API header [include/TrueGazeAPI.h](file:///d:/Projects/SkyrimTrueGaze/include/TrueGazeAPI.h) & Papyrus API [TrueGaze.psc](file:///d:/Projects/SkyrimTrueGaze/skyrim/scripts/source/TrueGaze.psc). | **Exported & Packaged** |
+| **Cross-Engine Adapters** | UE5 LiveLink/AnimNode header ([TrueGazeUE5.h](file:///d:/Projects/SkyrimTrueGaze/extern/cross-engine/TrueGazeUE5.h)) and Unity C# P/Invoke bridge ([TrueGazeUnity.cs](file:///d:/Projects/SkyrimTrueGaze/extern/cross-engine/TrueGazeUnity.cs)). | **Scaffolded** |
+| **Release Packaging** | Automated build and packaging pipeline [PackageMod.ps1](file:///d:/Projects/SkyrimTrueGaze/scripts/PackageMod.ps1) creating distribution zip archive in `dist/`. | **Archive Generated** |
+
+---
+
+## 2. Automated Test Verification Results
+
+### Suite 1: Pure Mathematical & Kinematics Test ([KinematicsTests.cpp](file:///d:/Projects/SkyrimTrueGaze/tests/KinematicsTests.cpp))
+
+```
+========================================================
+  SkyrimTrueGaze Kinematics & Mathematics Test Suite   
+  An HCEP Product by Kirk LaSalle                      
+========================================================
+[TEST] Running SaccadeGenerator verification...
+  -> SaccadeGenerator passed.
+[TEST] Running VorCoordinator verification...
+  -> VorCoordinator passed.
+[TEST] Running MicroJitter verification...
+  -> MicroJitter passed.
+[TEST] Running SocialTriangle verification...
+  -> SocialTriangle passed.
+[TEST] Running BoneController hierarchy strain verification...
+  -> BoneController passed.
+[TEST] Running LodManager verification...
+  -> LodManager passed.
+[TEST] Running EfmBlinkController verification...
+  -> EfmBlinkController passed.
+[TEST] Running TelemetryPacket layout and CRC32 verification...
+  -> TelemetryPackets passed (64-byte & 32-byte layout verified).
+
+[SUCCESS] ALL 8 BIOMECHANICAL KINEMATICS TESTS PASSED!
+```
+
+### Suite 2: HCEP Desktop Telemetry Pipe Test ([HcepBridgeClientMock.cpp](file:///d:/Projects/SkyrimTrueGaze/tests/HcepBridgeClientMock.cpp))
+
+```
+========================================================
+  HCEP Desktop Suite <-> TrueGaze Bridge Test Harness   
+  Simulating HCEP.App Real-Time Gaze Telemetry Stream   
+========================================================
+[SERVER] Starting TrueGaze::Bridge::NamedPipeServer...
+[CLIENT] Connecting to \\.\pipe\TrueGazeBridge...
+[CLIENT] Successfully connected to TrueGaze Named Pipe!
+[SERVER] Confirmed server.IsConnected() == true.
+[CLIENT] Streaming 10 telemetry frames (HCEP modes: LOGIC, AFFECT, THINK)...
+  Frame 1 received in engine: mode=1, yaw=-0.08, pitch=0.05
+  Frame 2 received in engine: mode=2, yaw=-0.16, pitch=0.1
+  Frame 3 received in engine: mode=2, yaw=-0.16, pitch=0.1
+  Frame 4 received in engine: mode=3, yaw=-0.24, pitch=0.15
+  Frame 5 received in engine: mode=0, yaw=-0.4, pitch=0.25
+  Frame 6 received in engine: mode=1, yaw=-0.48, pitch=0.3
+  Frame 7 received in engine: mode=1, yaw=-0.48, pitch=0.3
+  Frame 8 received in engine: mode=3, yaw=-0.64, pitch=0.4
+  Frame 9 received in engine: mode=4, yaw=-0.72, pitch=0.45
+  Frame 10 received in engine: mode=4, yaw=-0.72, pitch=0.45
+[SERVER] Sending 32-byte SkyrimFeedbackPacket to client...
+  Feedback confirmed by client: targetFormId=0x136c8, distance=1.45m, mutualAngle=1.2 deg
+
+[SUCCESS] HCEP Desktop <-> TrueGaze Bridge verification passed 100%!
+```
+
+---
+
+## 3. Binary Export Table Verification
+
+Inspecting `TrueGaze.dll` via MSVC `dumpbin /exports`:
+
+```
+    ordinal hint RVA      name
+          1    0 00001B60 SKSEPlugin_Load
+          2    1 00001C10 SKSEPlugin_Query
+          3    2 00005000 SKSEPlugin_Version
+          4    3 000017D0 TrueGaze_GetActorGaze
+          5    4 00001800 TrueGaze_GetVersion
+          6    5 00001810 TrueGaze_IsHcepConnected
+          7    6 000017C0 TrueGaze_OverrideActorMode
+```
+
+---
+
+## 4. Local Testing & In-Game Audit Instructions
+
+To audit and test `TrueGaze` in your local Skyrim Special Edition installation:
+
+### Quick Install Method
+
+1. Open the distribution archive: [dist/TrueGaze-v1.0.0-rc1-SkyrimSE-AE-VR.zip](file:///d:/Projects/SkyrimTrueGaze/dist/TrueGaze-v1.0.0-rc1-SkyrimSE-AE-VR.zip)
+2. In **Mod Organizer 2** or **Vortex**:
+   - Click "Install Mod from Archive" and select `dist/TrueGaze-v1.0.0-rc1-SkyrimSE-AE-VR.zip`.
+   - Enable the mod in your load order.
+3. Launch Skyrim SE via `skse64_loader.exe`.
+4. Open your log file:
+   - `Documents\My Games\Skyrim Special Edition\SKSE\TrueGaze.log`
+   - Confirm the initialization banner:
+
+     ```
+     [TrueGaze] True Gaze v1.0.0 (An HCEP Product by Kirk LaSalle) loaded.
+     [TrueGaze] Biomechanical Oculomotor Kinematics Engine initialized.
+     [TrueGaze] Target engine: Skyrim Special Edition / AE.
+     ```
+
+5. In-Game Verification:
+   - Press `Esc` and open the **Mod Configuration** menu.
+   - Look for the **True Gaze** menu entry.
+   - You can toggle biological kinematics, adjust saccade speed multipliers, micro-jitter drift amplitude, cognitive gaze aversion, social triangle eye-mouth cycling, or enable debug gaze rays.

@@ -1,0 +1,26 @@
+$TRUEGAZE_TITLE	True Gaze
+$TRUEGAZE_PAGE_GENERAL	Paramètres Généraux
+$TRUEGAZE_PAGE_BRIDGE	Mode Connecté HCEP
+$TRUEGAZE_HEADER_ENGINE	True Gaze - Moteur Biomécanique
+$TRUEGAZE_ENABLE_MOD	Activer True Gaze
+$TRUEGAZE_ENABLE_MOD_DESC	Active ou désactive le moteur cinématique d'oculomotricité biologique dans tout Skyrim.
+$TRUEGAZE_ENABLE_CREATURES	Activer le Regard des Créatures
+$TRUEGAZE_ENABLE_CREATURES_DESC	Active les cinématiques oculaires pour prédateurs, proies et dragons.
+$TRUEGAZE_HEADER_KINEMATICS	Cinématique & Dynamique Biologique
+$TRUEGAZE_SACCADE_SPEED	Multiplicateur de Vitesse Saccadique
+$TRUEGAZE_SACCADE_SPEED_DESC	Ajuste la vitesse de pointe des sauts oculaires balistiques (700 à 900 deg/s chez l'humain).
+$TRUEGAZE_MICRO_JITTER	Amplitude du Micro-Tremblement
+$TRUEGAZE_MICRO_JITTER_DESC	Contrôle l'amplitude du mouvement brownien continu empêchant le regard figé.
+$TRUEGAZE_HEADER_SOCIAL	Dynamique Sociale & Modes HCEP
+$TRUEGAZE_GAZE_AVERSION	Aversion Cognitive du Regard (Mode THINK)
+$TRUEGAZE_GAZE_AVERSION_DESC	Les PNJ détournent naturellement le regard lorsqu'ils réfléchissent.
+$TRUEGAZE_SOCIAL_TRIANGLE	Balayage en Triangle Social (Mode AFFECT)
+$TRUEGAZE_SOCIAL_TRIANGLE_DESC	Les PNJ font alterner leur regard entre les yeux et la bouche lors d'un dialogue.
+$TRUEGAZE_HEADER_HCEP	Synchronisation Perceptive HCEP Desktop
+$TRUEGAZE_CONNECT_HCEP	Connecter à HCEP Desktop (Named Pipe)
+$TRUEGAZE_CONNECT_HCEP_DESC	Se connecte à la suite HCEP Desktop de Kirk LaSalle via \\.\pipe\TrueGazeBridge.
+$TRUEGAZE_MUTUAL_GAZE	Seuil de Regard Mutuel (Secondes)
+$TRUEGAZE_MUTUAL_GAZE_DESC	Durée de contact visuel continu nécessaire pour déclencher les réactions intimes.
+$TRUEGAZE_HEADER_DEBUG	Diagnostics & Visualiseurs
+$TRUEGAZE_DEBUG_RAYS	Afficher les Rayons de Regard (Debug)
+$TRUEGAZE_DEBUG_RAYS_DESC	Affiche les lignes de visée 3D montrant où regardent les PNJ.

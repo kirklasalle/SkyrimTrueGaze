@@ -1,0 +1,49 @@
+# NEXUS HANDOVER BATON — TRUE GAZE™ (TrueGaze)
+Date: September 9, 2026
+Origin: Antigravity AI Agent
+Architect & Product Owner: Kirk LaSalle
+Project Root: D:\Projects\SkyrimTrueGaze
+Plugin Binary: TrueGaze.dll (SKSE64 / CommonLibSSE-NG C++20)
+Upstream Platform: Kirk LaSalle's Human Communication Eye Protocol (HCEP) (D:\Projects\HCEP)
+
+## 1. Project Mission & Identity
+TrueGaze™ is an official gaming and virtual world product derived from Kirk LaSalle's Human Communication Eye Protocol (HCEP). Its mission is to eradicate the "dead-eye syndrome" and robotic neck movements in game engines, beginning with The Elder Scrolls V: Skyrim (SE, AE, and VR) and expanding to modern game engines.
+
+TrueGaze models true biological human oculomotor dynamics:
+1. Saccades via the empirical Main Sequence equation (peak velocity 700-900 deg/s, duration 20-50ms).
+2. Vestibulo-Ocular Reflex (VOR): Eyes lead target acquisition in 20-30ms; head/neck follow with higher inertia (120-180ms); eyes counter-rotate to preserve foveal lock.
+3. Micro-Saccadic Brownian Drift (1-3 Hz physiological jitter) preventing frozen stare.
+4. Cognitive Gaze Aversion (Glenberg et al., 1998) mapping to HCEP THINK mode.
+5. Social Triangle Scanpaths (Argyle & Cook, 1976) mapping to HCEP AFFECT mode.
+6. Saccadic Eyelid Blinks coupled with Expressive Facegen Morphs (EFM).
+7. Deep Open Animation Replacer (OAR) integration: Exposes custom native C++ conditions so modders can trigger custom body animations and gestures when NPCs enter HCEP modes or achieve mutual gaze.
+
+## 2. Workspace & Documentation References
+- Architecture Document: D:\Projects\SkyrimTrueGaze\TRUEGAZE_ARCHITECTURE.md
+- Project Overview: D:\Projects\SkyrimTrueGaze\README.md
+- Core HCEP Perception Platform: D:\Projects\HCEP
+- HCEP Theory & Scientific Compendium: D:\Projects\HCEP\docs\HCEP_SCIENCE_FOUNDATION.md
+
+## 3. Key Architectural Decisions
+- Project Name: TrueGaze
+- Native Output: TrueGaze.dll
+- Mod Title: True Gaze — Biological NPC Gaze & Kinematics
+- SDK Toolchain: CommonLibSSE-NG with C++20 and CMakePresets.json
+- Dual-Mode Architecture:
+  * Mode 1 (Autonomous Edge): Standalone in-engine C++ kinematics running at 60-144 FPS for all NPCs and creatures.
+  * Mode 2 (Connected HCEP): Asynchronous Windows Named Pipe (`\\.\pipe\TrueGazeBridge`) streaming live player gaze & HCEP mode from D:\Projects\HCEP to Skyrim for true bi-directional mutual gaze.
+- Bone Distribution:
+  * NPC Spine2: 10% yaw
+  * NPC Neck [Neck]: 25% yaw/pitch
+  * NPC Head [Head]: 65% yaw/pitch
+  * Eye Nodes: 100% instant ballistic saccade + VOR counter-rotation
+
+## 4. Immediate Next Milestones for Incoming Agent
+When switching to D:\Projects\SkyrimTrueGaze, proceed with:
+1. Initialize CMakeLists.txt and vcpkg.json targeting CommonLibSSE-NG.
+2. Implement src/Kinematics/SaccadeGenerator.hpp (pure C++ Main Sequence math).
+3. Implement src/Kinematics/VorCoordinator.hpp (eye-head decoupling and counter-rotation).
+4. Implement src/Integrations/OarConditions.cpp (custom OAR condition registration).
+5. Implement src/Bridge/NamedPipeServer.cpp (asynchronous 64-byte POD telemetry listener).
+
+The baton is yours.
