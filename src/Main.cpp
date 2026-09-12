@@ -144,13 +144,17 @@ namespace
 // Address Library, and therefore requires
 // Data/SKSE/Plugins/versionlib-<game version>.bin to be installed.
 // ---------------------------------------------------------------------------
+// The trailing semicolon is deliberate. SKSEPluginInfo expands to a whole
+// declaration, and clang-format cannot tell where the statement ends without
+// it, so it indents the following function as if it were still part of the
+// macro arguments. An empty declaration at namespace scope is legal C++.
 SKSEPluginInfo(
     .Version = SKSE::PluginDeclaration::VersionNumber{ 1, 0, 0, 0 },
     .Name = "TrueGaze",
     .Author = "Kirk LaSalle (HCEP)",
     .SupportEmail = "",
     .StructCompatibility = SKSE::StructCompatibility::Independent,
-    .MinimumSKSEVersion = SKSE::PluginDeclaration::VersionNumber{ 0, 0, 0, 0 })
+    .MinimumSKSEVersion = SKSE::PluginDeclaration::VersionNumber{ 0, 0, 0, 0 });
 
 SKSEPluginLoad(const SKSE::LoadInterface *a_skse)
 {
