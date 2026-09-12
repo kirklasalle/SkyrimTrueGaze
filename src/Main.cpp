@@ -125,6 +125,33 @@ namespace
 }
 
 #if __has_include(<SKSE/SKSE.h>)
+// ---------------------------------------------------------------------------
+// SKSE loader contract.
+//
+// This plugin previously exported SKSEPlugin_Load and nothing else. That is the
+// legacy shape, and it tells SKSE nothing about which runtimes the plugin
+// supports. With no declaration SKSE falls back to the legacy path, which
+// matches against the runtime version the plugin happened to be compiled
+// against - exactly the brittleness an AE-era plugin has to avoid.
+//
+// SKSEPluginInfo emits SKSEPlugin_Version, the structured declaration modern
+// SKSE reads (name, author, version, runtime independence, minimum SKSE), and
+// also emits SKSEPlugin_Query for the legacy path. Both load paths are then
+// covered.
+//
+// RuntimeCompatibility is left at its default, which declares Address Library
+// independence. That is accurate: the plugin resolves RE:: offsets through the
+// Address Library, and therefore requires
+// Data/SKSE/Plugins/versionlib-<game version>.bin to be installed.
+// ---------------------------------------------------------------------------
+SKSEPluginInfo(
+    .Version = SKSE::PluginDeclaration::VersionNumber{ 1, 0, 0, 0 },
+    .Name = "TrueGaze",
+    .Author = "Kirk LaSalle (HCEP)",
+    .SupportEmail = "",
+    .StructCompatibility = SKSE::StructCompatibility::Independent,
+    .MinimumSKSEVersion = SKSE::PluginDeclaration::VersionNumber{ 0, 0, 0, 0 })
+
 SKSEPluginLoad(const SKSE::LoadInterface *a_skse)
 {
     InitializeLogging();
