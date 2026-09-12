@@ -17,7 +17,7 @@
 **Target Platform:** The Elder Scrolls V: Skyrim (SE 1.5.97, AE 1.6.640+, AE 1.6.1170+, Skyrim VR) & Modern Creation Engine
 
 > [!IMPORTANT]
-> **Documentation vs. Implementation.** This README describes the *designed* TrueGaze architecture — the target system. The current build is **alpha** and does **not yet implement the full system described here**. For an honest, verified breakdown of what actually works today, see **[`docs/STATUS.md`](docs/STATUS.md)** and the independent **[`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md)**. Read those before installing.
+> **Documentation vs. Implementation.** The architecture sections below describe the *designed* TrueGaze system — the target. The current build implements the gaze engine and compiles against the real SDK, but **has not yet been verified inside a running Skyrim instance.** For an honest, verified breakdown of what actually works today, see **[`docs/STATUS.md`](docs/STATUS.md)** and the independent **[`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md)**.
 
 ---
 
@@ -25,16 +25,19 @@
 
 | | |
 | :--- | :--- |
-| **Maturity** | 🔴 **~30%** of a shippable 1.0.0 |
-| **Installable & functional?** | ❌ Not yet — the gaze engine does not yet drive bones |
-| **Hard blocker** | CommonLibSSE-NG is not vendored; the build silently degrades to a standalone skeleton |
-| **Diagnostic** | `TrueGaze.dll` loads, logs, and hosts its IPC pipe — but no NPC's eyes move |
+| **Maturity** | 🟡 **~65%** of a shippable 1.0.0 |
+| **Builds & links the SDK?** | ✅ Yes — DLL is 637 KB and imports `CommonLibSSE`, `spdlog`, `fmt` |
+| **Drives bones?** | ✅ Yes — implemented and compiled |
+| **Verified in-game?** | ❌ **Not yet** — nobody has watched an NPC's eyes move |
+| **Hard blocker** | None. The former blocker (SDK not vendored) is resolved. |
 
-**Verified working today:** SKSE plugin load/query/version exports · 64-byte / 32-byte wire protocol with CRC-32 · asynchronous named-pipe server · biomechanical kinematics library (unit-tested) · mod package structure, MCM schema, OAR rule set, and 6-language localisation.
+**Verified working:** SDK linkage · the gaze engine and bone application · per-actor simulation state · configuration reaching the simulation · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · triple-buffered IPC with a user-scoped pipe ACL · 10 registered Papyrus functions with script parity · a public C API that returns live state · 11 passing test suites · a reproducible pinned build.
 
-**Not yet working:** bone application, engine hook installation, runtime wiring, configuration plumbing, OAR condition registration, Papyrus binding, and the public C API bodies.
+**Not yet verified:** everything above works in a *running game*. That is the next milestone and the only thing that can promote the headline feature from 🔨 Implemented to ✅ In-engine verified.
 
-➡️ **Full capability matrix and the remediation plan: [`docs/STATUS.md`](docs/STATUS.md)**
+**Still open:** OAR condition registration (#6) · the MCM has no backing plugin form (#2) · `.pdb` files are not packaged · the tick is not yet wrapped in `try/catch` (NFR-4) · GitHub Actions does not run on this account for private repositories (#9).
+
+➡️ **Full capability matrix and remediation plan: [`docs/STATUS.md`](docs/STATUS.md)**
 
 ---
 

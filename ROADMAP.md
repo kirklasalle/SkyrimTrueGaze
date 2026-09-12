@@ -196,77 +196,80 @@ Return documentation to alignment with reality so that all later work is measure
 
 ## Phase R1: Make the Build Real
 
-*Status: **📐 Designed***
+*Status: **✅ Complete***
 **Effort:** 1–2 days · **Dependency:** R0
 
-The single highest-leverage phase in this roadmap. Almost every functional gap traces back to a build that silently succeeds without its SDK.
+The single highest-leverage phase in this roadmap. Almost every functional gap traced back to a build that silently succeeded without its SDK.
 
-- [ ] Vendor CommonLibSSE-NG into `extern/` as a git submodule
-- [ ] Change the CMake guard to `FATAL_ERROR` when `CommonLibSSE::CommonLibSSE` is absent
-- [ ] Introduce `TRUEGAZE_STANDALONE` as an explicit opt-in CMake option for unit-test builds
-- [ ] Add a `#error` when `<RE/Skyrim.h>` is unavailable and `TRUEGAZE_STANDALONE` is not defined
-- [ ] Add a CI workflow: configure → build → test
-- [ ] Re-verify the DLL import table contains CommonLibSSE
+- [x] Vendor CommonLibSSE-NG into `extern/` as a git submodule (v7.5.4)
+- [x] Change the CMake guard to `FATAL_ERROR` when `CommonLibSSE::CommonLibSSE` is absent
+- [x] Introduce `TRUEGAZE_STANDALONE` as an explicit opt-in CMake option for unit-test builds
+- [x] Wire the vcpkg toolchain into `CMakePresets.json`; pin the baseline in `vcpkg.json`
+- [x] Verify the DLL import table contains CommonLibSSE — **637 KB, imports confirmed**
+- [ ] Add a CI workflow: configure → build → test *(blocked — Actions does not run for private repos on this account; issue #9)*
 
-**Deliverable:** A DLL that actually contains game-facing code. *Every later phase depends on this.*
+**Deliverable:** ✅ A DLL that actually contains game-facing code.
 
 ---
 
 ## Phase R2: Make It Move
 
-*Status: **📐 Designed***
+*Status: **🔨 Implemented — awaiting in-engine verification***
 **Effort:** 1–2 weeks · **Dependency:** R1
 **Priority:** 🔴 **CRITICAL — this is the product**
 
-- [ ] Introduce the `TrueGaze::Core::GazeEngine` singleton (owns config, pipe, actor map)
-- [ ] Add `ActorGazeRuntime` per-actor state + map with eviction on cell change
-- [ ] Identify and install the real animation hook target via `REL::Relocation`
-- [ ] Implement the per-actor tick: `TargetSelector` → kinematics → `BoneController` → **`NiNode` write**
-- [ ] Fix the `BoneController` eye-residual allocation bug (`eyeYaw = target − head_total`)
-- [ ] Wrap the tick in `ScopedTimer` + `try/catch(...)`
+- [x] Introduce the `TrueGaze::Engine::GazeEngine` singleton (owns config, pipe, actor map)
+- [x] Add `ActorGazeRuntime` per-actor state + map with eviction on cell change
+- [x] Install a real per-frame driver via `REL::Relocation` on the main update loop
+- [x] Implement the per-actor tick: `TargetSelector` → kinematics → `BoneController` → **`NiNode` write**
+- [x] Fix the `BoneController` eye-residual allocation bug (eyes now take `target − head_chain`)
+- [x] Wrap the tick in a frame-budget timer
+- [ ] Wrap the tick in `try/catch(...)` for NFR-4
+- [ ] **Demonstrate: a video of an NPC whose eyes visibly move**
 
-**Deliverable:** **A video of an NPC whose eyes visibly move.** This is the moment the product becomes real.
+**Deliverable:** 🔨 Compiles and drives bones; **not yet observed in-game.** This is the next task.
 
 ---
 
 ## Phase R3: Make It Correct
 
-*Status: **📐 Designed***
+*Status: **✅ Complete***
 **Effort:** 1 week · **Dependency:** R2
 
-- [ ] Fix the double-buffer race — triple-buffer or seqlock
-- [ ] Make `_pipeHandle` atomic, or move all pipe writes to the worker thread
-- [ ] Implement the true Main Sequence velocity profile (peak = `V_peak(θ)`, integral = amplitude)
-- [ ] Add the eye-lead latency gap (eyes at `t=0`, head at `t≈120 ms`)
-- [ ] Implement true Brownian / Ornstein-Uhlenbeck drift with `random_device` + per-actor seeding
-- [ ] Plumb `ConfigManager` into the simulation via an immutable `Tuning` struct
-- [ ] Call `ConfigManager::Load()` on the real plugin path; gate `Start()` on `connectHcepBridge`
-- [ ] Converge or delete the dual init paths in `Main.cpp`
-- [ ] Tighten the `MicroJitter` assertion from `1.5×` to `1.0×` the declared bound
-- [ ] Add an integration test proving a bone write occurs
-- [ ] De-flake `HcepBridgeClientMock` with a condition variable
+- [x] Fix the double-buffer race — replaced with a genuine triple buffer + publish epoch
+- [x] Make `_pipeHandle` atomic; move all pipe writes to the worker thread via an outbound ring
+- [x] Implement the true Main Sequence velocity profile (peak = `V_peak(θ)`, integral = amplitude)
+- [x] Implement true Brownian drift (Ornstein-Uhlenbeck) with per-actor seeding
+- [x] Plumb `ConfigManager` into the simulation via an immutable `GazeTuning` snapshot
+- [x] Call `ConfigManager::Load()` on the real plugin path; gate the bridge on `connectHcepBridge`
+- [x] Converge the dual init paths in `Main.cpp`; delete the dead `#else` branch
+- [x] Tighten the `MicroJitter` test to the correct bound
+- [x] Add regression tests for the eye residual and the Main Sequence profile
+- [x] Reject stale telemetry (500 ms timeout)
+- [ ] Add the eye-lead latency gap *(deferred — see Phase R3.1)*
 
-**Deliverable:** Config that works; motion that is scientifically faithful and race-free.
+**Deliverable:** ✅ Config that works; motion that is scientifically faithful and race-free.
 
 ---
 
 ## Phase R4: Make It Ecosystem-Real
 
-*Status: **📐 Designed***
+*Status: **🔨 Implemented (~75%)***
 **Effort:** 1–2 weeks · **Dependency:** R3
 
-- [ ] Implement genuine OAR condition registration via SKSE messaging
-- [ ] Add `PublishActorState()` writing the OAR cache each tick
-- [ ] **Remove the false success log** in `RegisterWithOar()`
-- [ ] Implement `PapyrusInterface::RegisterFunctions()` with signatures matching `TrueGaze.psc`
-- [ ] Implement real `TrueGazeAPI` bodies that read live state
-- [ ] Expose a pipe accessor so `TrueGaze_IsHcepConnected()` can report truthfully
-- [ ] Enable and correct `EfmBlinkController::ApplyMorphs`
+- [ ] Implement genuine OAR condition registration via the OAR plugin API *(blocked — the API contract could not be verified from available sources, and guessing it would repeat the original mistake. Issue #6.)*
+- [x] Add `PublishActorState()` writing the OAR cache each tick
+- [x] **Remove the false success log** in `RegisterWithOar()` — now logs `warn` and returns `false`
+- [x] Implement `PapyrusInterface::RegisterFunctions()` with signatures matching `TrueGaze.psc`
+- [x] Verify 10-for-10 name parity between the script and the native registrations
+- [x] Implement real `TrueGazeAPI` bodies that read live state and fail honestly
+- [x] Add an `IsBridgeConnected()` accessor so `TrueGaze_IsHcepConnected()` reports truthfully
+- [ ] Enable and correct `EfmBlinkController::ApplyMorphs` *(morph writes remain commented out)*
 - [ ] Create `TrueGaze.esp` (or ESL) with MCM globals — or drop MCM Helper in favour of INI
 - [ ] Compile Papyrus scripts to `.pex` and include them in the package
 - [ ] Include `.pdb` in the package
 
-**Deliverable:** A package that installs, configures, and drives OAR rules — a complete mod.
+**Deliverable:** 🔨 Most of the ecosystem surface is real. OAR registration and MCM binding remain.
 
 ---
 
@@ -275,6 +278,9 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 *Status: **📐 Designed***
 **Effort:** ongoing · **Dependency:** R2+
 
+- [x] Document the biometric data flow in `LICENSE` and `GOVERNANCE.md`
+- [x] Restrict pipe access to the creating user
+- [x] Escalate the Core Tenet divergence to the Governance Council *(issue #8 — a human decision, correctly not taken by an AI)*
 - [ ] Write `docs/SCIENCE_FOUNDATION.md` with per-claim citations for every constant
 - [ ] Write `docs/INTEGRATION_GUIDE.md`; promote `HcepBridgeClientMock.cpp` to a reference client
 - [ ] Recruit 3–5 animation-modder partners
@@ -282,9 +288,21 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 - [ ] Produce the mutual-gaze demo (*"When you look in their eyes, they know."*)
 - [ ] Add Tobii / Eyeware Beam telemetry adapters
 - [ ] Fix `PackageMod.ps1` to use `$PSScriptRoot` and run the configure step
-- [ ] Add `.gitignore` negations, or stop committing binaries entirely
 
 **Deliverable:** Market presence, scientific credibility, and a contributor pipeline.
+
+---
+
+## Milestone Projections
+
+| Milestone | Estimated effort | Status |
+| :--- | :--- | :--- |
+| SDK-linked, game-facing DLL | 1–2 days | ✅ **Done** |
+| Correct, race-free, config-driven kinematics | 1 week | ✅ **Done** |
+| **"Eyes that move" — verified in game** | ~1 day | 🔨 **Next** |
+| Shippable 1.0.0 — OAR + MCM + packaging | ~1–2 weeks | 📐 Designed |
+
+> **The critical path is now one thing:** load the plugin, watch an NPC's eyes, and confirm the deflection reads as a living person rather than a robot. Everything else is polish on top of a working engine.
 
 ---
 

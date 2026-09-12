@@ -59,18 +59,24 @@ int function GetGazeRegion(Actor akActor) global native
 ;        another actor); static scenery targets return None.
 ObjectReference function GetGazeTarget(Actor akActor) global native
 
-; @brief Forces an actor into a specific HCEP mode.
-; @param aiMode One of the MODE_* constants. Values outside 0-4 are ignored.
-; @param afDurationSec Reserved; duration-limited overrides are not yet honoured.
+; @brief Forces an actor into a specific HCEP mode, overriding the automatic
+;        classification. Use for scripted scenes (e.g. forcing THINK during a
+;        riddle, or SPIRIT during a companion confession).
+; @param akActor The actor to override.
+; @param aiMode  Target mode, 0-4 (see the MODE_* constants). Out-of-range
+;                values are ignored.
+; @param afDurationSec Reserved for a future timed override. Currently the
+;                override persists until the next automatic classification.
 function OverrideActorMode(Actor akActor, int aiMode, float afDurationSec = 0.0) global native
 
-; @brief True while the actor's eyes are mid-ballistic-saccade (a 20-50 ms window).
-;        Useful for synchronising micro-expressions.
+; @brief True while the actor is mid-saccade (the ballistic phase of an eye
+;        jump, roughly 20-50 ms). Useful for micro-expression triggers.
 bool function IsSaccadeActive(Actor akActor) global native
 
 ; @brief The actor's current gaze yaw deflection in degrees, relative to its
-;        forward. Positive is to the actor's left.
+;        forward. Positive is to the actor's right. Returns 0.0 if unavailable.
 float function GetGazeYaw(Actor akActor) global native
 
-; @brief The actor's current gaze pitch deflection in degrees. Positive is up.
+; @brief The actor's current gaze pitch deflection in degrees, relative to its
+;        forward. Positive is upward. Returns 0.0 if unavailable.
 float function GetGazePitch(Actor akActor) global native

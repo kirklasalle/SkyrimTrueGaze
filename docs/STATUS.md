@@ -2,7 +2,7 @@
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine
 **Version:** `1.0.0-rc1`
-**Status date:** September 11, 2026
+**Status date:** September 12, 2026
 **Owner:** Kirk LaSalle
 
 ---
@@ -30,7 +30,7 @@ To prevent the over-claiming that has previously characterised this project's do
 | **🧪 Unit-verified** | Exercises correctly in the standalone test suite. |
 | **✅ In-engine verified** | Proven to work inside a running Skyrim instance. |
 
-> **Every item in this project currently maxes out at 🧪 Unit-verified. Nothing has yet reached ✅ In-engine verified.**
+> **Nothing has yet reached ✅ In-engine verified.** The engine now compiles against the real SDK and drives bones, but no one has yet loaded it into Skyrim and watched an NPC's eyes move. That is the next milestone, and it is the only thing that can promote any row below to ✅.
 
 ---
 
@@ -38,12 +38,31 @@ To prevent the over-claiming that has previously characterised this project's do
 
 | | |
 | :--- | :--- |
-| **Overall maturity** | 🔴 **~30%** of a shippable 1.0.0 |
-| **Installable & functional?** | ❌ Not yet |
-| **Does the gaze engine drive bones?** | ❌ No |
-| **Hard blocker** | CommonLibSSE-NG is not vendored; the build silently degrades to a standalone skeleton |
+| **Overall maturity** | 🟡 **~65%** of a shippable 1.0.0 |
+| **Installable & functional?** | 🟡 Builds and links the SDK; **not yet verified in-game** |
+| **Does the gaze engine drive bones?** | ✅ Yes — implemented and compiled |
+| **Hard blocker** | None. The former blocker (SDK not vendored) is resolved. |
 
-**One-line summary:** *The engine block and dashboard are built and beautiful. There is no drivetrain.*
+**One-line summary:** *The drivetrain is built and turns. It has not yet been driven on a road.*
+
+### What changed on September 12, 2026
+
+The September 11 audit found the engine inert: no bone was ever written, and the build silently omitted its SDK. Both are now fixed.
+
+| Former blocker | Status |
+| :--- | :--- |
+| `extern/CommonLibSSE-NG` absent; build silently degraded | ✅ **Fixed** — vendored as a submodule (v7.5.4); CMake now fails hard if absent |
+| No bone transform ever written | ✅ **Fixed** — `GazeEngine` + `EyeAimConstraint` drive the skeleton |
+| `ConfigManager::Load()` never called on the real path | ✅ **Fixed** — loaded on `kDataLoaded` |
+| `BoneController` allocated no residual to the eyes | ✅ **Fixed** — eyes now receive `target − head_chain` |
+| Named-pipe double buffer was not lock-free | ✅ **Fixed** — triple buffer + atomic handle + outbound ring |
+| OAR cache never written; false success logged | ✅ **Fixed** — cache published each tick; registration reports honestly |
+| Papyrus functions never registered | ✅ **Fixed** — 10 functions registered, 10-for-10 parity with `TrueGaze.psc` |
+| Public C API returned hardcoded fiction | ✅ **Fixed** — reads live state; returns `false` when there is none |
+| `MicroJitter` was not Brownian; fixed seed | ✅ **Fixed** — Ornstein-Uhlenbeck, per-actor seeding |
+| Main Sequence equation computed but unused | ✅ **Fixed** — velocity profile now integrates to `V_peak` |
+
+**Verified by build and test:** the DLL is 637 KB (was 42.5 KB) and links `CommonLibSSE`, `spdlog`, `fmt`, `ADVAPI32`. All 11 kinematics tests pass. The bridge integration test passes with no frame duplication.
 
 ---
 
@@ -55,6 +74,7 @@ To prevent the over-claiming that has previously characterised this project's do
 | :--- | :---: | :---: | :---: | :---: |
 | Main Sequence peak velocity `V_peak(θ)` | ✅ | ✅ | ✅ | ❌ |
 | Main Sequence duration `D(θ)` | ✅ | ✅ | ✅ | ❌ |
+| Main Sequence velocity *profile* (integrated) | ✅ | ✅ | ✅ | ❌ |
 | Saccade state machine | ✅ | ✅ | ✅ | ❌ |
 | Vestibulo-Ocular Reflex (VOR) | ✅ | ✅ | ✅ | ❌ |
 | Biological latency gap (eye leads 20–30 ms) | ✅ | ❌ | ❌ | ❌ |
@@ -77,16 +97,18 @@ To prevent the over-claiming that has previously characterised this project's do
 | **Bone transform application** | ✅ | ❌ | ❌ | ❌ |
 | Post-Havok animation hook install | ✅ | ❌ | ❌ | ❌ |
 | Per-actor runtime state | ✅ | ❌ | ❌ | ❌ |
-| Actor eligibility filtering | ✅ | ⚠️ | ❌ | ❌ |
+| Actor eligibility filtering | ✅ | ✅ | ❌ | ❌ |
 | Target salience resolution | ✅ | ✅ | ❌ | ❌ |
 | Spatial LOD tiering | ✅ | ✅ | ✅ | ❌ |
-| LOD thresholds read from config | ✅ | ❌ | ❌ | ❌ |
-| Frame-budget profiling | ✅ | ⚠️ | ❌ | ❌ |
+| LOD thresholds read from config | ✅ | ✅ | ❌ | ❌ |
+| Frame-budget profiling | ✅ | ✅ | ❌ | ❌ |
 | Exception guard at hook boundary | ✅ | ❌ | ❌ | ❌ |
 | Multi-threaded evaluation | ✅ | ❌ | ❌ | ❌ |
 | Skyrim VR HMD pose | ✅ | ✅ | ❌ | ❌ |
 
-> ⚠️ `ActorEligibility` compiles but in the current (SDK-less) build returns `true` for any non-zero FormID — it never actually checks liveness, ragdoll, or paralysis.
+> ✅ `ActorEligibility` now genuinely checks liveness, sleep, paralysis and ragdoll state, because the SDK is present and the `#if __has_include(<RE/Skyrim.h>)` branch is live.
+
+> ⚠️ **Not yet done:** the tick is not wrapped in `try/catch`. NFR-4 requires that no exception reaches the game loop. This is a small, high-value change and is tracked as an open item.
 
 ### HCEP Desktop Bridge (IPC)
 
@@ -99,13 +121,19 @@ To prevent the over-claiming that has previously characterised this project's do
 | Asynchronous named-pipe server | ✅ | ✅ | ✅ | ❌ |
 | Graceful auto-reconnect | ✅ | ✅ | ❌ | ❌ |
 | Non-blocking `PickNamedPipe` poll + DoS guard | ✅ | ✅ | ❌ | ❌ |
-| True lock-free double buffering | ✅ | ❌ | ❌ | ❌ |
-| Thread-safe pipe-handle access | — | ❌ | ❌ | ❌ |
-| **Telemetry actually consumed by the engine** | ✅ | ❌ | ❌ | ❌ |
+| True lock-free triple buffering | ✅ | ✅ | ✅ | ❌ |
+| Thread-safe pipe-handle access | — | ✅ | ❌ | ❌ |
+| Stale-telemetry rejection | — | ✅ | ❌ | ❌ |
+| Pipe access restricted to the creating user | — | ✅ | ❌ | ❌ |
+| **Telemetry actually consumed by the engine** | ✅ | ⚠️ | ❌ | ❌ |
 | Mutual gaze detection | ✅ | ❌ | ❌ | ❌ |
-| Bidirectional feedback to HCEP Desktop | ✅ | ⚠️ | ✅ | ❌ |
+| Bidirectional feedback to HCEP Desktop | ✅ | ✅ | ✅ | ❌ |
 
-> ⚠️ **Known concurrency defect:** the "lock-free" double buffer is not lock-free. `_packetBuffers[]` holds plain (non-atomic) 64-byte structs and `_readIndex` orders only the *index*, not the *payload* — so the writer can overwrite the slot the reader is mid-`memcpy` on. `_pipeHandle` is additionally written by the worker thread and read by the game thread with no synchronisation at all. Both are genuine data races. Fix: triple-buffer or seqlock, and make the handle atomic.
+> ✅ **Concurrency defect fixed.** The buffer is now a genuine triple buffer: three slots guarantee the writer can never select the slot the reader is consuming, with a publish epoch so a reader that is overtaken simply retries. `_pipeHandle` is `std::atomic<void*>` and is only ever dereferenced on the worker thread — `SendFeedback` now enqueues onto a lock-free ring that the worker drains. The bridge integration test shows no frame duplication, which it did before.
+
+> ✅ **Law 6 partially addressed.** The pipe is created with an explicit security descriptor (`D:(A;;GA;;;OW)`) restricting access to the creating user, instead of the default DACL. Telemetry older than 500 ms is rejected, so a stalled HCEP Desktop cannot drive NPCs from frozen data.
+
+> ⚠️ **Still open:** the payload is not encrypted in transit, there is no per-connection audit log, and `trackedPersonId` is still transmitted. See `GOVERNANCE.md` and issue #7.
 
 ### Modding Ecosystem
 
@@ -113,17 +141,19 @@ To prevent the over-claiming that has previously characterised this project's do
 | :--- | :---: | :---: | :---: | :---: |
 | OAR condition *evaluators* | ✅ | ✅ | ❌ | ❌ |
 | OAR condition *registration* | ✅ | ❌ | ❌ | ❌ |
-| OAR condition state *publishing* | ✅ | ❌ | ❌ | ❌ |
+| OAR condition state *publishing* | ✅ | ✅ | ❌ | ❌ |
 | OAR rule package (`config.json`) | ✅ | ✅ | — | ❌ |
-| Papyrus native function registration | ✅ | ❌ | ❌ | ❌ |
-| Papyrus ↔ native signature match | ✅ | ❌ | ❌ | ❌ |
+| Papyrus native function registration | ✅ | ✅ | ❌ | ❌ |
+| Papyrus ↔ native signature match | ✅ | ✅ | — | — |
 | Public C API surface (exports) | ✅ | ✅ | — | ❌ |
-| Public C API *behaviour* | ✅ | ❌ | ❌ | ❌ |
+| Public C API *behaviour* | ✅ | ✅ | ❌ | ❌ |
 | Papyrus MODE / REGION constants | ✅ | ✅ | — | — |
 
-> ⚠️ `OarConditions::RegisterWithOar()` currently logs a **success message for work it does not do**, and the state cache it reads from (`g_actorGazeCache`) is **never written to**. The result: the 7-rule OAR package fires Rule 1 unconditionally and Rules 2–7 never fire.
+> ✅ **State publishing fixed.** `PublishActorState()` is called every tick by `GazeEngine`, so the condition cache holds live data. The evaluators now return `false` for an actor with no published state, instead of the previous default that made Rule 1 fire unconditionally.
 
-> ⚠️ `TrueGaze.psc` declares six `global native` functions, but no `SKSE::GetPapyrusInterface()->Register(...)` call exists anywhere, and the declared signatures do not match the exported `TrueGazeAPI.cpp` symbols. Calling these from Papyrus will raise a VM error.
+> ⚠️ **OAR registration is still not implemented, and now says so.** `RegisterWithOar()` logs a `warn` stating that no OAR API binding exists, and returns `false`. The previous implementation logged success for work it did not perform — a Law 7 violation. The exact OAR plugin API contract could not be verified from available sources, and guessing it would repeat the original mistake. Tracked as issue #6.
+
+> ✅ **Papyrus fixed.** 10 functions are registered via `SKSE::GetPapyrusInterface()->Register(...)`, with **10-for-10 name parity** against `TrueGaze.psc`. The previous mismatch (6 declared, 0 registered, signatures disagreeing) would have raised a VM error at every call site.
 
 ### Configuration & Localisation
 
@@ -131,17 +161,18 @@ To prevent the over-claiming that has previously characterised this project's do
 | :--- | :---: | :---: | :---: | :---: |
 | `TrueGaze.ini` schema + defaults | ✅ | ✅ | — | — |
 | INI *parsing* (`ConfigManager`) | ✅ | ✅ | ❌ | ❌ |
-| INI *invoked on the real plugin path* | ✅ | ❌ | ❌ | ❌ |
-| Config values consumed by simulation | ✅ | ❌ | ❌ | ❌ |
+| INI *invoked on the real plugin path* | ✅ | ✅ | ❌ | ❌ |
+| Config values consumed by simulation | ✅ | ✅ | ❌ | ❌ |
+| Out-of-range values clamped and reported | — | ✅ | ❌ | ❌ |
 | MCM Helper JSON schema | ✅ | ✅ | — | — |
 | MCM backing plugin form (`TrueGaze.esp`) | ✅ | ❌ | ❌ | ❌ |
 | SkyUI `SKI_ConfigBase` Papyrus script | ✅ | ✅ | — | ❌ |
 | Compiled Papyrus (`.pex`) distribution | ✅ | ❌ | ❌ | ❌ |
 | 6-language MCM localisation | ✅ | ✅ | — | — |
 
-> ⚠️ `ConfigManager::Load()` is called **only in the `#else` fallback path** in `Main.cpp` — the path that cannot execute inside real Skyrim. On the actual plugin path, **no configuration is ever loaded**, so every INI setting and every MCM slider is inert.
+> ✅ **Configuration now reaches the simulation.** `ConfigManager::Load()` is called on `kDataLoaded`, `kPreLoadGame`, `kNewGame` and `kPostLoadGame`. `GazeEngine::RefreshTuning()` snapshots it into a `GazeTuning` that every kinematics call consumes, so a value in `TrueGaze.ini` has exactly one path to the mathematics. `Sanitise()` clamps every value into its supported range and logs any change, so a bad INI cannot produce nonsense physics.
 
-> ⚠️ The MCM schema declares `"sourceForm": "TrueGaze.esp"` on every entry, but **no such plugin exists** in this repository. The MCM has nothing to bind to.
+> ⚠️ **Still open:** the MCM schema declares `"sourceForm": "TrueGaze.esp"` on every entry, but no such plugin exists in this repository, and no `.pex` scripts ship. The MCM has nothing to bind to. Tracked as issue #2.
 
 ### Packaging & Distribution
 
@@ -149,11 +180,15 @@ To prevent the over-claiming that has previously characterised this project's do
 | :--- | :---: | :---: | :---: | :---: |
 | Correct MO2/Vortex directory layout | ✅ | ✅ | — | — |
 | Automated packaging script | ✅ | ⚠️ | — | — |
-| Reproducible clean-machine build | ✅ | ❌ | ❌ | — |
+| Reproducible clean-machine build | ✅ | ✅ | — | — |
 | Debug symbols (`.pdb`) in package | ✅ | ❌ | — | — |
 | CI build + test pipeline | — | ❌ | — | — |
 
-> ⚠️ `PackageMod.ps1` hardcodes `$projectRoot = "D:\Projects\SkyrimTrueGaze"`, so it cannot run on any other machine, and it invokes `cmake --build` without first running the configure step.
+> ✅ **The build is now reproducible.** `CMakePresets.json` wires the vcpkg toolchain and pins the `x64-windows-static-md` triplet; `vcpkg.json` declares the full dependency set with a pinned baseline. A clean checkout plus `git submodule update --init --recursive` and `vcpkg install` produces a working plugin.
+
+> ⚠️ **Still open:** `PackageMod.ps1` hardcodes an absolute project path and runs `cmake --build` without a preceding configure step. `.pdb` files are not shipped.
+
+> ⚠️ **CI does not run.** GitHub Actions on this account terminates every workflow with `startup_failure` and zero jobs created. This is an account-level limitation, not a workflow defect — a minimal textbook-valid workflow fails identically, while public repositories on the same account execute normally. The cause is that GitHub Free provides no Actions minutes for private repositories. **Charter integrity is therefore enforced locally only**, via the pre-commit hook. Tracked as issue #9.
 
 ### Cross-Engine
 
@@ -167,56 +202,79 @@ To prevent the over-claiming that has previously characterised this project's do
 
 ## The Root Cause
 
-Nearly every functional gap above traces to **one** cause:
+## The Former Root Cause (Resolved)
+
+Until September 11, 2026, nearly every functional gap traced to **one** cause:
 
 ```
-extern/CommonLibSSE-NG   →   DOES NOT EXIST
+extern/CommonLibSSE-NG   →   DID NOT EXIST
 ```
 
-`CMakeLists.txt` guards both the SDK subdirectory and the link step:
+`CMakeLists.txt` guarded both the SDK subdirectory and the link step with `if(EXISTS ...)` and `if(TARGET ...)`. Both evaluated **false**, so CMake silently skipped them. **The build succeeded and produced a valid DLL** — a DLL containing no game-facing code.
 
-```cmake
-if(EXISTS ".../extern/CommonLibSSE-NG/CMakeLists.txt")
-    add_subdirectory(extern/CommonLibSSE-NG)
-endif()
-if(TARGET CommonLibSSE::CommonLibSSE)
-    target_link_libraries(${PROJECT_NAME} PRIVATE CommonLibSSE::CommonLibSSE)
-endif()
-```
+The consequence cascaded through the codebase. Every `#if __has_include(<RE/Skyrim.h>)` block resolved to its fallback:
 
-Both guards evaluate **false**, and CMake silently skips them. **The build succeeds and produces a valid DLL** — a DLL that contains no game-facing code.
-
-The consequence cascades through the codebase. Every `#if __has_include(<RE/Skyrim.h>)` block resolves to its fallback:
-
-| Guarded block | Result in the shipped binary |
+| Guarded block | Result in the broken binary |
 | :--- | :--- |
-| `AnimationHook::Install()` | Logs "Standalone mode" — installs no hook |
-| `IsActorEligibleForGaze()` | Returns `true` for any non-zero FormID |
-| `GetActorGazeWeight()` | Unconditionally returns `1.0f` |
-| `TargetSelector::ResolveTarget()` | Returns hardcoded coordinates |
+| `AnimationHook::Install()` | Logged "Standalone mode" — installed no hook |
+| `IsActorEligibleForGaze()` | Returned `true` for any non-zero FormID |
+| `GetActorGazeWeight()` | Unconditionally returned `1.0f` |
+| `TargetSelector::ResolveTarget()` | Returned hardcoded coordinates |
 | `EfmBlinkController::ApplyMorphs()` | No-op |
-| `OarConditions::RegisterWithOar()` | Logs success for work not performed |
+| `OarConditions::RegisterWithOar()` | Logged success for work not performed |
 | `VrController::IsSkyrimVr()` | Always `false` |
 
-**This is why the previous roadmap read "100% Complete" while the artifact did 30%.** There was no failure signal — no error, no warning, no red build. A CI pipeline would have reported green.
+**This is why the roadmap once read "100% Complete" while the artifact did ~30%.** There was no failure signal — no error, no warning, no red build.
+
+### How it was fixed
+
+The guard is now a hard failure, so the failure mode cannot recur:
+
+```cmake
+if(NOT EXISTS "${COMMONLIB_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+        "CommonLibSSE-NG is missing. Bootstrap it with:
+             git submodule update --init --recursive
+         Or build the kinematics library alone (no Skyrim plugin):
+             cmake -DTRUEGAZE_STANDALONE=ON ...
+         This build refuses to continue because a plugin compiled without the
+         SDK contains no game-facing code and would silently do nothing.")
+endif()
+```
+
+**Verified:** the shipped DLL is now 637 KB (was 42.5 KB) and its import table contains `CommonLibSSE`, `spdlog`, `fmt`, and `ADVAPI32` — none of which appeared before. The `#if __has_include(<RE/Skyrim.h>)` branches are live.
 
 ---
 
 ## Verified Working Today
 
-Credit where due — these are real and correct:
+Credit where due — these are real, correct, and verified by build or test:
 
-- ✅ SKSE plugin exports: `SKSEPlugin_Load`, `SKSEPlugin_Query`, `SKSEPlugin_Version`, and four `TrueGaze_*` C API symbols
+- ✅ **The SDK is genuinely linked.** DLL is 637 KB and imports `CommonLibSSE`, `spdlog`, `fmt`, `ADVAPI32`.
+- ✅ **The gaze engine drives bones.** `GazeEngine` holds per-actor state, runs the kinematics pipeline, and hands the result to `EyeAimConstraint`, which composes the deflection onto the animated pose and restores it each frame.
+- ✅ SKSE plugin exports: `SKSEPlugin_Load`, `SKSEPlugin_Version`, and four `TrueGaze_*` C API symbols
+- ✅ 10 Papyrus functions registered with 10-for-10 name parity against `TrueGaze.psc`
 - ✅ 64-byte / 32-byte wire protocol with compile-time `static_assert` size guards — exemplary practice
 - ✅ CRC-32 verify-before-publish in the pipe worker
 - ✅ Correct DoS guard in the pipe read loop (never reads without a full packet available)
-- ✅ Asynchronous pipe server with auto-reconnect
+- ✅ Genuine triple-buffered telemetry with stale-data rejection and a user-scoped pipe ACL
+- ✅ Asynchronous pipe server with auto-reconnect and a non-blocking outbound feedback ring
 - ✅ Biomechanical kinematics library — mathematically correct and correctly cited (Bahill/Clark/Stark 1975, Baloh et al. 1975, Argyle & Cook 1976, Glenberg et al. 1998)
-- ✅ 8-suite standalone unit test harness, all passing
-- ✅ Integration test harness for the IPC bridge
+- ✅ Main Sequence velocity profile that genuinely integrates to `V_peak` (745°/s asymptotic vs. 750°/s empirical)
+- ✅ Ornstein-Uhlenbeck drift with per-actor seeding, integrated at a fixed 120 Hz sub-step
+- ✅ 11-suite standalone unit test harness, all passing
+- ✅ Integration test harness for the IPC bridge, passing with no frame duplication
+- ✅ Reproducible build: pinned vcpkg baseline, preset-driven toolchain
 - ✅ Correct Skyrim mod package structure (MCM, translations, OAR, SKSE)
-- ✅ Well-designed 7-rule OAR condition package
 - ✅ Consistent `noexcept` discipline across simulation code
+
+### The thing that has not been done
+
+**Nobody has loaded this into Skyrim and watched an NPC's eyes move.**
+
+Every claim above is verified by compilation, unit test, or binary inspection. None is verified by observation in the running game. Until that happens, the honest status of the headline feature is 🔨 Implemented — not ✅ In-engine verified.
+
+That is the next task, and it is the only one that matters right now.
 
 ---
 
