@@ -3,53 +3,64 @@
 #include <string>
 #include <cstdint>
 
-namespace TrueGaze::Engine {
-
-/// @brief Loads, manages, and hot-reloads runtime settings from Data/SKSE/Plugins/TrueGaze.ini.
-class ConfigManager
+namespace TrueGaze::Engine
 {
-public:
-    static ConfigManager& GetSingleton() noexcept
+
+    /// @brief Loads, manages, and hot-reloads runtime settings from Data/SKSE/Plugins/TrueGaze.ini.
+    class ConfigManager
     {
-        static ConfigManager instance;
-        return instance;
-    }
+    public:
+        static ConfigManager &GetSingleton() noexcept
+        {
+            static ConfigManager instance;
+            return instance;
+        }
 
-    /// @brief Loads configuration values from TrueGaze.ini.
-    void Load(const std::string& iniPath = "") noexcept;
+        /// @brief Loads configuration values from TrueGaze.ini.
+        /// Safe to call more than once; each call re-reads the file.
+        void Load(const std::string &iniPath = "") noexcept;
 
-    // --- General Settings ---
-    bool enableTrueGaze{ true };
-    bool enableCreatures{ true };
+        /// @brief True once Load() has completed, whether or not an INI was found.
+        [[nodiscard]] bool IsLoaded() const noexcept { return _loaded; }
 
-    // --- Kinematics ---
-    float saccadeSpeedMult{ 1.0f };
-    float velocitySaturation{ 14.0f };
-    float microJitterAmp{ 0.35f };
-    float headTrackingSpeed{ 6.0f };
-    float maxComfortEyeAngle{ 35.0f };
+        /// @brief Clamps every value into its supported range, reporting any change.
+        /// Called automatically at the end of Load().
+        void Sanitise() noexcept;
 
-    // --- Social ---
-    bool enableGazeAversion{ true };
-    bool enableSocialTriangle{ true };
-    float triangleFixationDuration{ 0.35f };
-    float mutualGazeThreshold{ 2.0f };
+        // --- General Settings ---
+        bool enableTrueGaze{true};
+        bool enableCreatures{true};
 
-    // --- Bridge ---
-    bool connectHcepBridge{ true };
-    std::string pipeName{ R"(\\.\pipe\TrueGazeBridge)" };
-    float autoReconnectIntervalSec{ 3.0f };
+        // --- Kinematics ---
+        float saccadeSpeedMult{1.0f};
+        float velocitySaturation{14.0f};
+        float microJitterAmp{0.35f};
+        float headTrackingSpeed{6.0f};
+        float maxComfortEyeAngle{35.0f};
 
-    // --- LOD ---
-    float tier1DistanceMeters{ 5.0f };
-    float tier2DistanceMeters{ 15.0f };
+        // --- Social ---
+        bool enableGazeAversion{true};
+        bool enableSocialTriangle{true};
+        float triangleFixationDuration{0.35f};
+        float mutualGazeThreshold{2.0f};
 
-    // --- Debug ---
-    bool debugGazeRays{ false };
-    int logLevel{ 2 };
+        // --- Bridge ---
+        bool connectHcepBridge{true};
+        std::string pipeName{R"(\\.\pipe\TrueGazeBridge)"};
+        float autoReconnectIntervalSec{3.0f};
 
-private:
-    ConfigManager() = default;
-};
+        // --- LOD ---
+        float tier1DistanceMeters{5.0f};
+        float tier2DistanceMeters{15.0f};
+
+        // --- Debug ---
+        bool debugGazeRays{false};
+        int logLevel{2};
+
+    private:
+        ConfigManager() = default;
+
+        bool _loaded{false};
+    };
 
 } // namespace TrueGaze::Engine

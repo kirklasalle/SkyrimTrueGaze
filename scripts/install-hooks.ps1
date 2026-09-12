@@ -55,7 +55,8 @@ $result = $LASTEXITCODE
 Write-Host ""
 if ($result -eq 0) {
     Write-Host "Charter verifier passes. The pre-commit gate is active." -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "Charter verifier returned exit code $result." -ForegroundColor Yellow
     Write-Host "The hook is installed but will refuse commits until this is resolved." -ForegroundColor Yellow
 }

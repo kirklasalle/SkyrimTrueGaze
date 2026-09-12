@@ -7,6 +7,7 @@ This software, including all source code, algorithms, and associated documentati
 
 PROPRIETARY ASSETS AND TRADE SECRETS:
 Specifically protected under trade secret and proprietary ownership are:
+
   1. The HCEP (Human Communication Eye Protocol) Theory, including the 5-mode cognitive-emotional classification system and ocular hemispheric lateralization mappings.
   2. The HCEP engineering implementation and supported mathematical formulations (including perspective-n-point extrinsics, 3-stage hybrid gaze vectors, and vergence-parallax correction models).
   3. The Permanent Active Directives (PAD) governing safety, alignment, and ethical constraints.
@@ -19,17 +20,64 @@ public performance of this Software is strictly prohibited.
 
 RESTRICTIONS
 You may NOT:
+
   1. Copy, modify, merge, publish, distribute, sublicense, or sell copies
      of the Software without express written permission from Kirk LaSalle.
   2. Reverse engineer, decompile, or disassemble the Software.
   3. Use the Software for any purpose without a valid license agreement.
   4. Remove or alter any proprietary notices, labels, or marks on the Software.
 
-BIOMETRIC DATA NOTICE
-This Software processes biometric data including facial embeddings, gaze
-coordinates, and voice recordings. All biometric data is subject to
-applicable privacy laws including GDPR (Article 9), CCPA, and BIPA.
-Users must obtain appropriate consent before processing biometric data.
+BIOMETRIC AND PERSONAL DATA NOTICE
+
+This Software can process biometric data. When the HCEP Desktop bridge is
+enabled, the following is received over a local Windows named pipe and used
+only to drive in-game character animation:
+
+- real-world gaze vector (pitch, yaw, convergence)
+- head pose (pitch, yaw, roll)
+- blink state
+- a tracked-person identifier
+- a cognitive/emotional classification
+
+WHAT IS ACTUALLY IMPLEMENTED
+
+  Transport:      Local Windows named pipe, \\.\pipe\TrueGazeBridge.
+                  The pipe is created with an explicit security descriptor
+                  restricting access to the creating user (SDDL
+                  "D:(A;;GA;;;OW)"). It is not reachable from other user
+                  accounts on the machine.
+  Storage:        None. Telemetry is held in memory only for the duration of
+                  the session and is overwritten continuously. Nothing is
+                  written to disk by this Software.
+  Retention:      None beyond the session. No history is retained.
+  Transmission:   None. No data leaves the local machine.
+  Consent:        The bridge is OPT-IN. It is disabled by setting
+                  bConnectHcepBridge=false in TrueGaze.ini. Enabling it is the
+                  operator's affirmative act.
+  Minimisation:   The tracked-person identifier is not required for animation
+                  and MAY be zeroed by the HCEP Desktop client without
+                  affecting this Software.
+
+WHAT IS NOT IMPLEMENTED
+
+- The payload is NOT encrypted in transit. It is plaintext within the local
+    pipe. Security rests on the pipe ACL, not on cryptography.
+- There is NO per-connection audit log recording which process connected.
+- There is NO automated consent-capture or consent-withdrawal workflow.
+
+OPERATOR RESPONSIBILITY
+
+If you enable the bridge, you are processing the biometric data of whoever is
+in front of the camera. Where that person is not you, you are responsible for
+obtaining their informed consent. This is especially the case in the European
+Union/UK (GDPR Article 9), California (CCPA/CPRA), and Illinois (BIPA), among
+other jurisdictions.
+
+This Software does not itself determine whether your use is lawful. It provides
+the technical controls listed above; the legal basis for processing is yours.
+
+This notice describes the implementation as of this version and is verified
+against the source in GOVERNANCE.md. If the two disagree, that is a defect.
 
 DISCLAIMER OF WARRANTY
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -43,4 +91,4 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 CONTACT
-For licensing inquiries: See https://github.com/kirklasalle/HCEP
+For licensing inquiries: See <https://github.com/kirklasalle/HCEP>

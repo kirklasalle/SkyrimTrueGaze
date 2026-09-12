@@ -11,8 +11,10 @@
         "strategy": "set"
       },
       "cacheVariables": {
-        "CMAKE_CXX_STANDARD": "20",
-        "CMAKE_CXX_STANDARD_REQUIRED": "ON"
+        "CMAKE_CXX_STANDARD": "23",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
       }
     },
     {
@@ -30,6 +32,21 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "standalone",
+      "displayName": "Standalone (kinematics library + tests, no SKSE plugin)",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build/standalone",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "cacheVariables": {
+        "TRUEGAZE_STANDALONE": "ON",
+        "CMAKE_CXX_STANDARD": "23",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -43,6 +60,12 @@
       "name": "release",
       "displayName": "Release",
       "configurePreset": "windows-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "standalone",
+      "displayName": "Standalone tests",
+      "configurePreset": "standalone",
       "configuration": "Release"
     }
   ]

@@ -11,6 +11,11 @@ build/
 CMakeSettings.json
 CMakeUserPresets.json
 
+# Test executables (rebuilt from source; not shipping artifacts)
+bin/Release/
+bin/Debug/
+bin/*.obj
+
 # vcpkg
 vcpkg_installed/
 

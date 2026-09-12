@@ -1,8 +1,15 @@
-#include "PCH.h"
+﻿#include "PCH.h"
 #include "Bridge/NamedPipeServer.hpp"
 #include "Engine/AnimationHook.hpp"
 #include "Engine/ConfigManager.hpp"
+#include "Engine/GazeEngine.hpp"
 #include "Integrations/OarConditions.hpp"
+#include "Integrations/PapyrusInterface.hpp"
+
+#if __has_include(<SKSE/SKSE.h>)
+#include <SKSE/SKSE.h>
+#include <RE/Skyrim.h>
+#endif
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -14,14 +21,16 @@
 #include <shlobj.h>
 #include <filesystem>
 
-namespace {
+namespace
+{
     std::unique_ptr<TrueGaze::Bridge::NamedPipeServer> g_pipeServer;
 
     void InitializeLogging()
     {
 #if __has_include(<SKSE/SKSE.h>)
         auto path = logger::log_directory();
-        if (!path) {
+        if (!path)
+        {
             return;
         }
 
@@ -35,14 +44,16 @@ namespace {
         spdlog::set_default_logger(std::move(log));
         spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
 #else
-        char myDocs[MAX_PATH]{ 0 };
-        if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_MYDOCUMENTS, nullptr, 0, myDocs))) {
+        char myDocs[MAX_PATH]{0};
+        if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_MYDOCUMENTS, nullptr, 0, myDocs)))
+        {
             std::string logDir = std::string(myDocs) + "\\My Games\\Skyrim Special Edition\\SKSE";
             std::error_code ec;
             std::filesystem::create_directories(logDir, ec);
             std::string logPath = logDir + "\\TrueGaze.log";
-            FILE* f = fopen(logPath.c_str(), "w");
-            if (f) {
+            FILE *f = fopen(logPath.c_str(), "w");
+            if (f)
+            {
                 fprintf(f, "[TrueGaze] True Gaze v1.0.0 (An HCEP Product by Kirk LaSalle) loaded.\n");
                 fprintf(f, "[TrueGaze] Biomechanical Oculomotor Kinematics Engine initialized.\n");
                 fprintf(f, "[TrueGaze] Target engine: Skyrim Special Edition / AE.\n");
@@ -53,35 +64,68 @@ namespace {
     }
 
 #if __has_include(<SKSE/SKSE.h>)
-    void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
+    void MessageHandler(SKSE::MessagingInterface::Message *a_msg)
     {
-        switch (a_msg->type) {
-            case SKSE::MessagingInterface::kDataLoaded:
-                logger::info("[TrueGaze] Game data loaded. Initializing biomechanical gaze hooks...");
+        if (!a_msg)
+        {
+            return;
+        }
 
-                // 1. Install Havok animation update hook
-                TrueGaze::Engine::AnimationHook::Install();
+        auto &engine = TrueGaze::Engine::GazeEngine::Get();
+        auto &config = TrueGaze::Engine::ConfigManager::GetSingleton();
 
-                // 2. Register custom conditions with Open Animation Replacer (OAR)
-                TrueGaze::Integrations::OarConditions::RegisterWithOar();
+        switch (a_msg->type)
+        {
+        case SKSE::MessagingInterface::kPostLoad:
+            // Attempted before data so condition state exists as early as OAR
+            // first evaluates. Reports honestly if OAR is unavailable.
+            TrueGaze::Integrations::OarConditions::RegisterWithOar();
+            break;
 
-                // 3. Start HCEP Desktop Bridge Pipe Listener in background thread
-                g_pipeServer = std::make_unique<TrueGaze::Bridge::NamedPipeServer>();
-                g_pipeServer->Start();
+        case SKSE::MessagingInterface::kDataLoaded:
+            logger::info("[TrueGaze] Game data loaded. Initialising gaze engine.");
 
-                logger::info("[TrueGaze] Biological Oculomotor Engine initialized successfully.");
-                break;
+            // Configuration is loaded HERE, on the real plugin path. It was
+            // previously only loaded in the unreachable #else branch below, so
+            // every setting in TrueGaze.ini was inert. See audit finding C-3.
+            config.Load();
+            engine.RefreshTuning();
+            engine.StartBridge();
+            TrueGaze::Engine::AnimationHook::Install();
 
-            case SKSE::MessagingInterface::kPreLoadGame:
-            case SKSE::MessagingInterface::kSaveGame:
-                break;
+            logger::info("[TrueGaze] Gaze engine ready. Bridge {}.",
+                         engine.IsBridgeConnected() ? "connected" : "idle");
+            break;
+
+        case SKSE::MessagingInterface::kPreLoadGame:
+        case SKSE::MessagingInterface::kNewGame:
+            // The previous session's skeleton state is unrelated to the new one.
+            config.Load();
+            engine.RefreshTuning();
+            engine.ResetAll();
+            TrueGaze::Integrations::OarConditions::ClearCache();
+            logger::info("[TrueGaze] Session reset; actor gaze state cleared.");
+            break;
+
+        case SKSE::MessagingInterface::kPostLoadGame:
+            config.Load();
+            engine.RefreshTuning();
+            break;
+
+        case SKSE::MessagingInterface::kSaveGame:
+            // Never let a procedural deflection be baked into a save.
+            engine.ReleaseBones();
+            break;
+
+        default:
+            break;
         }
     }
 #endif
 }
 
 #if __has_include(<SKSE/SKSE.h>)
-SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
+SKSEPluginLoad(const SKSE::LoadInterface *a_skse)
 {
     InitializeLogging();
     logger::info("[TrueGaze] Loading True Gaze v1.0.0 (An HCEP Product by Kirk LaSalle)...");
@@ -89,98 +133,34 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     SKSE::Init(a_skse);
 
     auto messaging = SKSE::GetMessagingInterface();
-    if (!messaging || !messaging->RegisterListener(MessageHandler)) {
+    if (!messaging || !messaging->RegisterListener(MessageHandler))
+    {
         logger::error("[TrueGaze] Failed to register SKSE messaging listener.");
         return false;
     }
+
+    // Papyrus bindings must be registered during plugin load. Registering later,
+    // or not at all, is why the script API was previously non-functional.
+    TrueGaze::Integrations::PapyrusInterface::RegisterFunctions();
 
     logger::info("[TrueGaze] SKSE plugin loaded successfully.");
     return true;
 }
 #else
-// Standard SKSE64 plugin interface definitions for Skyrim Special Edition (1.5.97)
-struct SKSEPluginInfo
-{
-    enum { kVersion = 1 };
-    uint32_t infoVersion{ kVersion };
-    const char* name{ "TrueGaze" };
-    uint32_t version{ 1 };
-};
+// ---------------------------------------------------------------------------
+// Standalone build: no SKSE headers available.
+//
+// This branch exists ONLY for the TRUEGAZE_STANDALONE configuration, which
+// builds the kinematics library and its tests without the game SDK. It does not
+// produce a loadable plugin, and the CMake build refuses to reach this path in a
+// normal build. See docs/AUDIT_REPORT_2026-09-11.md finding C-2.
+// ---------------------------------------------------------------------------
+#pragma message("TrueGaze: SKSE headers not found - building standalone stub (not a loadable plugin).")
 
-#pragma pack(push, 1)
-// SKSE64 version-independence struct for Skyrim Anniversary Edition (1.6+) and Address Library
-struct SKSEPluginVersionData
+int main()
 {
-    uint32_t dataVersion{ 1 };
-    uint32_t pluginVersion{ 0x01000000 };
-    char name[256]{ "TrueGaze" };
-    char author[256]{ "Kirk LaSalle" };
-    char supportEmail[256]{ "" };
-    uint32_t versionIndependence{ 1 }; // 1 = Address Library version independent
-    uint32_t compatibleVersions[16]{ 0 };
-    uint32_t xseMinimum{ 0 };
-};
-#pragma pack(pop)
-
-extern "C" __declspec(dllexport) SKSEPluginVersionData SKSEPlugin_Version = {};
-
-struct SKSEInterface
-{
-    uint32_t skseVersion;
-    uint32_t runtimeVersion;
-    uint32_t editorVersion;
-    uint32_t isEditor;
-    void* (*QueryInterface)(uint32_t id);
-    uint32_t (*GetPluginHandle)(void);
-    uint32_t (*GetReleaseIndex)(void);
-    void* (*GetTrampolineInterface)(uint32_t version);
-};
-
-extern "C" __declspec(dllexport) bool SKSEPlugin_Query(const SKSEInterface*, SKSEPluginInfo* a_info)
-{
-    if (a_info) {
-        a_info->infoVersion = SKSEPluginInfo::kVersion;
-        a_info->name = "TrueGaze";
-        a_info->version = 1;
-    }
-    return true;
-}
-
-extern "C" __declspec(dllexport) bool SKSEPlugin_Load(const SKSEInterface*)
-{
-    InitializeLogging();
     TrueGaze::Engine::ConfigManager::GetSingleton().Load();
-    TrueGaze::Engine::AnimationHook::Install();
-    TrueGaze::Integrations::OarConditions::RegisterWithOar();
-
-    if (TrueGaze::Engine::ConfigManager::GetSingleton().connectHcepBridge) {
-        g_pipeServer = std::make_unique<TrueGaze::Bridge::NamedPipeServer>();
-        g_pipeServer->Start();
-    }
-    return true;
-}
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
-{
-    switch (ul_reason_for_call) {
-        case DLL_PROCESS_ATTACH:
-            DisableThreadLibraryCalls(hModule);
-            break;
-        case DLL_PROCESS_DETACH:
-            if (g_pipeServer) {
-                g_pipeServer->Stop();
-                g_pipeServer.reset();
-            }
-            break;
-    }
-    return TRUE;
+    TrueGaze::Engine::GazeEngine::Get().RefreshTuning();
+    return 0;
 }
 #endif
