@@ -158,6 +158,26 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 # ---------------------------------------------------------------------------
+# Keep the packaged copy in step with the build.
+#
+# skyrim/SKSE/Plugins/TrueGaze.dll is what gets zipped and handed to users, and
+# it has silently gone stale twice - once shipping the build with the invalid
+# vtable hook. Copying on every successful link removes the opportunity.
+#
+# Failure is a warning, not an error: the plugin still built, and refusing to
+# link because a convenience copy failed would be worse than the inconvenience.
+# ---------------------------------------------------------------------------
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/skyrim/SKSE/Plugins"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:${PROJECT_NAME}>"
+            "${CMAKE_CURRENT_SOURCE_DIR}/skyrim/SKSE/Plugins/TrueGaze.dll"
+    COMMENT "[TrueGaze] Refreshed packaged copy in skyrim/SKSE/Plugins/"
+    VERBATIM
+)
+
+# ---------------------------------------------------------------------------
 # Optional tests
 # ---------------------------------------------------------------------------
 if(TRUEGAZE_BUILD_TESTS)

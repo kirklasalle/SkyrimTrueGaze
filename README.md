@@ -358,6 +358,7 @@ With **`TrueGaze`**, Kirk LaSalle's HCEP moves from an analytical perception pla
 | Document | Purpose |
 | :--- | :--- |
 | [`docs/STATUS.md`](docs/STATUS.md) | ⭐ **Start here.** Verified capability matrix — what actually works today |
+| [`docs/TEST_SCENARIO.md`](docs/TEST_SCENARIO.md) | Staged in-game test protocol and troubleshooting |
 | [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) | Independent technical audit, build forensics, and market assessment |
 | [`PRD.md`](PRD.md) | Product Requirements Document — FR/NFR specification |
 | [`ROADMAP.md`](ROADMAP.md) | Development roadmap, verified status, and the remediation plan |
@@ -420,27 +421,97 @@ are byte-identical across all three charter documents.
 
 ---
 
-## 12. Building from Source
+## 12. Building, Deploying and Testing
 
-> ⚠️ **The build currently produces a skeleton DLL.** CommonLibSSE-NG is not vendored, so the CMake guards silently skip the SDK and the game-facing code compiles out. Fixing this is Phase R1 of the [remediation roadmap](ROADMAP.md#phase-r1-make-the-build-real).
+> ✅ **The build now produces a real plugin.** CommonLibSSE-NG v7.5.4 is vendored as a submodule, the CMake build **fails hard** if it is absent, and the resulting DLL links the SDK. See [`docs/STATUS.md`](docs/STATUS.md) for exactly what is and is not verified.
 
-**Prerequisites:** Visual Studio 2022 (MSVC 19.40+), CMake ≥ 3.23, vcpkg.
+**Prerequisites:** Visual Studio 2022 (MSVC 19.44+), CMake ≥ 3.23, vcpkg at `D:\vcpkg`, and the SDK submodule initialized:
 
 ```powershell
-# Configure
-cmake --preset windows-release
-
-# Build
-cmake --build --preset release
-
-# Run the standalone kinematics test suite
-cl /std:c++20 /EHsc tests\KinematicsTests.cpp /Fe:KinematicsTests.exe
-.\KinematicsTests.exe
+git submodule update --init --recursive
 ```
 
-**Output:** `build/windows-release/Release/TrueGaze.dll`
+### One-click workflow (recommended)
 
-**Reproducibility note:** a fresh clone does not currently build a game-facing binary. See [`docs/STATUS.md`](docs/STATUS.md#the-root-cause) for the root cause and `ROADMAP.md` Phase R1 for the fix.
+```powershell
+# Install shortcuts and a TrueGaze.cmd shim (once per clone)
+.\scripts\Install-OneClick.ps1
+```
+
+That creates four actions in the project root, plus one on the Desktop:
+
+| Action | What it does |
+| :--- | :--- |
+| **Build and Launch** | Build → deploy → verify → launch. Refuses to launch if verification fails. |
+| **Safe Load-Only Test** | Deploys with `bEnableTrueGaze=false` and launches. Proves the plugin loads safely. |
+| **Verify Only** | Build → deploy → health check. No launch. |
+| **Analyse Last Run** | Parses `TrueGaze.log` and reports what actually happened. |
+
+Everything can also be driven from a terminal:
+
+```powershell
+.\TrueGaze.cmd                  # build, deploy, verify, launch
+.\TrueGaze.cmd -LoadOnly        # safe first run, simulation disabled
+.\TrueGaze.cmd -NoLaunch        # build and verify only
+.\TrueGaze.cmd -PostRun         # analyse the last session
+.\TrueGaze.cmd -Force           # launch despite health-check failures (crashes)
+```
+
+### The automated health check
+
+```powershell
+.\scripts\Test-TrueGazeHealth.ps1           # pre-flight
+.\scripts\Test-TrueGazeHealth.ps1 -PostRun  # what happened on the last run
+```
+
+Pre-flight verifies, in about a second, everything that is expensive to discover later:
+
+- the game version found, and the exact Address Library filename it implies
+- that SKSE is installed **and that its build matches this game version**
+- that the Address Library is present **and version-matched** — a library for the *wrong* version is worse than none
+- the VC++ runtime dependencies
+- that the DLL exports the full SKSE loader contract (`SKSEPlugin_Load`, `SKSEPlugin_Query`, `SKSEPlugin_Version`)
+- that the compiled binary targets `Actor::Update` slot `0xAD` and carries the tick exception guard
+- that the deployed copy **hashes identically** to the build — a stale deployed binary has shipped twice
+
+Exit code is `0` only when nothing failed. `Deploy-TrueGaze.ps1` gates the launch on it.
+
+### Manual build
+
+```powershell
+$env:VCPKG_ROOT = "D:\vcpkg"
+cmake --preset windows-release
+cmake --build --preset release          # -> build/windows-release/Release/TrueGaze.dll
+
+cmake --preset standalone
+cmake --build --preset standalone       # -> bin/Release/KinematicsTests.exe (+ bridge mock)
+```
+
+A successful build automatically refreshes the packaged copy at `skyrim/SKSE/Plugins/TrueGaze.dll` via a CMake post-build step, so the distributed artifact can no longer drift from the build.
+
+### Testing in game
+
+The full protocol is in **[`docs/TEST_SCENARIO.md`](docs/TEST_SCENARIO.md)**. It is staged deliberately — each stage isolates one failure mode, and a later stage cannot be interpreted if an earlier one is broken:
+
+| Stage | Proves |
+| :--- | :--- |
+| 0 — Load-only | The plugin loads and installs its hook, with simulation disabled |
+| 1 — Skeleton probe | The engine finds the bone nodes it needs *(the critical unknown)* |
+| 2 — Visible gaze | An NPC actually looks at you |
+| 3 — Social triangle | Eye-scan cycling during dialogue |
+| 4 — Stability | No crashes or frame-budget overruns in a crowded scene |
+
+> ⚠️ **Nothing has been verified in a running game yet.** Every claim in `docs/STATUS.md` is currently build-time, unit-test or static-analysis evidence. No row is marked **✅ In-engine verified**. The protocol above is what changes that.
+
+### Required game-side dependencies
+
+| Requirement | Why |
+| :--- | :--- |
+| **SKSE64**, AE build matching your `SkyrimSE.exe` | Nothing loads without it. Launch via `skse64_loader.exe`, never `SkyrimSE.exe`. |
+| **Address Library for SKSE Plugins** | TrueGaze resolves game offsets through `Data/SKSE/Plugins/versionlib-<version>.bin`. |
+| Visual C++ 2015–2022 x64 Redistributable | `MSVCP140` / `VCRUNTIME140` runtime dependencies. |
+
+The health check verifies all three and names the exact filename each one needs.
 
 ---
 

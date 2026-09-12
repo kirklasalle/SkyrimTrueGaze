@@ -384,6 +384,16 @@ Going forward, the following vocabulary is mandatory in all TrueGaze documentati
 
 The engine is written and compiles. Nothing below is speculative; each step is either a prerequisite already known to be missing, or a verification that has never been performed.
 
+**Tooling.** Two scripts automate this section. `scripts/Deploy-TrueGaze.ps1` runs build → deploy → verify → launch and **refuses to launch if verification fails**; `scripts/Test-TrueGazeHealth.ps1` performs the checks. Run `scripts/Install-OneClick.ps1` once to get clickable shortcuts. The full test protocol is in [`TEST_SCENARIO.md`](TEST_SCENARIO.md).
+
+```powershell
+.\scripts\Install-OneClick.ps1      # once
+.\TrueGaze.cmd -NoLaunch            # build, deploy, verify
+.\TrueGaze.cmd -LoadOnly            # safe first run (Stage 0)
+.\TrueGaze.cmd                      # the real test (Stage 2)
+.\TrueGaze.cmd -PostRun             # analyse what happened
+```
+
 ### Prerequisites (missing on the test machine as of 2026-09-12)
 
 | Requirement | State | Why it is required |
@@ -392,11 +402,14 @@ The engine is written and compiles. Nothing below is speculative; each step is e
 | **Address Library** (`Data/SKSE/Plugins/versionlib-<version>.bin`) | ❌ **Not installed** | `REL::ID` / `VariantID` offsets resolve through this file. Without it SKSE refuses the plugin with *"missing the address library for this specific version of the game"*. |
 | Microsoft VC++ 2015–2022 x64 Redistributable | ✅ Present | `MSVCP140` / `VCRUNTIME140` runtime dependencies. |
 
+`Test-TrueGazeHealth.ps1` verifies all three, including that the SKSE build matches the exact game version and that the Address Library filename matches too — a library for the *wrong* version is worse than none, because it looks present while resolving every address incorrectly.
+
 ### Verification sequence
 
-1. **Prove it loads.** Set `bEnableTrueGaze=false` in `TrueGaze.ini`, launch, load a save, quit. A clean exit proves SKSE loaded the plugin and installed the hook, without the simulation running. Check `Documents/My Games/Skyrim Special Edition/SKSE/TrueGaze.log` for `"Gaze driver installed."`
-2. **Prove the bones resolve.** Set `bEnableTrueGaze=true` and confirm `GazeEngine` actually finds spine/neck/head/eye nodes. This is the single most likely point of silent failure — see the caveat above.
-3. **Prove the gaze is visible.** Stand in front of an NPC and watch the head and eyes.
+1. **Prove it loads.** `TrueGaze.cmd -LoadOnly`, launch, load a save, quit. A clean exit proves SKSE loaded the plugin and installed the hook, without the simulation running. Check `TrueGaze.log` for `"Gaze driver installed."`
+2. **Prove the bones resolve.** `TrueGaze.cmd`, then stand within 5 m of a living NPC and check the `Skeleton probe` line. This is the single most likely point of silent failure — see the caveat above.
+3. **Prove the gaze is visible.** Watch the NPC's head and eyes.
+4. **Analyse.** `TrueGaze.cmd -PostRun` reports which markers were reached, the probe result, and any faults.
 
 ### What will not work yet
 

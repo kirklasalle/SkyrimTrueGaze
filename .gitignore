@@ -53,3 +53,14 @@ venv/
 !skyrim/SKSE/Plugins/TrueGaze.dll
 !dist/
 !dist/*.zip
+
+# ---------------------------------------------------------------------------
+# Generated one-click launchers.
+#
+# scripts/Install-OneClick.ps1 writes these on demand. They are not tracked
+# because each one embeds an absolute path to this machine's checkout, which
+# would be wrong for anyone else and would churn on every clone location.
+# Regenerate with:  .\scripts\Install-OneClick.ps1
+# ---------------------------------------------------------------------------
+/*.lnk
+/TrueGaze.cmd
