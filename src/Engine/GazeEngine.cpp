@@ -454,7 +454,7 @@ namespace TrueGaze::Engine
 #endif
     }
 
-    void GazeEngine::ApplyToSkeleton(RE::Actor *actor, const ActorGazeRuntime &state,
+    void GazeEngine::ApplyToSkeleton(RE::Actor *actor, ActorGazeRuntime &state,
                                      float yawDeg, float pitchDeg) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
@@ -469,29 +469,66 @@ namespace TrueGaze::Engine
         const auto strain = BoneController::CalculateHierarchyStrain(
             yawDeg, pitchDeg, state.vor.eyeMaxAngle, state.vor.eyeMaxAngle);
 
-        if (auto *spine = FindFirstBone(root, kSpineCandidates, std::size(kSpineCandidates)))
+        auto *spine = FindFirstBone(root, kSpineCandidates, std::size(kSpineCandidates));
+        auto *neck = FindFirstBone(root, kNeckCandidates, std::size(kNeckCandidates));
+        auto *head = FindFirstBone(root, kHeadCandidates, std::size(kHeadCandidates));
+        auto *eyeL = FindFirstBone(root, kEyeLeftCandidates, std::size(kEyeLeftCandidates));
+        auto *eyeR = FindFirstBone(root, kEyeRightCandidates, std::size(kEyeRightCandidates));
+
+        // Report the skeleton probe once per actor.
+        //
+        // Bone names are matched by string, and these candidate lists have never
+        // been confirmed against a live rig. If every name misses, the engine runs
+        // perfectly and rotates nothing - a silent no-op, which is precisely the
+        // failure this project exists to stop repeating. One log line per actor
+        // converts that into an answerable question: did the bones resolve?
+        if (!state.bonesReported)
+        {
+            const int found = (spine ? 1 : 0) + (neck ? 1 : 0) + (head ? 1 : 0) +
+                              (eyeL ? 1 : 0) + (eyeR ? 1 : 0);
+
+            logger::info("[TrueGaze] Skeleton probe for {:08X}: spine={} neck={} head={} "
+                         "eyeL={} eyeR={} ({} of 5 resolved)",
+                         actor->GetFormID(),
+                         spine ? "yes" : "NO", neck ? "yes" : "NO", head ? "yes" : "NO",
+                         eyeL ? "yes" : "NO", eyeR ? "yes" : "NO", found);
+
+            // The head is the one that absolutely must resolve; without it there is
+            // no gaze to see. Be loud rather than let this pass as a quiet zero.
+            if (!head)
+            {
+                logger::warn("[TrueGaze] No head bone found for {:08X}. Gaze will not be "
+                             "visible for this actor. The bone-name candidates in "
+                             "GazeEngine.cpp need extending for this rig.",
+                             actor->GetFormID());
+            }
+
+            state.bonesReported = true;
+        }
+
+        if (spine)
         {
             EyeAimConstraint::Apply(spine, strain.spineYaw, 0.0f);
         }
 
-        if (auto *neck = FindFirstBone(root, kNeckCandidates, std::size(kNeckCandidates)))
+        if (neck)
         {
             EyeAimConstraint::Apply(neck, strain.neckYaw, strain.neckPitch);
         }
 
-        if (auto *head = FindFirstBone(root, kHeadCandidates, std::size(kHeadCandidates)))
+        if (head)
         {
             EyeAimConstraint::Apply(head, strain.headYaw, strain.headPitch);
         }
 
         // Eyes take the residual. During a ballistic saccade this is where the eye
         // lead is visible: the eyes snap while the neck and head are still damping in.
-        if (auto *eyeL = FindFirstBone(root, kEyeLeftCandidates, std::size(kEyeLeftCandidates)))
+        if (eyeL)
         {
             EyeAimConstraint::Apply(eyeL, strain.eyeYaw, strain.eyePitch);
         }
 
-        if (auto *eyeR = FindFirstBone(root, kEyeRightCandidates, std::size(kEyeRightCandidates)))
+        if (eyeR)
         {
             EyeAimConstraint::Apply(eyeR, strain.eyeYaw, strain.eyePitch);
         }

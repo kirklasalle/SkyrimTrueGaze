@@ -107,7 +107,10 @@ namespace TrueGaze::Engine
         [[nodiscard]] static float DistanceMetersForTier(RE::Actor *actor) noexcept;
 
         /// Apply a computed deflection to the actor's bone chain.
-        void ApplyToSkeleton(RE::Actor *actor, const ActorGazeRuntime &state,
+        ///
+        /// Takes a mutable state because it records whether the skeleton probe has
+        /// already been logged for this actor (see ActorGazeRuntime::bonesReported).
+        void ApplyToSkeleton(RE::Actor *actor, ActorGazeRuntime &state,
                              float yawDeg, float pitchDeg) noexcept;
 
         /// Publish actor state to the OAR condition cache.

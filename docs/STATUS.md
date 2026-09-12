@@ -40,8 +40,10 @@ To prevent the over-claiming that has previously characterised this project's do
 | :--- | :--- |
 | **Overall maturity** | 🟡 **~65%** of a shippable 1.0.0 |
 | **Installable & functional?** | 🟡 Builds and links the SDK; **not yet verified in-game** |
-| **Does the gaze engine drive bones?** | ✅ Yes — implemented and compiled |
-| **Hard blocker** | None. The former blocker (SDK not vendored) is resolved. |
+| **Does the gaze engine drive bones?** | ✅ Yes — implemented, compiled, and loads on `Actor::Update` |
+| **Blocker to *releasing*** | None known. The former blocker (SDK not vendored) is resolved. |
+| **Blocker to *testing in-game*** | SKSE64 and the Address Library are **not installed** on the test machine |
+| **Biggest unverified assumption** | Bone names are matched by string; **never confirmed on a real skeleton** |
 
 **One-line summary:** *The drivetrain is built and turns. It has not yet been driven on a road.*
 
@@ -78,37 +80,43 @@ The September 11 audit found the engine inert: no bone was ever written, and the
 | Saccade state machine | ✅ | ✅ | ✅ | ❌ |
 | Vestibulo-Ocular Reflex (VOR) | ✅ | ✅ | ✅ | ❌ |
 | Biological latency gap (eye leads 20–30 ms) | ✅ | ❌ | ❌ | ❌ |
-| True Main Sequence velocity *profile* (vs. smoothstep) | ✅ | ❌ | ❌ | ❌ |
 | Micro-saccadic fixation drift | ✅ | ✅ | ✅ | ❌ |
-| True Brownian (vs. mean-reverting) drift | ✅ | ❌ | ❌ | ❌ |
-| Per-actor RNG seeding (vs. fixed `1337`) | — | ❌ | ❌ | ❌ |
+| True Brownian (Ornstein-Uhlenbeck) drift | ✅ | ✅ | ✅ | ❌ |
+| Per-actor RNG seeding (vs. fixed `1337`) | — | ✅ | ✅ | ❌ |
 | Social Triangle scanpath | ✅ | ✅ | ✅ | ❌ |
-| Skeletal strain distribution | ✅ | ⚠️ | ⚠️ | ❌ |
-| — *eye-node residual allocation* | ✅ | ❌ | ❌ | ❌ |
-| Saccadic eyelid blink *curve* | ✅ | ❌ | ❌ | ❌ |
+| Skeletal strain distribution | ✅ | ✅ | ✅ | ❌ |
+| — *eye-node residual allocation* | ✅ | ✅ | ✅ | ❌ |
+| Saccadic eyelid blink *curve* | ✅ | ✅ | ✅ | ❌ |
 | Eyelid morph application (EFM) | ✅ | ❌ | ❌ | ❌ |
 
-> ⚠️ **Known algorithmic defect:** `BoneController::CalculateHierarchyStrain` distributes `0.10 + 0.25 + 0.65 = 1.00` of the total deflection across Spine2/Neck/Head, leaving **nothing** for the eye nodes — `eyeYaw`/`eyePitch` are declared but never assigned. The eyes should receive the *residual* (`target − head_total`). This is a correctness bug in the project's signature feature.
+> ✅ **Former algorithmic defect — now fixed.** `BoneController::CalculateHierarchyStrain` previously distributed `0.10 + 0.25 + 0.65 = 1.00` of the total deflection across Spine2/Neck/Head, leaving **nothing** for the eye nodes: `eyeYaw`/`eyePitch` were declared but never assigned. The eyes now receive the *residual* (`target − head_chain`), clamped to ocular limits, which is what produces the "eyes lead, head follows" behaviour.
+
+> ⚠️ **Still open:** the eye-lead *latency gap* (20–30 ms) is not modelled. The residual allocation makes the eyes lead in magnitude, but not yet in time.
 
 ### Engine Integration *(the actual product)*
 
 | Capability | Designed | Implemented | Unit-verified | In-engine |
 | :--- | :---: | :---: | :---: | :---: |
-| **Bone transform application** | ✅ | ❌ | ❌ | ❌ |
-| Post-Havok animation hook install | ✅ | ❌ | ❌ | ❌ |
-| Per-actor runtime state | ✅ | ❌ | ❌ | ❌ |
+| **Bone transform application** | ✅ | ✅ | ❌ | ❌ |
+| Frame driver hook install | ✅ | ✅ | ❌ | ❌ |
+| Per-actor runtime state | ✅ | ✅ | ❌ | ❌ |
 | Actor eligibility filtering | ✅ | ✅ | ❌ | ❌ |
 | Target salience resolution | ✅ | ✅ | ❌ | ❌ |
 | Spatial LOD tiering | ✅ | ✅ | ✅ | ❌ |
 | LOD thresholds read from config | ✅ | ✅ | ❌ | ❌ |
 | Frame-budget profiling | ✅ | ✅ | ❌ | ❌ |
-| Exception guard at hook boundary | ✅ | ❌ | ❌ | ❌ |
+| Exception guard at hook boundary | ✅ | ✅ | ❌ | ❌ |
 | Multi-threaded evaluation | ✅ | ❌ | ❌ | ❌ |
 | Skyrim VR HMD pose | ✅ | ✅ | ❌ | ❌ |
+| **Bone names verified against a real skeleton** | — | ❌ | ❌ | ❌ |
 
-> ✅ `ActorEligibility` now genuinely checks liveness, sleep, paralysis and ragdoll state, because the SDK is present and the `#if __has_include(<RE/Skyrim.h>)` branch is live.
+> ✅ `ActorEligibility` genuinely checks liveness, sleep, paralysis and ragdoll state, because the SDK is present and the `#if __has_include(<RE/Skyrim.h>)` branch is live.
 
-> ⚠️ **Not yet done:** the tick is not wrapped in `try/catch`. NFR-4 requires that no exception reaches the game loop. This is a small, high-value change and is tracked as an open item.
+> ✅ **Former open item — now addressed.** The tick is wrapped in `try/catch`. The call to the game's own `Actor::Update` deliberately stays *outside* the guard, so the game behaves exactly as it would without us.
+>
+> ⚠️ **Honest limitation:** this catches C++ exceptions only, **not access violations (SEH)**. A bad bone or null dereference will still terminate the process. This is a mitigation, not immunity.
+
+> ⚠️ **The main untested assumption.** The hook is installed on `RE::Actor::Update`, vtable slot `0xAD` of `RE::VTABLE_Actor[0]` — verified against the SDK headers, not guessed. But the *bone names* in `GazeEngine.cpp` (`"NPC Spine2 [Spine2]"`, `"NPC Head [Head]"`, `"NPC L Eye [LEye]"`, …) are matched by string against the live skeleton via `GetObjectByName`, and **no one has yet confirmed they resolve on a real rig.** If the candidate lists miss, the engine will run correctly and rotate nothing — the exact "silent no-op" failure this project has been trying to eliminate. See "Next Actions" below.
 
 ### HCEP Desktop Bridge (IPC)
 
@@ -298,34 +306,38 @@ Sequenced so each phase yields a **demonstrable artifact**. Estimates assume one
 - [ ] Add a CI workflow: configure → build → test
 - [ ] Re-verify the DLL links CommonLibSSE
 
-### Phase 2 — Make It Move *(1–2 weeks)* 🔴 **CRITICAL**
+### Phase 2 — Make It Move *(1–2 weeks)* ✅ **DONE (pending in-engine verification)**
 
-- [ ] Introduce `TrueGaze::Core::GazeEngine` singleton
-- [ ] Add per-actor `ActorGazeRuntime` state + map with eviction
-- [ ] Install the real animation hook via `REL::Relocation`
-- [ ] Implement the per-actor tick: target → kinematics → **bone write**
-- [ ] Fix the `BoneController` eye-residual allocation bug
-- [ ] Wrap in frame timer + `try/catch`
+- [x] Introduce `TrueGaze::Engine::GazeEngine` singleton
+- [x] Add per-actor `ActorGazeRuntime` state + map with eviction
+- [x] Install the frame driver hook via vtable `REL::Relocation`
+- [x] Implement the per-actor tick: target → kinematics → **bone write**
+- [x] Fix the `BoneController` eye-residual allocation bug
+- [x] Wrap in frame timer + `try/catch`
+- [ ] **Confirm bone names resolve on a real skeleton** ← the blocking unknown
+- [ ] **Load it in Skyrim and watch an NPC's eyes** ← the only thing that proves it
 
-### Phase 3 — Make It Correct *(1 week)*
+### Phase 3 — Make It Correct *(1 week)* ✅ **DONE (pending in-engine verification)**
 
-- [ ] Fix the double-buffer race (triple-buffer or seqlock)
-- [ ] Make the pipe handle atomic
-- [ ] Implement the true Main Sequence velocity profile
-- [ ] Add the eye-lead latency gap
-- [ ] True Brownian drift with per-actor RNG seeding
-- [ ] Plumb `ConfigManager` into the simulation
-- [ ] Call `ConfigManager::Load()` on the correct path
-- [ ] Converge the dual init paths in `Main.cpp`
+- [x] Fix the double-buffer race (triple-buffer or seqlock)
+- [x] Make the pipe handle atomic
+- [x] Implement the true Main Sequence velocity profile
+- [ ] Add the eye-lead latency gap ← **still open**
+- [x] True Brownian (Ornstein-Uhlenbeck) drift with per-actor RNG seeding
+- [x] Plumb `ConfigManager` into the simulation
+- [x] Call `ConfigManager::Load()` on the correct path
+- [x] Converge the dual init paths in `Main.cpp`
+
+> The former buffer race is now genuinely fixed, not merely narrowed: the bridge integration test previously **duplicated frames** under contention and no longer does. That is the proof, and it is the strongest test artifact in the repo.
 
 ### Phase 4 — Make It Ecosystem-Real *(1–2 weeks)*
 
-- [ ] Implement genuine OAR registration via SKSE messaging
-- [ ] Publish actor state to the OAR cache each tick
-- [ ] Remove the false success log in `RegisterWithOar`
-- [ ] Implement Papyrus registration with matching signatures
-- [ ] Implement the real `TrueGazeAPI` bodies
-- [ ] Enable & correct `EfmBlinkController::ApplyMorphs`
+- [ ] Implement genuine OAR registration via SKSE messaging ← **blocked, issue #6**
+- [x] Publish actor state to the OAR cache each tick
+- [x] Remove the false success log in `RegisterWithOar`
+- [x] Implement Papyrus registration with matching signatures
+- [x] Implement the real `TrueGazeAPI` bodies
+- [ ] Enable & correct `EfmBlinkController::ApplyMorphs` ← **still open**
 - [ ] Create `TrueGaze.esp` with MCM globals — or drop MCM Helper for INI
 - [ ] Compile Papyrus to `.pex`; include in package
 - [ ] Include `.pdb` in package
@@ -368,4 +380,33 @@ Going forward, the following vocabulary is mandatory in all TrueGaze documentati
 
 ---
 
-*Last updated: September 11, 2026*
+## Next Actions — Path to First In-Engine Verification
+
+The engine is written and compiles. Nothing below is speculative; each step is either a prerequisite already known to be missing, or a verification that has never been performed.
+
+### Prerequisites (missing on the test machine as of 2026-09-12)
+
+| Requirement | State | Why it is required |
+| :--- | :--- | :--- |
+| **SKSE64** (AE build, matching the game version) | ❌ **Not installed** | Nothing loads without it. Launch via `skse64_loader.exe`, never `SkyrimSE.exe`. |
+| **Address Library** (`Data/SKSE/Plugins/versionlib-<version>.bin`) | ❌ **Not installed** | `REL::ID` / `VariantID` offsets resolve through this file. Without it SKSE refuses the plugin with *"missing the address library for this specific version of the game"*. |
+| Microsoft VC++ 2015–2022 x64 Redistributable | ✅ Present | `MSVCP140` / `VCRUNTIME140` runtime dependencies. |
+
+### Verification sequence
+
+1. **Prove it loads.** Set `bEnableTrueGaze=false` in `TrueGaze.ini`, launch, load a save, quit. A clean exit proves SKSE loaded the plugin and installed the hook, without the simulation running. Check `Documents/My Games/Skyrim Special Edition/SKSE/TrueGaze.log` for `"Gaze driver installed."`
+2. **Prove the bones resolve.** Set `bEnableTrueGaze=true` and confirm `GazeEngine` actually finds spine/neck/head/eye nodes. This is the single most likely point of silent failure — see the caveat above.
+3. **Prove the gaze is visible.** Stand in front of an NPC and watch the head and eyes.
+
+### What will not work yet
+
+| Feature | Reason |
+| :--- | :--- |
+| **OAR conditions** | Registration is unimplemented — the OAR API contract could not be verified (issue #6). The cache and evaluators work; the binding does not. |
+| **MCM** | `config.json` references a `TrueGaze.esp` that does not exist, and no `.pex` is compiled. Configure via `TrueGaze.ini`. |
+| **Papyrus from scripts** | 10 functions are registered with 10-for-10 name parity, but the `.psc` sources are not compiled to `.pex`. |
+| **Eyelid morphs (EFM)** | `EfmBlinkController::ApplyMorphs` writes are still inert. |
+
+---
+
+*Last updated: September 12, 2026*

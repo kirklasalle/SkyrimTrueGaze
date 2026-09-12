@@ -51,6 +51,12 @@ namespace TrueGaze::Engine
         /// True once the actor has been simulated at least once.
         bool initialised{false};
 
+        /// True once this actor's skeleton has been probed and the result logged.
+        /// Bone names are matched by string and were never confirmed against a real
+        /// rig, so a silent miss is the most likely failure mode. Logging the first
+        /// probe per actor turns that into an explicit, readable answer.
+        bool bonesReported{false};
+
         /// Seed for this actor's jitter RNG. Derived from the FormID so that two
         /// actors never share a drift sequence, and so a given actor is stable
         /// across sessions. See docs/AUDIT_REPORT_2026-09-11.md section 5.3.
