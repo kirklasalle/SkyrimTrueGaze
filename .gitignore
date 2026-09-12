@@ -34,6 +34,12 @@ vcpkg_installed/
 tmp/
 temp/
 
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
 # ---------------------------------------------------------------------------
 # Required shipping artifacts — keep these tracked despite the patterns above.
 # The packaging pipeline (scripts/PackageMod.ps1) depends on TrueGaze.dll

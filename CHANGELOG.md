@@ -12,6 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Governance Enforcement
+
+- **`GOVERNANCE.md`** — the charter enforcement map required by `AGENTIC_SACRED_COVENANT.md` §3.1. States plainly which controls are implemented, which are gaps, and which are not applicable to a Skyrim plugin. Includes the Law 6 biometric gap analysis and the amendment procedure.
+- **`scripts/verify_charter.py`** — implements the `LAW10-CHARTER` control. Pins the 10 Laws and 4 Core Tenets by SHA-256 digest and verifies them across every charter document. Detects a Law that has been reworded, dropped, duplicated, renumbered, or left disagreeing between copies.
+- **`config/charter_manifest.json`** — canonical digests of the Laws and Core Tenets, plus recorded known divergences.
+- **`.github/workflows/charter-integrity.yml`** — CI enforcement of charter integrity, independent of the C++ build.
+
+### Fixed — Charter Integrity
+
+- **Fourth Law capitalisation** — `AGENTIC_PRIME_DIRECTIVE.md` and `AGENTIC_SACRED_COVENANT.md` read "An **I**ntelligence System" where the canonical text reads "An **i**ntelligence System". Corrected.
+- **Ninth Law em-dash spacing** — both markdown charters read "verified — recognizing" where the canonical text reads "verified—recognizing". Corrected.
+
+  The 10 Laws are now **byte-identical** across all three charter documents.
+
+### Discovered — Governance Findings
+
+- **🔴 Law 6 (biometric data) — no runtime control.** The HCEP bridge transmits real-world gaze vectors, head pose, blink state, a tracked person identifier, and cognitive/emotional classification over a named pipe created with `nullptr` security attributes (`src/Bridge/NamedPipeServer.cpp:75`). There is no access control, no encryption in transit, no consent capture, and no connection auditing — while `LICENSE` asserts GDPR Article 9, CCPA, and BIPA compliance. Practical risk is low for a single-user local mod, but the governance position is not defensible as written. Remediation plan in `GOVERNANCE.md`.
+- **🔴 Law 10 (approval) — no cryptographic control.** `verify_charter.py --update` regenerates the manifest with a plain file write. There is no signature and no separation between recording a change and authorising it. Currently mitigated procedurally (explicit reminder + mandatory diff review), not cryptographically.
+- **🟡 Core Tenet divergence.** All four Core Tenets in `AGENTIC_PRIME_DIRECTIVE.md` and `AGENTIC_SACRED_COVENANT.md` are **paraphrases** of the canonical text in `Permanent_Active_Directives.txt`, not reproductions. Recorded in the manifest as disclosed divergences pending Governance Council review. Three options are documented in `GOVERNANCE.md`; the choice is reserved to the Council.
+- **🟡 Laws 1–5 and 8 have no runtime control.** Consistent with the covenant's own disclosure. These are governing principles for human conduct on this project, not runtime constraints on the plugin. Recorded so they cannot be mistaken for implemented controls.
+
 ### Added — Independent Audit & Honest Status Reporting
 
 - **`docs/AUDIT_REPORT_2026-09-11.md`** — Full independent audit: complete documentation review, complete source review, binary forensics on the shipped `TrueGaze.dll`, distribution-archive inspection, and competitive market research (Nexus Mods landscape, UE5/MetaHuman gaze ecosystem, commercial eye-tracking, academic saccade literature).

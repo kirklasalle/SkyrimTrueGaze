@@ -363,10 +363,48 @@ With **`TrueGaze`**, Kirk LaSalle's HCEP moves from an analytical perception pla
 | [`docs/HCEP_BRIDGE_SPEC.md`](docs/HCEP_BRIDGE_SPEC.md) | Named-pipe wire protocol specification |
 | [`docs/OAR_INTEGRATION.md`](docs/OAR_INTEGRATION.md) | Open Animation Replacer integration guide |
 | [`include/TrueGazeAPI.h`](include/TrueGazeAPI.h) | Public C/C++ modding API |
+| [`GOVERNANCE.md`](GOVERNANCE.md) | Charter enforcement map — what is enforced, what is a gap, what is not applicable |
+| [`AGENTIC_PRIME_DIRECTIVE.md`](AGENTIC_PRIME_DIRECTIVE.md) | Agentic Prime Directive |
+| [`AGENTIC_SACRED_COVENANT.md`](AGENTIC_SACRED_COVENANT.md) | PRISM Sacred Covenant |
+| [`Permanent_Active_Directives.txt`](Permanent_Active_Directives.txt) | Canonical charter — the 10 Laws and 4 Core Tenets |
 
 ---
 
-## 11. Building from Source
+## 11. Governance
+
+This project operates under the **Permanent Active Directives** — the 10 Laws and
+4 Core Tenets authored by Kirk LaSalle. The charter is pinned by SHA-256 digest and
+verified on every push and pull request.
+
+```bash
+python scripts/verify_charter.py            # verify charter integrity
+python scripts/verify_charter.py --verbose  # per-Law report
+```
+
+**Honest enforcement status** — full detail in [`GOVERNANCE.md`](GOVERNANCE.md):
+
+| Control | Status |
+| :--- | :--- |
+| `LAW10-CHARTER` — Laws pinned by digest, verified in CI | ✅ **Implemented** |
+| `LAW7-TRUTHFUL-LOG` — no log may report success for work not performed | ✅ **Implemented** (review-enforced) |
+| `LAW9-AUDIT` — auditable record of reasoning | 🟡 **Partial** |
+| `LAW6-BIOMETRIC` — protection of personal/biometric data | 🔴 **Gap** — pipe has no access control, encryption, or consent capture |
+| `LAW10-APPROVAL` — cryptographic approval for directive changes | 🔴 **Gap** — regeneration is a plain file write |
+| `LAW1–5, 8` | ⛔ **No runtime control** — governing principles for human conduct, not plugin constraints |
+
+Two of the four Core Tenets in the markdown charter documents are **paraphrases**
+of the canonical text rather than reproductions. These are recorded in the manifest
+as disclosed divergences pending Governance Council review. The 10 Laws themselves
+are byte-identical across all three charter documents.
+
+> The biometric gap (Law 6) is the most significant governance item in this
+> repository. The HCEP bridge transmits gaze vectors, head pose, blink state, and
+> cognitive classification over a named pipe created with **no security descriptor**,
+> while `LICENSE` asserts GDPR/CCPA/BIPA compliance. See [`GOVERNANCE.md`](GOVERNANCE.md#law-6--biometric-data-protection-) for the gap analysis and remediation plan.
+
+---
+
+## 12. Building from Source
 
 > ⚠️ **The build currently produces a skeleton DLL.** CommonLibSSE-NG is not vendored, so the CMake guards silently skip the SDK and the game-facing code compiles out. Fixing this is Phase R1 of the [remediation roadmap](ROADMAP.md#phase-r1-make-the-build-real).
 
@@ -390,7 +428,7 @@ cl /std:c++20 /EHsc tests\KinematicsTests.cpp /Fe:KinematicsTests.exe
 
 ---
 
-## 12. Contributing
+## 13. Contributing
 
 Contributions are welcome, particularly in the areas the audit identified as blocking. The highest-value contributions right now are:
 
@@ -404,7 +442,7 @@ Contributions are welcome, particularly in the areas the audit identified as blo
 
 ---
 
-## 13. License & Attribution
+## 14. License & Attribution
 
 **Copyright © 2026 Kirk LaSalle. All rights reserved.** See [`LICENSE`](LICENSE).
 

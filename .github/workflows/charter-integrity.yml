@@ -1,0 +1,69 @@
+name: Charter Integrity
+
+# Enforces the LAW10-CHARTER control described in AGENTIC_SACRED_COVENANT.md §3.1:
+#
+#   "the 10 Laws are pinned by digest in config/charter_manifest.json and compared
+#    across every charter document in CI, so a Law cannot be reworded, dropped, or
+#    left disagreeing with its copies without the build failing."
+#
+# This workflow is intentionally independent of the C++ build. The charter is the
+# supreme governing law of the project; its integrity must not depend on whether
+# the plugin compiles.
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - "Permanent_Active_Directives.txt"
+            - "AGENTIC_PRIME_DIRECTIVE.md"
+            - "AGENTIC_SACRED_COVENANT.md"
+            - "config/charter_manifest.json"
+            - "scripts/verify_charter.py"
+            - ".github/workflows/charter-integrity.yml"
+    pull_request:
+        paths:
+            - "Permanent_Active_Directives.txt"
+            - "AGENTIC_PRIME_DIRECTIVE.md"
+            - "AGENTIC_SACRED_COVENANT.md"
+            - "config/charter_manifest.json"
+            - "scripts/verify_charter.py"
+            - ".github/workflows/charter-integrity.yml"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    verify-charter:
+        name: Verify Permanent Active Directives
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - name: Verify charter integrity
+              run: python scripts/verify_charter.py --verbose
+
+            - name: Report recorded divergences
+              if: always()
+              run: |
+                  echo "### Charter integrity report" >> "$GITHUB_STEP_SUMMARY"
+                  echo '```' >> "$GITHUB_STEP_SUMMARY"
+                  python scripts/verify_charter.py --json >> "$GITHUB_STEP_SUMMARY" || true
+                  echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+            - name: Fail on unrecorded drift
+              run: |
+                  # A non-zero exit here means a Law or Core Tenet was reworded, dropped,
+                  # duplicated, reordered, or left disagreeing between charter documents
+                  # without being recorded in the manifest.
+                  #
+                  # If the change was intentional, it is a charter amendment and requires
+                  # Governance Council approval before the manifest is regenerated.
+                  python scripts/verify_charter.py
