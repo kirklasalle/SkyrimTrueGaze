@@ -27,7 +27,7 @@ which are not applicable.
 
 | Control | Law | Status | Evidence |
 | :--- | :---: | :--- | :--- |
-| `LAW10-CHARTER` — Laws pinned by digest, verified across all charter copies | 10 | ✅ **Implemented** | `scripts/verify_charter.py`, `config/charter_manifest.json`, `.github/workflows/charter-integrity.yml` |
+| `LAW10-CHARTER` — Laws pinned by digest, verified across all charter copies | 10 | ✅ **Implemented** | `scripts/verify_charter.py`, `config/charter_manifest.json`, `scripts/hooks/pre-commit` (active). CI workflow committed but not executing. |
 | `LAW7-TRUTHFUL-LOG` — no log may report success for an operation not performed | 7 | ✅ **Implemented** | See "Law 7" below |
 | `LAW9-AUDIT` — auditable record of reasoning and decisions | 9 | 🟡 **Partial** | `docs/AUDIT_REPORT_2026-09-11.md`, `CHANGELOG.md`, `docs/STATUS.md` |
 | `LAW6-BIOMETRIC` — protection of personal/biometric data | 6 | 🔴 **Gap** | See "Law 6" below |
@@ -66,6 +66,32 @@ python scripts/verify_charter.py --verbose  # per-Law report
 python scripts/verify_charter.py --json     # machine-readable
 python scripts/verify_charter.py --strict   # treat recorded divergences as failures
 ```
+
+**Enforcement points.** The control runs in two places:
+
+| Point | Mechanism | Status |
+| :--- | :--- | :--- |
+| Commit time | `scripts/hooks/pre-commit` (installed by `scripts/install-hooks.ps1`) | ✅ Active |
+| CI | `.github/workflows/charter-integrity.yml` | ⚠️ Workflow committed; **not currently executing** — see below |
+
+**Local enforcement limitations — stated plainly.** The pre-commit hook is a
+convenience, not a guarantee:
+
+- It only exists after someone runs `scripts/install-hooks.ps1`. A fresh clone
+  has no hook.
+- `git commit --no-verify` bypasses it entirely.
+- If no working Python 3.8+ interpreter is found, the hook **fails open** — it
+  prints a loud warning that the commit is proceeding unverified, then allows it.
+  This is deliberate: a check that blocks every commit on a machine without
+  Python would simply be disabled, which is worse than an honest warning.
+- It does not protect against changes made through the GitHub web interface.
+
+**CI status.** `.github/workflows/charter-integrity.yml` is committed and its
+YAML validates, but runs currently terminate with `startup_failure` and zero jobs
+created. This is an account-level GitHub Actions availability issue, not a defect
+in the workflow — no workflow in this account produces runs. Until it is
+resolved, **the only active enforcement is the local pre-commit hook**, and the
+control should be described as locally enforced rather than CI-enforced.
 
 **Design note — why only the Laws and Tenets are pinned.** The manifest pins each
 Law and Tenet individually. It deliberately does **not** pin a digest of the whole

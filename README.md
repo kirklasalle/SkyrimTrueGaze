@@ -374,18 +374,31 @@ With **`TrueGaze`**, Kirk LaSalle's HCEP moves from an analytical perception pla
 
 This project operates under the **Permanent Active Directives** — the 10 Laws and
 4 Core Tenets authored by Kirk LaSalle. The charter is pinned by SHA-256 digest and
-verified on every push and pull request.
+verified at commit time and in CI.
 
 ```bash
-python scripts/verify_charter.py            # verify charter integrity
+# Enable the pre-commit gate (one-time, per clone)
+powershell -ExecutionPolicy Bypass -File scripts/install-hooks.ps1
+
+# Verify manually
+python scripts/verify_charter.py            # verify
 python scripts/verify_charter.py --verbose  # per-Law report
+python scripts/verify_charter.py --json     # machine-readable
+python scripts/verify_charter.py --strict   # treat recorded divergences as failures
 ```
+
+> ⚠️ **Enforcement is currently local only.** The pre-commit hook is active and has
+> been proven to block a reworded Law. The CI workflow is committed and its YAML
+> validates, but GitHub Actions runs in this account currently terminate with
+> `startup_failure` before creating any jobs — an account-level availability issue,
+> not a workflow defect. Until that is resolved, a fresh clone has no gate until
+> `install-hooks.ps1` is run, and `--no-verify` bypasses it.
 
 **Honest enforcement status** — full detail in [`GOVERNANCE.md`](GOVERNANCE.md):
 
 | Control | Status |
 | :--- | :--- |
-| `LAW10-CHARTER` — Laws pinned by digest, verified in CI | ✅ **Implemented** |
+| `LAW10-CHARTER` — Laws pinned by digest, verified locally + CI | ✅ **Implemented** (local hook active; CI committed, not executing) |
 | `LAW7-TRUTHFUL-LOG` — no log may report success for work not performed | ✅ **Implemented** (review-enforced) |
 | `LAW9-AUDIT` — auditable record of reasoning | 🟡 **Partial** |
 | `LAW6-BIOMETRIC` — protection of personal/biometric data | 🔴 **Gap** — pipe has no access control, encryption, or consent capture |

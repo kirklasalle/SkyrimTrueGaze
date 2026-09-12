@@ -1,0 +1,89 @@
+#!/bin/sh
+# TrueGaze charter integrity gate.
+#
+# Enforces the LAW10-CHARTER control at commit time:
+#   the 10 Laws and 4 Core Tenets of the Permanent Active Directives are pinned
+#   by digest and cannot be reworded, dropped, duplicated, renumbered, or left
+#   disagreeing between charter documents without the commit being refused.
+#
+# Installed by scripts/install-hooks.ps1.
+# Bypass with:  git commit --no-verify
+# (Bypassing is recorded nowhere and is a governance event. Prefer the
+# documented amendment procedure in GOVERNANCE.md.)
+
+set -eu
+
+# Only run when a charter file is part of this commit.
+STAGED=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+
+case "$STAGED" in
+    *Permanent_Active_Directives.txt*|*AGENTIC_PRIME_DIRECTIVE.md*|*AGENTIC_SACRED_COVENANT.md*|*charter_manifest.json*|*verify_charter.py*)
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+
+# Locate a WORKING Python interpreter.
+#
+# Presence on PATH is not enough: on Windows, `python` is frequently the
+# Microsoft Store execution-alias stub, which exists but only prints
+# "Python was not found". Probe each candidate by actually running it.
+PY=""
+for candidate in python3 python py; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+        if "$candidate" -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" >/dev/null 2>&1; then
+            PY="$candidate"
+            break
+        fi
+    fi
+done
+
+if [ -z "$PY" ]; then
+    cat >&2 <<'EOF'
+
+  charter-integrity: NO WORKING PYTHON 3.8+ INTERPRETER FOUND.
+
+  The Permanent Active Directives could NOT be verified for this commit.
+
+  This commit is proceeding UNVERIFIED. That is a governance gap, not a pass.
+
+  Install Python 3.8 or later and run:
+      powershell -ExecutionPolicy Bypass -File scripts/install-hooks.ps1
+
+EOF
+    # Fail open. A check that blocks every commit on a machine without Python
+    # would simply be disabled, which is worse than an honest warning.
+    # See GOVERNANCE.md "Local enforcement limitations".
+    exit 0
+fi
+
+if [ ! -f "scripts/verify_charter.py" ]; then
+    exit 0
+fi
+
+echo "charter-integrity: verifying Permanent Active Directives..."
+if ! "$PY" scripts/verify_charter.py; then
+    cat >&2 <<'EOF'
+
+  COMMIT REFUSED — charter integrity check failed.
+
+  A Law or Core Tenet of the Permanent Active Directives has changed, or two
+  charter documents now disagree.
+
+  If this was unintentional, restore the canonical wording.
+
+  If this was intentional, it is a CHARTER AMENDMENT and requires approval from
+  the Governance Council before the manifest is regenerated. See GOVERNANCE.md.
+
+  To inspect:
+      python scripts/verify_charter.py --verbose
+
+  To bypass (deliberately, and recorded only in your shell history):
+      git commit --no-verify
+
+EOF
+    exit 1
+fi
+
+exit 0
