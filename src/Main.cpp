@@ -1,4 +1,4 @@
-﻿#include "PCH.h"
+#include "PCH.h"
 #include "Bridge/NamedPipeServer.hpp"
 #include "Engine/AnimationHook.hpp"
 #include "Engine/ConfigManager.hpp"
@@ -154,6 +154,8 @@ SKSEPluginInfo(
         .Author = "Kirk LaSalle (HCEP)",
         .SupportEmail = "",
         .StructCompatibility = SKSE::StructCompatibility::Independent,
+        .RuntimeCompatibility = SKSE::PluginDeclaration::RuntimeCompatibility(
+            SKSE::VersionIndependence::AddressLibrary),
         .MinimumSKSEVersion = SKSE::PluginDeclaration::VersionNumber{0, 0, 0, 0});
 
 SKSEPluginLoad(const SKSE::LoadInterface *a_skse)
