@@ -8,9 +8,9 @@ namespace TrueGaze::Engine
 
     /// @brief Drives the gaze simulation each frame and applies it to actor skeletons.
     ///
-    /// Installed on the main update loop rather than on an animation function. See
-    /// the rationale in AnimationHook.cpp — briefly, a vtable hook on a stable index
-    /// cannot silently fail to bind the way an unverified address relocation can.
+    /// Installed on Actor/Character/PlayerCharacter Update vtables. Each actor's
+    /// previous procedural pose is restored before Skyrim animates it, then fresh
+    /// gaze is applied after the update and retained through rendering.
     class AnimationHook
     {
     public:

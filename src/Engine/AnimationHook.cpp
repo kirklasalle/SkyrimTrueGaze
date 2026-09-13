@@ -3,8 +3,6 @@
 #include "EyeAimConstraint.hpp"
 #include "ConfigManager.hpp"
 
-#include <chrono>
-
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/Skyrim.h>
 #endif
@@ -16,58 +14,6 @@ namespace TrueGaze::Engine
     {
 
 #if __has_include(<RE/Skyrim.h>)
-
-        /// Tracks frame boundaries without needing a second hook.
-        ///
-        /// `Actor::Update` is called once per actor per frame, in sequence. A gap
-        /// of more than FRAME_GAP_SEC between consecutive calls therefore marks the
-        /// boundary between one frame's actor updates and the next. That is enough
-        /// to pair `EyeAimConstraint::BeginFrame()` with `Withdraw()` without
-        /// introducing another, riskier hook.
-        ///
-        /// Declared before ActorUpdateHook because the hook calls into it.
-        struct GameFrame
-        {
-            static constexpr float FRAME_GAP_SEC = 0.05f; // 50 ms, i.e. below 20 FPS
-
-            static void NoteActorUpdate(float a_delta) noexcept
-            {
-                const auto now = std::chrono::steady_clock::now();
-
-                if (_started && std::chrono::duration<float>(now - _lastUpdate).count() > FRAME_GAP_SEC)
-                {
-                    // The previous frame's actor updates have finished.
-                    FinishFrame();
-                }
-
-                _started = true;
-                _lastUpdate = now;
-
-                if (a_delta > 0.0f && a_delta < 0.5f)
-                {
-                    _pendingDelta = a_delta;
-                }
-            }
-
-            /// Called when the burst of actor updates for one frame has ended.
-            static void FinishFrame() noexcept
-            {
-                auto &engine = GazeEngine::Get();
-
-                // Restore the previous frame's bones before composing this frame's
-                // deflection, so the deflection is always applied to the animated
-                // pose rather than on top of the previous deflection.
-                engine.ReleaseBones();
-
-                EyeAimConstraint::BeginFrame();
-                AnimationHook::TickAllActors(_pendingDelta);
-                AnimationHook::FrameEnd();
-            }
-
-            static inline std::chrono::steady_clock::time_point _lastUpdate{};
-            static inline float _pendingDelta{1.0f / 60.0f};
-            static inline bool _started{false};
-        };
 
         /// The per-frame driver.
         ///
@@ -109,16 +55,21 @@ namespace TrueGaze::Engine
         ///
         /// `RE::VTABLE_Actor` has 10 entries (RE/Offsets_VTABLE.h:2142), so index
         /// `0xAD` is well inside the real vtable.
+        template <class Tag>
         struct ActorUpdateHook
         {
             static void Hook(RE::Actor *a_actor, float a_delta)
             {
-                // Advance the game's own state FIRST. Any early return below would
-                // otherwise skip the base implementation and break the actor.
-                //
-                // This call is deliberately OUTSIDE the try/catch: it is the game's
-                // own code, and it must behave exactly as it would without us. If it
-                // throws, that is the game's business, not ours to swallow.
+                // Remove only this actor's previous procedural pose before Skyrim
+                // computes its fresh animated pose. Other actors remain posed for
+                // rendering until their own updates arrive.
+                if (a_actor)
+                {
+                    EyeAimConstraint::WithdrawActor(a_actor->GetFormID());
+                }
+
+                // Advance the game's own state. This deliberately remains outside
+                // our exception guard: it is Skyrim's code, not ours to swallow.
                 _original(a_actor, a_delta);
 
                 // Everything that follows is ours. A defect in the simulation must
@@ -130,12 +81,17 @@ namespace TrueGaze::Engine
                 // still terminate the process. This is a mitigation, not immunity.
                 try
                 {
-                    if (!a_actor || !ConfigManager::GetSingleton().enableTrueGaze)
+                    if (!a_actor || !ConfigManager::GetSingleton().enableTrueGaze ||
+                        a_delta <= 0.0f || a_delta >= 0.5f)
                     {
                         return;
                     }
 
-                    GameFrame::NoteActorUpdate(a_delta);
+                    // Actor::Update has completed, so the skeleton now contains the
+                    // current animated pose. Compose gaze onto it and retain that
+                    // pose until this actor's next update; withdrawing immediately
+                    // here would erase the effect before the renderer sees it.
+                    GazeEngine::Get().TickActor(a_actor, a_delta);
                 }
                 catch (const std::exception &e)
                 {
@@ -167,9 +123,30 @@ namespace TrueGaze::Engine
             }
 
             static inline REL::Relocation<decltype(Hook)> _original;
-            static inline bool _installed{false};
             static inline int _failuresReported{0};
         };
+
+        struct ActorTag
+        {
+        };
+        struct CharacterTag
+        {
+        };
+        struct PlayerTag
+        {
+        };
+
+        using ActorHook = ActorUpdateHook<ActorTag>;
+        using CharacterHook = ActorUpdateHook<CharacterTag>;
+        using PlayerHook = ActorUpdateHook<PlayerTag>;
+
+        template <class Hook>
+        void InstallActorUpdateHook(const REL::VariantID &vtable, const char *name)
+        {
+            REL::Relocation<std::uintptr_t> table{vtable};
+            Hook::_original = table.write_vfunc(0xAD, Hook::Hook);
+            logger::info("[TrueGaze] Gaze driver installed on {}::Update (slot 0xAD).", name);
+        }
 
         void TickActorList(RE::BSTArray<RE::ActorHandle> &list,
                            bool allowCreatures,
@@ -206,16 +183,21 @@ namespace TrueGaze::Engine
     void AnimationHook::Install() noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
-        if (ActorUpdateHook::_installed)
+        static bool installed = false;
+        if (installed)
         {
             return;
         }
 
-        logger::info("[TrueGaze] Installing gaze driver on Actor::Update (vtable slot 0xAD)...");
+        logger::info("[TrueGaze] Installing per-actor post-update gaze drivers...");
 
-        REL::Relocation<std::uintptr_t> actorVtbl{RE::VTABLE_Actor[0]};
-        ActorUpdateHook::_original = actorVtbl.write_vfunc(0xAD, ActorUpdateHook::Hook);
-        ActorUpdateHook::_installed = true;
+        // Each concrete class owns a distinct vtable even when its slot points to
+        // the inherited Actor::Update implementation. Patching VTABLE_Actor alone
+        // does not affect Character or PlayerCharacter instances.
+        InstallActorUpdateHook<ActorHook>(RE::VTABLE_Actor[0], "Actor");
+        InstallActorUpdateHook<CharacterHook>(RE::VTABLE_Character[0], "Character");
+        InstallActorUpdateHook<PlayerHook>(RE::VTABLE_PlayerCharacter[0], "PlayerCharacter");
+        installed = true;
 
         logger::info("[TrueGaze] Gaze driver installed.");
 #else
@@ -245,9 +227,9 @@ namespace TrueGaze::Engine
     void AnimationHook::FrameEnd() noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
-        auto &engine = GazeEngine::Get();
-        engine.ReleaseBones();
-        engine.EndFrame(RE::GetSecondsSinceLastFrame());
+        // Retained for API compatibility. Gaze is actor-owned now: each actor's
+        // previous pose is restored immediately before its next Actor::Update,
+        // not at frame end where restoration would occur before rendering.
 #endif
     }
 

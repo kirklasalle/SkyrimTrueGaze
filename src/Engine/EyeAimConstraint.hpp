@@ -41,7 +41,12 @@ namespace TrueGaze::Engine
 
         /// @brief Rotates a bone by the given degrees, relative to its animated pose.
         /// @return false if the bone is null or the rotation could not be applied.
-        static bool Apply(RE::NiAVObject *bone, float yawDeg, float pitchDeg) noexcept;
+        static bool Apply(uint32_t actorFormId, RE::NiAVObject *bone,
+                          float yawDeg, float pitchDeg) noexcept;
+
+        /// Restore only one actor's procedural pose before Skyrim animates that
+        /// actor again. Other actors must remain posed until their own updates.
+        static void WithdrawActor(uint32_t actorFormId) noexcept;
 
         /// @brief Restores every touched bone to its animated pose.
         static void Withdraw() noexcept;

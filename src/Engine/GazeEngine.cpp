@@ -508,29 +508,29 @@ namespace TrueGaze::Engine
 
         if (spine)
         {
-            EyeAimConstraint::Apply(spine, strain.spineYaw, 0.0f);
+            EyeAimConstraint::Apply(actor->GetFormID(), spine, strain.spineYaw, 0.0f);
         }
 
         if (neck)
         {
-            EyeAimConstraint::Apply(neck, strain.neckYaw, strain.neckPitch);
+            EyeAimConstraint::Apply(actor->GetFormID(), neck, strain.neckYaw, strain.neckPitch);
         }
 
         if (head)
         {
-            EyeAimConstraint::Apply(head, strain.headYaw, strain.headPitch);
+            EyeAimConstraint::Apply(actor->GetFormID(), head, strain.headYaw, strain.headPitch);
         }
 
         // Eyes take the residual. During a ballistic saccade this is where the eye
         // lead is visible: the eyes snap while the neck and head are still damping in.
         if (eyeL)
         {
-            EyeAimConstraint::Apply(eyeL, strain.eyeYaw, strain.eyePitch);
+            EyeAimConstraint::Apply(actor->GetFormID(), eyeL, strain.eyeYaw, strain.eyePitch);
         }
 
         if (eyeR)
         {
-            EyeAimConstraint::Apply(eyeR, strain.eyeYaw, strain.eyePitch);
+            EyeAimConstraint::Apply(actor->GetFormID(), eyeR, strain.eyeYaw, strain.eyePitch);
         }
 
         // Eyelid morph writes are applied separately by EfmBlinkController.

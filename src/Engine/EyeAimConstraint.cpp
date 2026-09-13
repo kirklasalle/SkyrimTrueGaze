@@ -23,6 +23,7 @@ namespace TrueGaze::Engine
         /// smart pointer would add ref-count traffic for no safety gain.
         struct TouchedBone
         {
+            uint32_t actorFormId{0};
             RE::NiAVObject *bone{nullptr};
             RE::NiMatrix3 originalRotate{};
             bool active{false};
@@ -31,7 +32,7 @@ namespace TrueGaze::Engine
         /// Fixed capacity: an actor has at most six gaze joints of interest, and we may
         /// be tracking one actor's chain at a time. Overflow is a logic error, not a
         /// runtime condition, so the array is sized generously and never grows.
-        constexpr uint32_t MAX_TOUCHED_BONES = 64;
+        constexpr uint32_t MAX_TOUCHED_BONES = 2560;
 
         std::array<TouchedBone, MAX_TOUCHED_BONES> g_touched{};
         uint32_t g_touchedCount{0};
@@ -100,7 +101,7 @@ namespace TrueGaze::Engine
         }
 
         /// Locate an existing record for this bone, or create one.
-        TouchedBone *FindOrCreate(RE::NiAVObject *bone) noexcept
+        TouchedBone *FindOrCreate(uint32_t actorFormId, RE::NiAVObject *bone) noexcept
         {
             for (uint32_t i = 0; i < g_touchedCount; ++i)
             {
@@ -116,6 +117,7 @@ namespace TrueGaze::Engine
             }
 
             TouchedBone &slot = g_touched[g_touchedCount++];
+            slot.actorFormId = actorFormId;
             slot.bone = bone;
             slot.originalRotate = bone->local.rotate; // cache the animated pose
             slot.active = true;
@@ -142,7 +144,8 @@ namespace TrueGaze::Engine
 #endif
     }
 
-    bool EyeAimConstraint::Apply(RE::NiAVObject *bone, float yawDeg, float pitchDeg) noexcept
+    bool EyeAimConstraint::Apply(uint32_t actorFormId, RE::NiAVObject *bone,
+                                 float yawDeg, float pitchDeg) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
         if (!bone)
@@ -161,7 +164,7 @@ namespace TrueGaze::Engine
             return true;
         }
 
-        TouchedBone *slot = FindOrCreate(bone);
+        TouchedBone *slot = FindOrCreate(actorFormId, bone);
         if (!slot)
         {
             return false; // capacity exhausted
@@ -176,10 +179,41 @@ namespace TrueGaze::Engine
         RefreshWorldTransform(slot->bone);
         return true;
 #else
+        (void)actorFormId;
         (void)bone;
         (void)yawDeg;
         (void)pitchDeg;
         return false;
+#endif
+    }
+
+    void EyeAimConstraint::WithdrawActor(uint32_t actorFormId) noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        uint32_t write = 0;
+        for (uint32_t read = 0; read < g_touchedCount; ++read)
+        {
+            TouchedBone &slot = g_touched[read];
+            if (slot.active && slot.actorFormId == actorFormId)
+            {
+                if (slot.bone)
+                {
+                    slot.bone->local.rotate = slot.originalRotate;
+                    RefreshWorldTransform(slot.bone);
+                }
+                continue;
+            }
+
+            if (write != read)
+            {
+                g_touched[write] = slot;
+            }
+            ++write;
+        }
+        g_touchedCount = write;
+        g_frameOpen = g_touchedCount != 0;
+#else
+        (void)actorFormId;
 #endif
     }
 
@@ -195,6 +229,7 @@ namespace TrueGaze::Engine
                 RefreshWorldTransform(slot.bone);
             }
             slot.active = false;
+            slot.actorFormId = 0;
             slot.bone = nullptr;
         }
 

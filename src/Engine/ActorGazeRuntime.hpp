@@ -82,6 +82,7 @@ namespace TrueGaze::Engine
             lastPitchDeg = startPitch;
             eyeSaturated = false;
             trackedTargetFormId = 0;
+            bonesReported = false;
             initialised = true;
         }
     };

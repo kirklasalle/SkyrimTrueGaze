@@ -56,9 +56,26 @@ namespace TrueGaze::Engine
         const auto observerPos = observer->GetPosition();
         const auto playerPos = player->GetPosition();
 
+        // Character creation displays the player in third person. Self-targeting
+        // would produce a zero-length gaze vector, so the player explicitly looks
+        // toward the active camera instead. This also provides the deterministic
+        // initial acceptance test: the model periodically meets the camera.
+        auto *ui = RE::UI::GetSingleton();
+        if (observer == player && ui && ui->IsMenuOpen(RE::RaceSexMenu::MENU_NAME))
+        {
+            const auto cameraPos = RE::PlayerCamera::GetActiveCameraPosition();
+            target.targetFormId = player->GetFormID();
+            target.priority = TargetPriority::DialoguePartner;
+            target.worldX = cameraPos.x;
+            target.worldY = cameraPos.y;
+            target.worldZ = cameraPos.z;
+            target.distanceMeters = DistanceMeters(observerPos, cameraPos);
+            target.isPlayer = true;
+            return target;
+        }
+
         // 1. Highest priority: the active dialogue partner.
         // UI::IsMenuOpen is non-const, so the singleton must not be captured as const.
-        auto *ui = RE::UI::GetSingleton();
         if (ui && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME))
         {
             target.targetFormId = player->GetFormID();
