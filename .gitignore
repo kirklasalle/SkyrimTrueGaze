@@ -55,12 +55,13 @@ venv/
 !dist/*.zip
 
 # ---------------------------------------------------------------------------
-# Generated one-click launchers.
+# Generated one-click shortcuts.
 #
-# scripts/Install-OneClick.ps1 writes these on demand. They are not tracked
-# because each one embeds an absolute path to this machine's checkout, which
-# would be wrong for anyone else and would churn on every clone location.
-# Regenerate with:  .\scripts\Install-OneClick.ps1
+# These embed an absolute path to this machine's checkout, so they would be
+# wrong for anyone else and would churn on every clone location. Regenerate
+# with:  .\scripts\Install-OneClick.ps1
+#
+# TrueGaze.cmd is NOT ignored: it is the self-contained batch entry point and
+# resolves its own location, so it works from any checkout.
 # ---------------------------------------------------------------------------
 /*.lnk
-/TrueGaze.cmd

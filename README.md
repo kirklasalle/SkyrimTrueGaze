@@ -431,33 +431,41 @@ are byte-identical across all three charter documents.
 git submodule update --init --recursive
 ```
 
-### One-click workflow (recommended)
+### One-click workflow
+
+**`TrueGaze.cmd`** is a single self-contained batch file. It needs nothing beyond what the build already needs (CMake, MSVC, vcpkg). It finds the game, reads its version, derives the exact Address Library filename that version requires, builds, deploys, verifies the deployed binary, and only then launches.
 
 ```powershell
-# Install shortcuts and a TrueGaze.cmd shim (once per clone)
+.\TrueGaze.cmd              # interactive menu
+```
+
+Or drive it directly:
+
+| Command | Does |
+| :--- | :--- |
+| `TrueGaze.cmd all` | build → deploy → verify → launch |
+| `TrueGaze.cmd loadonly` | deploy with the engine **off**, then launch — the safe first run |
+| `TrueGaze.cmd build` | build and verify, no launch |
+| `TrueGaze.cmd deploy` | deploy an existing build, then verify |
+| `TrueGaze.cmd verify` | check everything, no build, no launch |
+| `TrueGaze.cmd postrun` | report what happened on the last run |
+| `TrueGaze.cmd status` | show the detected configuration |
+
+Options: `/game "path"` to override detection, `/force` to launch despite failures, `/nopause` for automation.
+
+Exit code is `0` only when nothing failed, so it composes in scripts.
+
+> **It refuses to launch when verification fails.** The check is cheap; a two-minute game launch that crashes on load is not.
+
+To additionally get clickable shortcuts in the project root and on the Desktop:
+
+```powershell
 .\scripts\Install-OneClick.ps1
 ```
 
-That creates four actions in the project root, plus one on the Desktop:
-
-| Action | What it does |
-| :--- | :--- |
-| **Build and Launch** | Build → deploy → verify → launch. Refuses to launch if verification fails. |
-| **Safe Load-Only Test** | Deploys with `bEnableTrueGaze=false` and launches. Proves the plugin loads safely. |
-| **Verify Only** | Build → deploy → health check. No launch. |
-| **Analyse Last Run** | Parses `TrueGaze.log` and reports what actually happened. |
-
-Everything can also be driven from a terminal:
-
-```powershell
-.\TrueGaze.cmd                  # build, deploy, verify, launch
-.\TrueGaze.cmd -LoadOnly        # safe first run, simulation disabled
-.\TrueGaze.cmd -NoLaunch        # build and verify only
-.\TrueGaze.cmd -PostRun         # analyse the last session
-.\TrueGaze.cmd -Force           # launch despite health-check failures (crashes)
-```
-
 ### The automated health check
+
+The same verification is available on its own:
 
 ```powershell
 .\scripts\Test-TrueGazeHealth.ps1           # pre-flight
@@ -466,15 +474,13 @@ Everything can also be driven from a terminal:
 
 Pre-flight verifies, in about a second, everything that is expensive to discover later:
 
-- the game version found, and the exact Address Library filename it implies
-- that SKSE is installed **and that its build matches this game version**
-- that the Address Library is present **and version-matched** — a library for the *wrong* version is worse than none
-- the VC++ runtime dependencies
-- that the DLL exports the full SKSE loader contract (`SKSEPlugin_Load`, `SKSEPlugin_Query`, `SKSEPlugin_Version`)
-- that the compiled binary targets `Actor::Update` slot `0xAD` and carries the tick exception guard
-- that the deployed copy **hashes identically** to the build — a stale deployed binary has shipped twice
-
-Exit code is `0` only when nothing failed. `Deploy-TrueGaze.ps1` gates the launch on it.
+* the game version found, and the exact Address Library filename it implies
+* that SKSE is installed **and that its build matches this game version**
+* that the Address Library is present **and version-matched** — a library for the *wrong* version is worse than none
+* the VC++ runtime dependencies
+* that the DLL exports the full SKSE loader contract (`SKSEPlugin_Load`, `SKSEPlugin_Query`, `SKSEPlugin_Version`)
+* that the compiled binary targets `Actor::Update` slot `0xAD` and carries the tick exception guard
+* that the deployed copy **hashes identically** to the build — a stale deployed binary has shipped twice
 
 ### Manual build
 
