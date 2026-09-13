@@ -463,6 +463,26 @@ To additionally get clickable shortcuts in the project root and on the Desktop:
 .\scripts\Install-OneClick.ps1
 ```
 
+### Installing the game-side dependencies (one manual step)
+
+SKSE64 and the Address Library are **Nexus-only downloads** — they sit behind a
+login and cannot be fetched by a script, and the Address Library's permissions
+forbid redistribution. Everything else about installing them is automated:
+
+```powershell
+.\scripts\Install-Prerequisites.ps1
+```
+
+Run it once. It prints the **exact two files to download** and the exact place
+to save them (the `downloads/` folder). After you have added the two files by
+hand — the only step no script is allowed to do — run it again and it will
+**extract, copy into the game folder, and verify the result**, checking the SKSE
+build matches your exact game version and that the Address Library filename is
+the one that version needs.
+
+It requires **7-Zip** (`7z.exe`): Windows `tar` cannot decompress the LZMA 7z
+archives these mods ship in.
+
 ### The automated health check
 
 The same verification is available on its own:
@@ -517,7 +537,9 @@ The full protocol is in **[`docs/TEST_SCENARIO.md`](docs/TEST_SCENARIO.md)**. It
 | **Address Library for SKSE Plugins** | TrueGaze resolves game offsets through `Data/SKSE/Plugins/versionlib-<version>.bin`. |
 | Visual C++ 2015–2022 x64 Redistributable | `MSVCP140` / `VCRUNTIME140` runtime dependencies. |
 
-The health check verifies all three and names the exact filename each one needs.
+`Install-Prerequisites.ps1` installs the first two (after the one manual Nexus
+download) and the health check verifies all three, naming the exact filename
+each one needs.
 
 ---
 

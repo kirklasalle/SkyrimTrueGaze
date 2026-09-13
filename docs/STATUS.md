@@ -402,6 +402,8 @@ The engine is written and compiles. Nothing below is speculative; each step is e
 | **Address Library** (`Data/SKSE/Plugins/versionlib-<version>.bin`) | ❌ **Not installed** | `REL::ID` / `VariantID` offsets resolve through this file. Without it SKSE refuses the plugin with *"missing the address library for this specific version of the game"*. |
 | Microsoft VC++ 2015–2022 x64 Redistributable | ✅ Present | `MSVCP140` / `VCRUNTIME140` runtime dependencies. |
 
+**Both missing prerequisites are Nexus-only downloads** — they sit behind a login and cannot be fetched by a script, and the Address Library's permissions forbid redistribution. `scripts/Install-Prerequisites.ps1` (also exposed as `TrueGaze.cmd prereqs`) automates everything *except* that one manual download: it prints the exact two files and where to save them, then — once they are dropped in `downloads/` — extracts them with 7-Zip, copies them into the game folder, and verifies the SKSE build matches your exact game version and the Address Library filename is the one that version needs.
+
 `Test-TrueGazeHealth.ps1` verifies all three, including that the SKSE build matches the exact game version and that the Address Library filename matches too — a library for the *wrong* version is worse than none, because it looks present while resolving every address incorrectly.
 
 ### Verification sequence

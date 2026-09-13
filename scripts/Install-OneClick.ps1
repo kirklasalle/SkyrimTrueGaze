@@ -77,24 +77,24 @@ $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.e
 
 $shortcuts = @(
     @{
-        Name   = 'TrueGaze - Build and Launch.lnk'
-        Args   = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`""
-        Desc   = 'Build, deploy, verify and launch TrueGaze'
+        Name = 'TrueGaze - Build and Launch.lnk'
+        Args = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`""
+        Desc = 'Build, deploy, verify and launch TrueGaze'
     },
     @{
-        Name   = 'TrueGaze - Safe Load-Only Test.lnk'
-        Args   = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -LoadOnly"
-        Desc   = 'Deploy with simulation disabled and launch, to prove the plugin loads safely'
+        Name = 'TrueGaze - Safe Load-Only Test.lnk'
+        Args = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -LoadOnly"
+        Desc = 'Deploy with simulation disabled and launch, to prove the plugin loads safely'
     },
     @{
-        Name   = 'TrueGaze - Verify Only.lnk'
-        Args   = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -NoLaunch"
-        Desc   = 'Build, deploy and run the pre-flight health check without launching'
+        Name = 'TrueGaze - Verify Only.lnk'
+        Args = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -NoLaunch"
+        Desc = 'Build, deploy and run the pre-flight health check without launching'
     },
     @{
-        Name   = 'TrueGaze - Analyse Last Run.lnk'
-        Args   = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -PostRun"
-        Desc   = 'Parse TrueGaze.log and report what happened on the last run'
+        Name = 'TrueGaze - Analyse Last Run.lnk'
+        Args = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -PostRun"
+        Desc = 'Parse TrueGaze.log and report what happened on the last run'
     }
 )
 

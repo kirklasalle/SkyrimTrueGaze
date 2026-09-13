@@ -1,9 +1,20 @@
 # Visual Studio & MSVC
 .vs/
+.vscode/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
+
+# ---------------------------------------------------------------------------
+# Prerequisite downloads.
+#
+# Install-Prerequisites.ps1 stages SKSE and the Address Library here. These are
+# Nexus-only binaries and must never be committed (the Address Library's
+# permissions forbid redistribution). The folder is a scratch area that the
+# installer fills on the user's own machine.
+# ---------------------------------------------------------------------------
+downloads/
 
 # Build artifacts
 out/

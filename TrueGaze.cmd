@@ -91,6 +91,7 @@ if /i "!ARG!"=="deploy"   set "MODE=DEPLOY"
 if /i "!ARG!"=="verify"   set "MODE=VERIFY"
 if /i "!ARG!"=="postrun"  set "MODE=POSTRUN"
 if /i "!ARG!"=="status"   set "MODE=STATUS"
+if /i "!ARG!"=="prereqs"  set "MODE=PREREQS"
 if /i "!ARG!"=="help"     set "MODE=HELP"
 
 shift
@@ -99,6 +100,7 @@ goto :PARSE_ARGS
 :ARGS_DONE
 if not defined MODE goto :MENU
 if /i "!MODE!"=="HELP" goto :HELP
+if /i "!MODE!"=="PREREQS" goto :DO_PREREQS
 goto :DISPATCH
 
 REM ===========================================================================
@@ -114,12 +116,14 @@ echo     [3]  Build           build and verify, do not launch
 echo     [4]  Verify          check everything, do not build or launch
 echo     [5]  Analyse         report what happened on the last run
 echo     [6]  Status          show the detected configuration
+echo     [7]  Prerequisites   install SKSE + Address Library
 echo     [0]  Exit
 echo.
-echo   For a first test, start with [4], then [2].
+echo   For a first test, start with [7], then [4], then [2].
 echo.
-choice /c 1234560 /n /m "  Select: "
-if errorlevel 7 goto :THE_END
+choice /c 12345670 /n /m "  Select: "
+if errorlevel 8 goto :THE_END
+if errorlevel 7 set "MODE=PREREQS"
 if errorlevel 6 set "MODE=STATUS"
 if errorlevel 5 set "MODE=POSTRUN"
 if errorlevel 4 set "MODE=VERIFY"
@@ -145,6 +149,28 @@ if /i "!MODE!"=="BUILD"    goto :DO_BUILD
 if /i "!MODE!"=="LOADONLY" goto :DO_LOADONLY
 if /i "!MODE!"=="ALL"      goto :DO_ALL
 goto :THE_END
+
+REM Prerequisites mode runs BEFORE game detection: it is the tool that makes
+REM SKSE and the Address Library present, so it must work even when the game
+REM folder does not yet contain them. It delegates to the PowerShell installer,
+REM whose job is to print the two Nexus links and then install anything that has
+REM been downloaded.
+:DO_PREREQS
+call :BANNER
+echo   Installing/prerequiring SKSE64 and the Address Library...
+echo   (This prints the two Nexus links, then installs anything already downloaded.)
+echo.
+set "PRE_PS=%PROJECT_ROOT%\scripts\Install-Prerequisites.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PRE_PS%"
+set "PRE_RC=!ERRORLEVEL!"
+
+:END_PREREQS
+if "!NOPAUSE!"=="1" goto :END_NO_PAUSE
+echo.
+echo   Press any key to close...
+pause >nul
+:END_NO_PAUSE
+endlocal & exit /b %PRE_RC%
 
 REM ===========================================================================
 REM  Modes
@@ -860,6 +886,7 @@ goto :THE_END
 call :BANNER
 echo   Usage:
 echo     TrueGaze.cmd                 interactive menu
+echo     TrueGaze.cmd prereqs         install SKSE + Address Library prerequisites
 echo     TrueGaze.cmd all             build, deploy, verify, launch
 echo     TrueGaze.cmd loadonly        deploy with the engine off, then launch
 echo     TrueGaze.cmd build           build and verify only
@@ -874,10 +901,11 @@ echo     /force         launch even if verification fails
 echo     /nopause       never wait for a keypress
 echo.
 echo   Recommended first run:
-echo     1.  TrueGaze.cmd verify       fix anything it reports
-echo     2.  TrueGaze.cmd loadonly     prove it loads without crashing
-echo     3.  TrueGaze.cmd all          the real test
-echo     4.  TrueGaze.cmd postrun      what actually happened
+echo     1.  TrueGaze.cmd prereqs      prints the two Nexus links; install once downloaded
+echo     2.  TrueGaze.cmd verify       fix anything it reports
+echo     3.  TrueGaze.cmd loadonly     prove it loads without crashing
+echo     4.  TrueGaze.cmd all          the real test
+echo     5.  TrueGaze.cmd postrun      what actually happened
 echo.
 goto :THE_END
 
