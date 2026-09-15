@@ -39,33 +39,108 @@ namespace TrueGaze::Engine
 
     } // namespace
 
+    void ConfigManager::ApplyIni(const std::string &path) noexcept
+    {
+        // Read every managed value from a single INI, using the value already held in
+        // memory as the default. This lets the function be called more than once to
+        // *layer* files: a later call only overrides keys that the later file actually
+        // contains, and leaves everything else untouched.
+        const char *p = path.c_str();
+
+        // General
+        enableTrueGaze = ReadBool("General", "bEnableTrueGaze", enableTrueGaze, p);
+        enableCreatures = ReadBool("General", "bEnableCreatures", enableCreatures, p);
+        {
+            char targetBuf[32]{0};
+            GetPrivateProfileStringA("General", "sEngineTarget", engineTarget.c_str(), targetBuf, sizeof(targetBuf), p);
+            engineTarget = targetBuf;
+        }
+
+        // Kinematics
+        saccadeSpeedMult = ReadFloat("Kinematics", "fSaccadeSpeedMult", saccadeSpeedMult, p);
+        velocitySaturation = ReadFloat("Kinematics", "fVelocitySaturation", velocitySaturation, p);
+        microJitterAmp = ReadFloat("Kinematics", "fMicroJitterAmp", microJitterAmp, p);
+        microJitterIntervalMin = ReadFloat("Kinematics", "fMicroJitterIntervalMin", microJitterIntervalMin, p);
+        microJitterIntervalMax = ReadFloat("Kinematics", "fMicroJitterIntervalMax", microJitterIntervalMax, p);
+        headTrackingSpeed = ReadFloat("Kinematics", "fHeadTrackingSpeed", headTrackingSpeed, p);
+        maxComfortEyeAngle = ReadFloat("Kinematics", "fMaxComfortEyeAngle", maxComfortEyeAngle, p);
+
+        // SkeletalHierarchy
+        spine2YawWeight = ReadFloat("SkeletalHierarchy", "fSpine2YawWeight", spine2YawWeight, p);
+        neckYawWeight = ReadFloat("SkeletalHierarchy", "fNeckYawWeight", neckYawWeight, p);
+        neckPitchWeight = ReadFloat("SkeletalHierarchy", "fNeckPitchWeight", neckPitchWeight, p);
+        headYawWeight = ReadFloat("SkeletalHierarchy", "fHeadYawWeight", headYawWeight, p);
+        headPitchWeight = ReadFloat("SkeletalHierarchy", "fHeadPitchWeight", headPitchWeight, p);
+
+        // Social
+        enableGazeAversion = ReadBool("Social", "bEnableGazeAversion", enableGazeAversion, p);
+        enableSocialTriangle = ReadBool("Social", "bEnableSocialTriangle", enableSocialTriangle, p);
+        triangleFixationDuration = ReadFloat("Social", "fTriangleFixationDuration", triangleFixationDuration, p);
+        mutualGazeThreshold = ReadFloat("Social", "fMutualGazeThreshold", mutualGazeThreshold, p);
+
+        // Crosshair (player gaze sweet spot)
+        enableCrosshairGaze = ReadBool("Crosshair", "bEnableCrosshairGaze", enableCrosshairGaze, p);
+        crosshairToleranceDeg = ReadFloat("Crosshair", "fCrosshairToleranceDeg", crosshairToleranceDeg, p);
+        crosshairMaxRangeMeters = ReadFloat("Crosshair", "fCrosshairMaxRangeMeters", crosshairMaxRangeMeters, p);
+        crosshairPointBlankMeters = ReadFloat("Crosshair", "fCrosshairPointBlankMeters", crosshairPointBlankMeters, p);
+
+        // Bridge
+        connectHcepBridge = ReadBool("Bridge", "bConnectHcepBridge", connectHcepBridge, p);
+        char pipeBuf[256]{0};
+        GetPrivateProfileStringA("Bridge", "sPipeName", pipeName.c_str(), pipeBuf, sizeof(pipeBuf), p);
+        pipeName = pipeBuf;
+        autoReconnectIntervalSec = ReadFloat("Bridge", "fAutoReconnectIntervalSec", autoReconnectIntervalSec, p);
+        // bLockFreeTelemetry intentionally not read: the key was removed (no-op).
+
+        // LOD
+        tier1DistanceMeters = ReadFloat("LOD", "fTier1DistanceMeters", tier1DistanceMeters, p);
+        tier2DistanceMeters = ReadFloat("LOD", "fTier2DistanceMeters", tier2DistanceMeters, p);
+
+        // Debug
+        debugGazeRays = ReadBool("Debug", "bDebugGazeRays", debugGazeRays, p);
+        logLevel = GetPrivateProfileIntA("Debug", "iLogLevel", logLevel, p);
+    }
+
     void ConfigManager::Load(const std::string &customPath) noexcept
     {
-        std::string path = customPath;
-
-        if (path.empty())
+        // If a caller forces a specific file, honour it exactly and skip layering.
+        if (!customPath.empty())
         {
-            // Search order matters. The plugin is loaded by SKSE from the game root,
-            // so Data/SKSE/Plugins is the correct location; the others exist for
-            // standalone testing and for users who drop the INI beside the exe.
-            const std::array<std::string, 4> candidates = {
-                "Data/SKSE/Plugins/TrueGaze.ini",
-                "SKSE/Plugins/TrueGaze.ini",
-                "TrueGaze.ini",
-                "config/TrueGaze.ini"};
-
-            for (const auto &candidate : candidates)
+            if (std::filesystem::exists(customPath))
             {
-                std::error_code ec;
-                if (std::filesystem::exists(candidate, ec))
-                {
-                    path = std::filesystem::absolute(candidate, ec).string();
-                    break;
-                }
+                ApplyIni(customPath);
+                Sanitise();
+                _loaded = true;
+                logger::info("[TrueGaze] Configuration loaded from '{}'.", customPath);
+            }
+            else
+            {
+                logger::info("[TrueGaze] Requested INI '{}' not found; using compiled defaults.", customPath);
+                _loaded = true;
+            }
+            return;
+        }
+
+        // Single-layer load. The INI shipped in Data/SKSE/Plugins supplies the full
+        // set of tuning keys.
+        const std::array<std::string, 4> baseCandidates = {
+            "Data/SKSE/Plugins/TrueGaze.ini",
+            "SKSE/Plugins/TrueGaze.ini",
+            "TrueGaze.ini",
+            "config/TrueGaze.ini"};
+
+        std::string basePath;
+        for (const auto &candidate : baseCandidates)
+        {
+            std::error_code ec;
+            if (std::filesystem::exists(candidate, ec))
+            {
+                basePath = std::filesystem::absolute(candidate, ec).string();
+                break;
             }
         }
 
-        if (path.empty() || !std::filesystem::exists(path))
+        if (basePath.empty())
         {
             // No INI found. Defaults stand. Reported at info level because a missing
             // INI is a normal, fully supported configuration — not an error.
@@ -76,45 +151,14 @@ namespace TrueGaze::Engine
             return;
         }
 
-        const char *p = path.c_str();
-
-        // General
-        enableTrueGaze = ReadBool("General", "bEnableTrueGaze", enableTrueGaze, p);
-        enableCreatures = ReadBool("General", "bEnableCreatures", enableCreatures, p);
-
-        // Kinematics
-        saccadeSpeedMult = ReadFloat("Kinematics", "fSaccadeSpeedMult", saccadeSpeedMult, p);
-        velocitySaturation = ReadFloat("Kinematics", "fVelocitySaturation", velocitySaturation, p);
-        microJitterAmp = ReadFloat("Kinematics", "fMicroJitterAmp", microJitterAmp, p);
-        headTrackingSpeed = ReadFloat("Kinematics", "fHeadTrackingSpeed", headTrackingSpeed, p);
-        maxComfortEyeAngle = ReadFloat("Kinematics", "fMaxComfortEyeAngle", maxComfortEyeAngle, p);
-
-        // Social
-        enableGazeAversion = ReadBool("Social", "bEnableGazeAversion", enableGazeAversion, p);
-        enableSocialTriangle = ReadBool("Social", "bEnableSocialTriangle", enableSocialTriangle, p);
-        triangleFixationDuration = ReadFloat("Social", "fTriangleFixationDuration", triangleFixationDuration, p);
-        mutualGazeThreshold = ReadFloat("Social", "fMutualGazeThreshold", mutualGazeThreshold, p);
-
-        // Bridge
-        connectHcepBridge = ReadBool("Bridge", "bConnectHcepBridge", connectHcepBridge, p);
-        char pipeBuf[256]{0};
-        GetPrivateProfileStringA("Bridge", "sPipeName", pipeName.c_str(), pipeBuf, sizeof(pipeBuf), p);
-        pipeName = pipeBuf;
-        autoReconnectIntervalSec = ReadFloat("Bridge", "fAutoReconnectIntervalSec", autoReconnectIntervalSec, p);
-
-        // LOD
-        tier1DistanceMeters = ReadFloat("LOD", "fTier1DistanceMeters", tier1DistanceMeters, p);
-        tier2DistanceMeters = ReadFloat("LOD", "fTier2DistanceMeters", tier2DistanceMeters, p);
-
-        // Debug
-        debugGazeRays = ReadBool("Debug", "bDebugGazeRays", debugGazeRays, p);
-        logLevel = GetPrivateProfileIntA("Debug", "iLogLevel", logLevel, p);
+        ApplyIni(basePath);
 
         Sanitise();
 
         _loaded = true;
 
-        logger::info("[TrueGaze] Configuration loaded from '{}'.", path);
+        logger::info("[TrueGaze] Configuration loaded (base='{}').",
+                     basePath);
         logger::info("[TrueGaze]   saccadeMult={:.2f} jitter={:.2f} headSpeed={:.2f} "
                      "eyeMax={:.1f} socialTriangle={} aversion={} bridge={}",
                      saccadeSpeedMult, microJitterAmp, headTrackingSpeed, maxComfortEyeAngle,
@@ -143,13 +187,84 @@ namespace TrueGaze::Engine
         saccadeSpeedMult = clampReport("fSaccadeSpeedMult", saccadeSpeedMult, 0.1f, 5.0f);
         velocitySaturation = clampReport("fVelocitySaturation", velocitySaturation, 1.0f, 90.0f);
         microJitterAmp = clampReport("fMicroJitterAmp", microJitterAmp, 0.0f, 3.0f);
+        microJitterIntervalMin = clampReport("fMicroJitterIntervalMin", microJitterIntervalMin, 0.05f, 2.0f);
+        microJitterIntervalMax = clampReport("fMicroJitterIntervalMax", microJitterIntervalMax, 0.1f, 4.0f);
         headTrackingSpeed = clampReport("fHeadTrackingSpeed", headTrackingSpeed, 0.5f, 40.0f);
         maxComfortEyeAngle = clampReport("fMaxComfortEyeAngle", maxComfortEyeAngle, 5.0f, 45.0f);
+        spine2YawWeight = clampReport("fSpine2YawWeight", spine2YawWeight, 0.0f, 1.0f);
+        neckYawWeight = clampReport("fNeckYawWeight", neckYawWeight, 0.0f, 1.0f);
+        neckPitchWeight = clampReport("fNeckPitchWeight", neckPitchWeight, 0.0f, 1.0f);
+        headYawWeight = clampReport("fHeadYawWeight", headYawWeight, 0.0f, 1.0f);
+        headPitchWeight = clampReport("fHeadPitchWeight", headPitchWeight, 0.0f, 1.0f);
         triangleFixationDuration = clampReport("fTriangleFixationDuration", triangleFixationDuration, 0.05f, 2.0f);
         mutualGazeThreshold = clampReport("fMutualGazeThreshold", mutualGazeThreshold, 0.1f, 30.0f);
+        crosshairToleranceDeg = clampReport("fCrosshairToleranceDeg", crosshairToleranceDeg, 0.0f, 30.0f);
+        crosshairMaxRangeMeters = clampReport("fCrosshairMaxRangeMeters", crosshairMaxRangeMeters, 2.0f, 100.0f);
+        crosshairPointBlankMeters = clampReport("fCrosshairPointBlankMeters", crosshairPointBlankMeters, 0.0f, 10.0f);
         autoReconnectIntervalSec = clampReport("fAutoReconnectIntervalSec", autoReconnectIntervalSec, 0.25f, 60.0f);
         tier1DistanceMeters = clampReport("fTier1DistanceMeters", tier1DistanceMeters, 1.0f, 50.0f);
         tier2DistanceMeters = clampReport("fTier2DistanceMeters", tier2DistanceMeters, 2.0f, 200.0f);
+
+        // Jitter interval: max must exceed min, or the OU reversion-rate derivation
+        // inverts and the drift statistics become meaningless.
+        if (microJitterIntervalMax <= microJitterIntervalMin)
+        {
+            microJitterIntervalMax = microJitterIntervalMin + 0.05f;
+            logger::warn("[TrueGaze] fMicroJitterIntervalMax must exceed fMicroJitterIntervalMin; "
+                         "adjusted to {:.2f}.",
+                         microJitterIntervalMax);
+        }
+
+        // Yaw strain shares should sum to 1.0. If the user's custom split does not,
+        // renormalise so the head chain still covers the full deflection and the eye
+        // residual stays meaningful.
+        const float yawSum = spine2YawWeight + neckYawWeight + headYawWeight;
+        if (yawSum <= 0.0f)
+        {
+            spine2YawWeight = 0.10f;
+            neckYawWeight = 0.25f;
+            headYawWeight = 0.65f;
+            logger::warn("[TrueGaze] SkeletalHierarchy yaw weights sum to zero; restored defaults.");
+        }
+        else if (std::abs(yawSum - 1.0f) > 0.001f)
+        {
+            const float inv = 1.0f / yawSum;
+            spine2YawWeight *= inv;
+            neckYawWeight *= inv;
+            headYawWeight *= inv;
+            logger::warn("[TrueGaze] SkeletalHierarchy yaw weights summed to {:.3f}; renormalised to 1.0.",
+                         yawSum);
+        }
+
+        // Engine target must be a known value; anything else falls back to Auto so a
+        // typo cannot silently disable runtime selection.
+        {
+            static const char *kValidTargets[] = {"Auto", "SE", "AE", "VR"};
+            bool valid = false;
+            for (const char *t : kValidTargets)
+            {
+                if (_stricmp(engineTarget.c_str(), t) == 0)
+                {
+                    engineTarget = t; // canonical casing
+                    valid = true;
+                    break;
+                }
+            }
+            if (!valid)
+            {
+                logger::warn("[TrueGaze] sEngineTarget '{}' is not one of Auto/SE/AE/VR; using Auto.",
+                             engineTarget);
+                engineTarget = "Auto";
+            }
+        }
+
+        // Log level: documented 0-4 (Trace..Error). Out-of-range values would make
+        // the sink filter silently swallow everything or nothing.
+        if (logLevel < 0 || logLevel > 4)
+        {
+            logger::warn("[TrueGaze] iLogLevel {} out of range [0,4]; clamped.", logLevel);
+            logLevel = std::clamp(logLevel, 0, 4);
+        }
 
         // Tier 2 must be beyond tier 1, or the LOD tiers invert and actors near the
         // player silently fall through to the culled tier.
@@ -160,6 +275,92 @@ namespace TrueGaze::Engine
                          "adjusted to {:.1f}.",
                          tier2DistanceMeters);
         }
+    }
+
+    void ConfigManager::Save(const std::string &customPath) noexcept
+    {
+        std::string path = customPath;
+        if (path.empty())
+        {
+            // Prefer the standard plugin INI location when saving.
+            const std::array<std::string, 3> candidates = {
+                "Data/SKSE/Plugins/TrueGaze.ini",
+                "SKSE/Plugins/TrueGaze.ini",
+                "TrueGaze.ini"};
+
+            for (const auto &candidate : candidates)
+            {
+                std::error_code ec;
+                if (std::filesystem::exists(candidate, ec))
+                {
+                    path = std::filesystem::absolute(candidate, ec).string();
+                    break;
+                }
+            }
+        }
+
+        if (path.empty())
+        {
+            path = "Data/SKSE/Plugins/TrueGaze.ini";
+        }
+
+        const char *p = path.c_str();
+
+        auto WriteFloat = [&](const char *sec, const char *key, float val)
+        {
+            char buf[64]{0};
+            snprintf(buf, sizeof(buf), "%.6f", val);
+            WritePrivateProfileStringA(sec, key, buf, p);
+        };
+
+        auto WriteBool = [&](const char *sec, const char *key, bool val)
+        {
+            WritePrivateProfileStringA(sec, key, val ? "true" : "false", p);
+        };
+
+        WriteBool("General", "bEnableTrueGaze", enableTrueGaze);
+        WriteBool("General", "bEnableCreatures", enableCreatures);
+        WritePrivateProfileStringA("General", "sEngineTarget", engineTarget.c_str(), p);
+
+        WriteFloat("Kinematics", "fSaccadeSpeedMult", saccadeSpeedMult);
+        WriteFloat("Kinematics", "fVelocitySaturation", velocitySaturation);
+        WriteFloat("Kinematics", "fMicroJitterAmp", microJitterAmp);
+        WriteFloat("Kinematics", "fMicroJitterIntervalMin", microJitterIntervalMin);
+        WriteFloat("Kinematics", "fMicroJitterIntervalMax", microJitterIntervalMax);
+        WriteFloat("Kinematics", "fHeadTrackingSpeed", headTrackingSpeed);
+        WriteFloat("Kinematics", "fMaxComfortEyeAngle", maxComfortEyeAngle);
+
+        WriteFloat("SkeletalHierarchy", "fSpine2YawWeight", spine2YawWeight);
+        WriteFloat("SkeletalHierarchy", "fNeckYawWeight", neckYawWeight);
+        WriteFloat("SkeletalHierarchy", "fNeckPitchWeight", neckPitchWeight);
+        WriteFloat("SkeletalHierarchy", "fHeadYawWeight", headYawWeight);
+        WriteFloat("SkeletalHierarchy", "fHeadPitchWeight", headPitchWeight);
+
+        WriteBool("Social", "bEnableGazeAversion", enableGazeAversion);
+        WriteBool("Social", "bEnableSocialTriangle", enableSocialTriangle);
+        WriteFloat("Social", "fTriangleFixationDuration", triangleFixationDuration);
+        WriteFloat("Social", "fMutualGazeThreshold", mutualGazeThreshold);
+
+        WriteBool("Crosshair", "bEnableCrosshairGaze", enableCrosshairGaze);
+        WriteFloat("Crosshair", "fCrosshairToleranceDeg", crosshairToleranceDeg);
+        WriteFloat("Crosshair", "fCrosshairMaxRangeMeters", crosshairMaxRangeMeters);
+        WriteFloat("Crosshair", "fCrosshairPointBlankMeters", crosshairPointBlankMeters);
+
+        WriteBool("Bridge", "bConnectHcepBridge", connectHcepBridge);
+        WritePrivateProfileStringA("Bridge", "sPipeName", pipeName.c_str(), p);
+        WriteFloat("Bridge", "fAutoReconnectIntervalSec", autoReconnectIntervalSec);
+
+        WriteFloat("LOD", "fTier1DistanceMeters", tier1DistanceMeters);
+        WriteFloat("LOD", "fTier2DistanceMeters", tier2DistanceMeters);
+
+        WriteBool("Debug", "bDebugGazeRays", debugGazeRays);
+        {
+            char lvl[16]{0};
+            snprintf(lvl, sizeof(lvl), "%d", logLevel);
+            WritePrivateProfileStringA("Debug", "iLogLevel", lvl, p);
+        }
+
+        logger::info("[TrueGaze] Configuration saved to '{}'.", path);
     }
 
 } // namespace TrueGaze::Engine

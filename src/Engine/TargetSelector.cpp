@@ -1,8 +1,13 @@
 #include "TargetSelector.hpp"
+#include "PlayerGazeResolver.hpp"
 #include <cmath>
 
 namespace TrueGaze::Engine
 {
+
+    // Static frame snapshot of the crosshair sweet-spot parameters. Written by
+    // GazeEngine::RefreshTuning, read by ResolveTarget. Game thread only.
+    TargetSelector::CrosshairParams TargetSelector::s_crosshair{};
 
     namespace
     {
@@ -56,21 +61,53 @@ namespace TrueGaze::Engine
         const auto observerPos = observer->GetPosition();
         const auto playerPos = player->GetPosition();
 
-        // Character creation displays the player in third person. Self-targeting
-        // would produce a zero-length gaze vector, so the player explicitly looks
-        // toward the active camera instead. This also provides the deterministic
-        // initial acceptance test: the model periodically meets the camera.
-        auto *ui = RE::UI::GetSingleton();
-        if (observer == player && ui && ui->IsMenuOpen(RE::RaceSexMenu::MENU_NAME))
+        // 0. Highest priority: the player's crosshair is on this actor's face.
+        //
+        // The player's gaze is the strongest social signal in the world: a person
+        // you are looking at feels watched and looks back. When the crosshair sits
+        // inside the face sweet spot, this actor looks back at the PLAYER'S FACE
+        // (not origin + eye height), which is what produces true eye-to-eye
+        // contact and lets mutualGazeHoldSec accumulate meaningfully.
+        if (s_crosshair.enabled && observer != player)
         {
-            const auto cameraPos = RE::PlayerCamera::GetActiveCameraPosition();
-            target.targetFormId = player->GetFormID();
-            target.priority = TargetPriority::DialoguePartner;
-            target.worldX = cameraPos.x;
-            target.worldY = cameraPos.y;
-            target.worldZ = cameraPos.z;
-            target.distanceMeters = DistanceMeters(observerPos, cameraPos);
-            target.isPlayer = true;
+            PlayerGazeResolver::Params gazeParams{};
+            gazeParams.baseToleranceDeg = s_crosshair.baseToleranceDeg;
+            gazeParams.maxRangeMeters = s_crosshair.maxRangeMeters;
+            gazeParams.pointBlankMeters = s_crosshair.pointBlankMeters;
+
+            const auto playerGaze = PlayerGazeResolver::Resolve(gazeParams);
+            if (playerGaze.onFace && playerGaze.targetFormId == observerFormId)
+            {
+                target.targetFormId = player->GetFormID();
+                target.priority = TargetPriority::CrosshairFocus;
+                target.worldX = playerPos.x;
+                target.worldY = playerPos.y;
+                target.worldZ = playerPos.z + kEyeHeightOffsetUnits;
+                target.distanceMeters = DistanceMeters(observerPos, playerPos);
+                target.isPlayer = true;
+                return target;
+            }
+        }
+
+        auto *ui = RE::UI::GetSingleton();
+
+        // The player character does not procedurally track targets.
+        // During character creation (RaceSexMenu), the player looks toward the camera.
+        // In all other cases, observer == player has no target.
+        if (observer == player)
+        {
+            if (ui && ui->IsMenuOpen(RE::RaceSexMenu::MENU_NAME))
+            {
+                const auto cameraPos = RE::PlayerCamera::GetActiveCameraPosition();
+                target.targetFormId = player->GetFormID();
+                target.priority = TargetPriority::DialoguePartner;
+                target.worldX = cameraPos.x;
+                target.worldY = cameraPos.y;
+                target.worldZ = cameraPos.z;
+                target.distanceMeters = DistanceMeters(observerPos, cameraPos);
+                target.isPlayer = true;
+                return target;
+            }
             return target;
         }
 

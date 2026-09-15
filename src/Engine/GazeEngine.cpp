@@ -3,6 +3,7 @@
 #include "EyeAimConstraint.hpp"
 #include "LodManager.hpp"
 #include "TargetSelector.hpp"
+#include "PlayerGazeResolver.hpp"
 #include "ConfigManager.hpp"
 #include "PerformanceProfiler.hpp"
 #include "Integrations/OarConditions.hpp"
@@ -151,8 +152,16 @@ namespace TrueGaze::Engine
         _tuning.saccadeSpeedMult = cfg.saccadeSpeedMult;
         _tuning.velocitySaturation = cfg.velocitySaturation;
         _tuning.microJitterAmp = cfg.microJitterAmp;
+        _tuning.microJitterIntervalMin = cfg.microJitterIntervalMin;
+        _tuning.microJitterIntervalMax = cfg.microJitterIntervalMax;
         _tuning.headTrackingSpeed = cfg.headTrackingSpeed;
         _tuning.maxComfortEyeAngle = cfg.maxComfortEyeAngle;
+
+        _tuning.spine2YawWeight = cfg.spine2YawWeight;
+        _tuning.neckYawWeight = cfg.neckYawWeight;
+        _tuning.neckPitchWeight = cfg.neckPitchWeight;
+        _tuning.headYawWeight = cfg.headYawWeight;
+        _tuning.headPitchWeight = cfg.headPitchWeight;
 
         _tuning.enableGazeAversion = cfg.enableGazeAversion;
         _tuning.enableSocialTriangle = cfg.enableSocialTriangle;
@@ -162,10 +171,18 @@ namespace TrueGaze::Engine
         _tuning.tier1DistanceMeters = cfg.tier1DistanceMeters;
         _tuning.tier2DistanceMeters = cfg.tier2DistanceMeters;
 
+        // Crosshair sweet-spot parameters feed TargetSelector's static frame
+        // snapshot. Game-thread only, consistent with the rest of the engine.
+        TargetSelector::s_crosshair.enabled = cfg.enableCrosshairGaze;
+        TargetSelector::s_crosshair.baseToleranceDeg = cfg.crosshairToleranceDeg;
+        TargetSelector::s_crosshair.maxRangeMeters = cfg.crosshairMaxRangeMeters;
+        TargetSelector::s_crosshair.pointBlankMeters = cfg.crosshairPointBlankMeters;
+
         logger::info("[TrueGaze] Tuning refreshed: saccadeMult={:.2f} jitter={:.2f} "
-                     "headSpeed={:.2f} eyeMax={:.1f}",
+                     "headSpeed={:.2f} eyeMax={:.1f} crosshair={}",
                      _tuning.saccadeSpeedMult, _tuning.microJitterAmp,
-                     _tuning.headTrackingSpeed, _tuning.maxComfortEyeAngle);
+                     _tuning.headTrackingSpeed, _tuning.maxComfortEyeAngle,
+                     cfg.enableCrosshairGaze ? "on" : "off");
     }
 
     void GazeEngine::StartBridge() noexcept
@@ -181,7 +198,8 @@ namespace TrueGaze::Engine
             return;
         }
 
-        _pipe.Start();
+        const auto &cfg = ConfigManager::GetSingleton();
+        _pipe.Start(cfg.pipeName.c_str(), cfg.autoReconnectIntervalSec);
         _bridgeStarted = true;
     }
 
@@ -198,6 +216,14 @@ namespace TrueGaze::Engine
 
     void GazeEngine::ResetAll() noexcept
     {
+        // Withdraw every applied bone transform before dropping the runtime state,
+        // otherwise the last gaze pose is baked into the skeletons until each actor
+        // happens to update again (never, for actors left behind on a cell change).
+        for (const auto &[formId, state] : _actors)
+        {
+            (void)state;
+            EyeAimConstraint::WithdrawActor(formId);
+        }
         _actors.clear();
         logger::info("[TrueGaze] Actor gaze state cleared.");
     }
@@ -215,6 +241,9 @@ namespace TrueGaze::Engine
             it->second.idleSec += deltaSeconds;
             if (it->second.idleSec > ACTOR_EVICTION_SEC)
             {
+                // Withdraw the applied bone transforms before dropping the state so
+                // an evicted actor does not keep its last gaze pose frozen on.
+                EyeAimConstraint::WithdrawActor(it->first);
                 it = _actors.erase(it);
             }
             else
@@ -307,8 +336,18 @@ namespace TrueGaze::Engine
             (void)startYaw;
         }
 
-        // Keep the drift amplitude in step with configuration changes.
+        // Keep the drift amplitude in step with configuration changes. The mean
+        // reversion rate derives from the configured micro-correction interval:
+        // corrections arrive on average every `interval` seconds, so drift is pulled
+        // back at theta = 1/mean(interval). (0.2-0.45 s -> theta ~ 3.1/s, within the
+        // physiological 2-8/s band for ocular drift correction.)
         state.jitter.amplitudeDeg = _tuning.microJitterAmp;
+        {
+            const float meanInterval = 0.5f * (_tuning.microJitterIntervalMin +
+                                               _tuning.microJitterIntervalMax);
+            state.jitter.reversionRate = (meanInterval > 0.0f) ? (1.0f / meanInterval)
+                                                               : state.jitter.reversionRate;
+        }
         state.vor.headTrackingSpeed = _tuning.headTrackingSpeed;
         state.vor.eyeMaxAngle = _tuning.maxComfortEyeAngle;
 
@@ -322,7 +361,9 @@ namespace TrueGaze::Engine
             distanceMeters = units / kUnitsPerMeter;
         }
 
-        const auto tier = LodManager::GetLodTier(distanceMeters);
+        const auto tier = LodManager::GetLodTier(distanceMeters,
+                                                 _tuning.tier1DistanceMeters,
+                                                 _tuning.tier2DistanceMeters);
 
         if (tier == LodManager::LodTier::Tier3_Culled)
         {
@@ -387,6 +428,34 @@ namespace TrueGaze::Engine
             state.hcepMode = 0;
         }
 
+        // --- Mutual gaze (crosshair sweet spot) ----------------------------------
+        // The player's crosshair resting on this actor's face is the ground truth
+        // for "the player is looking at me". While it holds, the actor holds eye
+        // contact and the mutual-gaze timer accumulates; the moment it breaks the
+        // timer resets. This is the first production consumer of mutualGazeHoldSec,
+        // which previously existed but was never written by anything.
+        bool mutualGazeNow = false;
+        if (_tuning.enableCrosshairGaze &&
+            target.priority == TargetSelector::TargetPriority::CrosshairFocus)
+        {
+            PlayerGazeResolver::Params gazeParams{};
+            gazeParams.baseToleranceDeg = _tuning.crosshairToleranceDeg;
+            gazeParams.maxRangeMeters = _tuning.crosshairMaxRangeMeters;
+            gazeParams.pointBlankMeters = _tuning.crosshairPointBlankMeters;
+
+            mutualGazeNow = PlayerGazeResolver::IsPlayerLookingAtFace(
+                actor->GetFormID(), gazeParams);
+        }
+
+        if (mutualGazeNow)
+        {
+            state.mutualGazeHoldSec += deltaSeconds;
+        }
+        else
+        {
+            state.mutualGazeHoldSec = 0.0f;
+        }
+
         // --- Social triangle (AFFECT) -------------------------------------------
         if (_tuning.enableSocialTriangle && state.hcepMode == 1)
         {
@@ -427,6 +496,12 @@ namespace TrueGaze::Engine
 
         Kinematics::SaccadeGenerator::Update(state.saccade, deltaSeconds);
 
+        // --- Blink lifecycle -----------------------------------------------------
+        // Without Update() a triggered blink never clears: isBlinking stays true and
+        // ApplyMorphs writes a stale eyelid weight every frame for the rest of the
+        // session. Update advances the blink envelope (close -> open -> rest).
+        Integrations::EfmBlinkController::Update(state.blink, deltaSeconds);
+
         // --- Vestibulo-ocular reflex: split eye vs head -------------------------
         state.vor.targetYaw = state.saccade.currentYaw;
         state.vor.targetPitch = state.saccade.currentPitch;
@@ -466,8 +541,12 @@ namespace TrueGaze::Engine
 
         // Distribute the deflection anatomically. The eyes receive the residual the
         // head chain did not cover, which is what produces "eyes lead, head follows".
+        // Strain shares come from configuration ([SkeletalHierarchy] in the INI).
+        const BoneController::StrainWeights weights{
+            _tuning.spine2YawWeight, _tuning.neckYawWeight, _tuning.neckPitchWeight,
+            _tuning.headYawWeight, _tuning.headPitchWeight};
         const auto strain = BoneController::CalculateHierarchyStrain(
-            yawDeg, pitchDeg, state.vor.eyeMaxAngle, state.vor.eyeMaxAngle);
+            yawDeg, pitchDeg, state.vor.eyeMaxAngle, state.vor.eyeMaxAngle, weights);
 
         auto *spine = FindFirstBone(root, kSpineCandidates, std::size(kSpineCandidates));
         auto *neck = FindFirstBone(root, kNeckCandidates, std::size(kNeckCandidates));
