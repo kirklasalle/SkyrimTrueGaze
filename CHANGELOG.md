@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Crosshair-Driven Mutual Gaze (2026-09-14)
+
+- **`src/Engine/PlayerGazeResolver.{hpp,cpp}`** — resolves the player's crosshair into a "who is the player looking at" answer. Reads the game's own `CrosshairPickData` (the same pick the HUD activation prompt uses) and tests whether the crosshair ray falls within the target's **face sweet spot**. The sweet spot is angular, not a fixed radius: the crosshair must be within the head's angular size (`2·atan(0.12 m / d)`) plus a base tolerance, so a close NPC is forgiving and a distant one requires precision — matching natural vision and the crosshair's own on-screen behaviour.
+- **`TargetSelector::TargetPriority::CrosshairFocus`** — new highest-priority target. When the crosshair rests on an NPC's face, that NPC looks back at the **player's face** (origin + eye height), producing true eye-to-eye contact instead of proximity-based looking.
+- **`mutualGazeHoldSec` is now written.** `GazeEngine::ComputeDeflection` accumulates it while the crosshair holds on the actor's face and resets it the moment it breaks. This is the first production consumer of the field, which previously existed but was never written — the OAR conditions and C API always reported zero.
+- **`[Crosshair]` INI section** — `bEnableCrosshairGaze`, `fCrosshairToleranceDeg`, `fCrosshairMaxRangeMeters`, `fCrosshairPointBlankMeters`. Wired through `ConfigManager` (read/sanitise/save), `GazeTuning`, `TargetSelector::s_crosshair`, and `TrueGazeConfig.html`. INI edited in Latin-1 per the byte-preservation rule.
+
 ### Added — Governance Enforcement
 
 - **`GOVERNANCE.md`** — the charter enforcement map required by `AGENTIC_SACRED_COVENANT.md` §3.1. States plainly which controls are implemented, which are gaps, and which are not applicable to a Skyrim plugin. Includes the Law 6 biometric gap analysis and the amendment procedure.
@@ -53,7 +60,7 @@ The following claims in earlier entries were found to be **inaccurate** and have
 - **Public modding SDK — export surface only.** All `TrueGazeAPI.cpp` bodies are stubs. `TrueGaze_IsHcepConnected()` returns a hardcoded `false`; `TrueGaze_GetActorGaze()` returns hardcoded zeroes and a hardcoded `0x14` target FormID while returning `true`; `TrueGaze_OverrideActorMode()` is an empty body.
 - **Papyrus bindings — not registered.** No `SKSE::GetPapyrusInterface()->Register(...)` call exists anywhere, and the declared signatures in `TrueGaze.psc` do not match the exported symbols.
 - **Animation hooks — not installed.** `AnimationHook::Install()` constructs no `REL::Relocation`; the hook body that would apply bone rotation is a comment.
-- **MCM — cannot bind.** The MCM schema declares `"sourceForm": "TrueGaze.esp"` on every entry, but no such plugin exists in the repository. Additionally, no compiled `.pex` scripts ship, so SkyUI finds no script to run.
+- ~~**MCM — cannot bind.**~~ **Superseded (2026-09-14).** The entire MCM and Papyrus layers were removed by design decision; configuration is INI-only via `TrueGaze.ini` and the `TrueGazeConfig.html` editor.
 - **Configuration — never loaded on the real plugin path.** `ConfigManager::Load()` is called only in the `#else` fallback branch of `Main.cpp`. Every INI setting and every MCM slider is inert.
 
 ### Discovered — Verified Defects
@@ -87,7 +94,6 @@ Confirmed correct by direct inspection during the audit:
 - IPC integration test harness
 - Correct Skyrim mod package structure (MO2/Vortex layout)
 - Well-designed 7-rule OAR condition package
-- 6-language MCM localisation
 
 ---
 
@@ -102,15 +108,11 @@ Confirmed correct by direct inspection during the audit:
 - **TargetSelector Implementation**: Salience prioritization engine resolving dialogue partners, combat adversaries, proximity actors, and ambient focus points (`src/Engine/TargetSelector.cpp`).
 - **OarConditions Implementation & Config Rules**: Thread-safe condition cache and sample rules (`skyrim/meshes/actors/character/animations/OpenAnimationReplacer/TrueGaze/config.json`) supporting all 5 HCEP modes (LOGIC, AFFECT, SPIRIT, HEART, THINK).
 - **Expressive Facegen Morphs (EFM) Integration**: Implemented `EfmBlinkController::ApplyMorphs` for face morph target weight calculations during saccades.
-- **Mod Configuration Menu (MCM) & Localization**:
-  - SkyUI Papyrus script `TrueGaze_MCM.psc` with toggle and slider event handlers.
-  - 6 MCM translation languages: English, French, German, Spanish, Japanese, and Chinese.
 - **Skyrim VR & Performance Instrumentation**:
   - `VrController.hpp`/`cpp` handling OpenVR HMD 6DOF transforms and foveated gaze projections.
   - `PerformanceProfiler.hpp` microsecond execution timer ensuring frame budget $< 0.15\text{ ms}$.
-- **Public Modding SDK & Native Papyrus Bindings**:
+- **Public Modding SDK**:
   - `include/TrueGazeAPI.h` and `src/Engine/TrueGazeAPI.cpp` exporting public C/C++ API (`TrueGaze_GetActorGaze`, `TrueGaze_GetVersion`, `TrueGaze_IsHcepConnected`, `TrueGaze_OverrideActorMode`).
-  - `skyrim/scripts/source/TrueGaze.psc` exposing native Papyrus functions.
 - **Automated Nexus Packager**: Created `scripts/PackageMod.ps1` and compiled distribution package `dist/TrueGaze-v1.0.0-rc1-SkyrimSE-AE-VR.zip`.
 - **Pure C++20 Kinematics Test Suite**: Standalone automated test harness (`tests/KinematicsTests.cpp`) validating 8 core components.
 - **Product Requirements Document (`PRD.md`)**: Comprehensive technical document specifying product vision, personas, functional/non-functional requirements, wire protocols, and acceptance criteria.
@@ -137,7 +139,6 @@ Confirmed correct by direct inspection during the audit:
   - `EfmBlinkController.hpp`: Micro-blink triggering for saccades $> 20^\circ$.
 - 64-byte inbound telemetry wire protocol (`TrueGazeTelemetryPacket`) and 32-byte outbound feedback protocol (`SkyrimFeedbackPacket`).
 - Open Animation Replacer (OAR) integration specification and HCEP bridge specification documents.
-- In-game Mod Configuration Menu schema (`skyrim/Interface/MCM/Config/TrueGaze/config.json`).
 
 ---
 
