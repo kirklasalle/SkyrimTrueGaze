@@ -99,6 +99,25 @@ namespace TrueGaze::Engine
         // Debug
         debugGazeRays = ReadBool("Debug", "bDebugGazeRays", debugGazeRays, p);
         logLevel = GetPrivateProfileIntA("Debug", "iLogLevel", logLevel, p);
+
+        // Visuals (in-game 3D representation of the solved gaze)
+        enableInGameVisuals = ReadBool("Visuals", "bEnableInGameVisuals", enableInGameVisuals, p);
+        gazeRaysEnabled = ReadBool("Visuals", "bGazeRaysEnabled", gazeRaysEnabled, p);
+        rayRenderMode = GetPrivateProfileIntA("Visuals", "iRayRenderMode", rayRenderMode, p);
+        gazeRayLengthMeters = ReadFloat("Visuals", "fGazeRayLengthMeters", gazeRayLengthMeters, p);
+        gazeRayColour = GetPrivateProfileIntA("Visuals", "iGazeRayColour", gazeRayColour, p);
+        gazeRayOpacity = ReadFloat("Visuals", "fGazeRayOpacity", gazeRayOpacity, p);
+        gazeRaysOnPlayer = ReadBool("Visuals", "bGazeRaysOnPlayer", gazeRaysOnPlayer, p);
+        gazeRaysOnNPCs = ReadBool("Visuals", "bGazeRaysOnNPCs", gazeRaysOnNPCs, p);
+        gazeRaysOnCreatures = ReadBool("Visuals", "bGazeRaysOnCreatures", gazeRaysOnCreatures, p);
+        gazeRaysAttachHead = ReadBool("Visuals", "bGazeRaysAttachHead", gazeRaysAttachHead, p);
+        gazeRaysTerminus = ReadBool("Visuals", "bGazeRaysTerminus", gazeRaysTerminus, p);
+        pupilForwardOffsetCm = ReadFloat("Visuals", "fPupilForwardOffsetCm", pupilForwardOffsetCm, p);
+        pupilUpOffsetCm = ReadFloat("Visuals", "fPupilUpOffsetCm", pupilUpOffsetCm, p);
+        pupilGlowIntensity = ReadFloat("Visuals", "fPupilGlowIntensity", pupilGlowIntensity, p);
+
+        // Console commands
+        enableConsoleCommands = ReadBool("Console", "bEnableConsoleCommands", enableConsoleCommands, p);
     }
 
     void ConfigManager::Load(const std::string &customPath) noexcept
@@ -111,10 +130,12 @@ namespace TrueGaze::Engine
                 ApplyIni(customPath);
                 Sanitise();
                 _loaded = true;
+                _loadedPath = customPath;
                 logger::info("[TrueGaze] Configuration loaded from '{}'.", customPath);
             }
             else
             {
+                _loadedPath.clear();
                 logger::info("[TrueGaze] Requested INI '{}' not found; using compiled defaults.", customPath);
                 _loaded = true;
             }
@@ -147,6 +168,7 @@ namespace TrueGaze::Engine
             logger::info("[TrueGaze] No TrueGaze.ini found; using compiled defaults "
                          "(saccadeMult={:.2f}, jitter={:.2f}, headSpeed={:.2f}).",
                          saccadeSpeedMult, microJitterAmp, headTrackingSpeed);
+            _loadedPath.clear();
             _loaded = true;
             return;
         }
@@ -156,6 +178,7 @@ namespace TrueGaze::Engine
         Sanitise();
 
         _loaded = true;
+        _loadedPath = basePath;
 
         logger::info("[TrueGaze] Configuration loaded (base='{}').",
                      basePath);
@@ -275,6 +298,20 @@ namespace TrueGaze::Engine
                          "adjusted to {:.1f}.",
                          tier2DistanceMeters);
         }
+
+        // --- Visuals -----------------------------------------------------------
+        // A beam shorter than the eye is a dot; an unbounded one reaches across
+        // Whiterun. Both are configuration mistakes rather than preferences.
+        rayRenderMode = std::clamp(rayRenderMode, 0, 2);
+        gazeRayLengthMeters = clampReport("fGazeRayLengthMeters", gazeRayLengthMeters, 0.5f, 100.0f);
+        gazeRayOpacity = clampReport("fGazeRayOpacity", gazeRayOpacity, 0.0f, 1.0f);
+        pupilGlowIntensity = clampReport("fPupilGlowIntensity", pupilGlowIntensity, 0.0f, 5.0f);
+        pupilForwardOffsetCm = clampReport("fPupilForwardOffsetCm", pupilForwardOffsetCm, 0.0f, 30.0f);
+        pupilUpOffsetCm = clampReport("fPupilUpOffsetCm", pupilUpOffsetCm, -30.0f, 30.0f);
+
+        // Colour is stored as 0xRRGGBB. Mask off any stray high bits so the
+        // per-channel extraction in the renderer is always in range.
+        gazeRayColour &= 0x00FFFFFF;
     }
 
     void ConfigManager::Save(const std::string &customPath) noexcept
@@ -359,6 +396,34 @@ namespace TrueGaze::Engine
             snprintf(lvl, sizeof(lvl), "%d", logLevel);
             WritePrivateProfileStringA("Debug", "iLogLevel", lvl, p);
         }
+
+        // Visuals
+        WriteBool("Visuals", "bEnableInGameVisuals", enableInGameVisuals);
+        WriteBool("Visuals", "bGazeRaysEnabled", gazeRaysEnabled);
+        {
+            char mode[16]{0};
+            snprintf(mode, sizeof(mode), "%d", rayRenderMode);
+            WritePrivateProfileStringA("Visuals", "iRayRenderMode", mode, p);
+        }
+        WriteFloat("Visuals", "fGazeRayLengthMeters", gazeRayLengthMeters);
+        {
+            // 0xRRGGBB reads as decimal in the INI; keep it that way so the HTML
+            // page and the engine agree on the representation.
+            char col[24]{0};
+            snprintf(col, sizeof(col), "%d", gazeRayColour & 0x00FFFFFF);
+            WritePrivateProfileStringA("Visuals", "iGazeRayColour", col, p);
+        }
+        WriteFloat("Visuals", "fGazeRayOpacity", gazeRayOpacity);
+        WriteBool("Visuals", "bGazeRaysOnPlayer", gazeRaysOnPlayer);
+        WriteBool("Visuals", "bGazeRaysOnNPCs", gazeRaysOnNPCs);
+        WriteBool("Visuals", "bGazeRaysOnCreatures", gazeRaysOnCreatures);
+        WriteBool("Visuals", "bGazeRaysAttachHead", gazeRaysAttachHead);
+        WriteBool("Visuals", "bGazeRaysTerminus", gazeRaysTerminus);
+        WriteFloat("Visuals", "fPupilForwardOffsetCm", pupilForwardOffsetCm);
+        WriteFloat("Visuals", "fPupilUpOffsetCm", pupilUpOffsetCm);
+        WriteFloat("Visuals", "fPupilGlowIntensity", pupilGlowIntensity);
+
+        WriteBool("Console", "bEnableConsoleCommands", enableConsoleCommands);
 
         logger::info("[TrueGaze] Configuration saved to '{}'.", path);
     }

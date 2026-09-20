@@ -66,8 +66,6 @@ namespace TrueGaze::API
                                                  HcepCognitiveMode mode,
                                                  float durationSec) noexcept
     {
-        (void)durationSec;
-
         if (actorFormId == 0)
         {
             return;
@@ -86,6 +84,9 @@ namespace TrueGaze::API
         }
 
         state->hcepMode = raw;
+        state->modeOverrideTimerSec = (durationSec > 0.0f) ? durationSec : 5.0f;
+        state->hasModeOverride = true;
+
         Integrations::OarConditions::PublishActorState(
             actorFormId, state->hcepMode, state->gazeRegion, state->mutualGazeHoldSec);
     }

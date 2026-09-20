@@ -7,9 +7,13 @@
 #include "ConfigManager.hpp"
 #include "PerformanceProfiler.hpp"
 #include "Integrations/OarConditions.hpp"
+#include "Visuals/VisualEffectsManager.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/Skyrim.h>
+#include <RE/S/SendHUDMessage.h>
+#include <RE/C/ConsoleLog.h>
+#include <RE/B/BSVisit.h>
 #endif
 
 #include <cmath>
@@ -42,19 +46,20 @@ namespace TrueGaze::Engine
 
 #if __has_include(<RE/Skyrim.h>)
 
-        /// Bone names to try, in priority order. Different rigs (vanilla, XP32, custom
-        /// creature skeletons) name these differently, so a candidate list is used rather
-        /// than a single hardcoded name.
+        /// Bone names to try, in priority order. Different rigs (vanilla, XP32/XPMSSE, custom
+        /// creature skeletons) name these differently. Standard Skyrim skeleton uses literal
+        /// "NPC L Eye" and "NPC R Eye", and "NPC Spine2 [Spn2]".
         constexpr const char *kSpineCandidates[] = {
-            "NPC Spine2 [Spine2]", "Spine2", "NPC Spine1 [Spine1]"};
+            "NPC Spine2 [Spn2]", "NPC Spine1 [Spn1]", "NPC Spine [Spn0]",
+            "NPC Spine2 [Spine2]", "Spine2", "NPC Spine1 [Spine1]", "Spine"};
         constexpr const char *kNeckCandidates[] = {
             "NPC Neck [Neck]", "Neck", "Neck1"};
         constexpr const char *kHeadCandidates[] = {
             "NPC Head [Head]", "Head", "Head1"};
         constexpr const char *kEyeLeftCandidates[] = {
-            "NPC L Eye [LEye]", "NPC L Eye [L Eye]", "L Eye", "LEye", "EyeLeft"};
+            "NPC L Eye", "NPC L Eye [LEye]", "NPC L Eye [L Eye]", "Eye_L", "EyeLeft", "L Eye", "LEye"};
         constexpr const char *kEyeRightCandidates[] = {
-            "NPC R Eye [REye]", "NPC R Eye [R Eye]", "R Eye", "REye", "EyeRight"};
+            "NPC R Eye", "NPC R Eye [REye]", "NPC R Eye [R Eye]", "Eye_R", "EyeRight", "R Eye", "REye"};
 
         RE::NiAVObject *FindFirstBone(RE::NiAVObject *root,
                                       const char *const *candidates,
@@ -65,9 +70,6 @@ namespace TrueGaze::Engine
                 return nullptr;
             }
 
-            // GetObjectByName is virtual and declared on NiAVObject; a cast to NiNode is
-            // not required. This keeps the helper usable for a bone that is itself a
-            // leaf property node on some rigs.
             for (size_t i = 0; i < count; ++i)
             {
                 if (auto *found = root->GetObjectByName(RE::BSFixedString(candidates[i])))
@@ -76,6 +78,30 @@ namespace TrueGaze::Engine
                 }
             }
             return nullptr;
+        }
+
+        RE::NiAVObject *FindBoneFuzzy(RE::NiAVObject *root, std::string_view a_needle) noexcept
+        {
+            if (!root)
+            {
+                return nullptr;
+            }
+
+            RE::NiAVObject *result = nullptr;
+            RE::BSVisit::TraverseScenegraphObjects(root, [&](RE::NiAVObject *obj)
+                                                   {
+                if (obj && obj->name.c_str())
+                {
+                    std::string s = obj->name.c_str();
+                    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                    if (s.find(a_needle) != std::string::npos)
+                    {
+                        result = obj;
+                        return RE::BSVisit::BSVisitControl::kStop;
+                    }
+                }
+                return RE::BSVisit::BSVisitControl::kContinue; });
+            return result;
         }
 
         /// Convert a world-space target into actor-relative yaw/pitch, in degrees.
@@ -90,6 +116,16 @@ namespace TrueGaze::Engine
             const float dz = targetPos.z - (actorPos.z + kEyeHeightUnits);
 
             const float horizontal = std::sqrt(dx * dx + dy * dy);
+
+            // If the target is co-located with the actor (horizontal distance < 25 units / 0.35m),
+            // atan2(dx, dy) produces a mathematical singularity (0.0 rad / World North)
+            // resulting in extreme yaw snapping (e.g. +106 degrees during Helgen cart rides).
+            if (horizontal < 25.0f)
+            {
+                outYawDeg = 0.0f;
+                outPitchDeg = 0.0f;
+                return;
+            }
 
             // Skyrim's actor forward is +Y, so the bearing to the target is atan2(dx, dy).
             const float bearing = std::atan2(dx, dy);
@@ -148,6 +184,7 @@ namespace TrueGaze::Engine
 
         _tuning.enableTrueGaze = cfg.enableTrueGaze;
         _tuning.enableCreatures = cfg.enableCreatures;
+        _tuning.debugGazeRays = cfg.debugGazeRays;
 
         _tuning.saccadeSpeedMult = cfg.saccadeSpeedMult;
         _tuning.velocitySaturation = cfg.velocitySaturation;
@@ -177,6 +214,28 @@ namespace TrueGaze::Engine
         TargetSelector::s_crosshair.baseToleranceDeg = cfg.crosshairToleranceDeg;
         TargetSelector::s_crosshair.maxRangeMeters = cfg.crosshairMaxRangeMeters;
         TargetSelector::s_crosshair.pointBlankMeters = cfg.crosshairPointBlankMeters;
+
+        // In-game visual settings are snapshotted alongside the simulation tuning.
+        // The renderer is a pure consumer of the engine's solved state, so its
+        // constants travel the same single path as everything else in GazeTuning.
+        {
+            Visuals::VisualTuning vis{};
+            vis.enableInGameVisuals = cfg.enableInGameVisuals;
+            vis.gazeRaysEnabled = cfg.gazeRaysEnabled;
+            vis.rayRenderMode = cfg.rayRenderMode;
+            vis.gazeRayLengthMeters = cfg.gazeRayLengthMeters;
+            vis.gazeRayColour = static_cast<uint32_t>(cfg.gazeRayColour) & 0x00FFFFFFu;
+            vis.gazeRayOpacity = cfg.gazeRayOpacity;
+            vis.gazeRaysOnPlayer = cfg.gazeRaysOnPlayer;
+            vis.gazeRaysOnNPCs = cfg.gazeRaysOnNPCs;
+            vis.gazeRaysOnCreatures = cfg.gazeRaysOnCreatures;
+            vis.gazeRaysAttachHead = cfg.gazeRaysAttachHead;
+            vis.gazeRaysTerminus = cfg.gazeRaysTerminus;
+            vis.pupilForwardOffsetCm = cfg.pupilForwardOffsetCm;
+            vis.pupilUpOffsetCm = cfg.pupilUpOffsetCm;
+            vis.pupilGlowIntensity = cfg.pupilGlowIntensity;
+            Visuals::VisualEffectsManager::Get().SetTuning(vis);
+        }
 
         logger::info("[TrueGaze] Tuning refreshed: saccadeMult={:.2f} jitter={:.2f} "
                      "headSpeed={:.2f} eyeMax={:.1f} crosshair={}",
@@ -216,14 +275,8 @@ namespace TrueGaze::Engine
 
     void GazeEngine::ResetAll() noexcept
     {
-        // Withdraw every applied bone transform before dropping the runtime state,
-        // otherwise the last gaze pose is baked into the skeletons until each actor
-        // happens to update again (never, for actors left behind on a cell change).
-        for (const auto &[formId, state] : _actors)
-        {
-            (void)state;
-            EyeAimConstraint::WithdrawActor(formId);
-        }
+        EyeAimConstraint::Reset();
+        Visuals::VisualEffectsManager::Get().Reset();
         _actors.clear();
         logger::info("[TrueGaze] Actor gaze state cleared.");
     }
@@ -244,6 +297,9 @@ namespace TrueGaze::Engine
                 // Withdraw the applied bone transforms before dropping the state so
                 // an evicted actor does not keep its last gaze pose frozen on.
                 EyeAimConstraint::WithdrawActor(it->first);
+                // The visual emitters are attached to the skeleton, so they must be
+                // detached here too or they would outlive the actor they annotate.
+                Visuals::VisualEffectsManager::Get().RemoveActor(it->first);
                 it = _actors.erase(it);
             }
             else
@@ -268,6 +324,8 @@ namespace TrueGaze::Engine
             logger::warn("[TrueGaze] Frame budget exceeded: {} us across {} actors.",
                          _lastFrameUs, _actors.size());
         }
+
+        AdvanceFrameCounter();
     }
 
     void GazeEngine::ReleaseBones() noexcept
@@ -282,6 +340,7 @@ namespace TrueGaze::Engine
     void GazeEngine::TickActor(RE::Actor *actor, float deltaSeconds) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
+        ++_tickCalls;
         if (!actor || deltaSeconds <= 0.0f)
         {
             return;
@@ -310,10 +369,20 @@ namespace TrueGaze::Engine
             return;
         }
 
+        ++_eligibleTicks;
+
         auto *root = actor->Get3D();
         if (!root)
         {
             return;
+        }
+
+        if (_eligibleTicks == 1)
+        {
+            logger::info("[TrueGaze] Eligible actor tick: form={:08X} player={} humanoid={}",
+                         formId,
+                         actor->IsPlayerRef() ? "yes" : "no",
+                         actor->IsHumanoid() ? "yes" : "no");
         }
 
         // --- Resolve or create per-actor state ----------------------------------
@@ -325,6 +394,14 @@ namespace TrueGaze::Engine
         }
 
         ActorGazeRuntime &state = it->second;
+
+        // Frame deduplication: prevent double-ticking within the same render frame
+        // (e.g. between individual Character::Update and batch ProcessLists::highActorHandles).
+        if (state.lastFrameTicked == _frameCounter)
+        {
+            return;
+        }
+        state.lastFrameTicked = _frameCounter;
         state.idleSec = 0.0f;
 
         if (!state.initialised)
@@ -368,6 +445,7 @@ namespace TrueGaze::Engine
         if (tier == LodManager::LodTier::Tier3_Culled)
         {
             // Beyond 15 m the eyes are sub-pixel and the engine's own LOD applies.
+            ++_culledTicks;
             return;
         }
 
@@ -379,6 +457,38 @@ namespace TrueGaze::Engine
         state.lastYawDeg = yawDeg;
         state.lastPitchDeg = pitchDeg;
         state.gazeRegion = ClassifyRegion(yawDeg, pitchDeg);
+
+        if (_tuning.debugGazeRays)
+        {
+            state.rayDebugTimerSec += deltaSeconds;
+            if (state.rayDebugTimerSec >= 1.0f)
+            {
+                state.rayDebugTimerSec = 0.0f;
+                const auto pos = actor->GetPosition();
+                const char *actorType = actor->IsPlayerRef() ? "Player" : "NPC";
+
+                logger::info("[TrueGaze::Ray] Actor {:08X} ({}) at ({:.1f}, {:.1f}, {:.1f}) -> Gaze Yaw={:+.1f}deg Pitch={:+.1f}deg Region={} (HCEP Mode={})",
+                             formId,
+                             actorType,
+                             pos.x, pos.y, pos.z,
+                             yawDeg, pitchDeg,
+                             state.gazeRegion,
+                             state.hcepMode);
+
+                if (auto *console = RE::ConsoleLog::GetSingleton())
+                {
+                    console->Print("[TrueGaze::Ray] %08X (%s) -> Yaw:%+.1f deg Pitch:%+.1f deg Region:%d (Mode:%d)",
+                                   formId, actorType, yawDeg, pitchDeg, state.gazeRegion, state.hcepMode);
+                }
+
+                if (actor->IsPlayerRef() && (std::abs(yawDeg) > 1.5f || std::abs(pitchDeg) > 1.5f))
+                {
+                    char hudBuf[128];
+                    std::snprintf(hudBuf, sizeof(hudBuf), "[TrueGaze] 3rd-Person Gaze: Yaw %+.1f deg | Pitch %+.1f deg", yawDeg, pitchDeg);
+                    RE::SendHUDMessage::ShowHUDMessage(hudBuf);
+                }
+            }
+        }
 
         ApplyToSkeleton(actor, state, yawDeg, pitchDeg);
         PublishState(actor, state);
@@ -396,8 +506,39 @@ namespace TrueGaze::Engine
         outPitch = 0.0f;
 
 #if __has_include(<RE/Skyrim.h>)
+        // --- Player attention input --------------------------------------------
+        Bridge::TrueGazeTelemetryPacket hcepPacket{};
+        const bool hasHcepTelemetry = _pipe.IsConnected() &&
+                                      _pipe.TryGetLatestTelemetry(hcepPacket);
+        if (hasHcepTelemetry)
+        {
+            PlayerGazeResolver::SetHcepTelemetry(hcepPacket);
+        }
+        else
+        {
+            PlayerGazeResolver::ClearHcepTelemetry();
+        }
+
         // --- Salience -----------------------------------------------------------
-        const auto target = TargetSelector::ResolveTarget(actor->GetFormID());
+        const auto target = TargetSelector::ResolveTarget(actor->GetFormID(), &state, deltaSeconds);
+        ++_targetResolutions;
+        _lastTargetPriority = static_cast<uint8_t>(target.priority);
+        _lastTargetFormId = target.targetFormId;
+        if (target.priority == TargetSelector::TargetPriority::None)
+        {
+            ++_noTargetResolutions;
+        }
+
+        if (_targetResolutions == 1 || (_targetResolutions % 300) == 0)
+        {
+            logger::info("[TrueGaze] Target trace: resolutions={} priority={} form={:08X} "
+                         "distance={:.2f}m actor={:08X}",
+                         _targetResolutions,
+                         static_cast<unsigned>(target.priority),
+                         target.targetFormId,
+                         target.distanceMeters,
+                         actor->GetFormID());
+        }
 
         float desiredYaw = 0.0f;
         float desiredPitch = 0.0f;
@@ -405,27 +546,50 @@ namespace TrueGaze::Engine
         if (target.priority != TargetSelector::TargetPriority::None)
         {
             const RE::NiPoint3 targetPos{target.worldX, target.worldY, target.worldZ};
-            WorldTargetToLocalGaze(actor->GetPosition(), actor->GetAngleZ(),
+            RE::NiPoint3 actorPos = actor->GetPosition();
+            if (auto *root = actor->Get3D())
+            {
+                actorPos = root->world.translate;
+            }
+            WorldTargetToLocalGaze(actorPos, actor->GetAngleZ(),
                                    targetPos, desiredYaw, desiredPitch);
         }
 
         // --- Cognitive state drives the HCEP mode -------------------------------
-        // UI::IsMenuOpen is non-const, so the singleton must not be captured as const.
-        auto *ui = RE::UI::GetSingleton();
-        const bool inDialogue = ui && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME);
-
-        if (inDialogue)
+        if (state.hasModeOverride)
         {
-            // AFFECT during conversation: social triangle scanning.
-            state.hcepMode = 1;
-        }
-        else if (actor->IsInCombat())
-        {
-            state.hcepMode = 0; // LOGIC: locked, analytical
+            state.modeOverrideTimerSec -= deltaSeconds;
+            if (state.modeOverrideTimerSec <= 0.0f)
+            {
+                state.hasModeOverride = false;
+                state.modeOverrideTimerSec = 0.0f;
+            }
         }
         else
         {
-            state.hcepMode = 0;
+            // UI::IsMenuOpen is non-const, so the singleton must not be captured as const.
+            auto *ui = RE::UI::GetSingleton();
+            const bool inDialogue = ui && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME);
+
+            if (inDialogue)
+            {
+                // AFFECT during conversation: social triangle scanning.
+                state.hcepMode = 1;
+            }
+            else if (actor->IsInCombat())
+            {
+                state.hcepMode = 0; // LOGIC: locked, analytical
+            }
+            else
+            {
+                state.hcepMode = 0;
+            }
+
+            // Mode 2: Stream human player eye fixations and cognitive mode from HCEP Desktop
+            if (hasHcepTelemetry)
+            {
+                state.hcepMode = hcepPacket.hcepMode;
+            }
         }
 
         // --- Mutual gaze (crosshair sweet spot) ----------------------------------
@@ -450,6 +614,14 @@ namespace TrueGaze::Engine
         if (mutualGazeNow)
         {
             state.mutualGazeHoldSec += deltaSeconds;
+            if (_tuning.debugGazeRays && state.mutualGazeHoldSec >= 0.5f && state.mutualGazeHoldSec - deltaSeconds < 0.5f)
+            {
+                const char *actorName = actor->GetName();
+                char hudBuf[128];
+                std::snprintf(hudBuf, sizeof(hudBuf), "[TrueGaze] Eye Contact Held: %s",
+                              (actorName && actorName[0]) ? actorName : "Target NPC");
+                RE::SendHUDMessage::ShowHUDMessage(hudBuf);
+            }
         }
         else
         {
@@ -492,6 +664,32 @@ namespace TrueGaze::Engine
             // A large saccade triggers a micro-blink (saccadic suppression).
             Integrations::EfmBlinkController::OnSaccadeTriggered(
                 state.blink, state.saccade.amplitudeDeg);
+        }
+        else if (!state.saccade.isBallistic)
+        {
+            // SMOOTH PURSUIT: When continuing to track the same target, smoothly pursue
+            // any displacement in desired gaze (e.g. social triangle scanning, actor locomotion)
+            // instead of freezing the eye at the old saccade terminus!
+            const float diffYaw = desiredYaw - state.saccade.currentYaw;
+            const float diffPitch = desiredPitch - state.saccade.currentPitch;
+            const float diffDistSq = diffYaw * diffYaw + diffPitch * diffPitch;
+
+            if (diffDistSq > 400.0f) // > 20 degrees sudden jump
+            {
+                // Target made a major sudden jump while keeping same FormID: trigger catch-up saccade
+                Kinematics::SaccadeGenerator::TriggerSaccade(
+                    state.saccade, desiredYaw, desiredPitch,
+                    _tuning.EffectiveVMax(Kinematics::SaccadeGenerator::DEFAULT_VMAX),
+                    _tuning.velocitySaturation);
+            }
+            else
+            {
+                // Smooth ocular pursuit: track continuously
+                state.saccade.targetYaw = desiredYaw;
+                state.saccade.targetPitch = desiredPitch;
+                state.saccade.currentYaw = desiredYaw;
+                state.saccade.currentPitch = desiredPitch;
+            }
         }
 
         Kinematics::SaccadeGenerator::Update(state.saccade, deltaSeconds);
@@ -539,20 +737,82 @@ namespace TrueGaze::Engine
             return;
         }
 
-        // Distribute the deflection anatomically. The eyes receive the residual the
-        // head chain did not cover, which is what produces "eyes lead, head follows".
-        // Strain shares come from configuration ([SkeletalHierarchy] in the INI).
+        (void)yawDeg;
+        (void)pitchDeg;
+
+        // Distribute the head deflection across spine, neck, and head.
+        // The neck and head follow the inertial approach (state.vor.headYaw/Pitch),
+        // while the eyes directly receive the biological VOR counter-rotation
+        // (state.vor.eyeLocalYaw/Pitch) plus micro-saccadic jitter drift!
         const BoneController::StrainWeights weights{
             _tuning.spine2YawWeight, _tuning.neckYawWeight, _tuning.neckPitchWeight,
             _tuning.headYawWeight, _tuning.headPitchWeight};
         const auto strain = BoneController::CalculateHierarchyStrain(
-            yawDeg, pitchDeg, state.vor.eyeMaxAngle, state.vor.eyeMaxAngle, weights);
+            state.vor.headYaw, state.vor.headPitch, state.vor.eyeMaxAngle, state.vor.eyeMaxAngle, weights);
 
-        auto *spine = FindFirstBone(root, kSpineCandidates, std::size(kSpineCandidates));
-        auto *neck = FindFirstBone(root, kNeckCandidates, std::size(kNeckCandidates));
-        auto *head = FindFirstBone(root, kHeadCandidates, std::size(kHeadCandidates));
-        auto *eyeL = FindFirstBone(root, kEyeLeftCandidates, std::size(kEyeLeftCandidates));
-        auto *eyeR = FindFirstBone(root, kEyeRightCandidates, std::size(kEyeRightCandidates));
+        const float jitterYaw = (DistanceMetersForTier(actor) <= _tuning.tier1DistanceMeters)
+                                    ? state.jitter.currentYawOffset
+                                    : 0.0f;
+        const float jitterPitch = (DistanceMetersForTier(actor) <= _tuning.tier1DistanceMeters)
+                                      ? state.jitter.currentPitchOffset
+                                      : 0.0f;
+
+        const float eyeYaw = std::clamp(
+            state.vor.eyeLocalYaw + jitterYaw,
+            -_tuning.maxComfortEyeAngle, _tuning.maxComfortEyeAngle);
+        const float eyePitch = std::clamp(
+            state.vor.eyeLocalPitch + jitterPitch,
+            -_tuning.maxComfortEyeAngle, _tuning.maxComfortEyeAngle);
+
+        state.eyeSaturated = (std::abs(eyeYaw) >= _tuning.maxComfortEyeAngle - 0.01f ||
+                              std::abs(eyePitch) >= _tuning.maxComfortEyeAngle - 0.01f);
+
+        // Bone Caching: Probe and resolve bone pointers only once per actor / root model.
+        // On vanilla skeletons lacking eye bones, FindFirstBone misses for both eyes every frame,
+        // which previously triggered 6 recursive scene-graph traversals per actor per frame with
+        // string allocations. Caching resolved bones eliminates thousands of traversals per second.
+        if (!state.skeletonResolved || state.cachedRoot != root)
+        {
+            state.cachedRoot = root;
+            state.cachedSpine = FindFirstBone(root, kSpineCandidates, std::size(kSpineCandidates));
+            state.cachedNeck = FindFirstBone(root, kNeckCandidates, std::size(kNeckCandidates));
+            state.cachedHead = FindFirstBone(root, kHeadCandidates, std::size(kHeadCandidates));
+            state.cachedEyeL = FindFirstBone(root, kEyeLeftCandidates, std::size(kEyeLeftCandidates));
+            state.cachedEyeR = FindFirstBone(root, kEyeRightCandidates, std::size(kEyeRightCandidates));
+
+            if (!state.cachedSpine)
+            {
+                state.cachedSpine = FindBoneFuzzy(root, "spn2");
+                if (!state.cachedSpine)
+                    state.cachedSpine = FindBoneFuzzy(root, "spn1");
+            }
+
+            if (!state.cachedEyeL)
+            {
+                state.cachedEyeL = FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "l eye");
+                if (!state.cachedEyeL)
+                    state.cachedEyeL = FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eye_l");
+                if (!state.cachedEyeL)
+                    state.cachedEyeL = FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eyeleft");
+            }
+
+            if (!state.cachedEyeR)
+            {
+                state.cachedEyeR = FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "r eye");
+                if (!state.cachedEyeR)
+                    state.cachedEyeR = FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eye_r");
+                if (!state.cachedEyeR)
+                    state.cachedEyeR = FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eyeright");
+            }
+
+            state.skeletonResolved = true;
+        }
+
+        auto *spine = state.cachedSpine;
+        auto *neck = state.cachedNeck;
+        auto *head = state.cachedHead;
+        auto *eyeL = state.cachedEyeL;
+        auto *eyeR = state.cachedEyeR;
 
         // Report the skeleton probe once per actor.
         //
@@ -566,58 +826,98 @@ namespace TrueGaze::Engine
             const int found = (spine ? 1 : 0) + (neck ? 1 : 0) + (head ? 1 : 0) +
                               (eyeL ? 1 : 0) + (eyeR ? 1 : 0);
 
+            // Phase S2 rig capability matrix: classify the visual-origin mode so a
+            // reader can tell an eye-node rig from a vanilla FaceGen rig, and so an
+            // absent eye node is never mistaken for a defect. The head socket is the
+            // documented, first-class fallback when a rig exposes no eye bones.
+            const bool hasEyeNode = (eyeL != nullptr || eyeR != nullptr);
+            const char *originMode = head ? (hasEyeNode ? "EyeNode" : "GeometricHeadSocket")
+                                          : "Unavailable";
+
+            // Record the outcome for the tgstatus rig-capability summary.
+            RecordRigProbe(originMode, head != nullptr, hasEyeNode);
+
             logger::info("[TrueGaze] Skeleton probe for {:08X}: spine={} neck={} head={} "
-                         "eyeL={} eyeR={} ({} of 5 resolved)",
+                         "eyeL={} eyeR={} ({} of 5 resolved) origin={} humanoid={} player={}",
                          actor->GetFormID(),
                          spine ? "yes" : "NO", neck ? "yes" : "NO", head ? "yes" : "NO",
-                         eyeL ? "yes" : "NO", eyeR ? "yes" : "NO", found);
+                         eyeL ? "yes" : "NO", eyeR ? "yes" : "NO", found,
+                         originMode,
+                         actor->IsHumanoid() ? "yes" : "no",
+                         actor->IsPlayerRef() ? "yes" : "no");
+
+            // Separate the two failure classes explicitly. "Eye nodes absent" is an
+            // expected, supported vanilla-humanoid condition handled by the geometric
+            // head socket. "Head anchor absent" is genuinely blocking.
+            if (head && !hasEyeNode)
+            {
+                logger::info("[TrueGaze] Rig {:08X} exposes no eye nodes; using the "
+                             "GeometricHeadSocket origin. This is expected on vanilla "
+                             "humanoid rigs (eyes are FaceGen morphs), not an error.",
+                             actor->GetFormID());
+            }
 
             // The head is the one that absolutely must resolve; without it there is
             // no gaze to see. Be loud rather than let this pass as a quiet zero.
             if (!head)
             {
-                logger::warn("[TrueGaze] No head bone found for {:08X}. Gaze will not be "
-                             "visible for this actor. The bone-name candidates in "
-                             "GazeEngine.cpp need extending for this rig.",
+                logger::warn("[TrueGaze] Head anchor absent for {:08X} (origin=Unavailable). "
+                             "Gaze cannot be visible for this actor. The bone-name "
+                             "candidates in GazeEngine.cpp need extending for this rig.",
                              actor->GetFormID());
             }
 
             state.bonesReported = true;
         }
 
-        if (spine)
+        const bool isPlayer = actor->IsPlayerRef();
+
+        if (!isPlayer && spine)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), spine, strain.spineYaw, 0.0f);
         }
 
-        if (neck)
+        if (!isPlayer && neck)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), neck, strain.neckYaw, strain.neckPitch);
         }
 
-        if (head)
+        if (!isPlayer && head)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), head, strain.headYaw, strain.headPitch);
         }
 
-        // Eyes take the residual. During a ballistic saccade this is where the eye
-        // lead is visible: the eyes snap while the neck and head are still damping in.
+        // Eyes receive the low-inertia ballistic VOR counter-rotation and micro-jitter.
         if (eyeL)
         {
-            EyeAimConstraint::Apply(actor->GetFormID(), eyeL, strain.eyeYaw, strain.eyePitch);
+            EyeAimConstraint::Apply(actor->GetFormID(), eyeL, eyeYaw, eyePitch);
         }
 
         if (eyeR)
         {
-            EyeAimConstraint::Apply(actor->GetFormID(), eyeR, strain.eyeYaw, strain.eyePitch);
+            EyeAimConstraint::Apply(actor->GetFormID(), eyeR, eyeYaw, eyePitch);
         }
 
-        // Eyelid morph writes are applied separately by EfmBlinkController.
-        if (state.blink.isBlinking)
-        {
-            Integrations::EfmBlinkController::ApplyMorphs(actor->GetFormID(),
-                                                          state.blink.eyelidCloseWeight);
-        }
+        // Eyelid morph writes and biological eye-direction morphs (EFA / EFM / Vanilla)
+        Integrations::EfmBlinkController::ApplyGazeMorphs(actor->GetFormID(),
+                                                          state.blink.eyelidCloseWeight,
+                                                          eyeYaw, eyePitch);
+
+        // In-game 3D visualisation of the solved gaze. Runs after the skeleton is
+        // posed so the head bone's world transform is current, and is driven by the
+        // *eye residual* - what the eyes carry beyond the already-turned head. Passing
+        // the total deflection here would double-count the head's share and the beam
+        // would overshoot the true gaze direction.
+        Visuals::VisualEffectsManager::Get().UpdateActor(
+            actor,
+            state.cachedHead,
+            state.cachedEyeL,
+            state.cachedEyeR,
+            eyeYaw,
+            eyePitch,
+            state.gazeRegion,
+            isPlayer,
+            actor->IsHumanoid());
 #else
         (void)actor;
         (void)state;
@@ -631,6 +931,20 @@ namespace TrueGaze::Engine
         Integrations::OarConditions::PublishActorState(
             actor->GetFormID(), state.hcepMode, state.gazeRegion,
             state.mutualGazeHoldSec);
+
+        if (_pipe.IsConnected())
+        {
+            Bridge::SkyrimFeedbackPacket feedback{};
+            feedback.targetFormId = state.trackedTargetFormId;
+            feedback.relationshipRank = 0;
+            feedback.combatState = actor->IsInCombat() ? 1 : 0;
+            auto *ui = RE::UI::GetSingleton();
+            feedback.isDialogueActive = (ui && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME)) ? 1 : 0;
+            feedback.distanceToTarget = DistanceMetersForTier(actor);
+            feedback.mutualGazeAngle = state.lastYawDeg;
+            feedback.gameFrameNumber = 0;
+            _pipe.SendFeedback(feedback);
+        }
     }
 
     float GazeEngine::DistanceMetersForTier(RE::Actor *actor) noexcept

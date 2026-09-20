@@ -43,12 +43,23 @@ namespace TrueGaze::Engine
         static constexpr float EYE_YAW_LIMIT = 35.0f;
         static constexpr float EYE_PITCH_LIMIT = 25.0f;
 
-        // Share of the head-chain deflection absorbed at each joint.
+        // Share of the head-chain deflection absorbed at each joint. These are the
+        // compiled fallbacks; the live values come from GazeTuning (TrueGaze.ini
+        // [SkeletalHierarchy]) and are passed into CalculateHierarchyStrain.
         static constexpr float SPINE_YAW_SHARE = 0.10f;
         static constexpr float NECK_YAW_SHARE = 0.25f;
         static constexpr float NECK_PITCH_SHARE = 0.25f;
         static constexpr float HEAD_YAW_SHARE = 0.65f;
         static constexpr float HEAD_PITCH_SHARE = 0.75f;
+
+        struct StrainWeights
+        {
+            float spineYaw{SPINE_YAW_SHARE};
+            float neckYaw{NECK_YAW_SHARE};
+            float neckPitch{NECK_PITCH_SHARE};
+            float headYaw{HEAD_YAW_SHARE};
+            float headPitch{HEAD_PITCH_SHARE};
+        };
 
         struct StrainDistribution
         {
@@ -84,11 +95,13 @@ namespace TrueGaze::Engine
         /// @param totalPitchDeg Desired gaze pitch relative to the actor's forward.
         /// @param eyeYawLimit   Ocular yaw limit (configurable).
         /// @param eyePitchLimit Ocular pitch limit (configurable).
+        /// @param weights       Strain shares from configuration (defaults = compiled).
         static StrainDistribution CalculateHierarchyStrain(
             float totalYawDeg,
             float totalPitchDeg,
             float eyeYawLimit = EYE_YAW_LIMIT,
-            float eyePitchLimit = EYE_PITCH_LIMIT) noexcept
+            float eyePitchLimit = EYE_PITCH_LIMIT,
+            const StrainWeights &weights = StrainWeights{}) noexcept
         {
             StrainDistribution dist;
 
@@ -99,18 +112,18 @@ namespace TrueGaze::Engine
                                             -CHAIN_PITCH_LIMIT_DOWN,
                                             CHAIN_PITCH_LIMIT_UP);
 
-            // --- Head chain: spine 10% -> neck 25% -> head 65% (yaw) ---
-            dist.spineYaw = std::clamp(clampedYaw * SPINE_YAW_SHARE,
+            // --- Head chain: spine -> neck -> head (yaw), neck -> head (pitch) ---
+            dist.spineYaw = std::clamp(clampedYaw * weights.spineYaw,
                                        -SPINE_YAW_LIMIT, SPINE_YAW_LIMIT);
 
-            dist.neckYaw = std::clamp(clampedYaw * NECK_YAW_SHARE,
+            dist.neckYaw = std::clamp(clampedYaw * weights.neckYaw,
                                       -NECK_YAW_LIMIT, NECK_YAW_LIMIT);
-            dist.neckPitch = std::clamp(clampedPitch * NECK_PITCH_SHARE,
+            dist.neckPitch = std::clamp(clampedPitch * weights.neckPitch,
                                         -NECK_PITCH_LIMIT, NECK_PITCH_LIMIT);
 
-            dist.headYaw = std::clamp(clampedYaw * HEAD_YAW_SHARE,
+            dist.headYaw = std::clamp(clampedYaw * weights.headYaw,
                                       -HEAD_YAW_LIMIT, HEAD_YAW_LIMIT);
-            dist.headPitch = std::clamp(clampedPitch * HEAD_PITCH_SHARE,
+            dist.headPitch = std::clamp(clampedPitch * weights.headPitch,
                                         -HEAD_PITCH_LIMIT, HEAD_PITCH_LIMIT);
 
             // --- Eyes: the residual the head chain did not cover ---

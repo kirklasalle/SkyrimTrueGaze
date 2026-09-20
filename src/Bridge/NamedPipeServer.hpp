@@ -6,6 +6,14 @@
 #include <array>
 #include <thread>
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
 namespace TrueGaze::Bridge
 {
 
@@ -61,7 +69,10 @@ namespace TrueGaze::Bridge
         NamedPipeServer &operator=(const NamedPipeServer &) = delete;
 
         /// @brief Starts the background worker thread listening for telemetry packets.
-        void Start() noexcept;
+        /// @param pipeName Full pipe path; defaults to the canonical TrueGaze pipe.
+        /// @param reconnectIntervalSec Worker retry delay when no client is connected.
+        void Start(const char *pipeName = PIPE_NAME.data(),
+                   float reconnectIntervalSec = 3.0f) noexcept;
 
         /// @brief Stops the background worker and terminates pipe handles.
         void Stop() noexcept;
@@ -80,6 +91,10 @@ namespace TrueGaze::Bridge
     private:
         void WorkerLoop() noexcept;
         void DrainOutboundQueue(void *pipeHandle) noexcept;
+
+        // --- Configuration (set once by Start, read by the worker) ---
+        std::string _pipeName{PIPE_NAME.data()};
+        float _reconnectIntervalSec{3.0f};
 
         // --- Connection state ---
         std::atomic<bool> _isRunning{false};
@@ -115,6 +130,10 @@ namespace TrueGaze::Bridge
         std::array<SkyrimFeedbackPacket, FEEDBACK_RING_SIZE> _feedbackRing{};
         std::atomic<uint32_t> _feedbackHead{0}; // consumer (worker)
         std::atomic<uint32_t> _feedbackTail{0}; // producer (game thread)
+
+        // --- Overlapped I/O & Shutdown Control ---
+        HANDLE _shutdownEvent{nullptr};
+        OVERLAPPED _connectOverlapped{};
 
         std::thread _workerThread;
     };

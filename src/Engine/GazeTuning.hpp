@@ -52,6 +52,7 @@ namespace TrueGaze::Engine
         // --- Master switches ---
         bool enableTrueGaze{true};
         bool enableCreatures{true};
+        bool debugGazeRays{false};
 
         /// Peak saccadic velocity after the user's speed multiplier is applied.
         [[nodiscard]] constexpr float EffectiveVMax(float baseVMax) const noexcept

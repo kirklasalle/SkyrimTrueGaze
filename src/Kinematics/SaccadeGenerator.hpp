@@ -3,6 +3,7 @@
 #include <cmath>
 #include <numbers>
 #include <algorithm>
+#include <array>
 
 namespace TrueGaze::Kinematics
 {
@@ -109,30 +110,49 @@ namespace TrueGaze::Kinematics
             return std::exp(-d * d * invTwoSigmaSq);
         }
 
+        // Precomputed 65-entry normalised CDF lookup table for the skewed Gaussian velocity profile.
+        // Replaces 32-step numerical trapezoidal integral calling std::exp per frame per actor
+        // with constant-time linear interpolation (2 memory loads, 1 multiply-add, 0 transcendentals).
+        static constexpr std::array<float, 65> kProgressLut = {
+            0.0000000f, 0.0038641f, 0.0083097f, 0.0133985f,
+            0.0191943f, 0.0257620f, 0.0331671f, 0.0414744f,
+            0.0507470f, 0.0610448f, 0.0724237f, 0.0849341f,
+            0.0986191f, 0.1135140f, 0.1296439f, 0.1470236f,
+            0.1656556f, 0.1855298f, 0.2066222f, 0.2288950f,
+            0.2522960f, 0.2767587f, 0.3022025f, 0.3285338f,
+            0.3556464f, 0.3834231f, 0.4117370f, 0.4404535f,
+            0.4694316f, 0.4985268f, 0.5275926f, 0.5564829f,
+            0.5850545f, 0.6131687f, 0.6406937f, 0.6675063f,
+            0.6934937f, 0.7185545f, 0.7426003f, 0.7655561f,
+            0.7873612f, 0.8079690f, 0.8273474f, 0.8454780f,
+            0.8623560f, 0.8779888f, 0.8923955f, 0.9056055f,
+            0.9176574f, 0.9285972f, 0.9384778f, 0.9473568f,
+            0.9552957f, 0.9623582f, 0.9686095f, 0.9741150f,
+            0.9789393f, 0.9831453f, 0.9867940f, 0.9899432f,
+            0.9926476f, 0.9949584f, 0.9969229f, 0.9985846f,
+            1.0000000f};
+
         /// @brief Fraction of the saccade distance completed at normalised time t.
         ///
-        /// The normalised integral of the velocity profile, so that progress reaches
-        /// exactly 1.0 at t = 1 and the profile's peak velocity corresponds to V_peak.
-        /// Sampled by the trapezoidal rule. Cheap, stable, and monotonic.
-        static float ProgressAt(float t) noexcept
+        /// Evaluated via 65-entry compile-time precomputed cumulative distribution table
+        /// with linear interpolation. Monotonic, continuous, and exactly bounds [0.0, 1.0].
+        static constexpr float ProgressAt(float t) noexcept
         {
             if (t <= 0.0f)
                 return 0.0f;
             if (t >= 1.0f)
                 return 1.0f;
 
-            constexpr int kSteps = 32;
-            const float dt = t / static_cast<float>(kSteps);
-
-            float sum = VelocityProfile(0.0f) + VelocityProfile(t);
-            for (int i = 1; i < kSteps; ++i)
+            constexpr float kLutMaxIndex = static_cast<float>(kProgressLut.size() - 1);
+            const float sample = t * kLutMaxIndex;
+            const auto index = static_cast<size_t>(sample);
+            if (index >= kProgressLut.size() - 1)
             {
-                sum += 2.0f * VelocityProfile(static_cast<float>(i) * dt);
+                return 1.0f;
             }
 
-            // Trapezoidal integral over [0, t], normalised by the full-profile area.
-            const float integral = (dt * 0.5f) * sum;
-            return std::clamp(integral / PROFILE_AREA, 0.0f, 1.0f);
+            const float frac = sample - static_cast<float>(index);
+            return kProgressLut[index] + frac * (kProgressLut[index + 1] - kProgressLut[index]);
         }
 
         /// @brief Triggers a new ballistic saccade toward a target gaze angle.

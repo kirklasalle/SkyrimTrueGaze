@@ -50,7 +50,7 @@ namespace TrueGaze::Engine
         GazeEngine &operator=(const GazeEngine &) = delete;
 
         /// @brief Rebuilds the tuning snapshot from the current configuration.
-        /// Called on load and whenever the MCM or INI is reloaded.
+        /// Called on load and whenever the INI is reloaded.
         void RefreshTuning() noexcept;
 
         /// @brief Installs the pipe server, if configuration enables the bridge.
@@ -71,7 +71,7 @@ namespace TrueGaze::Engine
         /// @brief Drops all per-actor state. Call on cell change and game load.
         void ResetAll() noexcept;
 
-        // --- Queries used by the API, OAR conditions, and Papyrus ----------------
+        // --- Queries used by the API and OAR conditions ---------------------------
 
         /// @brief Returns the live simulation state for an actor, or nullptr.
         [[nodiscard]] ActorGazeRuntime *FindActor(uint32_t formId) noexcept;
@@ -88,6 +88,10 @@ namespace TrueGaze::Engine
         [[nodiscard]] const Bridge::NamedPipeServer &Pipe() const noexcept { return _pipe; }
         [[nodiscard]] Bridge::NamedPipeServer &Pipe() noexcept { return _pipe; }
 
+        /// @brief Monotonically increasing frame index.
+        [[nodiscard]] uint64_t GetFrameCounter() const noexcept { return _frameCounter; }
+        void AdvanceFrameCounter() noexcept { ++_frameCounter; }
+
         [[nodiscard]] const GazeTuning &Tuning() const noexcept { return _tuning; }
 
         [[nodiscard]] bool IsBridgeConnected() const noexcept { return _pipe.IsConnected(); }
@@ -95,6 +99,37 @@ namespace TrueGaze::Engine
         /// Per-frame timings, in microseconds. Diagnostic.
         [[nodiscard]] uint64_t LastFrameMicros() const noexcept { return _lastFrameUs; }
         [[nodiscard]] uint64_t PeakFrameMicros() const noexcept { return _peakFrameUs; }
+
+        /// Runtime counters used to distinguish a missing actor hook from an
+        /// eligibility/LOD/target-selection issue. These are diagnostic only.
+        [[nodiscard]] uint64_t TickCalls() const noexcept { return _tickCalls; }
+        [[nodiscard]] uint64_t EligibleTicks() const noexcept { return _eligibleTicks; }
+        [[nodiscard]] uint64_t CulledTicks() const noexcept { return _culledTicks; }
+        [[nodiscard]] uint64_t TargetResolutions() const noexcept { return _targetResolutions; }
+        [[nodiscard]] uint64_t NoTargetResolutions() const noexcept { return _noTargetResolutions; }
+        [[nodiscard]] uint8_t LastTargetPriority() const noexcept { return _lastTargetPriority; }
+        [[nodiscard]] uint32_t LastTargetFormId() const noexcept { return _lastTargetFormId; }
+
+        /// Phase S2 rig capability matrix. Diagnostic only.
+        /// The last probed actor's visual-origin mode as a stable string, plus
+        /// running counts of the two distinct rig-resolution outcomes.
+        [[nodiscard]] const char *LastRigOrigin() const noexcept { return _lastRigOrigin; }
+        [[nodiscard]] uint64_t EyeNodeAbsentCount() const noexcept { return _eyeNodeAbsentCount; }
+        [[nodiscard]] uint64_t HeadAnchorAbsentCount() const noexcept { return _headAnchorAbsentCount; }
+
+        /// Records the outcome of one skeleton probe. Called from ApplyToSkeleton.
+        void RecordRigProbe(const char *originMode, bool headResolved, bool eyeNodeResolved) noexcept
+        {
+            _lastRigOrigin = originMode;
+            if (!headResolved)
+            {
+                ++_headAnchorAbsentCount;
+            }
+            else if (!eyeNodeResolved)
+            {
+                ++_eyeNodeAbsentCount;
+            }
+        }
 
     private:
         GazeEngine() = default;
@@ -123,10 +158,24 @@ namespace TrueGaze::Engine
         bool _bridgeStarted{false};
 
         // Diagnostics
+        uint64_t _frameCounter{1};
         uint64_t _lastFrameUs{0};
         uint64_t _peakFrameUs{0};
         std::chrono::steady_clock::time_point _frameStart{};
         bool _frameOpen{false};
+
+        uint64_t _tickCalls{0};
+        uint64_t _eligibleTicks{0};
+        uint64_t _culledTicks{0};
+        uint64_t _targetResolutions{0};
+        uint64_t _noTargetResolutions{0};
+        uint8_t _lastTargetPriority{0};
+        uint32_t _lastTargetFormId{0};
+
+        // Phase S2 rig capability diagnostics.
+        const char *_lastRigOrigin{"unknown"};
+        uint64_t _eyeNodeAbsentCount{0};
+        uint64_t _headAnchorAbsentCount{0};
 
         /// Actors unseen for longer than this are evicted to bound memory (NFR-3).
         static constexpr float ACTOR_EVICTION_SEC = 30.0f;

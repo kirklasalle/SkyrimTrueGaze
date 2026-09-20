@@ -51,6 +51,10 @@ namespace TrueGaze::Engine
         /// @brief Restores every touched bone to its animated pose.
         static void Withdraw() noexcept;
 
+        /// @brief Safely clears all touched bone records without dereferencing bone pointers.
+        /// Essential on cell transitions and game loads to prevent use-after-free crashes.
+        static void Reset() noexcept;
+
         /// Number of bones currently holding an applied deflection. Diagnostic.
         [[nodiscard]] static uint32_t ActiveBoneCount() noexcept;
     };

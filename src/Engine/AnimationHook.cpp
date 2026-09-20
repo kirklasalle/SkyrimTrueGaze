@@ -5,6 +5,7 @@
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/Skyrim.h>
+#include <RE/S/SendHUDMessage.h>
 #endif
 
 namespace TrueGaze::Engine
@@ -53,8 +54,16 @@ namespace TrueGaze::Engine
         /// exactly what the simulation needs, and the same shape of hook the
         /// original design intended.
         ///
-        /// `RE::VTABLE_Actor` has 10 entries (RE/Offsets_VTABLE.h:2142), so index
-        /// `0xAD` is well inside the real vtable.
+        struct ActorTag
+        {
+        };
+        struct CharacterTag
+        {
+        };
+        struct PlayerTag
+        {
+        };
+
         template <class Tag>
         struct ActorUpdateHook
         {
@@ -72,6 +81,17 @@ namespace TrueGaze::Engine
                 // our exception guard: it is Skyrim's code, not ours to swallow.
                 _original(a_actor, a_delta);
 
+                // First boundary diagnostic after Skyrim's original virtual call.
+                // If this never appears, the installed slot is not being dispatched
+                // for the active actor type/runtime.
+                static std::atomic<uint32_t> s_postUpdateReports{0};
+                const auto report = s_postUpdateReports.fetch_add(1, std::memory_order_relaxed);
+                if (report == 0)
+                {
+                    logger::info("[TrueGaze] Actor update hook invoked: form={:08X} delta={:.4f}",
+                                 a_actor ? a_actor->GetFormID() : 0u, a_delta);
+                }
+
                 // Everything that follows is ours. A defect in the simulation must
                 // degrade gaze, not take the game down with it.
                 //
@@ -81,17 +101,78 @@ namespace TrueGaze::Engine
                 // still terminate the process. This is a mitigation, not immunity.
                 try
                 {
-                    if (!a_actor || !ConfigManager::GetSingleton().enableTrueGaze ||
-                        a_delta <= 0.0f || a_delta >= 0.5f)
+                    if constexpr (std::is_same_v<Tag, PlayerTag>)
                     {
+                        // PlayerCharacter::Update runs reliably once per frame on the main thread.
+                        if (a_actor && ConfigManager::GetSingleton().enableTrueGaze &&
+                            a_delta > 0.0f && a_delta < 0.5f)
+                        {
+                            auto *camera = RE::PlayerCamera::GetSingleton();
+                            const bool isThirdPerson = camera && camera->IsInThirdPerson();
+
+                            static bool s_lastThirdPerson = false;
+                            if (isThirdPerson != s_lastThirdPerson)
+                            {
+                                s_lastThirdPerson = isThirdPerson;
+                                if (ConfigManager::GetSingleton().debugGazeRays)
+                                {
+                                    if (isThirdPerson)
+                                    {
+                                        RE::SendHUDMessage::ShowHUDMessage("[TrueGaze] Camera: 3rd Person (Biomechanical Eye Tracking Active)");
+                                    }
+                                    else
+                                    {
+                                        RE::SendHUDMessage::ShowHUDMessage("[TrueGaze] Camera: 1st Person (Crosshair Aim)");
+                                    }
+                                }
+                            }
+
+                            if (isThirdPerson)
+                            {
+                                // 3rd Person: Player eyes engage TrueGaze normally.
+                                GazeEngine::Get().TickActor(a_actor, a_delta);
+                            }
+                            else
+                            {
+                                // 1st Person: User control and mouse crosshair direct looking.
+                                EyeAimConstraint::WithdrawActor(a_actor->GetFormID());
+                            }
+                        }
+
+                        // Anchoring EndFrame here drives actor eviction, bounds memory,
+                        // and records accurate frame profiling metrics.
+                        GazeEngine::Get().EndFrame(a_delta);
                         return;
                     }
+                    else
+                    {
+                        if (!a_actor || !ConfigManager::GetSingleton().enableTrueGaze ||
+                            a_delta <= 0.0f || a_delta >= 0.5f)
+                        {
+                            return;
+                        }
 
-                    // Actor::Update has completed, so the skeleton now contains the
-                    // current animated pose. Compose gaze onto it and retain that
-                    // pose until this actor's next update; withdrawing immediately
-                    // here would erase the effect before the renderer sees it.
-                    GazeEngine::Get().TickActor(a_actor, a_delta);
+                        // TrueGaze is an NPC biological gaze engine. The player's head
+                        // is driven by player view/camera controls, never procedural gaze.
+                        if (a_actor->IsPlayerRef())
+                        {
+                            return;
+                        }
+
+                        // Creature filter: the biological humanoid kinematics do not fit
+                        // dragons/predators. bEnableCreatures=false must exclude them on
+                        // the live per-actor path, not just in the unused batch path.
+                        if (!ConfigManager::GetSingleton().enableCreatures && !a_actor->IsHumanoid())
+                        {
+                            return;
+                        }
+
+                        // Actor::Update has completed, so the skeleton now contains the
+                        // current animated pose. Compose gaze onto it and retain that
+                        // pose until this actor's next update; withdrawing immediately
+                        // here would erase the effect before the renderer sees it.
+                        GazeEngine::Get().TickActor(a_actor, a_delta);
+                    }
                 }
                 catch (const std::exception &e)
                 {
@@ -126,16 +207,6 @@ namespace TrueGaze::Engine
             static inline int _failuresReported{0};
         };
 
-        struct ActorTag
-        {
-        };
-        struct CharacterTag
-        {
-        };
-        struct PlayerTag
-        {
-        };
-
         using ActorHook = ActorUpdateHook<ActorTag>;
         using CharacterHook = ActorUpdateHook<CharacterTag>;
         using PlayerHook = ActorUpdateHook<PlayerTag>;
@@ -162,12 +233,17 @@ namespace TrueGaze::Engine
                 }
 
                 auto *actor = actorPtr.get();
-                if (!actor)
+                if (!actor || actor->IsPlayerRef())
                 {
                     continue;
                 }
 
                 if (!allowCreatures && !actor->IsHumanoid())
+                {
+                    continue;
+                }
+
+                if (!AnimationHook::IsActorEligibleForGaze(actor->GetFormID()))
                 {
                     continue;
                 }

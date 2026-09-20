@@ -16,19 +16,22 @@
 #include "../src/Bridge/TelemetryPacket.h"
 #include "../src/Bridge/NamedPipeServer.hpp"
 
-namespace {
-
-uint32_t ComputeCrc32(const uint8_t* data, size_t length) noexcept
+namespace
 {
-    uint32_t crc = 0xFFFFFFFF;
-    for (size_t i = 0; i < length; ++i) {
-        crc ^= data[i];
-        for (int j = 0; j < 8; ++j) {
-            crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+
+    uint32_t ComputeCrc32(const uint8_t *data, size_t length) noexcept
+    {
+        uint32_t crc = 0xFFFFFFFF;
+        for (size_t i = 0; i < length; ++i)
+        {
+            crc ^= data[i];
+            for (int j = 0; j < 8; ++j)
+            {
+                crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
+            }
         }
+        return ~crc;
     }
-    return ~crc;
-}
 
 } // namespace
 
@@ -50,7 +53,8 @@ int main()
     // 2. Connect as HCEP Desktop Suite Client (Simulating D:\Projects\HCEP)
     std::cout << "[CLIENT] Connecting to \\\\.\\pipe\\TrueGazeBridge...\n";
     HANDLE hPipe = INVALID_HANDLE_VALUE;
-    for (int retry = 0; retry < 10; ++retry) {
+    for (int retry = 0; retry < 10; ++retry)
+    {
         hPipe = CreateFileA(
             R"(\\.\pipe\TrueGazeBridge)",
             GENERIC_READ | GENERIC_WRITE,
@@ -58,13 +62,14 @@ int main()
             nullptr,
             OPEN_EXISTING,
             0,
-            nullptr
-        );
-        if (hPipe != INVALID_HANDLE_VALUE) break;
+            nullptr);
+        if (hPipe != INVALID_HANDLE_VALUE)
+            break;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    if (hPipe == INVALID_HANDLE_VALUE) {
+    if (hPipe == INVALID_HANDLE_VALUE)
+    {
         std::cerr << "[FAIL] Could not connect to named pipe. Error: " << GetLastError() << "\n";
         server.Stop();
         return 1;
@@ -77,7 +82,8 @@ int main()
 
     // 3. Stream 10 simulated 64-byte telemetry frames from HCEP Desktop
     std::cout << "[CLIENT] Streaming 10 telemetry frames (HCEP modes: LOGIC, AFFECT, THINK)...\n";
-    for (uint16_t seq = 1; seq <= 10; ++seq) {
+    for (uint16_t seq = 1; seq <= 10; ++seq)
+    {
         TrueGaze::Bridge::TrueGazeTelemetryPacket packet{};
         packet.magic = 0x48434550; // "HCEP"
         packet.version = 0x0100;
@@ -91,9 +97,8 @@ int main()
         packet.headPitch = 0.02f;
         packet.headYaw = -0.04f;
         packet.crc32 = ComputeCrc32(
-            reinterpret_cast<const uint8_t*>(&packet),
-            sizeof(packet) - sizeof(uint32_t)
-        );
+            reinterpret_cast<const uint8_t *>(&packet),
+            sizeof(packet) - sizeof(uint32_t));
 
         DWORD written = 0;
         BOOL ok = WriteFile(hPipe, &packet, sizeof(packet), &written, nullptr);
@@ -104,11 +109,12 @@ int main()
         // 4. In-game thread reads latest packet via lock-free API
         TrueGaze::Bridge::TrueGazeTelemetryPacket received{};
         bool gotLatest = server.TryGetLatestTelemetry(received);
-        if (gotLatest) {
+        if (gotLatest)
+        {
             assert(received.magic == 0x48434550);
-            std::cout << "  Frame " << seq << " received in engine: mode=" 
-                      << static_cast<int>(received.hcepMode) 
-                      << ", yaw=" << received.gazeYaw 
+            std::cout << "  Frame " << seq << " received in engine: mode="
+                      << static_cast<int>(received.hcepMode)
+                      << ", yaw=" << received.gazeYaw
                       << ", pitch=" << received.gazePitch << "\n";
         }
     }
@@ -132,11 +138,12 @@ int main()
     TrueGaze::Bridge::SkyrimFeedbackPacket clientReceivedFeedback{};
     DWORD bytesRead = 0;
     BOOL readOk = ReadFile(hPipe, &clientReceivedFeedback, sizeof(clientReceivedFeedback), &bytesRead, nullptr);
-    if (readOk && bytesRead == sizeof(clientReceivedFeedback)) {
+    if (readOk && bytesRead == sizeof(clientReceivedFeedback))
+    {
         assert(clientReceivedFeedback.magic == 0x534B5952);
         assert(clientReceivedFeedback.targetFormId == 0x000136C8);
         assert(clientReceivedFeedback.relationshipRank == 3);
-        std::cout << "  Feedback confirmed by client: targetFormId=0x" 
+        std::cout << "  Feedback confirmed by client: targetFormId=0x"
                   << std::hex << clientReceivedFeedback.targetFormId << std::dec
                   << ", distance=" << clientReceivedFeedback.distanceToTarget << "m"
                   << ", mutualAngle=" << clientReceivedFeedback.mutualGazeAngle << " deg\n";

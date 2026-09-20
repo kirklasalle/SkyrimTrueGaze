@@ -125,8 +125,8 @@ namespace TrueGaze::Integrations
         //
         // What DOES work today: the condition cache is populated every frame by
         // PublishActorState(), so the evaluators above return correct answers. Any
-        // consumer that can reach them — a future OAR binding, the Papyrus API, or
-        // the public C API — gets real data.
+        // consumer that can reach them — a future OAR binding or the public C API —
+        // gets real data.
         logger::warn("[TrueGaze] OAR condition registration is NOT implemented. "
                      "Condition state is published and evaluators are live, but no "
                      "OAR API binding exists yet. OAR rules will not fire. "

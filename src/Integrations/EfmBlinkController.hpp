@@ -45,8 +45,15 @@ public:
         state.eyelidCloseWeight = 4.0f * t * (1.0f - t);
     }
 
-    /// @brief Applies eyelid morph weights to an actor's face morph targets or eyelid bones.
-    static void ApplyMorphs(uint32_t actorFormId, float eyelidWeight) noexcept;
+    /// @brief Applies eyelid morph weights and eye-direction morphs (EFA / EFM / Vanilla)
+    /// to an actor's FaceGen modifier keyframes.
+    static void ApplyGazeMorphs(uint32_t actorFormId, float eyelidWeight, float eyeYawDeg, float eyePitchDeg) noexcept;
+
+    /// @brief Legacy wrapper for eyelid blink morph application.
+    static void ApplyMorphs(uint32_t actorFormId, float eyelidWeight) noexcept
+    {
+        ApplyGazeMorphs(actorFormId, eyelidWeight, 0.0f, 0.0f);
+    }
 };
 
 } // namespace TrueGaze::Integrations

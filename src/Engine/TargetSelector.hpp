@@ -6,6 +6,8 @@
 namespace TrueGaze::Engine
 {
 
+    struct ActorGazeRuntime;
+
     /// @brief Target Salience and Spatial Priority Selector.
     /// Resolves the optimal 3D focus point for each active actor in the game world.
     class TargetSelector
@@ -33,7 +35,9 @@ namespace TrueGaze::Engine
         };
 
         /// @brief Resolves the highest-salience target for an actor within their visual cone.
-        static GazeTarget ResolveTarget(uint32_t observerFormId) noexcept;
+        static GazeTarget ResolveTarget(uint32_t observerFormId,
+                                        ActorGazeRuntime *state = nullptr,
+                                        float deltaSeconds = 0.0f) noexcept;
 
         /// @brief Tunable crosshair sweet-spot parameters, snapshotted from config.
         /// Mirrors PlayerGazeResolver::Params; held here so ResolveTarget's caller

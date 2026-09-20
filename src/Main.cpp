@@ -4,7 +4,7 @@
 #include "Engine/ConfigManager.hpp"
 #include "Engine/GazeEngine.hpp"
 #include "Integrations/OarConditions.hpp"
-#include "Integrations/PapyrusInterface.hpp"
+#include "Integrations/ConsoleCommands.hpp"
 
 #if __has_include(<SKSE/SKSE.h>)
 #include <SKSE/SKSE.h>
@@ -43,6 +43,10 @@ namespace
 
         spdlog::set_default_logger(std::move(log));
         spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
+
+        // Clean up bridge server gracefully before Windows Loader Lock is acquired on process exit.
+        std::atexit([]()
+                    { TrueGaze::Engine::GazeEngine::Get().StopBridge(); });
 #else
         char myDocs[MAX_PATH]{0};
         if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_MYDOCUMENTS, nullptr, 0, myDocs)))
@@ -64,6 +68,82 @@ namespace
     }
 
 #if __has_include(<SKSE/SKSE.h>)
+    void ApplyLogLevel(int a_level) noexcept
+    {
+        spdlog::level::level_enum lvl = spdlog::level::info;
+        switch (a_level)
+        {
+        case 0:
+            lvl = spdlog::level::trace;
+            break;
+        case 1:
+            lvl = spdlog::level::debug;
+            break;
+        case 2:
+            lvl = spdlog::level::info;
+            break;
+        case 3:
+            lvl = spdlog::level::warn;
+            break;
+        case 4:
+            lvl = spdlog::level::err;
+            break;
+        default:
+            lvl = spdlog::level::info;
+            break;
+        }
+
+        // If debug gaze rays are enabled, promote the level to at least info
+        // so the user's requested 3D ray diagnostics are never silenced.
+        if (TrueGaze::Engine::ConfigManager::GetSingleton().debugGazeRays && lvl > spdlog::level::info)
+        {
+            lvl = spdlog::level::info;
+        }
+
+        if (auto log = spdlog::default_logger())
+        {
+            log->set_level(lvl);
+            log->flush_on(lvl);
+        }
+    }
+
+    /// Phase S1 (SOTA plan): emit a reproducible startup fingerprint.
+    ///
+    /// Every in-game verification depends on knowing *exactly* what ran. This logs
+    /// the plugin build identity, the detected game runtime, and the effective INI
+    /// path in one place so a support report or acceptance artifact is unambiguous.
+    /// It never throws and never blocks: a missing value is reported as "unknown".
+    void LogRuntimeIdentity() noexcept
+    {
+#if __has_include(<SKSE/SKSE.h>)
+        // Plugin build identity. __DATE__/__TIME__ pin the exact binary that ran,
+        // which is the cheapest defence against the stale-DLL class of confusion.
+        logger::info("[TrueGaze] Runtime identity: plugin v1.0.0 build {} {}",
+                     __DATE__, __TIME__);
+
+        // Game runtime version, formatted as the human-readable dotted string the
+        // Address Library and SKSE filenames are derived from.
+        try
+        {
+            const auto ver = REL::Module::get().version();
+            logger::info("[TrueGaze] Game runtime: {}.{}.{}.{}",
+                         ver[0], ver[1], ver[2], ver[3]);
+        }
+        catch (...)
+        {
+            logger::info("[TrueGaze] Game runtime: unknown (version query failed)");
+        }
+
+        // Effective configuration path, so a reader knows which INI actually drove
+        // this session rather than assuming the repository default.
+        {
+            const auto &cfg = TrueGaze::Engine::ConfigManager::GetSingleton();
+            logger::info("[TrueGaze] Effective config: '{}'",
+                         cfg.LoadedPath().empty() ? "compiled defaults" : cfg.LoadedPath());
+        }
+#endif
+    }
+
     void MessageHandler(SKSE::MessagingInterface::Message *a_msg)
     {
         if (!a_msg)
@@ -89,9 +169,21 @@ namespace
             // previously only loaded in the unreachable #else branch below, so
             // every setting in TrueGaze.ini was inert. See audit finding C-3.
             config.Load();
+            ApplyLogLevel(config.logLevel);
+
+            // Phase S1 evidence baseline: fingerprint exactly what is running before
+            // any actor ticks, so acceptance logs are self-describing.
+            LogRuntimeIdentity();
+
             engine.RefreshTuning();
             engine.StartBridge();
             TrueGaze::Engine::AnimationHook::Install();
+
+            // Register the runtime console commands (~). These are the interactive
+            // control surface; the INI remains the authoring surface. Registered here
+            // because it is the earliest message where the engine's command table is
+            // populated and the config has been read.
+            TrueGaze::Integrations::ConsoleCommands::Install();
 
             logger::info("[TrueGaze] Gaze engine ready. Bridge {}.",
                          engine.IsBridgeConnected() ? "connected" : "idle");
@@ -101,6 +193,7 @@ namespace
         case SKSE::MessagingInterface::kNewGame:
             // The previous session's skeleton state is unrelated to the new one.
             config.Load();
+            ApplyLogLevel(config.logLevel);
             engine.RefreshTuning();
             engine.ResetAll();
             TrueGaze::Integrations::OarConditions::ClearCache();
@@ -108,7 +201,10 @@ namespace
             break;
 
         case SKSE::MessagingInterface::kPostLoadGame:
+            // Reload settings so changes made via the INI in a prior session are
+            // picked up by the engine.
             config.Load();
+            ApplyLogLevel(config.logLevel);
             engine.RefreshTuning();
             break;
 
@@ -171,10 +267,6 @@ SKSEPluginLoad(const SKSE::LoadInterface *a_skse)
         logger::error("[TrueGaze] Failed to register SKSE messaging listener.");
         return false;
     }
-
-    // Papyrus bindings must be registered during plugin load. Registering later,
-    // or not at all, is why the script API was previously non-functional.
-    TrueGaze::Integrations::PapyrusInterface::RegisterFunctions();
 
     logger::info("[TrueGaze] SKSE plugin loaded successfully.");
     return true;

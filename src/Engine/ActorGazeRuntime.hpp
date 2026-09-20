@@ -62,6 +62,35 @@ namespace TrueGaze::Engine
         /// across sessions. See docs/AUDIT_REPORT_2026-09-11.md section 5.3.
         uint32_t rngSeed{0};
 
+        /// Timer for API-directed mode overrides (seconds remaining).
+        float modeOverrideTimerSec{0.0f};
+        bool hasModeOverride{false};
+
+        /// Timer for throttled 3D gaze ray diagnostic logging.
+        float rayDebugTimerSec{0.0f};
+
+        /// Monotonic engine frame number when this actor was last simulated.
+        /// Prevents double-ticking within a single render frame.
+        uint64_t lastFrameTicked{0};
+
+        /// Seconds the actor has continuously fixated on the current target.
+        /// Enforces human gaze dwell time (hysteresis) to eliminate target flapping.
+        float fixationHoldSec{0.0f};
+
+        /// Seconds remaining of locked crosshair mutual gaze hold.
+        /// Prevents rapid edge-chatter and head twitching when player crosshair grazes the NPC.
+        float crosshairHoldTimerSec{0.0f};
+
+        /// Cached resolved bones in the actor's 3D scene graph.
+        /// Avoids thousands of redundant recursive traversals per frame.
+        bool skeletonResolved{false};
+        RE::NiAVObject *cachedRoot{nullptr};
+        RE::NiAVObject *cachedSpine{nullptr};
+        RE::NiAVObject *cachedNeck{nullptr};
+        RE::NiAVObject *cachedHead{nullptr};
+        RE::NiAVObject *cachedEyeL{nullptr};
+        RE::NiAVObject *cachedEyeR{nullptr};
+
         /// Reset the simulation to a known state, e.g. after a cell change.
         void Reset(float startYaw, float startPitch) noexcept
         {
@@ -83,6 +112,19 @@ namespace TrueGaze::Engine
             eyeSaturated = false;
             trackedTargetFormId = 0;
             bonesReported = false;
+            modeOverrideTimerSec = 0.0f;
+            hasModeOverride = false;
+            rayDebugTimerSec = 0.0f;
+            lastFrameTicked = 0;
+            fixationHoldSec = 0.0f;
+            crosshairHoldTimerSec = 0.0f;
+            skeletonResolved = false;
+            cachedRoot = nullptr;
+            cachedSpine = nullptr;
+            cachedNeck = nullptr;
+            cachedHead = nullptr;
+            cachedEyeL = nullptr;
+            cachedEyeR = nullptr;
             initialised = true;
         }
     };

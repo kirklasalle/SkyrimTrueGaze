@@ -26,6 +26,11 @@ namespace TrueGaze::Engine
         /// @brief True once Load() has completed, whether or not an INI was found.
         [[nodiscard]] bool IsLoaded() const noexcept { return _loaded; }
 
+        /// @brief Absolute path of the INI that actually drove the last Load(), or
+        /// empty when compiled defaults were used. Phase S1 evidence baseline: lets a
+        /// log reader confirm which configuration governed a session.
+        [[nodiscard]] const std::string &LoadedPath() const noexcept { return _loadedPath; }
+
         /// @brief Clamps every value into its supported range, reporting any change.
         /// Called automatically at the end of Load().
         void Sanitise() noexcept;
@@ -86,10 +91,42 @@ namespace TrueGaze::Engine
         bool debugGazeRays{false};
         int logLevel{2};
 
+        // --- Visuals (in-game 3D representation of the solved gaze) ---
+        //
+        // These keys drive src/Visuals. The whole subsystem is off by default and
+        // developer-oriented: nothing here may affect the simulation, the save game,
+        // or a shipped build's appearance unless explicitly enabled.
+        bool enableInGameVisuals{false};  // master switch for every in-game visual
+        bool gazeRaysEnabled{false};      // laser-eye beams from the pupil
+        int rayRenderMode{0};             // 0=Both(branded), 1=LightOnly(bare-bones), 2=GeometryOnly(branded)
+        float gazeRayLengthMeters{10.0f}; // beam length; drives the light radius
+        int gazeRayColour{0xC9A86A};      // 0xRRGGBB TrueGaze gold (alpha is separate)
+        float gazeRayOpacity{0.85f};      // 0..1 emitter brightness
+        bool gazeRaysOnPlayer{true};
+        bool gazeRaysOnNPCs{true};
+        bool gazeRaysOnCreatures{true};
+        bool gazeRaysAttachHead{true};    // attach emitters under the head bone (vs actor root)
+        bool gazeRaysTerminus{false};     // emit a second glow at the gaze terminus
+        float pupilForwardOffsetCm{7.0f}; // pupil origin, forward from the head bone origin
+        float pupilUpOffsetCm{1.5f};      // pupil origin, up from the head bone origin
+        float pupilGlowIntensity{0.5f};   // pupil emitter brightness multiplier
+
+        // --- Console commands (~) ---
+        //
+        // Registers the tg* commands so the game's own console can toggle TrueGaze
+        // at runtime. Uses only the vanilla console: no Papyrus, no ESP, no MCM.
+        //
+        // DEFAULT OFF. Registration reclaims entries the engine already treats as dead
+        // or empty, so it needs no count and cannot displace a working command - but it
+        // does write into engine memory and has not yet been confirmed in a running
+        // game. See src/Integrations/ConsoleCommands.cpp.
+        bool enableConsoleCommands{false};
+
     private:
         ConfigManager() = default;
 
         bool _loaded{false};
+        std::string _loadedPath{};
     };
 
 } // namespace TrueGaze::Engine

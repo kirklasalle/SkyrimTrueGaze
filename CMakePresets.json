@@ -14,7 +14,8 @@
         "CMAKE_CXX_STANDARD": "23",
         "CMAKE_CXX_STANDARD_REQUIRED": "ON",
         "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/x64-windows-static-md"
       }
     },
     {

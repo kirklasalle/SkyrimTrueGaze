@@ -44,8 +44,34 @@ public:
 
         // Damped head following
         float alpha = 1.0f - std::exp(-state.headTrackingSpeed * deltaSeconds);
-        state.headYaw += headErrorYaw * alpha;
-        state.headPitch += headErrorPitch * alpha;
+        float deltaYaw = headErrorYaw * alpha;
+        float deltaPitch = headErrorPitch * alpha;
+
+        // BIOMECHANICAL HEAD SLEW-RATE LIMIT:
+        // The human cervical spine cannot physically turn at unbounded speeds.
+        // Cap maximum angular velocity during tracking to 130 deg/s (yaw) and 90 deg/s (pitch).
+        // This permanently eliminates high-velocity head snapping, stuttering, and neck spasms.
+        constexpr float MAX_HEAD_YAW_VELOCITY = 130.0f;   // deg/s - natural cervical limit
+        constexpr float MAX_HEAD_PITCH_VELOCITY = 90.0f;  // deg/s - vertical cervical limit
+
+        const float maxYawStep = MAX_HEAD_YAW_VELOCITY * deltaSeconds;
+        const float maxPitchStep = MAX_HEAD_PITCH_VELOCITY * deltaSeconds;
+
+        deltaYaw = std::clamp(deltaYaw, -maxYawStep, maxYawStep);
+        deltaPitch = std::clamp(deltaPitch, -maxPitchStep, maxPitchStep);
+
+        // CLAMP HEAD TO PHYSICAL CERVICAL LIMITS:
+        // Human cervical range of motion is ~70 deg yaw, ~35 deg downward pitch (flexion),
+        // and ~45 deg upward pitch (extension).
+        // Clamping state.headYaw and state.headPitch prevents the virtual head from tracking
+        // beyond cervical biomechanical limits (e.g. tracking a high ledge up to +86.6 deg),
+        // which previously zeroed out ocular counter-rotation and froze the eyes forward.
+        constexpr float HEAD_YAW_LIMIT = 70.0f;
+        constexpr float HEAD_PITCH_LIMIT_DOWN = 35.0f;
+        constexpr float HEAD_PITCH_LIMIT_UP = 45.0f;
+
+        state.headYaw = std::clamp(state.headYaw + deltaYaw, -HEAD_YAW_LIMIT, HEAD_YAW_LIMIT);
+        state.headPitch = std::clamp(state.headPitch + deltaPitch, -HEAD_PITCH_LIMIT_DOWN, HEAD_PITCH_LIMIT_UP);
 
         // Head velocity this frame
         [[maybe_unused]] float headDeltaYaw = state.headYaw - prevHeadYaw;

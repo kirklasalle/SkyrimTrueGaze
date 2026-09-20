@@ -24,7 +24,7 @@ namespace TrueGaze::Bridge
                 crc ^= data[i];
                 for (int j = 0; j < 8; ++j)
                 {
-                    crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+                    crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
                 }
             }
             return ~crc;
@@ -93,12 +93,32 @@ namespace TrueGaze::Bridge
 
     } // namespace
 
-    void NamedPipeServer::Start() noexcept
+    void NamedPipeServer::Start(const char *pipeName, float reconnectIntervalSec) noexcept
     {
         if (_isRunning.exchange(true))
         {
             return; // Already running
         }
+
+        // Snapshot the configuration once. The worker reads these plain fields for
+        // its lifetime; Start is the only writer and runs before the thread exists.
+        if (pipeName && *pipeName)
+        {
+            _pipeName = pipeName;
+        }
+        _reconnectIntervalSec = (reconnectIntervalSec > 0.05f) ? reconnectIntervalSec : 3.0f;
+
+        if (!_shutdownEvent)
+        {
+            _shutdownEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+        }
+        ResetEvent(_shutdownEvent);
+
+        if (!_connectOverlapped.hEvent)
+        {
+            _connectOverlapped.hEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+        }
+        ResetEvent(_connectOverlapped.hEvent);
 
         _workerThread = std::thread(&NamedPipeServer::WorkerLoop, this);
     }
@@ -110,21 +130,49 @@ namespace TrueGaze::Bridge
             return; // Already stopped
         }
 
-        // Cancel pending I/O and close the handle to unblock the worker.
-        // _pipeHandle is atomic, so this is safe even while the worker holds it.
+        // Signal the shutdown event first so that any pending asynchronous
+        // ConnectNamedPipe, ReadFile, or reconnect timer immediately awakens.
+        if (_shutdownEvent)
+        {
+            SetEvent(_shutdownEvent);
+        }
+
         if (void *raw = _pipeHandle.exchange(nullptr))
         {
             HANDLE h = static_cast<HANDLE>(raw);
             if (h != INVALID_HANDLE_VALUE)
             {
                 CancelIoEx(h, nullptr);
+                DisconnectNamedPipe(h);
                 CloseHandle(h);
             }
         }
 
         if (_workerThread.joinable())
         {
-            _workerThread.join();
+            // During game shutdown / ExitProcess, unconditional join() can deadlock
+            // on the Windows Loader Lock. Wait up to 250ms; if not done, detach cleanly.
+            HANDLE hThread = reinterpret_cast<HANDLE>(_workerThread.native_handle());
+            if (hThread && WaitForSingleObject(hThread, 250) == WAIT_OBJECT_0)
+            {
+                _workerThread.join();
+            }
+            else
+            {
+                _workerThread.detach();
+            }
+        }
+
+        if (_shutdownEvent)
+        {
+            CloseHandle(_shutdownEvent);
+            _shutdownEvent = nullptr;
+        }
+
+        if (_connectOverlapped.hEvent)
+        {
+            CloseHandle(_connectOverlapped.hEvent);
+            _connectOverlapped.hEvent = nullptr;
         }
 
         _isConnected.store(false, std::memory_order_relaxed);
@@ -142,8 +190,8 @@ namespace TrueGaze::Bridge
             }
 
             HANDLE hPipe = CreateNamedPipeA(
-                PIPE_NAME.data(),
-                PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+                _pipeName.c_str(),
+                PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_OVERLAPPED,
                 PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
                 1,    // max instances
                 4096, // out buffer
@@ -153,28 +201,65 @@ namespace TrueGaze::Bridge
 
             if (hPipe == INVALID_HANDLE_VALUE)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                if (_shutdownEvent)
+                {
+                    WaitForSingleObject(_shutdownEvent,
+                                        static_cast<DWORD>(_reconnectIntervalSec * 1000.0f));
+                }
                 continue;
             }
 
             _pipeHandle.store(hPipe, std::memory_order_release);
 
-            // ConnectNamedPipe returns FALSE with ERROR_PIPE_CONNECTED when a client
-            // raced us to the handle. That is a success condition, not a failure.
-            const BOOL connected =
-                ConnectNamedPipe(hPipe, nullptr) ? TRUE
-                                                 : (GetLastError() == ERROR_PIPE_CONNECTED);
+            ResetEvent(_connectOverlapped.hEvent);
+            _connectOverlapped.Offset = 0;
+            _connectOverlapped.OffsetHigh = 0;
 
-            if (connected && _isRunning.load(std::memory_order_relaxed))
+            const BOOL connResult = ConnectNamedPipe(hPipe, &_connectOverlapped);
+            const DWORD connErr = GetLastError();
+            bool clientConnected = false;
+
+            if (connResult)
+            {
+                clientConnected = true;
+            }
+            else if (connErr == ERROR_PIPE_CONNECTED)
+            {
+                clientConnected = true;
+            }
+            else if (connErr == ERROR_IO_PENDING)
+            {
+                HANDLE waitEvents[2] = {_shutdownEvent, _connectOverlapped.hEvent};
+                DWORD waitRes = WaitForMultipleObjects(2, waitEvents, FALSE, INFINITE);
+                if (waitRes == WAIT_OBJECT_0)
+                {
+                    // Shutdown requested while waiting for client connection
+                    CancelIoEx(hPipe, &_connectOverlapped);
+                    break;
+                }
+                else if (waitRes == WAIT_OBJECT_0 + 1)
+                {
+                    DWORD bytesTransferred = 0;
+                    if (GetOverlappedResult(hPipe, &_connectOverlapped, &bytesTransferred, FALSE) ||
+                        GetLastError() == ERROR_PIPE_CONNECTED)
+                    {
+                        clientConnected = true;
+                    }
+                }
+            }
+
+            if (clientConnected && _isRunning.load(std::memory_order_relaxed))
             {
                 _isConnected.store(true, std::memory_order_release);
                 logger::info("[TrueGaze] HCEP Desktop connected on \\\\.\\pipe\\TrueGazeBridge.");
 
                 TrueGazeTelemetryPacket incoming{};
 
+                OVERLAPPED readOvl{};
+                readOvl.hEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+
                 while (_isRunning.load(std::memory_order_relaxed) && _isConnected.load(std::memory_order_relaxed))
                 {
-
                     // Drain anything the game thread queued for the client.
                     DrainOutboundQueue(hPipe);
 
@@ -197,8 +282,42 @@ namespace TrueGaze::Bridge
                         continue;
                     }
 
+                    ResetEvent(readOvl.hEvent);
+                    readOvl.Offset = 0;
+                    readOvl.OffsetHigh = 0;
                     DWORD bytesRead = 0;
-                    if (!ReadFile(hPipe, &incoming, sizeof(incoming), &bytesRead, nullptr) || bytesRead != sizeof(incoming))
+                    BOOL okRead = ReadFile(hPipe, &incoming, sizeof(incoming), &bytesRead, &readOvl);
+                    if (!okRead)
+                    {
+                        if (GetLastError() == ERROR_IO_PENDING)
+                        {
+                            HANDLE waitArr[2] = {_shutdownEvent, readOvl.hEvent};
+                            DWORD waitRead = WaitForMultipleObjects(2, waitArr, FALSE, 1000);
+                            if (waitRead == WAIT_OBJECT_0)
+                            {
+                                CancelIoEx(hPipe, &readOvl);
+                                break;
+                            }
+                            else if (waitRead == WAIT_OBJECT_0 + 1)
+                            {
+                                if (!GetOverlappedResult(hPipe, &readOvl, &bytesRead, FALSE))
+                                {
+                                    continue;
+                                }
+                            }
+                            else
+                            {
+                                CancelIoEx(hPipe, &readOvl);
+                                continue;
+                            }
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
+
+                    if (bytesRead != sizeof(incoming))
                     {
                         continue;
                     }
@@ -214,6 +333,12 @@ namespace TrueGaze::Bridge
 
                     if (incoming.crc32 != expectedCrc)
                     {
+                        continue;
+                    }
+
+                    if (!ValidateTelemetryPacket(incoming))
+                    {
+                        logger::warn("[TrueGaze] Rejected semantically invalid HCEP telemetry frame.");
                         continue;
                     }
 
@@ -237,6 +362,11 @@ namespace TrueGaze::Bridge
                     _readyIndex.store(writeIdx, std::memory_order_release);
                 }
 
+                if (readOvl.hEvent)
+                {
+                    CloseHandle(readOvl.hEvent);
+                }
+
                 _isConnected.store(false, std::memory_order_release);
                 logger::info("[TrueGaze] HCEP Desktop disconnected.");
             }
@@ -251,9 +381,10 @@ namespace TrueGaze::Bridge
                 }
             }
 
-            if (_isRunning.load(std::memory_order_relaxed))
+            if (_isRunning.load(std::memory_order_relaxed) && _shutdownEvent)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                WaitForSingleObject(_shutdownEvent,
+                                    static_cast<DWORD>(_reconnectIntervalSec * 1000.0f));
             }
         }
     }
@@ -270,6 +401,9 @@ namespace TrueGaze::Bridge
         uint32_t head = _feedbackHead.load(std::memory_order_relaxed);
         const uint32_t tail = _feedbackTail.load(std::memory_order_acquire);
 
+        OVERLAPPED writeOvl{};
+        writeOvl.hEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+
         while (head != tail)
         {
             SkyrimFeedbackPacket packet = _feedbackRing[head];
@@ -280,11 +414,44 @@ namespace TrueGaze::Bridge
                 reinterpret_cast<const uint8_t *>(&packet),
                 sizeof(packet) - sizeof(uint32_t));
 
+            ResetEvent(writeOvl.hEvent);
+            writeOvl.Offset = 0;
+            writeOvl.OffsetHigh = 0;
             DWORD written = 0;
-            if (!WriteFile(hPipe, &packet, sizeof(packet), &written, nullptr) || written != sizeof(packet))
+            BOOL ok = WriteFile(hPipe, &packet, sizeof(packet), &written, &writeOvl);
+            if (!ok)
             {
-                break; // Client went away; leave the remainder for the next connection
+                if (GetLastError() == ERROR_IO_PENDING)
+                {
+                    HANDLE waitHandles[2] = {_shutdownEvent, writeOvl.hEvent};
+                    DWORD waitRes = WaitForMultipleObjects(2, waitHandles, FALSE, 50);
+                    if (waitRes == WAIT_OBJECT_0 + 1)
+                    {
+                        if (!GetOverlappedResult(hPipe, &writeOvl, &written, FALSE) || written != sizeof(packet))
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        CancelIoEx(hPipe, &writeOvl);
+                        break;
+                    }
+                }
+                else
+                {
+                    break; // Client went away
+                }
             }
+            else if (written != sizeof(packet))
+            {
+                break;
+            }
+        }
+
+        if (writeOvl.hEvent)
+        {
+            CloseHandle(writeOvl.hEvent);
         }
 
         _feedbackHead.store(head, std::memory_order_release);
@@ -345,12 +512,16 @@ namespace TrueGaze::Bridge
         const uint32_t tail = _feedbackTail.load(std::memory_order_relaxed);
         const uint32_t nextTail = (tail + 1) % FEEDBACK_RING_SIZE;
 
-        // Full ring: drop the oldest entry rather than stalling the game thread.
+        // Full ring: drop the NEW packet rather than advancing the consumer's head.
+        // Advancing _feedbackHead here would race with DrainOutboundQueue reading
+        // _feedbackRing[head] — the worker could observe head == tail with a slot
+        // mid-write, or read a torn packet. Dropping the newest sample is the safe
+        // SPSC policy: the consumer owns its head, the producer owns its tail, and
+        // a full ring means the consumer is behind, so the freshest data is the
+        // expendable one.
         if (nextTail == _feedbackHead.load(std::memory_order_acquire))
         {
-            const uint32_t newHead =
-                (_feedbackHead.load(std::memory_order_relaxed) + 1) % FEEDBACK_RING_SIZE;
-            _feedbackHead.store(newHead, std::memory_order_release);
+            return;
         }
 
         _feedbackRing[tail] = feedback;

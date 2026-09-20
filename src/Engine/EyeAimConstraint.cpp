@@ -29,10 +29,9 @@ namespace TrueGaze::Engine
             bool active{false};
         };
 
-        /// Fixed capacity: an actor has at most six gaze joints of interest, and we may
-        /// be tracking one actor's chain at a time. Overflow is a logic error, not a
-        /// runtime condition, so the array is sized generously and never grows.
-        constexpr uint32_t MAX_TOUCHED_BONES = 2560;
+        /// Fixed capacity: an actor has at most six gaze joints of interest.
+        /// Sized to support up to 85 simultaneously tracked actors per frame.
+        constexpr uint32_t MAX_TOUCHED_BONES = 512;
 
         std::array<TouchedBone, MAX_TOUCHED_BONES> g_touched{};
         uint32_t g_touchedCount{0};
@@ -41,9 +40,10 @@ namespace TrueGaze::Engine
         /// Build the relative rotation for a yaw/pitch deflection, in degrees,
         /// expressed in the bone's parent frame.
         ///
-        /// Convention: yaw about local Z (up), pitch about local X (right).
-        /// The order (pitch then yaw) avoids the gimbal quirk where a large yaw makes a
-        /// pitch deflection swing sideways.
+        /// Skyrim coordinate system:
+        ///   X = Right (lateral axis) -> Pitch (nodding up/down)
+        ///   Y = Forward (longitudinal axis) -> Roll (head tilt) = 0
+        ///   Z = Up (vertical axis) -> Yaw (turning left/right)
         RE::NiMatrix3 MakeGazeRotation(float yawDeg, float pitchDeg) noexcept
         {
             constexpr float kDegToRad = 3.14159265358979323846f / 180.0f;
@@ -51,33 +51,17 @@ namespace TrueGaze::Engine
             const float y = yawDeg * kDegToRad;
             const float p = pitchDeg * kDegToRad;
 
-            const float cy = std::cos(y);
-            const float sy = std::sin(y);
-            const float cp = std::cos(p);
-            const float sp = std::sin(p);
-
-            // Row-major composition of Ry * Rx.
             RE::NiMatrix3 m;
-            m.entry[0][0] = cy;
-            m.entry[0][1] = sy * sp;
-            m.entry[0][2] = sy * cp;
-            m.entry[1][0] = 0.0f;
-            m.entry[1][1] = cp;
-            m.entry[1][2] = -sp;
-            m.entry[2][0] = -sy;
-            m.entry[2][1] = cy * sp;
-            m.entry[2][2] = cy * cp;
+            // In Skyrim / NetImmerse:
+            // X-axis: pitch (negated so positive pitch rotates up toward +Z)
+            // Y-axis: roll = 0 (no head tilt)
+            // Z-axis: yaw (positive yaw rotates right toward +X)
+            m.EulerAnglesToAxesZXY(-p, 0.0f, y);
             return m;
         }
 
         /// Recompute a bone's world transform from its local transform and its
-        /// parent's world transform.
-        ///
-        /// `UpdateWorldData(NiUpdateData*)` is not usable here: the only exposed
-        /// constructor is private, so a valid NiUpdateData cannot be constructed from
-        /// outside the engine. The composition below is exactly what that call
-        /// performs, and it is the minimum needed for the skeleton to pick up the
-        /// change.
+        /// parent's world transform using NetImmerse transform composition.
         void RefreshWorldTransform(RE::NiAVObject *bone) noexcept
         {
             if (!bone)
@@ -88,16 +72,20 @@ namespace TrueGaze::Engine
             RE::NiAVObject *parent = bone->parent;
             if (parent)
             {
-                bone->world = parent->world;
-                bone->world.scale *= bone->local.scale;
-                bone->world.translate = parent->world * bone->local.translate;
-                bone->world.rotate = bone->local.rotate * parent->world.rotate;
+                bone->world = parent->world * bone->local;
             }
             else
             {
                 // Root node: world and local coincide.
                 bone->world = bone->local;
             }
+
+            // Downward pass propagates transform changes to child meshes
+            // (hair, beard, horns, helmets, and facial attachments).
+            RE::NiUpdateData updateData;
+            updateData.time = 0.0f;
+            updateData.flags = RE::NiUpdateData::Flag::kDirty;
+            bone->UpdateDownwardPass(updateData, 0);
         }
 
         /// Locate an existing record for this bone, or create one.
@@ -190,17 +178,24 @@ namespace TrueGaze::Engine
     void EyeAimConstraint::WithdrawActor(uint32_t actorFormId) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
+        auto *form = RE::TESForm::LookupByID(actorFormId);
+        auto *actor = form ? form->As<RE::Actor>() : nullptr;
+        auto *root = actor ? actor->Get3D() : nullptr;
+
         uint32_t write = 0;
         for (uint32_t read = 0; read < g_touchedCount; ++read)
         {
             TouchedBone &slot = g_touched[read];
             if (slot.active && slot.actorFormId == actorFormId)
             {
-                if (slot.bone)
+                if (slot.bone && root)
                 {
                     slot.bone->local.rotate = slot.originalRotate;
                     RefreshWorldTransform(slot.bone);
                 }
+                slot.active = false;
+                slot.actorFormId = 0;
+                slot.bone = nullptr;
                 continue;
             }
 
@@ -225,12 +220,32 @@ namespace TrueGaze::Engine
             TouchedBone &slot = g_touched[i];
             if (slot.active && slot.bone)
             {
-                slot.bone->local.rotate = slot.originalRotate;
-                RefreshWorldTransform(slot.bone);
+                auto *form = RE::TESForm::LookupByID(slot.actorFormId);
+                auto *actor = form ? form->As<RE::Actor>() : nullptr;
+                if (actor && actor->Get3D())
+                {
+                    slot.bone->local.rotate = slot.originalRotate;
+                    RefreshWorldTransform(slot.bone);
+                }
             }
             slot.active = false;
             slot.actorFormId = 0;
             slot.bone = nullptr;
+        }
+
+        g_touchedCount = 0;
+        g_frameOpen = false;
+#endif
+    }
+
+    void EyeAimConstraint::Reset() noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        for (uint32_t i = 0; i < g_touchedCount; ++i)
+        {
+            g_touched[i].active = false;
+            g_touched[i].actorFormId = 0;
+            g_touched[i].bone = nullptr;
         }
 
         g_touchedCount = 0;
