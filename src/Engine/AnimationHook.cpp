@@ -64,17 +64,20 @@ namespace TrueGaze::Engine
         {
         };
 
+        static inline std::atomic<uint32_t> s_mainThreadId{0};
+
         template <class Tag>
         struct ActorUpdateHook
         {
             static void Hook(RE::Actor *a_actor, float a_delta)
             {
-                // Remove only this actor's previous procedural pose before Skyrim
-                // computes its fresh animated pose. Other actors remain posed for
-                // rendering until their own updates arrive.
-                if (a_actor)
+                // Advance the player's pristine baseline if on the main thread.
+                if constexpr (std::is_same_v<Tag, PlayerTag>)
                 {
-                    EyeAimConstraint::WithdrawActor(a_actor->GetFormID());
+                    if (a_actor)
+                    {
+                        EyeAimConstraint::WithdrawActor(a_actor->GetFormID());
+                    }
                 }
 
                 // Advance the game's own state. This deliberately remains outside
@@ -88,8 +91,8 @@ namespace TrueGaze::Engine
                 const auto report = s_postUpdateReports.fetch_add(1, std::memory_order_relaxed);
                 if (report == 0)
                 {
-                    logger::info("[TrueGaze] Actor update hook invoked: form={:08X} delta={:.4f}",
-                                 a_actor ? a_actor->GetFormID() : 0u, a_delta);
+                    logger::info("[TrueGaze] Actor update hook invoked: form={:08X} delta={:.4f} thread={}",
+                                 a_actor ? a_actor->GetFormID() : 0u, a_delta, GetCurrentThreadId());
                 }
 
                 // Everything that follows is ours. A defect in the kinematics engine must
@@ -103,10 +106,16 @@ namespace TrueGaze::Engine
                 {
                     if constexpr (std::is_same_v<Tag, PlayerTag>)
                     {
+                        s_mainThreadId.store(GetCurrentThreadId(), std::memory_order_relaxed);
+
                         // PlayerCharacter::Update runs reliably once per frame on the main thread.
                         if (a_actor && ConfigManager::GetSingleton().enableTrueGaze &&
                             a_delta > 0.0f && a_delta < 0.5f)
                         {
+                            // 1. Prepare bone constraints for this frame by restoring previously touched
+                            // bones to their pristine animated baseline before composing fresh gaze.
+                            EyeAimConstraint::BeginFrame();
+
                             auto *camera = RE::PlayerCamera::GetSingleton();
                             const bool isThirdPerson = camera && camera->IsInThirdPerson();
 
@@ -137,6 +146,10 @@ namespace TrueGaze::Engine
                                 // 1st Person: User control and mouse crosshair direct looking.
                                 EyeAimConstraint::WithdrawActor(a_actor->GetFormID());
                             }
+
+                            // 2. Orchestrate gaze evaluation and bone updates for all active nearby NPCs
+                            // and creatures on the main game thread, perfectly synchronized with this frame's delta.
+                            AnimationHook::TickAllActors(a_delta);
                         }
 
                         // Anchoring EndFrame here drives actor eviction, bounds memory,
@@ -146,32 +159,12 @@ namespace TrueGaze::Engine
                     }
                     else
                     {
-                        if (!a_actor || !ConfigManager::GetSingleton().enableTrueGaze ||
-                            a_delta <= 0.0f || a_delta >= 0.5f)
-                        {
-                            return;
-                        }
-
-                        // TrueGaze is an NPC biological gaze engine. The player's head
-                        // is driven by player view/camera controls, never procedural gaze.
-                        if (a_actor->IsPlayerRef())
-                        {
-                            return;
-                        }
-
-                        // Creature filter: the biological humanoid kinematics do not fit
-                        // dragons/predators. bEnableCreatures=false must exclude them on
-                        // the live per-actor path, not just in the unused batch path.
-                        if (!ConfigManager::GetSingleton().enableCreatures && !a_actor->IsHumanoid())
-                        {
-                            return;
-                        }
-
-                        // Actor::Update has completed, so the skeleton now contains the
-                        // current animated pose. Compose gaze onto it and retain that
-                        // pose until this actor's next update; withdrawing immediately
-                        // here would erase the effect before the renderer sees it.
-                        GazeEngine::Get().TickActor(a_actor, a_delta);
+                        // In Skyrim SE/AE, Actor::Update and Character::Update for NPCs are dispatched
+                        // across Havok animation worker threads (where delta is 0.0f). Mutating the
+                        // NetImmerse scene graph or querying singletons on worker threads causes race conditions.
+                        // All NPC gaze updates are driven cleanly and deterministically on the main
+                        // game thread in PlayerTag via AnimationHook::TickAllActors.
+                        return;
                     }
                 }
                 catch (const std::exception &e)
@@ -224,8 +217,10 @@ namespace TrueGaze::Engine
                            float deltaSeconds,
                            GazeEngine &engine) noexcept
         {
-            for (auto &handle : list)
+            const auto count = list.size();
+            for (uint32_t i = 0; i < count && i < list.size(); ++i)
             {
+                auto &handle = list[i];
                 auto actorPtr = handle.get();
                 if (!actorPtr)
                 {
@@ -288,6 +283,15 @@ namespace TrueGaze::Engine
         if (!processLists)
         {
             return;
+        }
+
+        static std::atomic<uint32_t> s_tickReports{0};
+        if (s_tickReports.fetch_add(1, std::memory_order_relaxed) == 0)
+        {
+            logger::info("[TrueGaze] TickAllActors active on game thread: highActors={} middleHighActors={} delta={:.4f}",
+                         processLists->highActorHandles.size(),
+                         processLists->middleHighActorHandles.size(),
+                         deltaSeconds);
         }
 
         auto &engine = GazeEngine::Get();
