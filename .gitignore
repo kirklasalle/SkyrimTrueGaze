@@ -16,6 +16,15 @@
 # ---------------------------------------------------------------------------
 downloads/
 
+# ---------------------------------------------------------------------------
+# Local scratch space.
+#
+# Ad-hoc verification scripts and one-off probes live here. They are not part of
+# the product and are never packaged; keeping them out of the index stops them
+# being mistaken for shipped tooling.
+# ---------------------------------------------------------------------------
+scratch/
+
 # Build artifacts
 out/
 build/

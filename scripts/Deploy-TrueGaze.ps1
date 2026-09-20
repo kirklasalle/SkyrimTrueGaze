@@ -32,6 +32,14 @@
     hook without running the simulation. This is the recommended first run.
 
 .PARAMETER PostRun
+    Analyse the log from the last run instead of deploying.
+
+.PARAMETER ForceIni
+    Overwrite the deployed TrueGaze.ini with the shipped defaults.
+
+    By default the deployed INI is LEFT ALONE on deploy, because it holds your
+    live tuning and anything the console commands have persisted. Use this only
+    when you deliberately want to reset configuration to the shipped defaults.
     Skip build/deploy/launch and just analyse the log from the last session.
 
 .EXAMPLE
@@ -51,14 +59,15 @@ param(
     [switch]$NoLaunch,
     [switch]$Force,
     [switch]$LoadOnly,
-    [switch]$PostRun
+    [switch]$PostRun,
+    [switch]$ForceIni
 )
 
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path $PSScriptRoot -Parent
-$builtDll    = Join-Path $projectRoot 'build\windows-release\Release\TrueGaze.dll'
-$builtIni    = Join-Path $projectRoot 'skyrim\SKSE\Plugins\TrueGaze.ini'
+$builtDll = Join-Path $projectRoot 'build\windows-release\Release\TrueGaze.dll'
+$builtIni = Join-Path $projectRoot 'skyrim\SKSE\Plugins\TrueGaze.ini'
 $healthScript = Join-Path $PSScriptRoot 'Test-TrueGazeHealth.ps1'
 
 function Write-Step {
@@ -68,8 +77,8 @@ function Write-Step {
     Write-Host ('-' * 60) -ForegroundColor DarkGray
 }
 
-function Write-Ok   { param([string]$t) Write-Host ("  OK   " + $t) -ForegroundColor Green }
-function Write-Bad  { param([string]$t) Write-Host ("  FAIL " + $t) -ForegroundColor Red }
+function Write-Ok { param([string]$t) Write-Host ("  OK   " + $t) -ForegroundColor Green }
+function Write-Bad { param([string]$t) Write-Host ("  FAIL " + $t) -ForegroundColor Red }
 function Write-Info { param([string]$t) Write-Host ("  ..   " + $t) -ForegroundColor DarkGray }
 
 # Run a native executable and capture everything it writes.
@@ -152,6 +161,13 @@ else {
 
     Push-Location $projectRoot
     try {
+        $configure = Invoke-TGNative -Exe 'cmake' -Arguments @('--preset', 'windows-release')
+        if ($configure.ExitCode -ne 0) {
+            Write-Bad "Configure failed (exit $($configure.ExitCode))."
+            $configure.Output | Where-Object { $_ -match 'error|Error|CMake Error' } | Select-Object -First 20 |
+            ForEach-Object { Write-Host ('    ' + $_) -ForegroundColor Red }
+            exit 1
+        }
         $build = Invoke-TGNative -Exe 'cmake' -Arguments @('--build', '--preset', 'release')
     }
     finally { Pop-Location }
@@ -159,7 +175,7 @@ else {
     if ($build.ExitCode -ne 0) {
         Write-Bad "Build failed (exit $($build.ExitCode))."
         $build.Output | Where-Object { $_ -match 'error|Error' } | Select-Object -First 20 |
-            ForEach-Object { Write-Host ('    ' + $_) -ForegroundColor Red }
+        ForEach-Object { Write-Host ('    ' + $_) -ForegroundColor Red }
         exit 1
     }
     Write-Ok 'Build succeeded.'
@@ -188,39 +204,103 @@ $kb = [math]::Round((Get-Item $destDll).Length / 1KB, 1)
 Write-Ok "TrueGaze.dll -> $destDll ($kb KB)"
 
 if (Test-Path $builtIni) {
-    Copy-Item -Path $builtIni -Destination $destIni -Force
-    Write-Ok "TrueGaze.ini -> $destIni"
+    # ---------------------------------------------------------------------
+    # Never clobber a user's tuned INI on a routine deploy.
+    #
+    # The packaged INI is the set of SHIPPED DEFAULTS. The deployed copy is the
+    # user's live configuration - it holds their tuning, and anything the console
+    # commands have persisted. Copying over it silently discarded all of that on
+    # every deploy, which looked exactly like settings randomly reverting.
+    #
+    # So:
+    #   * no deployed INI yet      -> copy the defaults (first install)
+    #   * deployed INI exists      -> leave it alone, unless -ForceIni is given
+    #   * keys missing from it     -> report them; do NOT rewrite the file
+    #
+    # The missing-key report matters: new engine versions add keys, and an older
+    # deployed INI simply lacks them. That is safe - the engine keeps its compiled
+    # default for any absent key - but the user should know they exist.
+    # ---------------------------------------------------------------------
+    if ((Test-Path $destIni) -and -not $ForceIni) {
+        Write-Ok "TrueGaze.ini -> kept (existing user configuration preserved)"
+
+        $packagedKeys = @()
+        $deployedKeys = @()
+        foreach ($line in Get-Content $builtIni) {
+            if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=') {
+                $packagedKeys += ($Matches[1] + '=' + $line.Split('=')[0].Trim())
+            }
+        }
+        foreach ($line in Get-Content $destIni) {
+            if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=') {
+                $deployedKeys += ($Matches[1] + '=' + $line.Split('=')[0].Trim())
+            }
+        }
+        $missing = @($packagedKeys | Where-Object { $deployedKeys -notcontains $_ })
+        if ($missing.Count -gt 0) {
+            Write-Info ("{0} key(s) in the newer defaults are absent from your INI; the engine " -f $missing.Count)
+            Write-Info "  uses its compiled default for those. Compare with the HTML page if you want them."
+        }
+    }
+    else {
+        Copy-Item -Path $builtIni -Destination $destIni -Force
+        if ($ForceIni) {
+            Write-Warn "TrueGaze.ini -> overwritten (-ForceIni): your tuning was replaced with shipped defaults."
+        }
+        else {
+            Write-Ok "TrueGaze.ini -> $destIni"
+        }
+    }
 }
 else {
     Write-Info 'No packaged INI found; compiled defaults will be used.'
 }
 
-# --LoadOnly flips the master switch in the *deployed* copy. Done here rather
-# than by shipping a second INI so there is only ever one source of truth.
-if ($LoadOnly) {
-    if (Test-Path $destIni) {
-        $ini = Get-Content $destIni -Raw
-        $ini = [regex]::Replace($ini, '(?im)^(\s*bEnableTrueGaze\s*=\s*)(true|1)', '${1}false')
-        Set-Content -Path $destIni -Value $ini -NoNewline
-        Write-Ok 'bEnableTrueGaze set to false (load-only mode).'
-        Write-Info 'The plugin will load and install its hook, but not move anything.'
-    }
-    else {
-        Write-Bad 'LoadOnly requested but no INI was deployed.'
-        exit 1
+# ---------------------------------------------------------------------------
+# Remove legacy SkyUI / Papyrus / MCM artifacts.
+#
+# TrueGaze is deliberately vanilla-UI: configuration is the INI edited through
+# TrueGazeConfig.html. There is no ESP, no Papyrus script, no MCM menu and no
+# SkyUI dependency. Files left over from the abandoned MCM era are actively
+# harmful - a stale TrueGaze.esp in the load order or a TrueGaze_MCM.pex that
+# SkyUI still binds produces confusing in-game behaviour and log noise that
+# looks like a TrueGaze defect. Delete them on every deploy so an upgrade from
+# an old install self-heals.
+# ---------------------------------------------------------------------------
+$dataDir = Join-Path $game.Path 'Data'
+$legacyPaths = @(
+    @{ Path = (Join-Path $dataDir 'TrueGaze.esp'); Label = 'TrueGaze.esp' }
+    @{ Path = (Join-Path $dataDir 'TrueGaze.esl'); Label = 'TrueGaze.esl' }
+    @{ Path = (Join-Path $dataDir 'TrueGaze_MCM.pex'); Label = 'TrueGaze_MCM.pex' }
+    @{ Path = (Join-Path $dataDir 'TrueGaze.pex'); Label = 'TrueGaze.pex' }
+    @{ Path = (Join-Path $dataDir 'MCM\Config\TrueGaze'); Label = 'MCM\Config\TrueGaze\' }
+    @{ Path = (Join-Path $dataDir 'Interface\MCM\Config\TrueGaze'); Label = 'Interface\MCM\Config\TrueGaze\' }
+)
+
+$removed = @()
+foreach ($entry in $legacyPaths) {
+    if (Test-Path $entry.Path) {
+        Remove-Item -Path $entry.Path -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path $entry.Path)) { $removed += $entry.Label }
     }
 }
 
-# Confirm the copy really is the build we just made. This has silently gone
-# stale twice; hashing is the only way to be sure.
-$hBuilt = (Get-FileHash $builtDll -Algorithm SHA256).Hash
-$hDest  = (Get-FileHash $destDll -Algorithm SHA256).Hash
-if ($hBuilt -eq $hDest) {
-    Write-Ok 'Deployed hash matches the build.'
+# The old MCM shipped six translation files (TrueGaze_<LANG>.txt). None are
+# needed by the vanilla-UI build.
+$transDir = Join-Path $dataDir 'Interface\Translations'
+if (Test-Path $transDir) {
+    $legacyTranslations = @(Get-ChildItem -Path $transDir -Filter 'TrueGaze_*.txt' -File -ErrorAction SilentlyContinue)
+    foreach ($t in $legacyTranslations) {
+        Remove-Item -Path $t.FullName -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path $t.FullName)) { $removed += ("Interface\Translations\" + $t.Name) }
+    }
+}
+
+if ($removed.Count -gt 0) {
+    Write-Ok ("Removed legacy SkyUI/Papyrus/MCM artifacts: " + ($removed -join ', '))
 }
 else {
-    Write-Bad 'Deployed hash does NOT match the build.'
-    exit 1
+    Write-Info 'No legacy SkyUI/Papyrus/MCM artifacts to remove.'
 }
 
 # ===========================================================================
@@ -229,8 +309,8 @@ else {
 Write-Step '3/4' 'Verify (pre-flight health check)'
 
 $verify = Invoke-TGNative -Exe 'powershell' -Arguments @(
-    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $healthScript,
-    '-GamePath', $game.Path, '-PluginPath', $builtDll)
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+    "& '$healthScript' -GamePath '$($game.Path)' -PluginPath '$builtDll'")
 $verifyCode = $verify.ExitCode
 $verify.Output | ForEach-Object { Write-Host $_ }
 

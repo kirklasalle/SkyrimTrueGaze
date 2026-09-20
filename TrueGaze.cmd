@@ -92,6 +92,7 @@ if /i "!ARG!"=="verify"   set "MODE=VERIFY"
 if /i "!ARG!"=="postrun"  set "MODE=POSTRUN"
 if /i "!ARG!"=="status"   set "MODE=STATUS"
 if /i "!ARG!"=="prereqs"  set "MODE=PREREQS"
+if /i "!ARG!"=="prereqs-all" set "MODE=PREREQSALL"
 if /i "!ARG!"=="help"     set "MODE=HELP"
 
 shift
@@ -101,6 +102,7 @@ goto :PARSE_ARGS
 if not defined MODE goto :MENU
 if /i "!MODE!"=="HELP" goto :HELP
 if /i "!MODE!"=="PREREQS" goto :DO_PREREQS
+if /i "!MODE!"=="PREREQSALL" goto :DO_PREREQS_ALL
 goto :DISPATCH
 
 REM ===========================================================================
@@ -116,13 +118,15 @@ echo     [3]  Build           build and verify, do not launch
 echo     [4]  Verify          check everything, do not build or launch
 echo     [5]  Analyse         report what happened on the last run
 echo     [6]  Status          show the detected configuration
-echo     [7]  Prerequisites   install SKSE + Address Library
+echo     [7]  Prerequisites   install SKSE + Address Library (Nexus)
+echo     [8]  Install ALL       build toolchain + vcpkg + SDK + game files
 echo     [0]  Exit
 echo.
-echo   For a first test, start with [7], then [4], then [2].
+echo   For a first test, start with [8] (or [7]), then [4], then [2].
 echo.
-choice /c 12345670 /n /m "  Select: "
-if errorlevel 8 goto :THE_END
+choice /c 123456780 /n /m "  Select: "
+if errorlevel 9 goto :THE_END
+if errorlevel 8 set "MODE=PREREQSALL"
 if errorlevel 7 set "MODE=PREREQS"
 if errorlevel 6 set "MODE=STATUS"
 if errorlevel 5 set "MODE=POSTRUN"
@@ -171,6 +175,28 @@ echo   Press any key to close...
 pause >nul
 :END_NO_PAUSE
 endlocal & exit /b %PRE_RC%
+
+REM Install EVERY prerequisite (toolchain, vcpkg, SDK, then the game files).
+REM Delegates to the batch wrapper, which owns the argument parsing so that
+REM paths containing "(x86)" survive (a bare ")" inside a parenthesised cmd
+REM block closes it early).
+:DO_PREREQS_ALL
+call :BANNER
+echo   Installing ALL prerequisites...
+echo   (toolchain, vcpkg, SDK submodule, then SKSE64 + Address Library)
+echo.
+set "PREALL_BAT=%PROJECT_ROOT%\Install-AllPrerequisites.bat"
+if not exist "!PREALL_BAT!" goto :PREREQS_ALL_MISSING
+call "!PREALL_BAT!" -NoPause
+set "PRE_RC=!ERRORLEVEL!"
+goto :END_PREREQS
+
+:PREREQS_ALL_MISSING
+echo   FAIL  Install-AllPrerequisites.bat not found:
+echo         !PREALL_BAT!
+echo.
+set "PRE_RC=1"
+goto :END_PREREQS
 
 REM ===========================================================================
 REM  Modes
@@ -367,10 +393,56 @@ if exist "%SRC_INI%" goto :DEPLOY_INI
 goto :DEPLOY_AFTER_INI
 
 :DEPLOY_INI
+REM ---------------------------------------------------------------------------
+REM  Never clobber the user's live configuration on a routine deploy.
+REM
+REM  The packaged INI is the set of SHIPPED DEFAULTS. The deployed copy holds the
+REM  user's tuning plus anything the console commands have persisted. Copying over
+REM  it on every deploy silently discarded all of that, which presented as settings
+REM  randomly reverting.
+REM
+REM  First install (no deployed INI): copy the defaults.
+REM  Already deployed:                leave it alone; report missing keys only.
+REM
+REM  Label-goto rather than a parenthesised block: these paths contain "(x86)",
+REM  and a bare ")" inside a parenthesised block closes it early.
+REM ---------------------------------------------------------------------------
+if not exist "%PLUGDIR%\TrueGaze.ini" goto :DEPLOY_INI_FRESH
+echo   OK    TrueGaze.ini kept (existing user configuration preserved)
+call :REPORT_MISSING_INI_KEYS
+goto :DEPLOY_AFTER_INI
+
+:DEPLOY_INI_FRESH
 copy /y "%SRC_INI%" "%PLUGDIR%\TrueGaze.ini" >nul 2>&1
 echo   OK    TrueGaze.ini deployed.
+goto :DEPLOY_AFTER_INI
+
+REM ===========================================================================
+REM  Report packaged keys the deployed INI is missing.
+REM
+REM  A new engine version adds keys; an older deployed INI simply lacks them. That
+REM  is SAFE - the engine keeps its compiled default for any absent key - but the
+REM  user should know they exist rather than wonder why a new feature does nothing.
+REM
+REM  This only REPORTS. It never rewrites the file, because rewriting is exactly the
+REM  destructive behaviour that was just removed.
+REM
+REM  Done in PowerShell: comparing two key sets in batch is error-prone, and the
+REM  documented `for /f` traps all apply to this kind of parsing.
+REM ===========================================================================
+:REPORT_MISSING_INI_KEYS
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$src='%SRC_INI%'; $dst='%PLUGDIR%\TrueGaze.ini'; function K($p){ (Get-Content $p) | Where-Object { $_ -match '^\s*[A-Za-z_][A-Za-z0-9_]*\s*=' } | ForEach-Object { ($_ -split '=')[0].Trim() } }; $have=@(K $dst); $missing=@(K $src | Where-Object { $have -notcontains $_ }); if($missing.Count -gt 0){ Write-Host ('  ..    ' + $missing.Count + ' newer key(s) absent from your INI: ' + ($missing -join ', ')) }" 2>nul
+exit /b 0
 
 :DEPLOY_AFTER_INI
+REM ---- Vanilla-UI self-heal: remove legacy SkyUI / Papyrus / MCM artifacts ----
+REM TrueGaze has no ESP, no Papyrus script, no MCM menu and no SkyUI dependency.
+REM Configuration lives in Data\SKSE\Plugins\TrueGaze.ini, edited through
+REM TrueGazeConfig.html. Leftovers from an old MCM-era install are removed here so
+REM an upgrade self-heals. (Top-level "if exist" only: a bare ")" inside a
+REM parenthesised block would close it early, and these paths contain parens.)
+call :CLEAN_LEGACY
+
 if not "%~1"=="1" exit /b 0
 if not exist "%PLUGDIR%\TrueGaze.ini" exit /b 0
 
@@ -415,6 +487,24 @@ echo           %PLUGDIR%\TrueGaze.ini
 set /a WARNED+=1
 exit /b 0
 
+REM ---------------------------------------------------------------------------
+REM CLEAN_LEGACY - remove SkyUI / Papyrus / MCM artifacts from an old install.
+REM
+REM Every test is a top-level "if exist" (never inside a parenthesised block):
+REM a bare ")" inside such a block closes it early, and these paths can contain
+REM parentheses. rd/del are silent on absence via the trailing ">nul 2>&1".
+REM ---------------------------------------------------------------------------
+:CLEAN_LEGACY
+set "DATADIR=%GAMEPATH%\Data"
+if exist "%DATADIR%\TrueGaze.esp" del /q "%DATADIR%\TrueGaze.esp" >nul 2>&1
+if exist "%DATADIR%\TrueGaze.esl" del /q "%DATADIR%\TrueGaze.esl" >nul 2>&1
+if exist "%DATADIR%\TrueGaze_MCM.pex" del /q "%DATADIR%\TrueGaze_MCM.pex" >nul 2>&1
+if exist "%DATADIR%\TrueGaze.pex" del /q "%DATADIR%\TrueGaze.pex" >nul 2>&1
+if exist "%DATADIR%\MCM\Config\TrueGaze" rd /s /q "%DATADIR%\MCM\Config\TrueGaze" >nul 2>&1
+if exist "%DATADIR%\Interface\MCM\Config\TrueGaze" rd /s /q "%DATADIR%\Interface\MCM\Config\TrueGaze" >nul 2>&1
+if exist "%DATADIR%\Interface\Translations\TrueGaze_*.txt" del /q "%DATADIR%\Interface\Translations\TrueGaze_*.txt" >nul 2>&1
+exit /b 0
+
 :DEPLOY_NO_DLL
 echo   FAIL  No binary at build\windows-release\Release\TrueGaze.dll
 set /a FAILED+=1
@@ -432,9 +522,10 @@ REM  Post-run log analysis
 REM ===========================================================================
 :POSTRUN_IMPL
 call :FIND_GAME
-if not defined GAMEPATH goto :NO_GAME
-
-set "LOGFILE=%USERPROFILE%\Documents\My Games\Skyrim Special Edition\SKSE\TrueGaze.log"
+set "DOCS="
+for /f "usebackq delims=" %%D in (`%PS% "[Environment]::GetFolderPath('MyDocuments')" 2^>nul`) do if not defined DOCS set "DOCS=%%D"
+if not defined DOCS set "DOCS=%USERPROFILE%\Documents"
+set "LOGFILE=!DOCS!\My Games\Skyrim Special Edition\SKSE\TrueGaze.log"
 
 echo.
 echo [ANALYSE LAST RUN]
@@ -444,9 +535,8 @@ if not exist "!LOGFILE!" goto :POSTRUN_NO_LOG
 echo   OK    Found !LOGFILE!
 echo.
 echo   Startup sequence:
-call :LOGMARK "Plugin loaded"            "Loading True Gaze"                1
+call :LOGMARK "Plugin loaded"            "TrueGaze v"                       1
 call :LOGMARK "Messaging listener bound" "SKSE plugin loaded successfully"  1
-call :LOGMARK "Papyrus bindings"         "Registered 10 Papyrus functions"  0
 call :LOGMARK "Game data loaded"         "Game data loaded"                 1
 call :LOGMARK "Configuration loaded"     "Configuration loaded from"        0
 call :LOGMARK "Gaze driver installed"    "Gaze driver installed"            1
@@ -690,7 +780,7 @@ set /a FAILED+=1
 REM The hook target is the most dangerous thing in this codebase: a wrong
 REM vtable index corrupts unrelated entries. Confirm the corrected target is
 REM the one actually compiled in.
-findstr /M /c:"vtable slot 0xAD" "%BUILT_DLL%" >nul 2>&1
+findstr /M /c:"slot 0xAD" "%BUILT_DLL%" >nul 2>&1
 if errorlevel 1 goto :BIN_BAD_HOOK
 echo   OK    Gaze driver targets Actor::Update (slot 0xAD)
 goto :BIN_GUARD
@@ -887,6 +977,7 @@ call :BANNER
 echo   Usage:
 echo     TrueGaze.cmd                 interactive menu
 echo     TrueGaze.cmd prereqs         install SKSE + Address Library prerequisites
+ echo     TrueGaze.cmd prereqs-all     install EVERYTHING (toolchain, vcpkg, SDK, game)
 echo     TrueGaze.cmd all             build, deploy, verify, launch
 echo     TrueGaze.cmd loadonly        deploy with the engine off, then launch
 echo     TrueGaze.cmd build           build and verify only
@@ -901,11 +992,15 @@ echo     /force         launch even if verification fails
 echo     /nopause       never wait for a keypress
 echo.
 echo   Recommended first run:
-echo     1.  TrueGaze.cmd prereqs      prints the two Nexus links; install once downloaded
-echo     2.  TrueGaze.cmd verify       fix anything it reports
+echo     1.  TrueGaze.cmd prereqs-all  install every prerequisite
+ echo     2.  TrueGaze.cmd verify       fix anything it reports
 echo     3.  TrueGaze.cmd loadonly     prove it loads without crashing
 echo     4.  TrueGaze.cmd all          the real test
 echo     5.  TrueGaze.cmd postrun      what actually happened
+echo.
+echo   On a fresh machine, or after a reinstall of the toolchain, run:
+echo     Install-AllPrerequisites.bat            install everything
+echo     Install-AllPrerequisites.bat -Verify    report only, change nothing
 echo.
 goto :THE_END
 

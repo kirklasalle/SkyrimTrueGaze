@@ -110,7 +110,7 @@ function Get-TGGameInfo {
 
     # Bethesda's install-location key. Present for both Steam and GOG copies.
     foreach ($hive in @('HKLM:\SOFTWARE\WOW6432Node\Bethesda Softworks\Skyrim Special Edition',
-                        'HKLM:\SOFTWARE\Bethesda Softworks\Skyrim Special Edition')) {
+            'HKLM:\SOFTWARE\Bethesda Softworks\Skyrim Special Edition')) {
         try {
             $key = Get-ItemProperty -Path $hive -Name 'Installed Path' -ErrorAction Stop
             if ($key.'Installed Path') { $candidates.Add($key.'Installed Path') }
@@ -120,7 +120,7 @@ function Get-TGGameInfo {
 
     # Steam: parse libraryfolders.vdf so installs on other drives are found.
     foreach ($steamRoot in @('C:\Program Files (x86)\Steam', 'C:\Program Files\Steam',
-                             'G:\Program Files (x86)\Steam', 'D:\Steam', 'E:\Steam')) {
+            'G:\Program Files (x86)\Steam', 'D:\Steam', 'E:\Steam')) {
         # Probe the drive before touching it. Test-Path against a path on a
         # nonexistent drive throws rather than returning false, which would abort
         # detection on any machine without that letter.
@@ -200,10 +200,10 @@ function Get-TGExports {
     $wanted = @('SKSEPlugin_Load', 'SKSEPlugin_Query', 'SKSEPlugin_Version')
 
     $dumpbin = Get-ChildItem 'C:\Program Files*\Microsoft Visual Studio\2022\*\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe' -ErrorAction SilentlyContinue |
-        Select-Object -First 1
+    Select-Object -First 1
     if (-not $dumpbin) {
         $dumpbin = Get-ChildItem 'C:\Program Files*\Microsoft Visual Studio\*\*\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe' -ErrorAction SilentlyContinue |
-            Select-Object -First 1
+        Select-Object -First 1
     }
 
     if ($dumpbin) {
@@ -385,7 +385,7 @@ function Invoke-TGPreFlight {
     # vtable index corrupts unrelated entries. Confirm the corrected target is the
     # one that actually got compiled in.
     $ascii = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($PluginPath))
-    if ($ascii.Contains('vtable slot 0xAD')) {
+    if ($ascii.Contains('slot 0xAD')) {
         Add-TGResult -Name 'Gaze driver targets Actor::Update (slot 0xAD)' -Status 'Pass'
     }
     else {
@@ -490,14 +490,60 @@ function Invoke-TGPreFlight {
         Add-TGResult -Name 'OAR not installed (so its gap is moot)' -Status 'Skip'
     }
 
-    $mcm = Join-Path $game.Path 'Data\Interface\TrueGaze'
-    if (Test-Path $mcm) {
-        Add-TGResult -Name 'MCM menu will NOT appear' -Status 'Warn' `
-            -Detail 'MCM files present, but no TrueGaze.esp exists to carry the menu.' `
-            -Fix 'Configure via TrueGaze.ini instead.'
+    # Configuration is INI-only (Data/SKSE/Plugins/TrueGaze.ini).
+    $ini = Join-Path $game.Path 'Data\SKSE\Plugins\TrueGaze.ini'
+    if (Test-Path $ini) {
+        Add-TGResult -Name 'Configuration INI deployed' -Status 'Pass' `
+            -Detail 'Data\SKSE\Plugins\TrueGaze.ini present. Edit with TrueGazeConfig.html.'
     }
     else {
-        Add-TGResult -Name 'MCM not installed (so its gap is moot)' -Status 'Skip'
+        Add-TGResult -Name 'Configuration INI missing' -Status 'Warn' `
+            -Detail 'Data\SKSE\Plugins\TrueGaze.ini not found; compiled defaults will be used.' `
+            -Fix 'Re-run deploy so TrueGaze.ini is copied into the game Data folder.'
+    }
+
+    # -- 9. Legacy SkyUI / Papyrus / MCM artifacts -------------------------
+    #
+    # TrueGaze is deliberately vanilla-UI: configuration lives in
+    # Data\SKSE\Plugins\TrueGaze.ini and is edited through TrueGazeConfig.html.
+    # There is no ESP, no Papyrus script, no MCM menu and no SkyUI dependency.
+    #
+    # Leftover files from the abandoned MCM era are worse than harmless: a stale
+    # TrueGaze.esp in the load order, or a TrueGaze_MCM.pex that SkyUI still
+    # tries to bind, can produce confusing in-game behaviour and log noise that
+    # looks like a TrueGaze bug. Detect them and tell the user to remove them.
+    Write-Host ''
+    Write-Host 'Legacy SkyUI / Papyrus / MCM artifacts (should be absent)' -ForegroundColor White
+
+    $dataDir = Join-Path $game.Path 'Data'
+    $legacy = @(
+        @{ Path = (Join-Path $dataDir 'TrueGaze.esp'); What = 'plugin (ESP)' }
+        @{ Path = (Join-Path $dataDir 'TrueGaze.esl'); What = 'plugin (ESL)' }
+        @{ Path = (Join-Path $dataDir 'TrueGaze_MCM.pex'); What = 'MCM Papyrus script' }
+        @{ Path = (Join-Path $dataDir 'TrueGaze.pex'); What = 'Papyrus script' }
+        @{ Path = (Join-Path $dataDir 'MCM\Config\TrueGaze'); What = 'MCM Helper config folder' }
+        @{ Path = (Join-Path $dataDir 'Interface\MCM\Config\TrueGaze'); What = 'legacy MCM config folder' }
+    )
+
+    $foundLegacy = @($legacy | Where-Object { Test-Path $_.Path })
+
+    # Translation files are matched by wildcard because the old MCM shipped six.
+    $legacyTranslations = @()
+    $transDir = Join-Path $dataDir 'Interface\Translations'
+    if (Test-Path $transDir) {
+        $legacyTranslations = @(Get-ChildItem -Path $transDir -Filter 'TrueGaze_*.txt' -File -ErrorAction SilentlyContinue)
+    }
+
+    if ($foundLegacy.Count -eq 0 -and $legacyTranslations.Count -eq 0) {
+        Add-TGResult -Name 'No legacy SkyUI/Papyrus/MCM artifacts' -Status 'Pass' `
+            -Detail 'Vanilla-UI configuration confirmed: INI + TrueGazeConfig.html only.'
+    }
+    else {
+        $names = @($foundLegacy | ForEach-Object { Split-Path $_.Path -Leaf })
+        $names += @($legacyTranslations | ForEach-Object { $_.Name })
+        Add-TGResult -Name 'Legacy SkyUI/Papyrus/MCM artifacts present' -Status 'Warn' `
+            -Detail ("Found: " + ($names -join ', ')) `
+            -Fix 'Run Deploy-TrueGaze.ps1 (or LaunchTrueGaze.bat) to remove them; TrueGaze is vanilla-UI and needs none of these.'
     }
 
     Invoke-TGSummary
@@ -533,14 +579,13 @@ function Invoke-TGPostRun {
     # Each marker is an exact string the engine emits. Checking them in order
     # turns "it did not work" into "it stopped here".
     $markers = @(
-        @{ Name = 'Plugin loaded';            Pattern = 'Loading True Gaze';                              Required = $true },
-        @{ Name = 'Messaging listener bound'; Pattern = 'SKSE plugin loaded successfully';                 Required = $true },
-        @{ Name = 'Papyrus bindings registered'; Pattern = 'Registered 10 Papyrus functions';              Required = $false },
-        @{ Name = 'Game data loaded';         Pattern = 'Game data loaded';                                Required = $true },
-        @{ Name = 'Configuration loaded';     Pattern = 'Configuration loaded from';                       Required = $false },
-        @{ Name = 'Gaze driver installed';    Pattern = 'Gaze driver installed\.';                         Required = $true },
-        @{ Name = 'Engine ready';             Pattern = 'Gaze engine ready';                               Required = $true },
-        @{ Name = 'Skeleton probed';          Pattern = 'Skeleton probe for';                              Required = $false }
+        @{ Name = 'Plugin loaded'; Pattern = 'SKSE plugin loaded successfully'; Required = $true },
+        @{ Name = 'Messaging listener bound'; Pattern = 'Game data loaded'; Required = $true },
+        @{ Name = 'Game data loaded'; Pattern = 'Game data loaded'; Required = $true },
+        @{ Name = 'Configuration loaded'; Pattern = 'Configuration loaded'; Required = $false },
+        @{ Name = 'Gaze driver installed'; Pattern = 'Gaze driver installed\.'; Required = $true },
+        @{ Name = 'Engine ready'; Pattern = 'Gaze engine ready'; Required = $true },
+        @{ Name = 'Skeleton probed'; Pattern = 'Skeleton probe for'; Required = $false }
     )
 
     Write-Host ''
@@ -562,7 +607,7 @@ function Invoke-TGPostRun {
     Write-Host ''
     Write-Host 'Skeleton resolution (the critical unknown)' -ForegroundColor White
 
-    $probes = [regex]::Matches($text, 'Skeleton probe for ([0-9A-Fa-f]{8}): spine=(\w+) neck=(\w+) head=(\w+) eyeL=(\w+) eyeR=(\w+) \((\d+) of 5 resolved\)')
+    $probes = [regex]::Matches($text, 'Skeleton probe for ([0-9A-Fa-f]{8}): spine=(\w+) neck=(\w+) head=(\w+) eyeL=(\w+) eyeR=(\w+) \((\d+) of 5 resolved\)(?: origin=(\w+))?')
     if ($probes.Count -eq 0) {
         Add-TGResult -Name 'Skeleton probe result' -Status 'Warn' `
             -Detail 'No probe line. Either no eligible actor was in range, or the tick never ran.' `
@@ -572,6 +617,9 @@ function Invoke-TGPostRun {
         $p = $probes[0]
         $found = [int]$p.Groups[7].Value
         $detail = "spine=$($p.Groups[2].Value) neck=$($p.Groups[3].Value) head=$($p.Groups[4].Value) eyeL=$($p.Groups[5].Value) eyeR=$($p.Groups[6].Value)"
+        if ($p.Groups[8].Success) {
+            $detail += " origin=$($p.Groups[8].Value)"
+        }
 
         if ($p.Groups[4].Value -eq 'yes') {
             Add-TGResult -Name 'Head bone resolved' -Status 'Pass' -Detail $detail
@@ -586,8 +634,8 @@ function Invoke-TGPostRun {
         }
         else {
             Add-TGResult -Name 'Eye bones resolved' -Status 'Warn' `
-                -Detail 'Eye nodes missing; head will still track but eyes will not lead.' `
-                -Fix 'Expected on some custom rigs. Head tracking is the primary effect.'
+                -Detail 'Eye nodes missing; geometric head-socket fallback may still provide the visual origin.' `
+                -Fix 'Expected on many vanilla humanoid rigs. Validate the reported origin and perceptual result.'
         }
         Add-TGResult -Name "Skeleton coverage ($found of 5)" -Status $(if ($found -ge 4) { 'Pass' } else { 'Warn' })
     }

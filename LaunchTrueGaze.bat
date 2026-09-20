@@ -22,6 +22,21 @@ echo   %date% %time%
 echo  ============================================================
 echo.
 
+tasklist /fi "imagename eq SkyrimSE.exe" 2>nul | find /i "SkyrimSE.exe" >nul
+if not errorlevel 1 (
+    color 0E
+    echo.
+    echo  ============================================================
+    echo   WARNING: SkyrimSE.exe is currently running!
+    echo   Please exit Skyrim first so new files can be deployed.
+    echo  ============================================================
+    echo.
+    echo  Press any key once Skyrim is closed to proceed with checks...
+    pause >nul
+    color 07
+    echo.
+)
+
 :: ---- Check 1: Skyrim Installation ----
 echo  [1/8] Skyrim Installation...
 if exist "%SKYRIM%\SkyrimSE.exe" (
@@ -147,6 +162,25 @@ if exist "%DEST_INI%" (
     set /a PASS+=1
 )
 
+:: ---- Configuration is INI-only (vanilla UI) ----
+:: TrueGaze has no ESP, no Papyrus script, no MCM menu and no SkyUI dependency.
+:: Clean up stale files from old installs so nothing can linger and confuse the
+:: game or the logs. Configuration lives in Data\SKSE\Plugins\TrueGaze.ini and is
+:: edited through TrueGazeConfig.html.
+if exist "%SKYRIM%\Data\TrueGaze.esp" del /q "%SKYRIM%\Data\TrueGaze.esp" >nul 2>&1
+if exist "%SKYRIM%\Data\TrueGaze.esl" del /q "%SKYRIM%\Data\TrueGaze.esl" >nul 2>&1
+if exist "%SKYRIM%\Data\TrueGaze_MCM.pex" del /q "%SKYRIM%\Data\TrueGaze_MCM.pex" >nul 2>&1
+if exist "%SKYRIM%\Data\TrueGaze.pex" del /q "%SKYRIM%\Data\TrueGaze.pex" >nul 2>&1
+if exist "%SKYRIM%\Data\MCM\Config\TrueGaze" rd /s /q "%SKYRIM%\Data\MCM\Config\TrueGaze" >nul 2>&1
+if exist "%SKYRIM%\Data\Interface\MCM\Config\TrueGaze" rd /s /q "%SKYRIM%\Data\Interface\MCM\Config\TrueGaze" >nul 2>&1
+if exist "%SKYRIM%\Data\Interface\Translations\TrueGaze_*.txt" del /q "%SKYRIM%\Data\Interface\Translations\TrueGaze_*.txt" >nul 2>&1
+
+:: Resolve user Documents directory for SKSE log checking
+set "DOCS="
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('MyDocuments')" 2^>nul`) do if not defined DOCS set "DOCS=%%D"
+if not defined DOCS set "DOCS=%USERPROFILE%\Documents"
+set "SKSE_LOG=%DOCS%\My Games\Skyrim Special Edition\SKSE\TrueGaze.log"
+
 :: ============================================================================
 ::  RESULTS
 :: ============================================================================
@@ -168,7 +202,7 @@ echo   ALL !PASS! CHECKS PASSED - READY TO LAUNCH
 echo  ============================================================
 echo.
 echo  After launch, check the log at:
-echo    "%PLUGINS%\TrueGaze.log"
+echo    "%SKSE_LOG%"
 echo.
 echo  To disable TrueGaze without uninstalling:
 echo    Set bEnableTrueGaze=false in TrueGaze.ini
@@ -183,8 +217,22 @@ echo.
 timeout /t 5 /nobreak
 
 echo.
-echo  Starting SKSE...
-start "" "%SKYRIM%\skse64_loader.exe"
+echo  Starting SKSE (working directory: %SKYRIM%)...
+pushd "%SKYRIM%"
+start "" /D "%SKYRIM%" "%SKYRIM%\skse64_loader.exe"
+popd
+
+echo  Activating SkyrimSE window into active foreground...
+:: The Win32 foreground activator lives in its own script. Embedding C# inline
+:: in a batch `powershell -Command` argument is unparseable by cmd.exe: each
+:: source line leaks and runs as a batch command, and the '@ here-string never
+:: terminates. Invoking a real .ps1 with -File avoids every quoting boundary.
+set "ACTIVATOR=%PROJECT%\scripts\Activate-TrueGazeWindow.ps1"
+if exist "!ACTIVATOR!" (
+    start /b "" powershell -NoProfile -ExecutionPolicy Bypass -File "!ACTIVATOR!"
+) else (
+    echo        WARN - Window activator not found: !ACTIVATOR!
+)
 
 echo.
 echo  ============================================================
@@ -195,7 +243,7 @@ echo   2. Walk up to an NPC within 3 metres
 echo   3. Watch their eyes
 echo.
 echo   When done testing, check:
-echo     "%PLUGINS%\TrueGaze.log"
+echo     "%SKSE_LOG%"
 echo  ============================================================
 echo.
 pause

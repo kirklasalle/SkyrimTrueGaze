@@ -2,22 +2,42 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
     <title>TrueGaze — Configuration of the Gaze</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         :root {
+            --bg: #070605;
+            --bg-grad: radial-gradient(circle at 50% 0%, #17130b 0%, #080706 70%, #030302 100%);
+            --panel: rgba(18, 15, 12, 0.94);
+            --panel-border: #3d311c;
+            --panel-border-bright: #786034;
+            --panel-inner: rgba(0, 0, 0, 0.45);
             --gold: #c9a86a;
-            --gold-bright: #eed9a8;
-            --gold-dim: #8a7346;
-            --ink: #0b0a08;
-            --parchment: #d8c9a3;
-            --parchment-dim: #a89878;
-            --panel: rgba(16, 13, 9, 0.88);
-            --panel-edge: #4a3b24;
-            --accent: #7ab7d8;
-            --danger: #c96a6a;
-            --ok: #7ac98a;
+            --gold-bright: #f4d693;
+            --gold-glow: rgba(244, 214, 147, 0.25);
+            --gold-dim: #7a633a;
+            --gold-dark: #3a2e18;
+            --silver: #aeb7bd;
+            --silver-bright: #e6edf0;
+            --silver-dim: #69747b;
+            --silver-dark: #252c31;
+            --silver-glow: rgba(190, 211, 220, 0.24);
+            --parchment: #ded3be;
+            --parchment-dim: #9c917d;
+            --parchment-dark: #696050;
+            --ink: #070605;
+            --accent: #b33927;
+            --ok: #509e5c;
+            --ok-bright: #7ee08d;
+            --ok-glow: rgba(80, 158, 92, 0.25);
+            --info: #4682b4;
+            --info-bright: #7db9e8;
+            --err: #c24636;
+            --err-bright: #f06a58;
+            --font-display: 'Cinzel', 'Trajan Pro', 'Georgia', serif;
+            --font-body: 'Segoe UI', 'Cinzel', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Consolas', monospace;
         }
 
         * {
@@ -27,503 +47,907 @@
         }
 
         body {
-            font-family: Georgia, 'Times New Roman', serif;
-            background: radial-gradient(ellipse at 50% -20%, #241d12 0%, #12100b 45%, #070604 100%);
-            color: var(--parchment);
-            min-height: 100vh;
+            background: var(--bg);
+            background-image: var(--bg-grad);
             background-attachment: fixed;
-        }
-
-        /* faint nordic knotwork texture via layered gradients */
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            background:
-                repeating-linear-gradient(45deg, transparent 0 60px, rgba(201, 168, 106, 0.025) 60px 61px),
-                repeating-linear-gradient(-45deg, transparent 0 60px, rgba(201, 168, 106, 0.025) 60px 61px);
-        }
-
-        .frame {
-            max-width: 960px;
-            margin: 0 auto;
-            padding: 32px 20px 80px;
+            color: var(--parchment);
+            font-family: var(--font-body);
+            font-size: 14px;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 24px 16px 80px;
             position: relative;
         }
 
+        /* Subtle Nordic vignette */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at center, transparent 40%, rgba(0, 0, 0, 0.8) 100%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .frame {
+            max-width: 1180px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Header & Sigil                                                     */
+        /* ------------------------------------------------------------------ */
         header {
             text-align: center;
-            margin-bottom: 28px;
+            padding: 24px 0 16px;
         }
 
         .sigil {
-            width: 92px;
-            height: 92px;
-            margin: 0 auto 14px;
-            border: 2px solid var(--gold-dim);
+            width: 58px;
+            height: 58px;
+            margin: 0 auto 12px;
+            border: 1px solid var(--gold-dim);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: radial-gradient(circle at 50% 35%, #2b2416 0%, #14100a 70%);
-            box-shadow: 0 0 24px rgba(201, 168, 106, 0.25), inset 0 0 18px rgba(0, 0, 0, 0.8);
+            background: radial-gradient(circle, #251d10 0%, #0d0a06 80%);
+            box-shadow: 0 0 18px rgba(201, 168, 106, 0.2), inset 0 0 10px rgba(0, 0, 0, 0.8);
             position: relative;
         }
 
-        .sigil::before,
-        .sigil::after {
-            content: "";
+        .sigil::before {
+            content: '';
             position: absolute;
-            inset: 7px;
-            border: 1px solid var(--gold-dim);
+            inset: -4px;
+            border: 1px dashed rgba(201, 168, 106, 0.35);
             border-radius: 50%;
         }
 
-        .sigil::after {
-            inset: 15px;
-            border-style: dashed;
-        }
-
-        .sigil .eye {
-            width: 26px;
-            height: 13px;
+        .eye-icon {
+            width: 28px;
+            height: 18px;
             border: 2px solid var(--gold-bright);
-            border-radius: 50%;
+            border-radius: 50% / 50%;
             position: relative;
-            box-shadow: 0 0 10px rgba(238, 217, 168, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .sigil .eye::after {
-            content: "";
+        .eye-pupil {
+            width: 8px;
+            height: 8px;
+            background: var(--gold-bright);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--gold);
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: 2.2rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--gold-bright);
+            text-shadow: 0 0 16px rgba(244, 214, 147, 0.4), 0 2px 4px #000;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            font-size: 0.95rem;
+            color: var(--parchment-dim);
+            letter-spacing: 0.12em;
+            font-style: italic;
+        }
+
+        .header-rule {
+            width: 240px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--gold-dim), var(--gold-bright), var(--gold-dim), transparent);
+            margin: 14px auto 0;
+            position: relative;
+        }
+
+        .header-rule::after {
+            content: '❖';
             position: absolute;
             left: 50%;
             top: 50%;
             transform: translate(-50%, -50%);
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: var(--gold-bright);
+            background: #0d0b07;
+            padding: 0 8px;
+            font-size: 10px;
+            color: var(--gold);
         }
 
-        h1 {
-            font-size: 2.1rem;
-            letter-spacing: 0.35em;
+        /* ------------------------------------------------------------------ */
+        /* Status HUD (3 Cards)                                               */
+        /* ------------------------------------------------------------------ */
+        .hud-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 14px;
+            margin: 22px 0 16px;
+        }
+
+        .hud-card {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            padding: 14px 16px;
+            position: relative;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        /* Classic Skyrim silver: steel-edged, cool and restrained. Applied to
+           the three status cards without replacing their existing layout. */
+        .hud-card {
+            border-color: var(--silver-dim);
+            background: linear-gradient(145deg, rgba(35, 40, 43, 0.94), rgba(12, 14, 15, 0.96));
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(230, 237, 240, 0.08);
+        }
+
+        .hud-card::before {
+            content: '';
+            position: absolute;
+            inset: 4px;
+            border: 1px solid rgba(174, 183, 189, 0.16);
+            pointer-events: none;
+        }
+
+        .hud-card:hover {
+            border-color: var(--silver);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.82), 0 0 14px var(--silver-glow);
+        }
+
+        .hud-card .hud-card-title {
+            color: var(--silver-bright);
+        }
+
+        .hud-card .hud-card-footer {
+            color: var(--silver-dim);
+        }
+
+        .hud-card:hover {
+            border-color: var(--panel-border-bright);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.8);
+        }
+
+        .hud-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(120, 96, 52, 0.25);
+        }
+
+        .hud-card-title {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            letter-spacing: 0.15em;
             text-transform: uppercase;
             color: var(--gold-bright);
-            text-shadow: 0 2px 12px rgba(201, 168, 106, 0.4);
-            font-weight: normal;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .subtitle {
-            margin-top: 8px;
-            color: var(--gold-dim);
-            font-style: italic;
-            font-size: 0.95rem;
+        .hud-badge {
+            font-size: 0.68rem;
+            font-family: var(--font-mono);
             letter-spacing: 0.08em;
-        }
-
-        .rule {
-            height: 14px;
-            margin: 18px auto 0;
-            max-width: 520px;
-            position: relative;
-        }
-
-        .rule::before {
-            content: "";
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: 50%;
-            border-top: 1px solid var(--gold-dim);
-        }
-
-        .rule::after {
-            content: "❖";
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -52%);
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 2px;
+            border: 1px solid var(--gold-dim);
             color: var(--gold);
-            background: #12100b;
-            padding: 0 12px;
-            font-size: 0.9rem;
+            background: rgba(201, 168, 106, 0.08);
         }
 
+        .hud-badge.ok {
+            border-color: var(--ok);
+            color: var(--ok-bright);
+            background: rgba(80, 158, 92, 0.12);
+        }
+
+        .hud-badge.warn {
+            border-color: var(--gold);
+            color: var(--gold-bright);
+            background: rgba(201, 168, 106, 0.15);
+        }
+
+        .hud-card-body {
+            font-size: 0.82rem;
+            color: var(--parchment-dim);
+            min-height: 42px;
+        }
+
+        .hud-highlight {
+            color: var(--parchment);
+            font-weight: 600;
+        }
+
+        .hud-card-footer {
+            margin-top: 8px;
+            font-size: 0.72rem;
+            font-family: var(--font-mono);
+            color: var(--gold-dim);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Main Action Toolbar                                                */
+        /* ------------------------------------------------------------------ */
         .toolbar {
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 10px;
             justify-content: center;
-            margin: 26px 0 10px;
+            margin: 16px 0 12px;
         }
 
         button {
-            font-family: inherit;
-            font-size: 0.95rem;
+            font-family: var(--font-display);
+            font-size: 0.82rem;
             letter-spacing: 0.12em;
             text-transform: uppercase;
-            background: linear-gradient(180deg, #2b2416 0%, #1a1610 100%);
-            color: var(--gold-bright);
+            padding: 10px 18px;
             border: 1px solid var(--gold-dim);
-            padding: 11px 26px;
+            background: linear-gradient(180deg, #221c13 0%, #120f09 100%);
+            color: var(--parchment);
             cursor: pointer;
-            transition: all 0.18s ease;
-            box-shadow: inset 0 1px 0 rgba(238, 217, 168, 0.12), 0 3px 8px rgba(0, 0, 0, 0.6);
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
         }
 
         button:hover:not(:disabled) {
             border-color: var(--gold-bright);
-            color: #fff3d6;
-            box-shadow: inset 0 1px 0 rgba(238, 217, 168, 0.2), 0 0 14px rgba(201, 168, 106, 0.3);
+            color: var(--gold-bright);
+            background: linear-gradient(180deg, #2e261a 0%, #1a150d 100%);
+            box-shadow: 0 0 12px var(--gold-glow);
+            transform: translateY(-1px);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
         }
 
         button:disabled {
-            opacity: 0.4;
+            opacity: 0.45;
             cursor: not-allowed;
+            border-color: #332a1b;
+            color: #66563f;
         }
 
-        button.primary {
-            background: linear-gradient(180deg, #4a3b24 0%, #2b2416 100%);
+        button.primary-gold {
             border-color: var(--gold);
+            background: linear-gradient(180deg, #443419 0%, #20180b 100%);
+            color: var(--gold-bright);
+            box-shadow: 0 0 14px rgba(201, 168, 106, 0.35);
+            font-weight: 600;
         }
 
+        button.primary-gold:hover:not(:disabled) {
+            background: linear-gradient(180deg, #574320 0%, #2b200e 100%);
+            border-color: #ffe099;
+            box-shadow: 0 0 20px rgba(244, 214, 147, 0.5);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Status Bar                                                         */
+        /* ------------------------------------------------------------------ */
         .statusbar {
-            text-align: center;
-            min-height: 24px;
-            margin: 8px 0 22px;
-            font-size: 0.9rem;
-            letter-spacing: 0.06em;
+            background: var(--panel-inner);
+            border: 1px solid var(--panel-border);
+            padding: 9px 18px;
+            margin-bottom: 16px;
+            font-size: 0.82rem;
+            color: var(--parchment-dim);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .statusbar-text {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .statusbar .ok {
-            color: var(--ok);
+            color: var(--ok-bright);
+        }
+
+        .statusbar .warn {
+            color: var(--gold-bright);
         }
 
         .statusbar .err {
-            color: var(--danger);
+            color: var(--err-bright);
         }
 
         .statusbar .info {
-            color: var(--accent);
+            color: var(--info-bright);
         }
 
-        .panel {
-            background: var(--panel);
-            border: 1px solid var(--panel-edge);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), inset 0 0 60px rgba(0, 0, 0, 0.35);
-            margin-bottom: 26px;
-            position: relative;
-        }
-
-        .panel::before {
-            content: "";
-            position: absolute;
-            inset: 4px;
-            border: 1px solid rgba(201, 168, 106, 0.18);
-            pointer-events: none;
-        }
-
-        .panel-title {
+        /* ------------------------------------------------------------------ */
+        /* Quick Presets Bar                                                  */
+        /* ------------------------------------------------------------------ */
+        .presets-bar {
+            background: rgba(22, 18, 14, 0.8);
+            border: 1px solid var(--panel-border);
+            padding: 10px 16px;
+            margin-bottom: 16px;
             display: flex;
             align-items: center;
-            gap: 14px;
-            padding: 16px 24px 12px;
-            border-bottom: 1px solid var(--panel-edge);
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
-        .panel-title h2 {
-            font-size: 1.05rem;
-            font-weight: normal;
-            letter-spacing: 0.22em;
+        .presets-label {
+            font-family: var(--font-display);
+            font-size: 0.78rem;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
             color: var(--gold);
+            margin-right: 4px;
         }
 
-        .panel-title .tag {
+        .preset-btn {
+            padding: 6px 13px;
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            background: #17130c;
+        }
+
+        .preset-btn.active {
+            color: var(--silver-bright);
+            border-color: var(--silver);
+            background: linear-gradient(145deg, #4b555b, #20262a);
+            box-shadow: 0 0 12px var(--silver-glow), inset 0 1px 0 rgba(230, 237, 240, 0.25);
+            text-shadow: 0 1px 2px #000;
+        }
+
+        .preset-btn.active::before {
+            content: '◆ ';
+            color: var(--silver-bright);
+        }
+
+        .selected-preset {
             margin-left: auto;
+            color: var(--silver);
+            font-family: var(--font-mono);
             font-size: 0.72rem;
-            color: var(--gold-dim);
+            letter-spacing: 0.04em;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Eye Dynamics Simulation Canvas Box                                 */
+        /* ------------------------------------------------------------------ */
+        .simulation-box {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            padding: 14px 18px;
+            margin-bottom: 22px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+        }
+
+        .sim-canvas-wrap {
+            width: 140px;
+            height: 90px;
+            background: #0a0805;
+            border: 1px solid var(--gold-dark);
+            position: relative;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.8);
+        }
+
+        #eyeCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .sim-info {
+            flex: 1;
+        }
+
+        .sim-title {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
             letter-spacing: 0.15em;
             text-transform: uppercase;
+            color: var(--gold-bright);
+            margin-bottom: 4px;
         }
 
-        .panel-body {
-            padding: 10px 24px 20px;
+        .sim-desc {
+            font-size: 0.78rem;
+            color: var(--parchment-dim);
+            line-height: 1.5;
         }
 
-        .row {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 8px 24px;
-            padding: 14px 4px;
-            border-bottom: 1px dashed rgba(138, 115, 70, 0.25);
+        /* ------------------------------------------------------------------ */
+        /* Configuration Sections & Rows                                      */
+        /* ------------------------------------------------------------------ */
+        .section-panel {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            margin-bottom: 18px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+        }
+
+        .section-panel-header {
+            padding: 14px 20px;
+            background: linear-gradient(90deg, rgba(37, 29, 16, 0.7) 0%, rgba(18, 15, 12, 0.4) 100%);
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
             align-items: center;
+            justify-content: space-between;
         }
 
-        .row:last-child {
+        .section-panel-title {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--gold-bright);
+        }
+
+        .section-panel-tag {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--gold-dim);
+            letter-spacing: 0.1em;
+        }
+
+        .config-row {
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(61, 49, 28, 0.4);
+            display: grid;
+            grid-template-columns: 240px 320px 1fr;
+            align-items: center;
+            gap: 18px;
+            position: relative;
+            transition: background 0.15s ease;
+        }
+
+        .config-row:last-child {
             border-bottom: none;
         }
 
-        .row .label {
-            font-size: 1rem;
+        .config-row:hover {
+            background: rgba(201, 168, 106, 0.04);
+        }
+
+        .config-row.dirty {
+            border-left: 3px solid var(--gold);
+            background: rgba(201, 168, 106, 0.06);
+        }
+
+        .param-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .param-name {
+            font-family: var(--font-mono);
+            font-size: 0.84rem;
+            font-weight: 600;
             color: var(--parchment);
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        .row .help {
-            grid-column: 1 / -1;
-            font-size: 0.8rem;
-            color: var(--parchment-dim);
-            font-style: italic;
-            margin-top: 2px;
+        .dirty-bullet {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--gold-bright);
+            box-shadow: 0 0 6px var(--gold);
         }
 
-        .row .key {
-            font-family: Consolas, monospace;
-            font-size: 0.72rem;
-            color: var(--gold-dim);
-            letter-spacing: 0.05em;
+        .param-ini {
+            font-size: 0.7rem;
+            color: var(--parchment-dark);
+            font-family: var(--font-mono);
         }
 
-        .row.dirty .label::after {
-            content: " •";
-            color: var(--accent);
-        }
-
-        .control {
+        .param-control {
             display: flex;
             align-items: center;
             gap: 12px;
-            min-width: 260px;
-            justify-content: flex-end;
         }
 
-        /* toggle */
-        .toggle {
-            position: relative;
-            width: 58px;
-            height: 26px;
-            cursor: pointer;
-        }
-
-        .toggle input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle .track {
-            position: absolute;
-            inset: 0;
-            border: 1px solid var(--gold-dim);
-            background: #171310;
-            transition: 0.2s;
-            border-radius: 3px;
-        }
-
-        .toggle .knob {
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            width: 18px;
-            height: 18px;
-            background: linear-gradient(180deg, #5a4a2e, #3a3020);
-            border: 1px solid var(--gold-dim);
-            transition: 0.2s;
-            border-radius: 2px;
-        }
-
-        .toggle input:checked+.track {
-            background: #3a2f1c;
-            border-color: var(--gold);
-            box-shadow: 0 0 8px rgba(201, 168, 106, 0.4);
-        }
-
-        .toggle input:checked~.knob {
-            transform: translateX(32px);
-            background: linear-gradient(180deg, #c9a86a, #9a7d48);
-        }
-
-        .toggle-val {
-            font-size: 0.8rem;
-            width: 34px;
-            color: var(--gold-dim);
-            text-align: left;
-        }
-
-        /* slider */
+        /* Sliders */
         input[type=range] {
             -webkit-appearance: none;
-            width: 190px;
+            width: 170px;
             height: 4px;
-            background: #3a3020;
+            background: #2a2214;
+            border: 1px solid #4a3c24;
             outline: none;
-            border: 1px solid #2b2416;
         }
 
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
             width: 14px;
-            height: 22px;
-            cursor: pointer;
+            height: 20px;
             background: linear-gradient(180deg, var(--gold-bright), var(--gold-dim));
-            border: 1px solid var(--ink);
-            box-shadow: 0 0 6px rgba(201, 168, 106, 0.5);
+            border: 1px solid #14110b;
+            cursor: pointer;
+            box-shadow: 0 0 6px rgba(244, 214, 147, 0.4);
         }
 
         input[type=range]::-moz-range-thumb {
             width: 14px;
-            height: 22px;
+            height: 20px;
+            background: linear-gradient(180deg, var(--gold-bright), var(--gold-dim));
+            border: 1px solid #14110b;
             cursor: pointer;
             border-radius: 0;
-            background: linear-gradient(180deg, var(--gold-bright), var(--gold-dim));
-            border: 1px solid var(--ink);
         }
 
         .slider-val {
-            font-family: Consolas, monospace;
-            font-size: 0.85rem;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
             color: var(--gold-bright);
-            min-width: 78px;
+            min-width: 68px;
             text-align: right;
         }
 
-        /* text input */
+        /* Toggle Switches */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 20px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background-color: #221c13;
+            border: 1px solid #4a3c24;
+            transition: 0.25s;
+        }
+
+        .toggle-slider::before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 2px;
+            bottom: 2px;
+            background-color: var(--gold-dim);
+            transition: 0.25s;
+        }
+
+        input:checked+.toggle-slider {
+            background-color: #3b2f19;
+            border-color: var(--gold);
+        }
+
+        input:checked+.toggle-slider::before {
+            transform: translateX(24px);
+            background-color: var(--gold-bright);
+            box-shadow: 0 0 6px var(--gold);
+        }
+
+        .toggle-label {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--gold-dim);
+            min-width: 32px;
+        }
+
+        input:checked~.toggle-label {
+            color: var(--gold-bright);
+        }
+
+        /* Text & Select Inputs */
         input[type=text] {
-            font-family: Consolas, monospace;
-            font-size: 0.85rem;
-            background: #14110c;
-            border: 1px solid var(--gold-dim);
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            background: #14110b;
+            border: 1px solid var(--panel-border-bright);
             color: var(--gold-bright);
             padding: 6px 10px;
-            width: 240px;
+            width: 220px;
+            outline: none;
         }
 
         input[type=text]:focus {
-            outline: none;
             border-color: var(--gold);
-            box-shadow: 0 0 8px rgba(201, 168, 106, 0.35);
+            box-shadow: 0 0 8px var(--gold-glow);
         }
 
-        /* select */
         select {
             font-family: inherit;
-            background: #14110c;
+            background: #14110b;
+            border: 1px solid var(--panel-border-bright);
             color: var(--gold-bright);
-            border: 1px solid var(--gold-dim);
-            padding: 6px 10px;
-            font-size: 0.9rem;
+            padding: 6px 12px;
+            outline: none;
         }
 
-        .dropzone {
-            border: 2px dashed var(--gold-dim);
-            padding: 34px;
-            text-align: center;
+        .param-help {
+            font-size: 0.8rem;
             color: var(--parchment-dim);
             font-style: italic;
-            cursor: pointer;
-            transition: 0.2s;
-            margin-top: 14px;
-        }
-
-        .dropzone:hover,
-        .dropzone.over {
-            border-color: var(--gold-bright);
-            color: var(--gold-bright);
-            background: rgba(201, 168, 106, 0.05);
-        }
-
-        .scan-item {
+            line-height: 1.4;
             display: flex;
             align-items: center;
-            gap: 14px;
-            padding: 10px 8px;
-            border-bottom: 1px dashed rgba(138, 115, 70, 0.25);
+            justify-content: space-between;
         }
 
-        .scan-item:last-child {
-            border-bottom: none;
+        .info-pill {
+            cursor: pointer;
+            padding: 2px 7px;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            border: 1px solid var(--gold-dim);
+            color: var(--gold);
+            background: rgba(201, 168, 106, 0.08);
+            border-radius: 2px;
+            transition: all 0.15s ease;
+            user-select: none;
         }
 
-        .scan-item .path {
-            font-family: Consolas, monospace;
-            font-size: 0.8rem;
-            color: var(--parchment);
-            overflow-wrap: anywhere;
-            flex: 1;
+        .info-pill:hover {
+            border-color: var(--gold-bright);
+            color: var(--gold-bright);
+            background: rgba(201, 168, 106, 0.2);
+            box-shadow: 0 0 8px var(--gold-glow);
         }
 
-        .scan-item .meta {
-            font-size: 0.75rem;
+        /* ------------------------------------------------------------------ */
+        /* World-Class Rich Mouse-Over Tooltip Card                           */
+        /* ------------------------------------------------------------------ */
+        #richTooltip {
+            position: fixed;
+            pointer-events: none;
+            width: 360px;
+            background: #0f0c08;
+            background-image: radial-gradient(circle at 50% 0%, #20190d 0%, #0d0a06 100%);
+            border: 1px solid var(--gold);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85), 0 0 15px rgba(201, 168, 106, 0.35);
+            padding: 16px 18px;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(6px);
+            transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+        }
+
+        #richTooltip.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .tt-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            border-bottom: 1px solid rgba(120, 96, 52, 0.35);
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .tt-name {
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: var(--gold-bright);
+            text-shadow: 0 0 6px rgba(244, 214, 147, 0.3);
+        }
+
+        .tt-section {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
             color: var(--gold-dim);
+            padding: 2px 6px;
+            border: 1px solid var(--gold-dim);
+            background: rgba(0, 0, 0, 0.4);
             white-space: nowrap;
         }
 
-        .scan-item button {
-            padding: 6px 16px;
-            font-size: 0.75rem;
-        }
-
-        .scan-empty {
-            padding: 14px 8px;
-            color: var(--danger);
-            font-style: italic;
-        }
-
-        .actions {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            align-items: center;
-            padding: 18px 24px;
-            border-top: 1px solid var(--panel-edge);
-            background: rgba(0, 0, 0, 0.25);
-        }
-
-        .actions .note {
-            margin-left: auto;
+        .tt-block {
+            margin-bottom: 9px;
             font-size: 0.78rem;
-            color: var(--parchment-dim);
-            font-style: italic;
+            line-height: 1.45;
         }
 
-        footer {
-            text-align: center;
-            margin-top: 40px;
-            color: var(--gold-dim);
-            font-size: 0.78rem;
-            letter-spacing: 0.2em;
+        .tt-label {
+            font-family: var(--font-display);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
             text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
 
-        footer .eye-line {
-            margin-top: 6px;
-            font-style: italic;
-            text-transform: none;
-            letter-spacing: 0.05em;
+        .tt-desc {
+            color: var(--parchment);
         }
 
+        .tt-impact {
+            color: #d1c7b5;
+            background: rgba(201, 168, 106, 0.06);
+            padding: 5px 8px;
+            border-left: 2px solid var(--gold-dim);
+            margin: 4px 0 6px;
+            font-size: 0.76rem;
+        }
+
+        .tt-footer {
+            border-top: 1px dashed rgba(120, 96, 52, 0.25);
+            padding-top: 8px;
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.72rem;
+            font-family: var(--font-mono);
+            color: var(--parchment-dim);
+        }
+
+        .tt-val-default {
+            color: var(--gold-bright);
+            font-weight: 600;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Engine Log Drawer / Modal                                          */
+        /* ------------------------------------------------------------------ */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(3px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-panel {
+            background: #0d0a06;
+            border: 1px solid var(--gold);
+            box-shadow: 0 0 35px rgba(201, 168, 106, 0.35);
+            width: 100%;
+            max-width: 900px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 14px 20px;
+            background: linear-gradient(90deg, #251d10 0%, #120f09 100%);
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--gold-bright);
+        }
+
+        .log-console {
+            padding: 16px;
+            background: #050403;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--parchment);
+            overflow-y: auto;
+            flex: 1;
+            max-height: 520px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            border-bottom: 1px solid var(--panel-border);
+        }
+
+        .modal-footer {
+            padding: 12px 20px;
+            background: #110e09;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Toast Notifications                                               */
+        /* ------------------------------------------------------------------ */
         .toast {
             position: fixed;
-            bottom: 28px;
+            bottom: 24px;
             left: 50%;
             transform: translateX(-50%) translateY(20px);
-            background: var(--panel);
+            background: #17130b;
             border: 1px solid var(--gold);
             color: var(--gold-bright);
-            padding: 12px 28px;
+            padding: 10px 24px;
+            font-family: var(--font-display);
             letter-spacing: 0.1em;
+            text-transform: uppercase;
+            font-size: 0.8rem;
             opacity: 0;
-            transition: 0.3s;
+            transition: all 0.25s ease;
             pointer-events: none;
-            box-shadow: 0 0 24px rgba(201, 168, 106, 0.3);
-            z-index: 50;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 12px var(--gold-glow);
+            z-index: 10000;
         }
 
         .toast.show {
             opacity: 1;
             transform: translateX(-50%) translateY(0);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Footer                                                             */
+        /* ------------------------------------------------------------------ */
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(120, 96, 52, 0.2);
+            color: var(--gold-dim);
+            font-size: 0.76rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        footer .eye-quote {
+            margin-top: 6px;
+            font-style: italic;
+            text-transform: none;
+            letter-spacing: 0.05em;
+            color: var(--parchment-dim);
         }
 
         .hidden {
@@ -536,77 +960,154 @@
     <div class="frame">
         <header>
             <div class="sigil">
-                <div class="eye"></div>
+                <div class="eye-icon">
+                    <div class="eye-pupil"></div>
+                </div>
             </div>
             <h1>TrueGaze</h1>
             <div class="subtitle">Configuration of the Gaze — Biological NPC Eye &amp; Kinematics Engine</div>
-            <div class="rule"></div>
+            <div class="header-rule"></div>
         </header>
 
+        <!-- System Status HUD -->
+        <div class="hud-grid">
+            <div class="hud-card" id="cardInstall">
+                <div class="hud-card-header">
+                    <span class="hud-card-title">🏰 Skyrim Installation</span>
+                    <span class="hud-badge" id="badgeInstall">PROBING...</span>
+                </div>
+                <div class="hud-card-body" id="bodyInstall">
+                    Detecting Skyrim Special Edition from Windows installation...
+                </div>
+                <div class="hud-card-footer" id="footInstall">Registry / Steam Library</div>
+            </div>
+
+            <div class="hud-card" id="cardSaves">
+                <div class="hud-card-header">
+                    <span class="hud-card-title">🛡 Saves &amp; Hero</span>
+                    <span class="hud-badge" id="badgeSaves">CHECKING...</span>
+                </div>
+                <div class="hud-card-body" id="bodySaves">
+                    Scanning Documents\My Games\Skyrim Special Edition...
+                </div>
+                <div class="hud-card-footer" id="footSaves">Recent game saves</div>
+            </div>
+
+            <div class="hud-card" id="cardEngine">
+                <div class="hud-card-header">
+                    <span class="hud-card-title">👁 Engine &amp; Launch</span>
+                    <span class="hud-badge" id="badgeEngine">CHECKING...</span>
+                </div>
+                <div class="hud-card-body" id="bodyEngine">
+                    Inspecting TrueGaze.dll and SKSE loader...
+                </div>
+                <div class="hud-card-footer" id="footEngine">Data\SKSE\Plugins\TrueGaze.ini</div>
+            </div>
+        </div>
+
+        <!-- Action Toolbar -->
         <div class="toolbar">
-            <button id="btnOpen" class="primary">Open TrueGaze.ini</button>
-            <button id="btnScan" class="primary">Scan Directories</button>
-            <button id="btnSave" disabled>Save Changes</button>
-            <button id="btnDownload" disabled>Export Copy</button>
-            <button id="btnDefaults" disabled>Restore Shipped Defaults</button>
-        </div>
-        <div class="statusbar" id="status">No scroll is open. The engine awaits your word.</div>
-
-        <!-- Opening instructions when nothing loaded -->
-        <div class="panel" id="openPanel">
-            <div class="panel-title">
-                <h2>Begin</h2><span class="tag">Rite of Opening</span>
-            </div>
-            <div class="panel-body">
-                <p style="padding:10px 4px; line-height:1.7; color:var(--parchment-dim);">
-                    TrueGaze reads its tuning from <span
-                        style="color:var(--gold-bright); font-family:Consolas,monospace;">Data\SKSE\Plugins\TrueGaze.ini</span>
-                    inside your Skyrim installation — typically:<br>
-                    <span style="color:var(--gold-bright); font-family:Consolas,monospace; font-size:0.8rem;">G:\Program
-                        Files (x86)\Steam\steamapps\common\Skyrim Special Edition\Data\SKSE\Plugins\TrueGaze.ini</span>
-                </p>
-                <p style="padding:4px; line-height:1.7; color:var(--parchment-dim);">
-                    Press <strong style="color:var(--gold-bright)">Open TrueGaze.ini</strong> above (your browser will
-                    show a file picker — navigate to the file and choose it; it stays connected for direct saving), or
-                    drag the file onto the scroll below. All changes are applied to the INI and take effect the next
-                    time the game loads data (or after a save-game reload).
-                </p>
-                <div class="dropzone" id="dropzone">Drop TrueGaze.ini here, or click to browse</div>
-            </div>
+            <button id="btnLaunch" class="primary-gold" data-tt-ui="ui:btnLaunch">⚔ Launch Skyrim (SKSE)</button>
+            <button id="btnScan" data-tt-ui="ui:btnScan">🔍 Scan System &amp; Saves</button>
+            <button id="btnSave" class="primary-gold" disabled data-tt-ui="ui:btnSave">💾 Save Changes</button>
+            <button id="btnLog" data-tt-ui="ui:btnLog">📜 View Engine Log</button>
+            <button id="btnDefaults" data-tt-ui="ui:btnDefaults">↺ Restore Defaults</button>
+            <button id="btnOpen" data-tt-ui="ui:btnOpen">📂 Open Manual INI</button>
+            <button id="btnExport" disabled data-tt-ui="ui:btnExport">📤 Export Copy</button>
         </div>
 
-        <!-- Scan results -->
-        <div class="panel hidden" id="scanPanel">
-            <div class="panel-title">
-                <h2>Scan Results</h2><span class="tag">Hunt for Scrolls</span>
+        <!-- Status Bar -->
+        <div class="statusbar" id="statusbar">
+            <div class="statusbar-text" id="status">Connecting to local automation bridge...</div>
+            <div id="statusDirty" style="font-family:var(--font-mono); font-size:0.75rem;"></div>
+        </div>
+
+        <!-- Quick Presets -->
+        <div class="presets-bar">
+            <span class="presets-label">⚡ Quick Presets:</span>
+            <button class="preset-btn" id="presetVanilla" data-tt-ui="ui:presetVanilla">★ Vanilla Balanced</button>
+            <button class="preset-btn" id="presetSubtle" data-tt-ui="ui:presetSubtle">🕊 Subtle &amp; Natural</button>
+            <button class="preset-btn" id="presetIntense" data-tt-ui="ui:presetIntense">⚡ Intense &amp;
+                Responsive</button>
+            <button class="preset-btn" id="presetSocial" data-tt-ui="ui:presetSocial">🎭 Social &amp; Dialogue
+                Focus</button>
+            <span class="selected-preset" id="selectedPreset" aria-live="polite">Selected: none detected</span>
+        </div>
+
+        <!-- Real-Time Eye Dynamics Simulation -->
+        <div class="simulation-box">
+            <div class="sim-canvas-wrap">
+                <canvas id="eyeCanvas" width="140" height="90"></canvas>
             </div>
-            <div class="panel-body">
-                <p style="padding:6px 4px; line-height:1.7; color:var(--parchment-dim);">
-                    Searched for <span
-                        style="color:var(--gold-bright); font-family:Consolas,monospace;">TrueGaze*.ini</span>
-                    across the chosen root plus the default hunting grounds (game
-                    <span style="font-family:Consolas,monospace;">Data\SKSE\Plugins\</span>,
-                    <span style="font-family:Consolas,monospace;">Data\MCM\Settings\</span>, and the project's
-                    <span style="font-family:Consolas,monospace;">skyrim\SKSE\Plugins\</span>).
-                </p>
-                <div id="scanResults"></div>
+            <div class="sim-info">
+                <div class="sim-title">Real-Time Biological Eye Dynamics Simulation</div>
+                <div class="sim-desc">
+                    Demonstrating Main Sequence peak ballistic saccades, micro-saccadic Brownian jitter, and comfort
+                    eye-head engagement limits based on your active parameters.
+                </div>
             </div>
         </div>
 
+        <!-- Dynamic Settings Panels Container -->
         <div id="panels"></div>
 
-        <div class="panel hidden" id="savePanel">
-            <div class="actions">
-                <button id="btnSave2" class="primary" disabled>Save Changes</button>
-                <button id="btnDownload2" disabled>Export Copy</button>
-                <span class="note">Changes marked with a dot are unsaved.</span>
+        <!-- Bottom Save Action Bar -->
+        <div class="section-panel hidden" id="bottomActions">
+            <div style="padding: 14px 20px; display:flex; align-items:center; justify-content:space-between;">
+                <div style="display:flex; gap:10px;">
+                    <button id="btnSave2" class="primary-gold" disabled data-tt-ui="ui:btnSave">💾 Save Changes to
+                        Game</button>
+                    <button id="btnExport2" disabled data-tt-ui="ui:btnExport">Export Copy</button>
+                </div>
+                <span style="font-style:italic; font-size:0.78rem; color:var(--parchment-dim);">
+                    Changes marked with a dot are unsaved. Backups (.bak) are created automatically.
+                </span>
             </div>
         </div>
 
         <footer>
             A First-Party Product of the Human Communication Eye Protocol (HCEP)<br>
-            <span class="eye-line">"The eyes are the window to the algorithm's soul."</span>
+            <span class="eye-quote">"The eyes are the window to the algorithm's soul."</span>
         </footer>
+    </div>
+
+    <!-- Floating Rich Tooltip Card -->
+    <div id="richTooltip">
+        <div class="tt-header">
+            <div class="tt-name" id="ttName">Parameter</div>
+            <div class="tt-section" id="ttSection">SECTION</div>
+        </div>
+        <div class="tt-block">
+            <div class="tt-label">❖ Function &amp; Mechanism</div>
+            <div class="tt-desc" id="ttDesc">Description</div>
+        </div>
+        <div class="tt-impact" id="ttImpactRow">
+            <span id="ttImpactLabel">In-Game Visual Impact:</span> <span id="ttImpact">In-game visual impact</span>
+        </div>
+        <div class="tt-block" id="ttContextBlock">
+            <div class="tt-label">🔬 Biomechanical Context</div>
+            <div class="tt-desc" id="ttContext">Context</div>
+        </div>
+        <div class="tt-footer" id="ttFooter">
+            <span>Recommended: <strong id="ttRec" style="color:var(--parchment);">—</strong></span>
+            <span>Shipped: <strong class="tt-val-default" id="ttDefault">—</strong></span>
+        </div>
+    </div>
+
+    <!-- Live Log Modal -->
+    <div class="modal-overlay" id="logModal">
+        <div class="modal-panel">
+            <div class="modal-header">
+                <span class="modal-title">📜 SKSE\TrueGaze.log — Live Diagnostic Stream</span>
+                <button id="btnCloseLog" style="padding:4px 10px; font-size:0.75rem;">✕ Close</button>
+            </div>
+            <div class="log-console" id="logConsole">Loading diagnostic log...</div>
+            <div class="modal-footer">
+                <span id="logMeta"
+                    style="font-size:0.75rem; color:var(--parchment-dim); font-family:var(--font-mono);"></span>
+                <button id="btnRefreshLog" style="padding:6px 14px; font-size:0.75rem;">Refresh Log</button>
+            </div>
+        </div>
     </div>
 
     <input type="file" id="fileInput" accept=".ini" class="hidden">
@@ -616,7 +1117,7 @@
         'use strict';
 
         // ------------------------------------------------------------------
-        // Canonical defaults (mirror skyrim/SKSE/Plugins/TrueGaze.ini as shipped)
+        // Schema, Defaults & Deep Biomechanical Tooltip Knowledge Base
         // ------------------------------------------------------------------
         const DEFAULTS = {
             'General': {
@@ -647,8 +1148,8 @@
                 fMutualGazeThreshold: ['float', 2.0, 'Continuous mutual eye contact for intimacy reactions (seconds)', 0.5, 5, 0.25, '{v} s']
             },
             'Crosshair': {
-                bEnableCrosshairGaze: ['bool', true, 'When the crosshair rests on an NPC\u2019s face, that NPC looks back at the player\u2019s face (mutual gaze)'],
-                fCrosshairToleranceDeg: ['float', 4.0, 'Base angular tolerance of the face sweet spot (added to the head\u2019s angular size at that distance)', 0, 30, 0.5, '{v} deg'],
+                bEnableCrosshairGaze: ['bool', true, 'When the crosshair rests on an NPC\'s face, that NPC looks back at the player\'s face (mutual gaze)'],
+                fCrosshairToleranceDeg: ['float', 4.0, 'Base angular tolerance of the face sweet spot (added to the head\'s angular size at that distance)', 0, 30, 0.5, '{v} deg'],
                 fCrosshairMaxRangeMeters: ['float', 25.0, 'Beyond this range the crosshair no longer confers social attention', 2, 100, 1, '{v} m'],
                 fCrosshairPointBlankMeters: ['float', 1.5, 'Below this range any crosshair contact counts as face contact', 0, 10, 0.25, '{v} m']
             },
@@ -664,6 +1165,25 @@
             'Debug': {
                 bDebugGazeRays: ['bool', false, 'Render in-game 3D line-of-sight visualizer rays'],
                 iLogLevel: ['int', 2, 'Logging level (0=Trace 1=Debug 2=Info 3=Warn 4=Error)', 0, 4, 1]
+            },
+            'Visuals': {
+                bEnableInGameVisuals: ['bool', false, 'Master switch for every in-game 3D visual (the "Superman laser eyes" subsystem)'],
+                bGazeRaysEnabled: ['bool', false, 'Emit a gaze beam from each actor\'s pupil along the solved gaze direction'],
+                iRayRenderMode: ['choice', '0', 'Render mode: Both (light + branded geometry) / Light only (no art needed) / Geometry only', ['0', '1', '2']],
+                fGazeRayLengthMeters: ['float', 10.0, 'Beam reach in meters (drives light radius and terminus position)', 0.5, 50, 0.5, '{v} m'],
+                iGazeRayColour: ['text', '13174890', 'Beam colour as decimal 0xRRGGBB (13174890 = #C9A86A TrueGaze gold)'],
+                fGazeRayOpacity: ['float', 0.85, 'Emitter brightness, 0..1', 0, 1, 0.05, '{v}'],
+                bGazeRaysOnPlayer: ['bool', true, 'Emit beams from the player character'],
+                bGazeRaysOnNPCs: ['bool', true, 'Emit beams from humanoid NPCs'],
+                bGazeRaysOnCreatures: ['bool', true, 'Emit beams from creatures'],
+                bGazeRaysAttachHead: ['bool', true, 'Attach the emitter to the head bone (false = actor root)'],
+                bGazeRaysTerminus: ['bool', false, 'Also place a second glow where the gaze lands'],
+                fPupilForwardOffsetCm: ['float', 7.0, 'Pupil origin: offset forward from the head bone origin (cm)', 0, 30, 0.5, '{v} cm'],
+                fPupilUpOffsetCm: ['float', 1.5, 'Pupil origin: offset up from the head bone origin (cm)', -10, 10, 0.5, '{v} cm'],
+                fPupilGlowIntensity: ['float', 0.5, 'Pupil emitter brightness multiplier', 0, 3, 0.05, '{v}x']
+            },
+            'Console': {
+                bEnableConsoleCommands: ['bool', false, 'Register the tg* commands in the game console (~). Vanilla only - no Papyrus, ESP or MCM. Off by default: appending to the engine console table relies on a layout the SDK does not expose, and the code refuses to write if that layout does not validate.']
             }
         };
 
@@ -675,73 +1195,462 @@
             'Crosshair': 'Crosshair Sweet Spot',
             'Bridge': 'HCEP Connected Mode',
             'LOD': 'Levels of Detail',
-            'Debug': 'Diagnostics'
+            'Debug': 'Diagnostics',
+            'Visuals': 'In-Game Visuals',
+            'Console': 'Console Commands'
+        };
+
+        const TOOLTIPS = {
+            'General:bEnableTrueGaze': {
+                desc: 'Master switch enabling the TrueGaze biological eye and kinematics simulation engine across all humanoid NPCs.',
+                impact: 'When enabled, replaces Bethesda\'s static vanilla headtracking with procedural saccadic eye movements, micro-jitter, and cervical spine distribution.',
+                context: 'Disabling reverts the game to vanilla animation behavior without needing to uninstall the plugin.',
+                rec: 'True (Always ON)',
+                dflt: 'true'
+            },
+            'General:bEnableCreatures': {
+                desc: 'Activates specialized predator/prey gaze kinematics for dragons, wolves, sabre cats, and quadrupeds.',
+                impact: 'Creatures track targets with species-appropriate binocular/monocular field-of-view constraints and neck articulation.',
+                context: 'Adjusts ocular divergence for prey animals (e.g. deer) and high-vergence focus for predators.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'General:sEngineTarget': {
+                desc: 'Specifies the Skyrim runtime target architecture for memory offsets and hook layouts.',
+                impact: 'Auto automatically resolves Skyrim Special Edition (1.5.97), Anniversary Edition (1.6.x - 1.7.x), or Skyrim VR.',
+                context: 'Leave on Auto unless running a heavily customized, non-standard private binary.',
+                rec: 'Auto',
+                dflt: 'Auto'
+            },
+            'Kinematics:fSaccadeSpeedMult': {
+                desc: 'Multiplier governing peak ballistic eye rotation velocity during rapid gaze redirections (saccades).',
+                impact: 'Higher values produce sharp, immediate eye snaps; lower values produce a dreamy, sluggish gaze transition.',
+                context: 'Empirical human saccades follow Bahill\'s Main Sequence, reaching peak speeds between 700°/s and 900°/s in under 50ms.',
+                rec: '1.0x (Realism) | 1.2x (Combat/Action)',
+                dflt: '1.0'
+            },
+            'Kinematics:fVelocitySaturation': {
+                desc: 'Asymptotic saturation constant (the c parameter in the Main Sequence non-linear velocity formula).',
+                impact: 'Controls how velocity scales with angular distance: prevents eye movements over large angles from exceeding natural physiological thresholds.',
+                context: 'Prevents unnatural mechanical acceleration during extreme target switching across wide angles.',
+                rec: '12.0 - 15.0',
+                dflt: '14.0'
+            },
+            'Kinematics:fMicroJitterAmp': {
+                desc: 'Maximum angular amplitude (in degrees) of involuntary physiological nystagmus and micro-saccadic Brownian drift.',
+                impact: 'Breathes life into static NPC stares. Eliminates the glassy "wax statue" look when an actor fixates on a stationary target.',
+                context: 'Human eyes continuously drift and tremble across 0.1°–0.5° to refresh retinal photoreceptors and prevent visual fading.',
+                rec: '0.25° - 0.35°',
+                dflt: '0.35 deg'
+            },
+            'Kinematics:fMicroJitterIntervalMin': {
+                desc: 'Minimum dwell time (in seconds) between randomized micro-saccadic position updates.',
+                impact: 'Sets the high-frequency limit of eye micro-motions. Lower values make eyes jitter more frequently.',
+                context: 'Human micro-saccades occur spontaneously 1 to 3 times per second during visual fixation.',
+                rec: '0.15s - 0.25s',
+                dflt: '0.20 s'
+            },
+            'Kinematics:fMicroJitterIntervalMax': {
+                desc: 'Maximum duration (in seconds) before the actor\'s gaze must execute a micro-drift adjustment.',
+                impact: 'Ensures eyes never remain completely motionless longer than this threshold.',
+                context: 'Prevents visual arrest and unnatural cognitive freezing.',
+                rec: '0.35s - 0.50s',
+                dflt: '0.45 s'
+            },
+            'Kinematics:fHeadTrackingSpeed': {
+                desc: 'Vestibulo-Ocular Reflex (VOR) head damping tracking factor.',
+                impact: 'Determines how briskly the head and neck turn to follow target displacement while the eyes maintain fixation.',
+                context: 'In biological vision, the eyes snap first (10-30ms) while the cervical spine follows with smoothed, damped acceleration.',
+                rec: '5.0 - 7.0',
+                dflt: '6.0'
+            },
+            'Kinematics:fMaxComfortEyeAngle': {
+                desc: 'Maximum comfortable ocular deflection angle (in degrees) before mandatory cervical neck engagement.',
+                impact: 'Prevents extreme eye-rolling into the corners of eye sockets. Forces the neck to turn when targets move beyond this boundary.',
+                context: 'Human ocular comfort field is ±30°–35°. Eye deflections past 35° cause discomfort, reflexively triggering head yaw.',
+                rec: '30.0° - 35.0°',
+                dflt: '35.0 deg'
+            },
+            'SkeletalHierarchy:fSpine2YawWeight': {
+                desc: 'Fractional rotational strain assigned to the upper thoracic vertebra (NPC Spine2 [Spn2]).',
+                impact: 'Subtly twists the upper torso when an NPC looks far over their shoulder.',
+                context: 'High-degree yaw turns engage the torso; keep low (0.05–0.15) to avoid body contortions.',
+                rec: '0.10 (10%)',
+                dflt: '0.1'
+            },
+            'SkeletalHierarchy:fNeckYawWeight': {
+                desc: 'Fractional yaw strain carried by the mid-cervical neck bones (NPC Neck [Neck]).',
+                impact: 'Distributes head turning through the neck column, preventing the head from pivoting like an unnatural swivel.',
+                context: 'Works in harmony with HeadYawWeight to create smooth anatomical bending.',
+                rec: '0.25 (25%)',
+                dflt: '0.25'
+            },
+            'SkeletalHierarchy:fNeckPitchWeight': {
+                desc: 'Fractional pitch strain assigned to the neck for looking up and down.',
+                impact: 'Bends the neck forward or backward when looking at elevated dragons or ground targets.',
+                context: 'Balances head pitch for natural chin tucking and craning.',
+                rec: '0.25 (25%)',
+                dflt: '0.25'
+            },
+            'SkeletalHierarchy:fHeadYawWeight': {
+                desc: 'Primary yaw strain assigned to the cranial head bone (NPC Head [Head]).',
+                impact: 'Carries the main directional turning of the skull relative to the neck.',
+                context: 'Represents the rotational freedom of the atlanto-axial (C1-C2) joint.',
+                rec: '0.60 - 0.70',
+                dflt: '0.65'
+            },
+            'SkeletalHierarchy:fHeadPitchWeight': {
+                desc: 'Primary pitch strain assigned to the cranial head bone.',
+                impact: 'Tilts the head up or down to align with vertical gaze targets.',
+                context: 'Governs nodding, chin elevation, and direct vertical visual line of sight.',
+                rec: '0.70 - 0.80',
+                dflt: '0.75'
+            },
+            'Social:bEnableGazeAversion': {
+                desc: 'Cognitive Gaze Aversion (CGA) simulation during thought processing and speech pauses.',
+                impact: 'NPCs periodically glance away (up/left or downward) when processing information, breaking continuous unblinking staring.',
+                context: 'Cognitive psychology shows that breaking eye contact reduces visual processing load during complex thinking.',
+                rec: 'True (Deep Realism)',
+                dflt: 'true'
+            },
+            'Social:bEnableSocialTriangle': {
+                desc: 'Argyle & Cook Social Triangle gaze cycling (Left Eye → Right Eye → Mouth).',
+                impact: 'During close conversations, the NPC shifts micro-fixations between your eyes and lips rather than locking onto a single frozen coordinate.',
+                context: 'Simulates the universal human social scanning pattern identified by Argyle & Cook (1976).',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Social:fTriangleFixationDuration': {
+                desc: 'Dwell time (in seconds) spent fixating on each node of the social triangle before switching.',
+                impact: 'Controls the rhythm of gaze shifting across the conversational partner\'s face.',
+                context: 'Natural human fixations in dialogue range between 250ms and 500ms.',
+                rec: '0.30s - 0.40s',
+                dflt: '0.35 s'
+            },
+            'Social:fMutualGazeThreshold': {
+                desc: 'Continuous mutual eye contact duration (in seconds) required to trigger social, romantic, or tension reactions.',
+                impact: 'Feeds the OAR and TrueGaze API mutual gaze timers; allows custom animation mods to trigger blushing or intimidation.',
+                context: 'Eye contact held past 2 seconds universally signals heightened emotional intensity.',
+                rec: '2.0s',
+                dflt: '2.0 s'
+            },
+            'Crosshair:bEnableCrosshairGaze': {
+                desc: 'Player crosshair-driven mutual eye contact detection.',
+                impact: 'When you place your HUD crosshair on an NPC\'s face, that NPC perceives your gaze and looks directly back into your eyes.',
+                context: 'Bridges player intentionality with AI response using angular face cone calculation.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Crosshair:fCrosshairToleranceDeg': {
+                desc: 'Base angular tolerance (in degrees) added to the NPC head\'s physical bounding radius.',
+                impact: 'Makes crosshair eye contact natural and forgiving at close range without requiring pixel-perfect sniper accuracy.',
+                context: 'Calculates the target head\'s angular footprint using 2 * atan(headRadius / distance) + tolerance.',
+                rec: '3.5° - 5.0°',
+                dflt: '4.0 deg'
+            },
+            'Crosshair:fCrosshairMaxRangeMeters': {
+                desc: 'Maximum distance (in meters) where crosshair aiming confers social attention.',
+                impact: 'Beyond this distance, NPCs cannot discern whether you are looking directly at their eyes or their general area.',
+                context: 'Prevents distant NPCs across an open courtyard from reacting to your crosshair.',
+                rec: '20.0m - 25.0m',
+                dflt: '25.0 m'
+            },
+            'Crosshair:fCrosshairPointBlankMeters': {
+                desc: 'Point-blank distance threshold (in meters) where any crosshair contact counts as direct eye contact.',
+                impact: 'In very close proximity (<1.5m), aiming at the chest or face immediately engages mutual gaze.',
+                context: 'Reflects the unavoidable perceptual salience of close personal space.',
+                rec: '1.5m',
+                dflt: '1.5 m'
+            },
+            'Bridge:bConnectHcepBridge': {
+                desc: 'Enables Named Pipe IPC communication with Kirk LaSalle\'s HCEP Desktop biometric suite.',
+                impact: 'Allows real-world webcam/eye-tracker gaze vectors to directly drive your in-game player and NPC interactions.',
+                context: 'Runs locally on \\\\.\\pipe\\TrueGazeBridge. Zero network traffic; biometric data never leaves your machine.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Bridge:sPipeName': {
+                desc: 'Local Windows Named Pipe address for the HCEP IPC protocol.',
+                impact: 'Must match the pipe name configured in HCEP Desktop or your tracking client.',
+                context: 'Standard Windows IPC mechanism offering sub-millisecond transmission latency.',
+                rec: '\\\\.\\pipe\\TrueGazeBridge',
+                dflt: '\\\\.\\pipe\\TrueGazeBridge'
+            },
+            'Bridge:fAutoReconnectIntervalSec': {
+                desc: 'Time interval (in seconds) between background reconnection attempts when HCEP Desktop is not detected.',
+                impact: 'Keeps background thread CPU overhead near zero when the external tracker is offline.',
+                context: 'TrueGaze gracefully operates independently when HCEP Desktop is closed.',
+                rec: '3.0s',
+                dflt: '3.0 s'
+            },
+            'LOD:fTier1DistanceMeters': {
+                desc: 'Radius (in meters) for Tier 1 full biological ocular simulation.',
+                impact: 'Actors within this distance receive full micro-saccades, VOR head-eye coordination, and eyelid morphs.',
+                context: 'Actors beyond Tier 1 transition to simplified head-only tracking to maximize framerates in crowded cities.',
+                rec: '5.0m - 7.0m',
+                dflt: '5.0 m'
+            },
+            'LOD:fTier2DistanceMeters': {
+                desc: 'Radius (in meters) for Tier 2 head kinematics before complete simulation cutoff.',
+                impact: 'Actors between Tier 1 and Tier 2 turn their heads toward sound/players, but ocular micro-jitter is deactivated.',
+                context: 'Beyond Tier 2, actors revert to inactive low-cost simulation state.',
+                rec: '15.0m - 20.0m',
+                dflt: '15.0 m'
+            },
+            'Debug:bDebugGazeRays': {
+                desc: 'In-game visual line-of-sight visualizer and live HUD telemetry broadcaster.',
+                impact: 'Displays real-time on-screen alerts in gold text (e.g. [TrueGaze] Eye Contact Held: Lucan Valerius) and streams 3D vectors to console (~).',
+                context: 'Essential for verifying that TrueGaze is actively tracking targets inside Skyrim without opening external logs.',
+                rec: 'True (When testing/verifying) | False (Immersion)',
+                dflt: 'false'
+            },
+            'Debug:iLogLevel': {
+                desc: 'Verbosity filter for SKSE\\TrueGaze.log output.',
+                impact: '0 = Trace (high volume, logs per-frame vectors) | 1 = Debug (kinematics & target probes) | 2 = Info (startup, hooks, tuning) | 3 = Warn | 4 = Error only.',
+                context: 'Level 1 or 2 is recommended for diagnosing mod conflicts and verifying bone resolution.',
+                rec: '1 (Debug) or 2 (Info)',
+                dflt: '2 (Info)'
+            },
+            'Visuals:bEnableInGameVisuals': {
+                desc: 'Master switch for the in-game 3D visual system — the "Superman laser eyes" developer diagnostic.',
+                impact: 'When on, TrueGaze renders its solved gaze into the world. It never alters the simulation, the save game, or actor state; it only attaches and removes visual emitters.',
+                context: 'This subsystem is developer-facing. Turn it on to see exactly where every NPC is looking, then turn it off for normal play. Requires a game restart (the INI is read at startup).',
+                rec: 'False (True only while verifying)',
+                dflt: 'false'
+            },
+            'Visuals:bGazeRaysEnabled': {
+                desc: 'Emits a gaze beam from each actor\'s pupil along the solved gaze direction.',
+                impact: 'A real point light is placed at the pupil and (optionally) at the point the gaze lands, so the direction the solver chose is visible at a glance.',
+                context: 'Vanilla humanoid skeletons have no eye bones — eyes are FaceGen morphs — so the pupil is derived geometrically from the head bone. Use the pupil-offset keys below if beams sit in front of or behind a face.',
+                rec: 'False (True only while verifying)',
+                dflt: 'false'
+            },
+            'Visuals:iRayRenderMode': {
+                desc: 'Selects how the gaze is drawn.',
+                impact: '0 = Both (light emitters plus branded beam geometry) | 1 = Light only (bare-bones; needs no art assets) | 2 = Geometry only (suppresses the lights).',
+                context: 'Mode 1 is the pure-diagnostic path: it works with zero mod assets and no lighting surprises. Modes 0 and 2 gain the branded beam mesh once those assets are installed.',
+                rec: '1 (Light only) or 0 (Both)',
+                dflt: '0 (Both)'
+            },
+            'Visuals:fGazeRayLengthMeters': {
+                desc: 'How far a gaze beam reaches, in meters.',
+                impact: 'Sets both the light\'s radius and how far the terminus glow is placed along the gaze direction. Long beams make direction obvious across a room; short beams read as a glow at the eyes only.',
+                context: 'Typical human gaze at a conversational partner lands around 2-4 m; 10 m is a useful default for reading aim and target selection in a crowd.',
+                rec: '10.0 m',
+                dflt: '10.0 m'
+            },
+            'Visuals:iGazeRayColour': {
+                desc: 'Beam colour as a decimal 0xRRGGBB value.',
+                impact: 'Colours the pupil and terminus emitters. The default 13174890 is #C9A86A, the TrueGaze gold used throughout this configurator.',
+                context: 'Because the value is a plain integer, some colour pickers read it as decimal. Convert a hex colour to decimal before entering it (e.g. #C9A86A = 13174890).',
+                rec: '13174890 (#C9A86A TrueGaze gold)',
+                dflt: '13174890'
+            },
+            'Visuals:fGazeRayOpacity': {
+                desc: 'Brightness of the gaze emitters, from 0 (invisible) to 1 (full).',
+                impact: 'Multiplied with Pupil Glow Intensity to set the final emitter colour. Lower it when beams are washing out a dark interior.',
+                context: 'Two brightness keys multiply rather than override each other, so you can set a global level here and still fine-tune the pupil separately.',
+                rec: '0.85',
+                dflt: '0.85'
+            },
+            'Visuals:bGazeRaysOnPlayer': {
+                desc: 'Emit beams from the player character.',
+                impact: 'When off, the player has no beams even though NPCs do — useful for inspecting NPC gaze without your own beam in shot.',
+                context: 'In first person the player\'s own eyes are driven by the camera, so a player beam is mainly meaningful in third person.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Visuals:bGazeRaysOnNPCs': {
+                desc: 'Emit beams from humanoid NPCs.',
+                impact: 'When off, humanoid actors are skipped while creatures still emit, so creature-specific rigs can be inspected in isolation.',
+                context: 'NPC beams are the primary way to verify the saccade, social-triangle, and crosshair mutual-gaze behaviours.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Visuals:bGazeRaysOnCreatures': {
+                desc: 'Emit beams from creatures.',
+                impact: 'When off, dragons, wolves, and other non-humanoid actors are excluded from the visual layer.',
+                context: 'Creature rigs vary widely. Creatures that expose real eye bones place their beams precisely; those that do not use the geometric head-bone fallback.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Visuals:bGazeRaysAttachHead': {
+                desc: 'Attach the emitter to the head bone rather than the actor root.',
+                impact: 'Head attachment makes the pupil glow and terminus follow the head\'s turn exactly. Root attachment is a fallback for rigs where the head bone cannot be resolved.',
+                context: 'If beams appear detached from a face, switching this off (or checking the skeleton probe line in TrueGaze.log) narrows the cause.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Visuals:bGazeRaysTerminus': {
+                desc: 'Also place a second glow where the gaze lands.',
+                impact: 'The pupil glow shows where the eyes are; the terminus glow shows where they are pointed. Together they make direction unambiguous from any camera angle.',
+                context: 'The terminus follows the same solved direction as the beam, so if it visibly misses the target the gaze solution — not the visual — is what to investigate.',
+                rec: 'True while verifying aim, then False',
+                dflt: 'false'
+            },
+            'Visuals:fPupilForwardOffsetCm': {
+                desc: 'How far forward of the head bone origin the pupil sits, in centimetres.',
+                impact: 'Places the emitter at the eye surface rather than the skull centre. Increase if beams appear to start behind the face; decrease if they float in front of it.',
+                context: 'This exists because vanilla Skyrim skeletons expose no eye bones — the eye position must be derived geometrically. Custom rigs (XP32/XPMSSE) that do have eye bones ignore this value.',
+                rec: '7.0 cm',
+                dflt: '7.0 cm'
+            },
+            'Visuals:fPupilUpOffsetCm': {
+                desc: 'How far above the head bone origin the pupil sits, in centimetres.',
+                impact: 'Fine vertical placement of the emitter. Negative values move it below the head bone origin.',
+                context: 'Tune together with the forward offset until the glow sits in the eye socket on the rigs you use most.',
+                rec: '1.5 cm',
+                dflt: '1.5 cm'
+            },
+            'Visuals:fPupilGlowIntensity': {
+                desc: 'Brightness multiplier applied to the pupil emitter only.',
+                impact: 'Lets the pupil glow be tuned independently of the global beam brightness — useful for a bright terminus with a subtle eye glow, or the reverse.',
+                context: 'Multiplies with Beam Opacity rather than replacing it.',
+                rec: '0.5x',
+                dflt: '0.5x'
+            },
+            'Console:bEnableConsoleCommands': {
+                desc: 'Registers the tg* commands so the game\'s own console (~) can toggle TrueGaze at runtime.',
+                impact: 'Adds: tg (toggle simulation), tgvisuals / tgv (visuals and gaze rays), tgon / tgoff, tgmode (render mode), tgradius (terminus glow), tgverbose (logging), tgstatus (print the full state).',
+                context: 'VANILLA ONLY — no Papyrus, no ESP/ESL, no MCM, no SkyUI. Commands are registered by reclaiming console-table entries the engine already treats as dead or empty, so no working vanilla command is displaced. Off by default because it writes into engine memory and has not yet been confirmed in a running game. Requires a game restart — commands register at load.',
+                rec: 'False, then True when you want runtime toggles',
+                dflt: 'false'
+            }
         };
 
         // ------------------------------------------------------------------
-        // State
+        // UI Element Tooltips (toolbar, presets & actions)
+        // Rendered through the same rich card as the configuration rows so the
+        // entire page shares one tooltip standard.
         // ------------------------------------------------------------------
-        let fileHandle = null;      // FileSystemFileHandle when opened via picker
-        let rawText = null;         // current INI text (edited)
-        let originalText = null;    // as-loaded snapshot for dirty diffing
-        let parsed = new Map();     // section -> Map(key -> value string)
+        const UI_TOOLTIPS = {
+            'ui:btnLaunch': {
+                desc: 'Launches Skyrim Special Edition through skse64_loader.exe with TrueGaze.dll already deployed.',
+                impact: 'Runs the engine with your currently saved tuning. Save first — the game only reads TrueGaze.ini at startup.',
+                context: 'TrueGaze does not inject into a running game. Any edit made while Skyrim is open applies on the next launch.',
+                rec: 'Save Changes before launching'
+            },
+            'ui:btnScan': {
+                desc: 'Re-probes the Windows registry, Steam library, Documents save folder and the deployed plugin files.',
+                impact: 'Refreshes the three status cards above and reloads the live TrueGaze.ini from the game installation.',
+                context: 'Run this after installing SKSE64, the Address Library, or after deploying a new build.',
+                rec: 'Run after any install or deploy'
+            },
+            'ui:btnSave': {
+                desc: 'Writes the current tuning directly to Data\\SKSE\\Plugins\\TrueGaze.ini inside your Skyrim installation.',
+                impact: 'Commits every unsaved change on the page. The previous file is preserved automatically as a .bak backup.',
+                context: 'Values are written byte-exact in Latin-1 so the INI header and comments survive untouched.',
+                rec: 'Save before launching Skyrim'
+            },
+            'ui:btnLog': {
+                desc: 'Opens a live tail of SKSE\\TrueGaze.log — the engine diagnostic stream written while the game runs.',
+                impact: 'Shows hook installation, skeleton bone probes, target acquisition and any load failures in real time.',
+                context: 'The fastest way to confirm TrueGaze actually loaded and resolved an NPC skeleton in-game.',
+                rec: 'Check after the first load'
+            },
+            'ui:btnDefaults': {
+                desc: 'Restores every parameter on the page to the biologically calibrated values shipped with TrueGaze.',
+                impact: 'Marks all rows as unsaved so you can review the change before committing it to disk.',
+                context: 'Nothing is written until you press Save Changes — you can always abandon the reset by reloading the page.',
+                rec: 'Use to recover from heavy experimentation'
+            },
+            'ui:btnOpen': {
+                desc: 'Loads an alternate TrueGaze.ini from disk instead of the one found in the game installation.',
+                impact: 'Lets you inspect, diff or edit a backup, a shared profile, or a copy from another machine.',
+                context: 'Useful for comparing a friend\'s configuration or recovering a .bak file without touching the live install.',
+                rec: 'For backups & shared profiles'
+            },
+            'ui:btnExport': {
+                desc: 'Downloads the current configuration as a standalone TrueGaze.ini file.',
+                impact: 'Produces a portable copy you can share, archive, or drop into another Skyrim installation manually.',
+                context: 'Also used as the automatic fallback when the automation bridge is offline and direct saving is unavailable.',
+                rec: 'For sharing & manual installs'
+            },
+            'ui:presetVanilla': {
+                desc: 'Restores the balanced baseline: human eye mechanics with natural social dynamics.',
+                impact: 'Saccade multiplier 1.0x, micro-jitter 0.35 deg, head tracking 6.0, comfort eye angle 35 deg, all social behaviours on.',
+                context: 'The reference profile — every other preset is a deliberate departure from these values.',
+                rec: 'Default choice for a first playthrough'
+            },
+            'ui:presetSubtle': {
+                desc: 'Calmer, slower ocular behaviour for a relaxed and unobtrusive feel.',
+                impact: 'Gentler saccades and lower jitter, so NPCs read as daydreaming rather than alert or twitchy.',
+                context: 'Keeps every biological mechanism active while reducing its visible intensity — ideal for cinematic or roleplay saves.',
+                rec: 'Cinematic & roleplay playthroughs'
+            },
+            'ui:presetIntense': {
+                desc: 'Fast, reactive eye behaviour tuned for combat and high-alertness scenes.',
+                impact: 'Sharper saccades, higher micro-jitter and a wider comfort eye angle so NPCs snap onto threats quickly.',
+                context: 'Cognitive gaze aversion is disabled so enemies hold their stare during a fight.',
+                rec: 'Combat & action-heavy load orders'
+            },
+            'ui:presetSocial': {
+                desc: 'Heightened mutual gaze sensitivity and full Argyle & Cook social triangle cycling in dialogue.',
+                impact: 'Lowers the mutual gaze threshold to 1.5 s and widens the crosshair face sweet spot for easier eye contact.',
+                context: 'Tuned for conversation-heavy play: companions, followers and dialogue mods react to sustained eye contact sooner.',
+                rec: 'Dialogue & companion focused saves'
+            }
+        };
+
+        // ------------------------------------------------------------------
+        // State Management
+        // ------------------------------------------------------------------
+        let rawText = '';
+        let originalText = '';
+        let parsed = new Map();     // Section -> Map(Key -> String)
+        let bridgeActive = false;
+        let activeIniPath = '';
 
         const $ = id => document.getElementById(id);
-        const statusEl = $('status'), panelsEl = $('panels');
 
-        function setStatus(msg, cls) {
-            statusEl.innerHTML = `<span class="${cls || 'info'}">${msg}</span>`;
+        function setStatus(msg, cls = 'info') {
+            $('status').innerHTML = `<span class="${cls}">${msg}</span>`;
         }
+
         function toast(msg) {
             const t = $('toast');
-            t.textContent = msg; t.classList.add('show');
+            t.textContent = msg;
+            t.classList.add('show');
             clearTimeout(t._h);
             t._h = setTimeout(() => t.classList.remove('show'), 2600);
         }
 
         // ------------------------------------------------------------------
-        // INI parse / serialize (preserves comments and non-ASCII, matches
-        // the codepage-28591 byte-preservation rule used by the deploy tooling)
+        // INI Parser & Serializer (Preserves Latin-1 & Formatting Exactly)
         // ------------------------------------------------------------------
         function parseIni(text) {
             const map = new Map();
             let section = null;
             for (const line of text.split(/\r?\n/)) {
                 const m = line.match(/^\s*\[([^\]]+)\]\s*$/);
-                if (m) { section = m[1]; if (!map.has(section)) map.set(section, new Map()); continue; }
+                if (m) {
+                    section = m[1];
+                    if (!map.has(section)) map.set(section, new Map());
+                    continue;
+                }
                 if (!section) continue;
                 const kv = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
-                if (kv) map.get(section).set(kv[1], kv[2]);
+                if (kv) {
+                    map.get(section).set(kv[1], kv[2]);
+                }
             }
             return map;
         }
 
-        function fmtFloat(key, def, v) {
-            const [, , , , , , fmt] = def;
-            const num = Number(v);
-            if (fmt && fmt.startsWith('{v}.')) {
-                const dec = (fmt.match(/\{v\}\.(\d+)/) || [])[1];
-                if (dec) return num.toFixed(Number(dec));
-            }
-            // match INI's 6-decimal float style when the value isn't clean
-            return Number.isInteger(num) && Math.abs(num) < 1000 ? num.toFixed(6) : String(num);
-        }
-
         function serializeIni() {
-            // Walk the ORIGINAL text, substituting values. This preserves all comments,
-            // blank lines, ordering, and the trademark byte on line 1.
             let out = [];
             let section = null;
             for (const line of originalText.split(/\r?\n/)) {
                 const sm = line.match(/^\s*\[([^\]]+)\]\s*$/);
-                if (sm) { section = sm[1]; out.push(line); continue; }
+                if (sm) {
+                    section = sm[1];
+                    out.push(line);
+                    continue;
+                }
                 const kv = line.match(/^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)(.*?)\s*$/);
                 if (kv && section && parsed.get(section)?.has(kv[2])) {
                     const v = parsed.get(section).get(kv[2]);
-                    const def = DEFAULTS[section]?.[kv[2]];
-                    let out_v = v;
-                    if (def && def[0] === 'float') out_v = fmtFloat(kv[2], def, v);
-                    out.push(`${kv[1]}${kv[2]}${kv[3]}${out_v}`);
+                    out.push(`${kv[1]}${kv[2]}${kv[3]}${v}`);
                 } else {
                     out.push(line);
                 }
@@ -749,459 +1658,641 @@
             return out.join('\r\n');
         }
 
-        // ------------------------------------------------------------------
-        // UI construction
-        // ------------------------------------------------------------------
-        function boolVal(s) { return /^(true|1)$/i.test(s); }
-        function intVal(s, d) { const n = parseInt(s, 10); return Number.isNaN(n) ? d : n; }
-        function floatVal(s, d) { const n = parseFloat(s); return Number.isNaN(n) ? d : n; }
+        function updateDirty() {
+            const dirty = document.querySelectorAll('.config-row.dirty').length;
+            const dirtyEl = $('statusDirty');
+            if (dirty > 0) {
+                dirtyEl.innerHTML = `<span class="warn">● ${dirty} unsaved change${dirty > 1 ? 's' : ''}</span>`;
+                $('btnSave').disabled = $('btnSave2').disabled = false;
+            } else {
+                dirtyEl.innerHTML = `<span class="ok">✓ Synchronized</span>`;
+                $('btnSave').disabled = $('btnSave2').disabled = true;
+            }
+        }
 
+        // ------------------------------------------------------------------
+        // UI Generator & Tooltip Wiring
+        // ------------------------------------------------------------------
         function buildUI() {
-            panelsEl.innerHTML = '';
-            for (const [section, keys] of Object.entries(DEFAULTS)) {
-                const secVals = parsed.get(section);
-                if (!secVals) continue; // section absent from this INI — skip
+            const container = $('panels');
+            container.innerHTML = '';
 
+            // Reapply the selected-preset chrome after the configuration panels
+            // rebuild. Preset selection is UI state, not an INI value.
+            const selected = window.trueGazeSelectedPreset;
+            document.querySelectorAll('.preset-btn').forEach(button => {
+                const isSelected = selected && button.id === `preset${selected.charAt(0).toUpperCase()}${selected.slice(1)}`;
+                button.classList.toggle('active', Boolean(isSelected));
+                button.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+            });
+            const selectedLabel = $('selectedPreset');
+            if (selectedLabel && selected) {
+                selectedLabel.textContent = `Selected: ${selected.charAt(0).toUpperCase()}${selected.slice(1)}`;
+            }
+
+            for (const [section, schema] of Object.entries(DEFAULTS)) {
+                const secVals = parsed.get(section) || new Map();
                 const panel = document.createElement('div');
-                panel.className = 'panel';
-                panel.innerHTML = `
-      <div class="panel-title"><h2>${SECTION_TITLES[section] || section}</h2><span class="tag">[${section}]</span></div>
-      <div class="panel-body"></div>`;
-                const body = panel.querySelector('.panel-body');
+                panel.className = 'section-panel';
 
-                for (const [key, def] of Object.entries(keys)) {
-                    if (!secVals.has(key)) continue;
-                    const [type, dflt, help, p1, p2, step, fmt] = def;
-                    const cur = secVals.get(key);
+                const title = SECTION_TITLES[section] || section;
+                panel.innerHTML = `
+                    <div class="section-panel-header">
+                        <span class="section-panel-title">${title}</span>
+                        <span class="section-panel-tag">[${section.toUpperCase()}]</span>
+                    </div>
+                    <div class="section-panel-body"></div>
+                `;
+
+                const body = panel.querySelector('.section-panel-body');
+
+                for (const [key, def] of Object.entries(schema)) {
+                    const [type, dflt, help, ...rest] = def;
+                    const val = secVals.has(key) ? secVals.get(key) : String(dflt);
+                    const tooltipKey = `${section}:${key}`;
 
                     const row = document.createElement('div');
-                    row.className = 'row';
-                    row.dataset.section = section; row.dataset.key = key;
+                    row.className = 'config-row';
+                    row.dataset.section = section;
+                    row.dataset.key = key;
 
-                    let control = '';
+                    let controlHtml = '';
+
                     if (type === 'bool') {
-                        control = `
-          <label class="toggle"><input type="checkbox" data-role="input" ${boolVal(cur) ? 'checked' : ''}><span class="track"></span><span class="knob"></span></label>
-          <span class="toggle-val" data-role="boolval">${boolVal(cur) ? 'ON' : 'OFF'}</span>`;
+                        const isChecked = String(val).toLowerCase() === 'true';
+                        controlHtml = `
+                            <label class="toggle-switch">
+                                <input type="checkbox" data-role="input" ${isChecked ? 'checked' : ''}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="toggle-label" data-role="boolval">${isChecked ? 'ON' : 'OFF'}</span>
+                        `;
                     } else if (type === 'float' || type === 'int') {
-                        const val = type === 'int' ? intVal(cur, dflt) : floatVal(cur, dflt);
-                        control = `
-          <input type="range" data-role="input" min="${p1}" max="${p2}" step="${step}" value="${val}">
-          <span class="slider-val" data-role="sliderval">${fmt ? fmt.replace('{v}', val) : val}</span>`;
+                        const [min, max, step, fmt] = rest;
+                        const numVal = Number(val);
+                        let displayVal = val;
+                        if (fmt) {
+                            displayVal = fmt.replace('{v}', type === 'int' ? numVal : numVal.toFixed(step < 0.1 ? 2 : 1));
+                        }
+                        controlHtml = `
+                            <input type="range" data-role="input" min="${min}" max="${max}" step="${step}" value="${numVal}">
+                            <span class="slider-val" data-role="sliderval">${displayVal}</span>
+                        `;
                     } else if (type === 'choice') {
-                        control = `<select data-role="input">${p1.map(o =>
-                            `<option value="${o}" ${o === cur ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
-                    } else { // text
-                        control = `<input type="text" data-role="input" value="${String(cur).replace(/"/g, '&quot;')}">`;
+                        const [choices] = rest;
+                        controlHtml = `
+                            <select data-role="input">
+                                ${choices.map(c => `<option value="${c}" ${c === val ? 'selected' : ''}>${c}</option>`).join('')}
+                            </select>
+                        `;
+                    } else {
+                        controlHtml = `<input type="text" data-role="input" value="${val}">`;
                     }
 
                     row.innerHTML = `
-        <div class="label">${key}<div class="key">${section}:${key}</div></div>
-        <div class="control">${control}</div>
-        <div class="help">${help}</div>`;
+                        <div class="param-meta">
+                            <span class="param-name">${key}</span>
+                            <span class="param-ini">${section}:${key}</span>
+                        </div>
+                        <div class="param-control">
+                            ${controlHtml}
+                        </div>
+                        <div class="param-help">
+                            <span>${help}</span>
+                            <span class="info-pill" data-tt="${tooltipKey}">❖ INFO</span>
+                        </div>
+                    `;
+
                     body.appendChild(row);
 
+                    // Input change handler
                     const input = row.querySelector('[data-role=input]');
                     input.addEventListener('input', () => {
-                        let v;
+                        let updatedVal;
                         if (type === 'bool') {
-                            v = input.checked ? 'true' : 'false';
+                            updatedVal = input.checked ? 'true' : 'false';
                             row.querySelector('[data-role=boolval]').textContent = input.checked ? 'ON' : 'OFF';
                         } else if (type === 'float' || type === 'int') {
-                            v = String(input.value);
+                            updatedVal = String(input.value);
+                            const [, , step, fmt] = rest;
+                            const n = Number(input.value);
                             row.querySelector('[data-role=sliderval]').textContent =
-                                fmt ? fmt.replace('{v}', type === 'int' ? input.value : Number(input.value).toFixed(step < 0.1 ? 2 : 1)) : input.value;
+                                fmt ? fmt.replace('{v}', type === 'int' ? n : n.toFixed(step < 0.1 ? 2 : 1)) : input.value;
                         } else {
-                            v = input.value;
+                            updatedVal = input.value;
                         }
-                        parsed.get(section).set(key, v);
+
+                        if (!parsed.has(section)) parsed.set(section, new Map());
+                        parsed.get(section).set(key, updatedVal);
                         row.classList.add('dirty');
                         updateDirty();
                     });
+
+                    // Mouse-over tooltip trigger on the whole row & pill
+                    attachTooltip(row, tooltipKey);
                 }
-                panelsEl.appendChild(panel);
+
+                container.appendChild(panel);
             }
 
-            $('savePanel').classList.remove('hidden');
-            $('btnSave').disabled = $('btnSave2').disabled = !fileHandle;
-            $('btnDownload').disabled = $('btnDownload2').disabled = false;
-            $('btnDefaults').disabled = false;
-        }
-
-        function updateDirty() {
-            const dirty = document.querySelectorAll('.row.dirty').length;
-            const bits = [];
-            if (dirty) bits.push(`<span class="info">${dirty} change${dirty > 1 ? 's' : ''} unsaved</span>`);
-            if (!bits.length && fileHandle) bits.push('<span class="ok">Scroll in hand — all is as written.</span>');
-            if (!fileHandle && originalText) bits.push('<span class="info">Loaded as text — use Export to save a copy.</span>');
-            if (bits.length) setStatus(bits.join(' &nbsp;·&nbsp; '));
+            $('bottomActions').classList.remove('hidden');
+            $('btnExport').disabled = $('btnExport2').disabled = false;
+            updateDirty();
         }
 
         // ------------------------------------------------------------------
-        // Load / save
+        // Rich Floating Tooltip Positioning & Event Listeners
         // ------------------------------------------------------------------
-        async function loadFromHandle(handle) {
-            const file = await handle.getFile();
-            const text = await file.text();
-            acceptText(text, handle, file.name);
+        const tooltipEl = $('richTooltip');
+        let currentTooltipKey = null;
+
+        function attachTooltip(element, key) {
+            element.addEventListener('mouseenter', e => showTooltip(e, key));
+            element.addEventListener('mousemove', moveTooltip);
+            element.addEventListener('mouseleave', hideTooltip);
         }
 
-        function acceptText(text, handle, name) {
-            // Decode as latin-1 to preserve bytes exactly (INI has a ™ on line 1);
-            // file.text() already decoded as UTF-8 — non-ASCII chars in comments will
-            // round-trip fine since we only ever substitute ASCII key values.
+        // Wires every toolbar button, preset button and action button into the
+        // same rich tooltip card used by the configuration rows.
+        function wireUiTooltips() {
+            document.querySelectorAll('[data-tt-ui]').forEach(el => {
+                const key = el.dataset.ttUi;
+                if (!UI_TOOLTIPS[key] || el.dataset.ttWired === '1') return;
+                el.dataset.ttWired = '1';
+                el.addEventListener('mouseenter', e => showTooltip(e, key));
+                el.addEventListener('mousemove', moveTooltip);
+                el.addEventListener('mouseleave', hideTooltip);
+            });
+        }
+
+        function showTooltip(e, key) {
+            const uiData = UI_TOOLTIPS[key];
+            const data = uiData || TOOLTIPS[key];
+            if (!data) return;
+
+            currentTooltipKey = key;
+
+            if (uiData) {
+                const [kind, id] = key.split(':');
+                const btn = $(id);
+                $('ttName').textContent = btn ? btn.textContent.trim() : id;
+                $('ttSection').textContent = '[INTERFACE]';
+            } else {
+                const [section, param] = key.split(':');
+                $('ttName').textContent = param;
+                $('ttSection').textContent = `[${section.toUpperCase()}]`;
+            }
+
+            $('ttImpactLabel').textContent = uiData ? 'Effect:' : 'In-Game Visual Impact:';
+            $('ttDesc').textContent = data.desc;
+            $('ttImpact').textContent = data.impact;
+            $('ttContext').textContent = data.context;
+
+            // UI actions have no shipped numeric value, so only the recommendation row is shown.
+            $('ttFooter').classList.toggle('hidden', !!uiData);
+            $('ttRec').textContent = data.rec;
+            $('ttDefault').textContent = data.dflt || '—';
+
+            tooltipEl.classList.add('visible');
+            moveTooltip(e);
+        }
+
+        function moveTooltip(e) {
+            if (!tooltipEl.classList.contains('visible')) return;
+
+            const offset = 18;
+            const ttWidth = tooltipEl.offsetWidth;
+            const ttHeight = tooltipEl.offsetHeight;
+            const winWidth = window.innerWidth;
+            const winHeight = window.innerHeight;
+
+            let x = e.clientX + offset;
+            let y = e.clientY + offset;
+
+            // Flip horizontally if overflow right
+            if (x + ttWidth > winWidth - 16) {
+                x = e.clientX - ttWidth - offset;
+            }
+            // Clamp vertically
+            if (y + ttHeight > winHeight - 16) {
+                y = winHeight - ttHeight - 16;
+            }
+            if (y < 16) y = 16;
+
+            tooltipEl.style.left = `${x}px`;
+            tooltipEl.style.top = `${y}px`;
+        }
+
+        function hideTooltip() {
+            tooltipEl.classList.remove('visible');
+            currentTooltipKey = null;
+        }
+
+        // ------------------------------------------------------------------
+        // Quick Presets
+        // ------------------------------------------------------------------
+        function applyPreset(presetName) {
+            const p = {
+                vanilla: {
+                    'Kinematics:fSaccadeSpeedMult': '1.0',
+                    'Kinematics:fMicroJitterAmp': '0.35',
+                    'Kinematics:fHeadTrackingSpeed': '6.0',
+                    'Kinematics:fMaxComfortEyeAngle': '35.0',
+                    'Social:bEnableGazeAversion': 'true',
+                    'Social:bEnableSocialTriangle': 'true',
+                    'Crosshair:bEnableCrosshairGaze': 'true'
+                },
+                subtle: {
+                    'Kinematics:fSaccadeSpeedMult': '0.8',
+                    'Kinematics:fMicroJitterAmp': '0.20',
+                    'Kinematics:fHeadTrackingSpeed': '4.5',
+                    'Kinematics:fMaxComfortEyeAngle': '30.0',
+                    'Social:bEnableGazeAversion': 'true',
+                    'Social:bEnableSocialTriangle': 'true',
+                    'Crosshair:bEnableCrosshairGaze': 'true'
+                },
+                intense: {
+                    'Kinematics:fSaccadeSpeedMult': '1.35',
+                    'Kinematics:fMicroJitterAmp': '0.45',
+                    'Kinematics:fHeadTrackingSpeed': '8.0',
+                    'Kinematics:fMaxComfortEyeAngle': '40.0',
+                    'Social:bEnableGazeAversion': 'false',
+                    'Social:bEnableSocialTriangle': 'true',
+                    'Crosshair:bEnableCrosshairGaze': 'true'
+                },
+                social: {
+                    'Kinematics:fSaccadeSpeedMult': '0.95',
+                    'Kinematics:fMicroJitterAmp': '0.30',
+                    'Kinematics:fHeadTrackingSpeed': '5.5',
+                    'Kinematics:fMaxComfortEyeAngle': '35.0',
+                    'Social:bEnableGazeAversion': 'true',
+                    'Social:bEnableSocialTriangle': 'true',
+                    'Social:fMutualGazeThreshold': '1.5',
+                    'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Crosshair:fCrosshairToleranceDeg': '6.0'
+                }
+            }[presetName];
+
+            if (!p) return;
+
+            window.trueGazeSelectedPreset = presetName;
+
+            for (const [fullKey, val] of Object.entries(p)) {
+                const [sec, k] = fullKey.split(':');
+                if (!parsed.has(sec)) parsed.set(sec, new Map());
+                parsed.get(sec).set(k, val);
+            }
+
+            buildUI();
+            document.querySelectorAll('.preset-btn').forEach(button => {
+                const selected = button.id === `preset${presetName.charAt(0).toUpperCase()}${presetName.slice(1)}`;
+                button.classList.toggle('active', selected);
+                button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+            });
+            const selectedLabel = $('selectedPreset');
+            if (selectedLabel) {
+                selectedLabel.textContent = `Selected: ${presetName.charAt(0).toUpperCase()}${presetName.slice(1)}`;
+            }
+            document.querySelectorAll('.config-row').forEach(r => {
+                const k = `${r.dataset.section}:${r.dataset.key}`;
+                if (p[k] !== undefined) r.classList.add('dirty');
+            });
+            updateDirty();
+            toast(`Applied Preset: ${presetName.toUpperCase()}`);
+        }
+
+        $('presetVanilla').addEventListener('click', () => applyPreset('vanilla'));
+        $('presetSubtle').addEventListener('click', () => applyPreset('subtle'));
+        $('presetIntense').addEventListener('click', () => applyPreset('intense'));
+        $('presetSocial').addEventListener('click', () => applyPreset('social'));
+
+        // ------------------------------------------------------------------
+        // Live Biological Eye Simulation Canvas
+        // ------------------------------------------------------------------
+        const canvas = $('eyeCanvas');
+        const ctx = canvas.getContext('2d');
+        let eyeState = {
+            yaw: 0,
+            pitch: 0,
+            targetYaw: 0,
+            targetPitch: 0,
+            lastSaccade: performance.now(),
+            jitterYaw: 0,
+            jitterPitch: 0
+        };
+
+        function simLoop(time) {
+            // Read active parameters from parsed or defaults
+            const saccadeMult = Number(parsed.get('Kinematics')?.get('fSaccadeSpeedMult') || 1.0);
+            const jitterAmp = Number(parsed.get('Kinematics')?.get('fMicroJitterAmp') || 0.35);
+            const maxAngle = Number(parsed.get('Kinematics')?.get('fMaxComfortEyeAngle') || 35.0);
+
+            // Execute occasional saccade every 1.2 to 2.2 seconds
+            if (time - eyeState.lastSaccade > 1600) {
+                const range = Math.min(maxAngle, 26);
+                eyeState.targetYaw = (Math.random() - 0.5) * range * 1.5;
+                eyeState.targetPitch = (Math.random() - 0.5) * (range * 0.8);
+                eyeState.lastSaccade = time;
+            }
+
+            // Smooth convergence with ballistic velocity
+            const speed = 0.18 * saccadeMult;
+            eyeState.yaw += (eyeState.targetYaw - eyeState.yaw) * speed;
+            eyeState.pitch += (eyeState.targetPitch - eyeState.pitch) * speed;
+
+            // Brownian micro-jitter
+            eyeState.jitterYaw = (Math.random() - 0.5) * (jitterAmp * 3.5);
+            eyeState.jitterPitch = (Math.random() - 0.5) * (jitterAmp * 2.5);
+
+            // Render Eye Sphere
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Eye Sclera (White)
+            ctx.save();
+            ctx.beginPath();
+            ctx.ellipse(w / 2, h / 2, 45, 26, 0, 0, Math.PI * 2);
+            ctx.clip();
+
+            const scleraGrad = ctx.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, 48);
+            scleraGrad.addColorStop(0, '#f2ece4');
+            scleraGrad.addColorStop(0.8, '#d6cbbd');
+            scleraGrad.addColorStop(1, '#968875');
+            ctx.fillStyle = scleraGrad;
+            ctx.fillRect(0, 0, w, h);
+
+            // Iris & Pupil Position
+            const irisX = w / 2 + (eyeState.yaw + eyeState.jitterYaw) * 1.35;
+            const irisY = h / 2 + (eyeState.pitch + eyeState.jitterPitch) * 1.1;
+
+            // Iris
+            const irisGrad = ctx.createRadialGradient(irisX, irisY, 2, irisX, irisY, 17);
+            irisGrad.addColorStop(0, '#557a95');
+            irisGrad.addColorStop(0.7, '#2d4b60');
+            irisGrad.addColorStop(1, '#111e28');
+
+            ctx.beginPath();
+            ctx.arc(irisX, irisY, 17, 0, Math.PI * 2);
+            ctx.fillStyle = irisGrad;
+            ctx.fill();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#0a1017';
+            ctx.stroke();
+
+            // Pupil
+            ctx.beginPath();
+            ctx.arc(irisX, irisY, 7.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#060708';
+            ctx.fill();
+
+            // Cornea Specular Highlight
+            ctx.beginPath();
+            ctx.arc(irisX - 4, irisY - 4, 3, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.fill();
+
+            ctx.restore();
+
+            // Eyelids outline
+            ctx.beginPath();
+            ctx.ellipse(w / 2, h / 2, 45, 26, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = '#c9a86a';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            requestAnimationFrame(simLoop);
+        }
+        requestAnimationFrame(simLoop);
+
+        // ------------------------------------------------------------------
+        // Bridge API Integration (Live Scan, Direct INI Sync & Launch)
+        // ------------------------------------------------------------------
+        async function runSystemScan() {
+            setStatus('Scanning Windows installation, registry &amp; game saves...', 'info');
+            try {
+                const resp = await fetch('/api/scan');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                bridgeActive = true;
+
+                // 1. Installation Card
+                if (data.game && data.game.found) {
+                    $('badgeInstall').textContent = `v${data.game.fileVersion || '1.7.104'}`;
+                    $('badgeInstall').className = 'hud-badge ok';
+                    $('bodyInstall').innerHTML = `
+                        <span class="hud-highlight">Skyrim Special Edition</span> detected.<br>
+                        Directory: <span style="font-family:var(--font-mono); font-size:0.75rem;">${data.game.path}</span>
+                    `;
+                    $('footInstall').textContent = data.game.skseLoaderExists ? 'SKSE64 Loader Ready' : 'Standard Launcher';
+                } else {
+                    $('badgeInstall').textContent = 'NOT DETECTED';
+                    $('badgeInstall').className = 'hud-badge warn';
+                    $('bodyInstall').textContent = 'Skyrim path not found in registry. You can still open TrueGaze.ini manually.';
+                }
+
+                // 2. Saves Card
+                if (data.documents && data.documents.found) {
+                    $('badgeSaves').textContent = `${data.documents.saveCount || 0} SAVES`;
+                    $('badgeSaves').className = 'hud-badge ok';
+                    const ls = data.documents.latestSave;
+                    if (ls) {
+                        $('bodySaves').innerHTML = `
+                            Hero: <span class="hud-highlight">${ls.character || 'Player'}</span> at <span class="hud-highlight">${ls.location || 'Skyrim'}</span><br>
+                            Latest: <span style="font-family:var(--font-mono); font-size:0.75rem;">${ls.filename}</span>
+                        `;
+                        $('footSaves').textContent = `Last write: ${ls.lastWrite}`;
+                    } else {
+                        $('bodySaves').textContent = 'Save game folder found; no saves recorded yet.';
+                    }
+                } else {
+                    $('badgeSaves').textContent = 'CHECK FOLDER';
+                    $('badgeSaves').className = 'hud-badge warn';
+                }
+
+                // 3. Engine Card
+                if (data.game && data.game.dllExists) {
+                    $('badgeEngine').textContent = 'DEPLOYED';
+                    $('badgeEngine').className = 'hud-badge ok';
+                    $('bodyEngine').innerHTML = `
+                        <span class="hud-highlight">TrueGaze.dll</span> (${(data.game.dllSize / 1024).toFixed(0)} KB) active in Plugins.<br>
+                        Status: <span class="hud-highlight">${data.gameRunning ? 'Skyrim Currently Running' : 'Game Idle / Ready'}</span>
+                    `;
+                    $('footEngine').textContent = data.game.iniPath;
+                } else {
+                    $('badgeEngine').textContent = 'STANDBY';
+                    $('badgeEngine').className = 'hud-badge warn';
+                    $('bodyEngine').textContent = 'TrueGaze.dll not deployed to Data\\SKSE\\Plugins yet.';
+                }
+
+                // Auto-load INI from bridge
+                await loadIniFromBridge();
+
+            } catch (err) {
+                bridgeActive = false;
+                $('badgeInstall').textContent = 'OFFLINE';
+                $('badgeSaves').textContent = 'OFFLINE';
+                $('badgeEngine').textContent = 'OFFLINE';
+                setStatus('Automation Bridge Offline — Running in Standalone Mode. Use Open Manual INI.', 'warn');
+
+                // Fallback to built-in default schema so sliders remain fully interactive
+                fallbackToDefaults();
+            }
+        }
+
+        async function loadIniFromBridge() {
+            try {
+                const resp = await fetch('/api/ini');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const text = await resp.text();
+                acceptIniText(text, 'Data\\SKSE\\Plugins\\TrueGaze.ini');
+                setStatus('Active configuration synchronized from game installation.', 'ok');
+            } catch (e) {
+                fallbackToDefaults();
+                setStatus('Could not load INI via bridge; initialized default template.', 'warn');
+            }
+        }
+
+        function fallbackToDefaults() {
+            let template = `[General]\r\nbEnableTrueGaze=true\r\nbEnableCreatures=true\r\nsEngineTarget=Auto\r\n\r\n[Kinematics]\r\nfSaccadeSpeedMult=1.000000\r\nfVelocitySaturation=14.000000\r\nfMicroJitterAmp=0.350000\r\nfMicroJitterIntervalMin=0.200000\r\nfMicroJitterIntervalMax=0.450000\r\nfHeadTrackingSpeed=6.000000\r\nfMaxComfortEyeAngle=35.000000\r\n\r\n[SkeletalHierarchy]\r\nfSpine2YawWeight=0.100000\r\nfNeckYawWeight=0.250000\r\nfNeckPitchWeight=0.250000\r\nfHeadYawWeight=0.650000\r\nfHeadPitchWeight=0.750000\r\n\r\n[Social]\r\nbEnableGazeAversion=true\r\nbEnableSocialTriangle=true\r\nfTriangleFixationDuration=0.350000\r\nfMutualGazeThreshold=2.000000\r\n\r\n[Crosshair]\r\nbEnableCrosshairGaze=true\r\nfCrosshairToleranceDeg=4.000000\r\nfCrosshairMaxRangeMeters=25.000000\r\nfCrosshairPointBlankMeters=1.500000\r\n\r\n[Bridge]\r\nbConnectHcepBridge=true\r\nsPipeName=\\\\.\\pipe\\TrueGazeBridge\r\nfAutoReconnectIntervalSec=3.000000\r\n\r\n[LOD]\r\nfTier1DistanceMeters=5.000000\r\nfTier2DistanceMeters=15.000000\r\n\r\n[Debug]\r\nbDebugGazeRays=false\r\niLogLevel=2\r\n\r\n[Visuals]\r\nbEnableInGameVisuals=false\r\nbGazeRaysEnabled=false\r\niRayRenderMode=0\r\nfGazeRayLengthMeters=10.000000\r\niGazeRayColour=13174890\r\nfGazeRayOpacity=0.850000\r\nbGazeRaysOnPlayer=true\r\nbGazeRaysOnNPCs=true\r\nbGazeRaysOnCreatures=true\r\nbGazeRaysAttachHead=true\r\nbGazeRaysTerminus=false\r\nfPupilForwardOffsetCm=7.000000\r\nfPupilUpOffsetCm=1.500000\r\nfPupilGlowIntensity=0.500000\r\n\r\n[Console]\r\nbEnableConsoleCommands=false\r\n`;
+            acceptIniText(template, 'Shipped Defaults');
+        }
+
+        function acceptIniText(text, sourceName) {
             rawText = text;
             originalText = text;
             parsed = parseIni(text);
-            fileHandle = handle || null;
+            activeIniPath = sourceName;
             buildUI();
-            setStatus(`Opened <strong>${name}</strong> — ${[...parsed.keys()].length} sections bound. Speak your changes.`, 'ok');
-            toast('The scroll is open.');
+            toast(`Config Loaded: ${sourceName}`);
         }
 
-        async function saveToHandle() {
-            const text = serializeIni();
-            try {
-                if (fileHandle) {
-                    const w = await fileHandle.createWritable();
-                    // write as latin-1 bytes to preserve the ™ byte on line 1
-                    const bytes = new Uint8Array([...text].map(c => c.charCodeAt(0) & 0xFF));
-                    await w.write(bytes);
-                    await w.close();
-                } else {
-                    await exportCopy();
-                    return;
+        async function saveChanges() {
+            const updatedText = serializeIni();
+            if (bridgeActive) {
+                setStatus('Saving configuration to disk...', 'info');
+                try {
+                    const resp = await fetch('/api/ini', {
+                        method: 'POST',
+                        body: updatedText,
+                        headers: { 'Content-Type': 'text/plain; charset=iso-8859-1' }
+                    });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    originalText = updatedText;
+                    document.querySelectorAll('.config-row.dirty').forEach(r => r.classList.remove('dirty'));
+                    updateDirty();
+                    setStatus('Changes written directly to Data\\SKSE\\Plugins\\TrueGaze.ini (Backup .bak saved).', 'ok');
+                    toast('Saved to Skyrim successfully!');
+                } catch (err) {
+                    setStatus(`Direct save failed: ${err.message}. Use Export Copy instead.`, 'err');
+                    exportCopy();
                 }
-                originalText = text;
-                document.querySelectorAll('.row.dirty').forEach(r => r.classList.remove('dirty'));
-                updateDirty();
-                setStatus('<span class="ok">Written to disk. The gaze is bound to your word.</span>', 'ok');
-                toast('Saved.');
-            } catch (e) {
-                if (e.name === 'AbortError') return;
-                setStatus(`<span class="err">Save failed: ${e.message}. Use Export instead.</span>`, 'err');
+            } else {
+                exportCopy();
             }
         }
 
-        async function exportCopy() {
-            const text = serializeIni();
-            const blobParts = new Uint8Array([...text].map(c => c.charCodeAt(0) & 0xFF));
-            try {
-                if (window.showSaveFilePicker) {
-                    const h = await window.showSaveFilePicker({ suggestedName: 'TrueGaze.ini', types: [{ description: 'INI', accept: { 'text/plain': ['.ini'] } }] });
-                    const w = await h.createWritable();
-                    await w.write(blobParts); await w.close();
-                    fileHandle = h;
-                    $('btnSave').disabled = $('btnSave2').disabled = false;
-                    toast('Exported — handle retained for direct saving.');
-                } else {
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(new Blob([blobParts], { type: 'text/plain' }));
-                    a.download = 'TrueGaze.ini'; a.click();
-                    toast('Copy downloaded.');
-                }
-                setStatus('<span class="ok">Copy exported.</span>', 'ok');
-            } catch (e) {
-                if (e.name === 'AbortError') return;
-                setStatus(`<span class="err">Export failed: ${e.message}</span>`, 'err');
+        async function launchSkyrim() {
+            if (!bridgeActive) {
+                toast('Automation bridge offline — launch SKSE manually');
+                return;
             }
+            setStatus('Requesting SKSE64 launch...', 'info');
+            try {
+                const resp = await fetch('/api/launch', { method: 'POST' });
+                const res = await resp.json();
+                if (res.success) {
+                    setStatus(`Skyrim launched successfully (PID: ${res.pid}) via ${res.launched}`, 'ok');
+                    toast('Skyrim Launched!');
+                } else {
+                    setStatus(`Launch note: ${res.error || 'Check process list'}`, 'warn');
+                    toast(res.error || 'Launch notice');
+                }
+            } catch (err) {
+                setStatus(`Launch request error: ${err.message}`, 'err');
+            }
+        }
+
+        async function openLogModal() {
+            $('logModal').classList.add('active');
+            await refreshLog();
+        }
+
+        async function refreshLog() {
+            $('logConsole').textContent = 'Fetching live tail from SKSE\\TrueGaze.log...';
+            try {
+                const resp = await fetch('/api/log?lines=80');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                if (data.lines) {
+                    $('logConsole').textContent = data.lines.join('\n');
+                    $('logMeta').textContent = `Path: ${data.path} · Updated: ${data.lastWrite || 'Just now'}`;
+                    $('logConsole').scrollTop = $('logConsole').scrollHeight;
+                } else {
+                    $('logConsole').textContent = 'No log entries found.';
+                }
+            } catch (err) {
+                $('logConsole').textContent = `Error reading log via bridge: ${err.message}`;
+            }
+        }
+
+        function exportCopy() {
+            const text = serializeIni();
+            const blob = new Blob([text], { type: 'text/plain;charset=iso-8859-1' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'TrueGaze.ini';
+            a.click();
+            toast('Exported TrueGaze.ini');
         }
 
         function restoreDefaults() {
-            for (const [section, keys] of Object.entries(DEFAULTS)) {
-                const secVals = parsed.get(section);
-                if (!secVals) continue;
-                for (const [key, def] of Object.entries(keys)) {
-                    if (!secVals.has(key)) continue;
-                    const [, dflt] = def;
-                    secVals.set(key, def[0] === 'bool' ? String(dflt) : String(dflt));
+            for (const [section, schema] of Object.entries(DEFAULTS)) {
+                if (!parsed.has(section)) parsed.set(section, new Map());
+                for (const [k, def] of Object.entries(schema)) {
+                    parsed.get(section).set(k, String(def[1]));
                 }
             }
             buildUI();
-            document.querySelectorAll('.row').forEach(r => r.classList.add('dirty'));
+            document.querySelectorAll('.config-row').forEach(r => r.classList.add('dirty'));
             updateDirty();
-            toast('Shipped defaults restored — remember to save.');
+            toast('Restored Shipped Defaults — Remember to Save');
         }
 
         // ------------------------------------------------------------------
-        // Directory scan: remembers the chosen root (IndexedDB, survives reloads),
-        // auto-scans on page load, and auto-opens the preferred INI.
+        // Event Listeners & Bootstrapping
         // ------------------------------------------------------------------
-        const IDB_NAME = 'truegaze-config', IDB_STORE = 'handles', IDB_KEY = 'gameRoot';
-        // Ranking: engine INI first, MCM overlay second, anything else last.
-        const rankPath = p => /SKSE\\Plugins/i.test(p) ? 0 : /MCM/i.test(p) ? 1 : 2;
+        $('btnScan').addEventListener('click', runSystemScan);
+        $('btnSave').addEventListener('click', saveChanges);
+        $('btnSave2').addEventListener('click', saveChanges);
+        $('btnLaunch').addEventListener('click', launchSkyrim);
+        $('btnExport').addEventListener('click', exportCopy);
+        $('btnExport2').addEventListener('click', exportCopy);
+        $('btnDefaults').addEventListener('click', restoreDefaults);
 
-        function idbOpen() {
-            return new Promise((res, rej) => {
-                const rq = indexedDB.open(IDB_NAME, 1);
-                rq.onupgradeneeded = () => rq.result.createObjectStore(IDB_STORE);
-                rq.onsuccess = () => res(rq.result);
-                rq.onerror = () => rej(rq.error);
-            });
-        }
-        async function idbSet(key, val) {
-            const db = await idbOpen();
-            return new Promise((res, rej) => {
-                const tx = db.transaction(IDB_STORE, 'readwrite');
-                tx.objectStore(IDB_STORE).put(val, key);
-                tx.oncomplete = res; tx.onerror = () => rej(tx.error);
-            });
-        }
-        async function idbGet(key) {
-            const db = await idbOpen();
-            return new Promise((res, rej) => {
-                const tx = db.transaction(IDB_STORE, 'readonly');
-                const rq = tx.objectStore(IDB_STORE).get(key);
-                rq.onsuccess = () => res(rq.result || null);
-                rq.onerror = () => rej(rq.error);
-            });
-        }
+        $('btnLog').addEventListener('click', openLogModal);
+        $('btnCloseLog').addEventListener('click', () => $('logModal').classList.remove('active'));
+        $('btnRefreshLog').addEventListener('click', refreshLog);
 
-        async function* walkDirectory(dirHandle, depth = 0) {
-            if (depth > 6) return; // safety cap
-            for await (const entry of dirHandle.values()) {
-                if (entry.kind === 'file') {
-                    if (/^truegaze.*\.ini$/i.test(entry.name)) yield { handle: entry, name: entry.name, path: entry.name };
-                } else if (entry.kind === 'directory') {
-                    // skip heavy/irrelevant dirs (but NOT at depth 0, so picking
-                    // Plugins itself still works and is never silently filtered)
-                    if (depth > 1 && /^(meshes|textures|videos|bsa|strings|sound|scripts|interface)$/i.test(entry.name)) continue;
-                    for await (const found of walkDirectory(entry, depth + 1)) {
-                        yield { handle: found.handle, name: found.name, path: entry.name + '\\' + found.path };
-                    }
-                }
-            }
-        }
-
-        async function probeFile(handle) {
-            try {
-                const f = await handle.getFile();
-                const text = await f.text();
-                const sections = (text.match(/^\s*\[/gm) || []).length;
-                return { size: f.size, modified: f.lastModified, looksTrueGaze: /TrueGaze/i.test(text.slice(0, 200)), sections };
-            } catch {
-                return null;
-            }
-        }
-
-        function renderScanResults(results) {
-            const box = $('scanResults');
-            $('scanPanel').classList.remove('hidden');
-            if (!results.length) {
-                box.innerHTML = '<div class="scan-empty">No TrueGaze INI scrolls were found in the scanned grounds. Try a different root directory.</div>';
-                return;
-            }
-            box.innerHTML = '';
-            for (const r of results) {
-                const item = document.createElement('div');
-                item.className = 'scan-item';
-                const dstr = r.meta ? new Date(r.meta.modified).toLocaleString() : '';
-                item.innerHTML = `
-                    <span class="path">${r.rootLabel}\\${r.path}</span>
-                    <span class="meta">${r.meta ? r.meta.size + ' B · ' + dstr : ''}${r.meta && r.meta.looksTrueGaze ? ' · ✓' : ''}</span>
-                    <button>Open</button>`;
-                item.querySelector('button').addEventListener('click', async () => {
-                    if (r.handle) {
-                        await loadFromHandle(r.handle);
-                    } else {
-                        // File System Access API unavailable for this entry: fetch via input fallback
-                        $('fileInput').click();
-                    }
-                    $('scanPanel').classList.add('hidden');
-                });
-                box.appendChild(item);
-            }
-        }
-
-        async function collectResults(root) {
-            const results = [];
-            const seen = new Set();
-            for await (const found of walkDirectory(root)) {
-                if (seen.has(found.path)) continue;
-                seen.add(found.path);
-                const meta = await probeFile(found.handle);
-                results.push({ handle: found.handle, path: found.path, rootLabel: root.name, meta });
-            }
-            results.sort((a, b) => rankPath(a.path) - rankPath(b.path));
-            return results;
-        }
-
-        async function autoLoadBest(results) {
-            const best = results.find(r => rankPath(r.path) === 0) || results[0];
-            if (best && best.handle) {
-                await loadFromHandle(best.handle);
-                $('scanPanel').classList.add('hidden');
-                return best;
-            }
-            return null;
-        }
-
-        async function scanRoot(root, { autoOpen = false, rootLabel = '' } = {}) {
-            setStatus('<span class="info">Scanning the chosen grounds…</span>');
-            let results = [];
-            try {
-                results = await collectResults(root);
-            } catch (e) {
-                setStatus(`<span class="err">Scan interrupted: ${e.message}</span>`, 'err');
-                renderScanResults([]);
-                return;
-            }
-            renderScanResults(results);
-            const where = rootLabel ? ` (${rootLabel})` : ` beneath <strong>${root.name}</strong>`;
-            if (!results.length) {
-                setStatus(`<span class="err">Scan complete — no TrueGaze INI found${where}. Check the scan diagnostics.</span>`, 'err');
-                return;
-            }
-            if (autoOpen) {
-                const best = await autoLoadBest(results);
-                if (best) {
-                    setStatus(`<span class="ok">Auto-loaded <strong>${best.path}</strong>${where} — ${results.length} candidate${results.length > 1 ? 's' : ''} found. Speak your changes.</span>`, 'ok');
-                    return;
-                }
-            }
-            setStatus(`<span class="ok">Scan complete — ${results.length} scroll${results.length > 1 ? 's' : ''} found${where}.</span>`, 'ok');
-        }
-
-        async function pickAndScan() {
-            if (!window.showDirectoryPicker) {
-                setStatus('<span class="err">Directory scanning needs a Chromium browser (Chrome/Edge) — the File System Access API is unavailable here.</span>', 'err');
-                return;
-            }
-            let root;
-            try {
-                root = await window.showDirectoryPicker({ mode: 'read', startIn: 'documents' });
-            } catch (e) {
-                if (e.name !== 'AbortError') setStatus(`<span class="err">${e.message}</span>`, 'err');
-                return;
-            }
-            // Persist the handle so future page loads auto-scan this ground.
-            try { await idbSet(IDB_KEY, root); } catch { }
-            await scanRoot(root, { autoOpen: true });
-        }
-
-        // Auto-restore: silently re-scan a remembered ground; if the browser
-        // requires a permission re-grant, surface a single one-click button.
-        async function autoRestore() {
-            if (!window.showDirectoryPicker) return;
-            let root = null;
-            try { root = await idbGet(IDB_KEY); } catch { }
-            if (!root) {
-                setStatus('<span class="info">No remembered ground yet — press <strong>Scan Directories</strong> once to bind your game folder.</span>');
-                return;
-            }
-            let perm = await root.queryPermission({ mode: 'read' });
-            if (perm !== 'granted') {
-                setStatus(`<span class="info">Remembered ground: <strong>${root.name}</strong> — press <strong>Restore &amp; Auto-Load</strong> to grant access once.</span>`);
-                const btn = $('btnScan');
-                btn.textContent = 'Restore & Auto-Load';
-                btn.dataset.restore = '1';
-                return;
-            }
-            await scanRoot(root, { autoOpen: true, rootLabel: 'remembered' });
-        }
-
-        async function scanDirectories() {
-            const btn = $('btnScan');
-            if (btn.dataset.restore) {
-                delete btn.dataset.restore;
-                btn.textContent = 'Scan Directories';
-                const root = await idbGet(IDB_KEY);
-                if (root) {
-                    try {
-                        const p = await root.requestPermission({ mode: 'read' });
-                        if (p === 'granted') { await scanRoot(root, { autoOpen: true, rootLabel: 'remembered' }); return; }
-                    } catch { }
-                }
-            }
-            await pickAndScan();
-        }
-
-        // ------------------------------------------------------------------
-        // Direct access: auto-load the INI by fetching its known relative path.
-        //
-        // A file:// page cannot fetch() sibling files in a stock browser (CORS).
-        // Launch via Launch-TrueGazeConfig.cmd, which starts the browser with
-        // --allow-file-access-from-files; the fetch then succeeds and the scroll
-        // opens itself with no picker, no drag, no scan. If the fetch fails (stock
-        // browser, or the file moved), fall through to the remembered-handle
-        // restore and the manual paths below.
-        // ------------------------------------------------------------------
-        const DIRECT_CANDIDATES = [
-            'skyrim/SKSE/Plugins/TrueGaze.ini',   // repo layout (this file sits at the root)
-            '../skyrim/SKSE/Plugins/TrueGaze.ini' // in case the page is served from a subfolder
-        ];
-
-        async function tryDirectLoad() {
-            for (const rel of DIRECT_CANDIDATES) {
-                try {
-                    const resp = await fetch(rel, { cache: 'no-store' });
-                    if (!resp.ok) continue;
-                    const text = await resp.text();
-                    if (!/\[General\]/i.test(text)) continue; // only accept a TrueGaze INI
-                    acceptText(text, null, rel);
-                    setStatus(`<span class="ok">Directly loaded <strong>${rel}</strong> — edits save via <strong>Export Copy</strong> (browser sandbox cannot write project files without a one-time picker).</span>`);
-                    return true;
-                } catch { /* next candidate */ }
-            }
-            return false;
-        }
-
-        // ------------------------------------------------------------------
-        // Wiring
-        // ------------------------------------------------------------------
-        $('btnOpen').addEventListener('click', async () => {
-            if (window.showOpenFilePicker) {
-                try {
-                    const [h] = await window.showOpenFilePicker({ types: [{ description: 'INI', accept: { 'text/plain': ['.ini'] } }] });
-                    await loadFromHandle(h);
-                } catch (e) { if (e.name !== 'AbortError') setStatus(`<span class="err">${e.message}</span>`, 'err'); }
-            } else {
-                $('fileInput').click();
-            }
-        });
-
-        $('btnScan').addEventListener('click', scanDirectories);
-
+        $('btnOpen').addEventListener('click', () => $('fileInput').click());
         $('fileInput').addEventListener('change', async e => {
-            const f = e.target.files[0];
-            if (f) acceptText(await f.text(), null, f.name);
+            const file = e.target.files[0];
+            if (file) {
+                const text = await file.text();
+                acceptIniText(text, file.name);
+            }
             e.target.value = '';
         });
 
-        const dz = $('dropzone');
-        dz.addEventListener('click', () => $('fileInput').click());
-        dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
-        dz.addEventListener('dragleave', () => dz.classList.remove('over'));
-        dz.addEventListener('drop', async e => {
-            e.preventDefault(); dz.classList.remove('over');
-            const f = e.dataTransfer.files[0];
-            if (f) acceptText(await f.text(), null, f.name);
-        });
-
-        $('btnSave').addEventListener('click', saveToHandle);
-        $('btnSave2').addEventListener('click', saveToHandle);
-        $('btnDownload').addEventListener('click', exportCopy);
-        $('btnDownload2').addEventListener('click', exportCopy);
-        $('btnDefaults').addEventListener('click', restoreDefaults);
-
         window.addEventListener('beforeunload', e => {
-            if (document.querySelector('.row.dirty')) { e.preventDefault(); e.returnValue = ''; }
+            if (document.querySelectorAll('.config-row.dirty').length > 0) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
         });
 
-        // On page load: try direct fetch of the known INI path first (works when the
-        // browser grants file access — see Launch-TrueGazeConfig.cmd). If that is
-        // unavailable, silently auto-restore the remembered game directory and
-        // auto-scan + auto-load the engine INI, falling back to a one-click
-        // "Restore & Auto-Load" if the browser needs a permission re-grant.
-        (async () => {
-            if (await tryDirectLoad()) return;
-            await autoRestore();
-        })();
-
-        // ------------------------------------------------------------------
-        // Direct auto-load of the known INI path
-        // ------------------------------------------------------------------
-        tryDirectLoad();
+        // Initialize on load
+        runSystemScan();
+        wireUiTooltips();
     </script>
 </body>
 
