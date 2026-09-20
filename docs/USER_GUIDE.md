@@ -22,6 +22,12 @@ The current runtime can:
 
 The optional Visuals subsystem is a developer diagnostic. It is not required for the gaze simulation itself.
 
+<p align="center">
+  <img src="images/target_salience_perception_cones.jpg" alt="In-Engine Gaze Perception & Target Salience Tracking" width="100%">
+  <br>
+  <em>Figure 1: In-engine target salience and perception field-of-view cones tracking environmental focal points and conversational targets in third-person view.</em>
+</p>
+
 ## 2. Requirements
 
 ### Skyrim and runtime
@@ -89,6 +95,12 @@ The configurator can:
 
 The top status cards use a classic Skyrim silver treatment. This is visual configurator styling only; it does not alter in-game rendering.
 
+<p align="center">
+  <img src="images/configurator_dashboard_telemetry.jpg" alt="TrueGaze Configurator & Telemetry Hub" width="100%">
+  <br>
+  <em>Figure 2: The standalone TrueGaze Configurator & Telemetry Hub interface with active silver presets and real-time ocular tracking diagnostics.</em>
+</p>
+
 ### Presets
 
 The built-in presets are tuning starting points, not separate engines:
@@ -146,6 +158,12 @@ fCrosshairPointBlankMeters=1.5
 
 Crosshair gaze is the player-attention signal used for mutual-gaze behavior. It does not mean that every NPC is always selected as a target.
 
+<p align="center">
+  <img src="images/kinematics_social_triangle.jpg" alt="Biomechanical Oculomotor Diagnostic & Social Triangle Overlay" width="100%">
+  <br>
+  <em>Figure 3: Biomechanical diagnostic overlay illustrating the facial Social Triangle scanning pattern and VOR counter-rotation arc.</em>
+</p>
+
 ### HCEP bridge
 
 The HCEP Desktop bridge client is now part of the HCEP application. See [`HCEP_TRUEGAZE_BRIDGE_CLIENT.md`](HCEP_TRUEGAZE_BRIDGE_CLIENT.md) for its build, publish, connection, and troubleshooting procedure.
@@ -158,6 +176,12 @@ fAutoReconnectIntervalSec=3.0
 ```
 
 The bridge is optional. When unavailable, TrueGaze uses autonomous Skyrim-side attention. When enabled, HCEP telemetry is received locally through a named pipe. Biometric data should only be collected with informed consent from everyone in front of the sensor.
+
+<p align="center">
+  <img src="images/hcep_bridge_architecture.jpg" alt="HCEP Bridge Architecture: Real-World Tracking to Skyrim Kinematics" width="100%">
+  <br>
+  <em>Figure 4: Real-world face/eye tracking streamed through the local named pipe into Skyrim's skeletal transform pipeline.</em>
+</p>
 
 ### LOD
 

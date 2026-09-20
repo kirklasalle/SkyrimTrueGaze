@@ -55,6 +55,12 @@ The Human Communication Eye Protocol (HCEP) does not usurp the narrative directo
 
 ## 2. Opening Scene Case Study: The Helgen Cart Ride (`MQ101`)
 
+<p align="center">
+  <img src="images/helgen_meta_controller_scene.jpg" alt="Helgen Cart Ride MQ101 Meta-Controller Architecture" width="100%">
+  <br>
+  <em>Figure 1: Dual-layer Meta-Controller architecture during the Helgen cart sequence (MQ101)—preserving the macro narrative Havok path while modulating micro-kinematic gaze vectors without physics instability.</em>
+</p>
+
 ### 2.1 The Environmental & Mechanical Constraints
 Skyrim’s intro sequence (`MQ101`) is historically the most fragile script in modded gaming:
 1. **Furniture/Cart Binding:** Actors (Player, Ralof, Ulfric Stormcloak, Lokir of Rorikstead) are attached to moving cart furniture references via hardpoint links.

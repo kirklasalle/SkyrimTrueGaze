@@ -16,6 +16,10 @@
 **Native Binary:** `TrueGaze.dll` (SKSE64 / CommonLibSSE-NG)  
 **Target Platform:** The Elder Scrolls V: Skyrim (SE 1.5.97, AE 1.6.640+, AE 1.6.1170+, Skyrim VR) & Modern Creation Engine
 
+<p align="center">
+  <img src="docs/images/truegaze_hero_banner.jpg" alt="TrueGaze Hero Banner - Biological Perception & Biomechanical Kinematics Engine" width="100%">
+</p>
+
 > [!IMPORTANT]
 > **Documentation vs. Implementation.** The architecture sections below describe the *designed* TrueGaze system — the target. The runtime has now been exercised inside Skyrim AE: the plugin loads through SKSE, actor hooks invoke, eligible actors tick, targets resolve, skeletons are probed, HCEP telemetry is consumed, and diagnostic light emitters attach. **The visible beam/geometry illustration layer remains under development** and is not yet verified as rendered in-game. For the verified capability matrix, see **[`docs/STATUS.md`](docs/STATUS.md)**, the current roadmap in **[`ROADMAP.md`](ROADMAP.md)**, and the independent **[`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md)**.
 
@@ -55,6 +59,12 @@ Unlike traditional head-tracking mods that apply rigid spherical interpolation d
 * **Micro-saccadic Brownian drift** preventing visual freezing.
 * **Cognitive Gaze Aversion (THINK Mode)** and **Social Triangle Cycling (AFFECT Mode)**.
 * **Deep Open Animation Replacer (OAR) integration**, allowing modders to trigger bespoke body gestures based on real-time gaze and cognitive states.
+
+<p align="center">
+  <img src="docs/images/mutual_gaze_tavern.jpg" alt="Mutual Gaze Dynamics in Skyrim Tavern Environment" width="100%">
+  <br>
+  <em>Figure 1: Authentic mutual gaze dynamics between Skyrim characters—eradicating "dead-eye zombie syndrome" through micro-kinematic social resonance.</em>
+</p>
 
 ---
 
@@ -98,6 +108,12 @@ Unlike traditional head-tracking mods that apply rigid spherical interpolation d
 └───────────────────────────────┘               └────────────────────────────────┘
 ```
 
+<p align="center">
+  <img src="docs/images/kinematics_social_triangle.jpg" alt="Biomechanical Oculomotor Diagnostic & Social Triangle Overlay" width="100%">
+  <br>
+  <em>Figure 2: Real-time oculomotor kinematics diagnostic overlay showing facial Social Triangle fixation scanning and Vestibulo-Ocular Reflex (VOR) counter-rotation.</em>
+</p>
+
 ### 2.1. The Main Sequence Saccade Dynamic
 
 Living eyes do not rotate with smooth linear damping. They jump ballistically:
@@ -128,6 +144,16 @@ If a 3D model looks at an object with zero movement, the viewer's brain recogniz
 Human eyes suppress visual perception during large saccades, and **large saccades (>20° amplitude) trigger synchronous micro-blinks**.
 
 * When `TrueGaze` detects a major gaze transition, it signals the character's eyelid morphs (`EyelidUpper_Down`, `EyelidLower_Up`) to execute a subtle 120ms dip-and-open, eliminating static, staring eyes.
+
+### 2.5. Cervical-Cranial Skeletal Hierarchy & Strain Distribution
+
+Human gaze is distributed anatomically across the cervical spine and skull base rather than rotating an isolated neck pivot:
+
+<p align="center">
+  <img src="docs/images/skeletal_kinematic_hierarchy.jpg" alt="Cervical-Cranial Skeletal Hierarchy & Euler Limits" width="100%">
+  <br>
+  <em>Figure 3: Biomechanical hierarchical rotation distribution across cervical vertebrae (NPC Spine2 10%, NPC Neck 25%, NPC Head 65%, Ocular Vector 100%) with strict Euler angle clamping envelopes.</em>
+</p>
 
 ---
 
@@ -220,6 +246,12 @@ One of the most powerful architectural enhancements is making `TrueGaze` a first
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+<p align="center">
+  <img src="docs/images/hcep_bridge_architecture.jpg" alt="HCEP Bridge Architecture: Real-World Tracking to Skyrim Kinematics" width="100%">
+  <br>
+  <em>Figure 4: Connected HCEP Bridge architecture—streaming real-world user eye tracking and facial orientation via Windows Named Pipes into Skyrim's skeletal transform pipeline.</em>
+</p>
+
 ### IPC Telemetry Specification (`HcepGazeTelemetryPacket`)
 
 * **Transport**: Windows Asynchronous Named Pipe (`\\.\pipe\TrueGazeBridge`).
@@ -298,6 +330,12 @@ Players and modders have full control over the engine through a single INI file:
 * **Connected Mode**: HCEP Desktop sync toggle, pipe name, reconnect interval.
 * **LOD**: Tier 1 / Tier 2 distance thresholds.
 * **Diagnostics**: Debug gaze rays, log level.
+
+<p align="center">
+  <img src="docs/images/configurator_dashboard_telemetry.jpg" alt="TrueGaze Configurator & Telemetry Hub" width="100%">
+  <br>
+  <em>Figure 5: The standalone TrueGaze Configurator & Telemetry Hub with real-time ocular graphs, 3D orientation gauge, silver active presets, and direct INI serialization.</em>
+</p>
 
 ---
 

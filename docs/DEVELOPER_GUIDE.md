@@ -304,6 +304,12 @@ The S2 rig-capability diagnostics classify the first successful skeleton probe a
 
 Vanilla humanoid rigs may not expose separate eye nodes. The visual subsystem and skeleton code must therefore tolerate missing eye bones and derive the pupil origin from the head basis when needed.
 
+<p align="center">
+  <img src="images/skeletal_kinematic_hierarchy.jpg" alt="Cervical-Cranial Skeletal Hierarchy & Euler Limits" width="100%">
+  <br>
+  <em>Figure 1: Biomechanical hierarchical rotation distribution across cervical vertebrae (NPC Spine2 10%, NPC Neck 25%, NPC Head 65%, Ocular Vector 100%) with strict Euler angle clamping envelopes.</em>
+</p>
+
 ## 11. VisualEffectsManager
 
 The visual subsystem is a consumer of solved state. It should not call `TargetSelector` or invent a second gaze direction.
@@ -381,6 +387,12 @@ The wire contract contains:
 - Active target and feedback data.
 - CRC validation and semantic validation.
 
+<p align="center">
+  <img src="images/hcep_bridge_architecture.jpg" alt="HCEP Bridge Architecture: Real-World Tracking to Skyrim Kinematics" width="100%">
+  <br>
+  <em>Figure 2: Real-world face/eye tracking streamed through the local named pipe into Skyrim's skeletal transform pipeline.</em>
+</p>
+
 The implementation uses asynchronous worker activity and a triple-buffered exchange. Keep game-thread work non-blocking. Do not read or write the pipe handle directly from the game thread when the worker owns it; use the existing outbound queue/accessor pattern.
 
 HCEP telemetry should be treated as optional, stale data should be rejected, and local biometric data handling must remain consistent with `LICENSE` and `GOVERNANCE.md`.
@@ -396,6 +408,22 @@ HCEP telemetry should be treated as optional, stale data should be rejected, and
 5. **Convergence plausibility** — focal distance outside 0.3-6.0 m is flagged, not silently trusted.
 
 `LastIntent()` exposes the current fusion state; `tgstatus` prints it so a support report can answer why fusion is inactive without a debugger.
+
+### 12.2 Scripted Scenes & Meta-Controller Architecture
+
+During highly scripted sequences—most critically the opening carriage ride (`MQ101`) approaching Helgen—standard autonomous gaze plugins risk destabilizing Havok physics rigid bodies or overriding bespoke dialogue look-ats. TrueGaze addresses this by operating as a **Meta-Controller**:
+
+- **Macro Narrative Invariance:** The Skyrim quest engine retains 100% authority over actor navigation, furniture bindings, and root translations ($\Delta T = 0$).
+- **Micro-Kinematic Modulation:** TrueGaze injects additive angular deltas ($\Delta \mathbf{R}$) across cervical and ocular nodes, applying non-linear hyperbolic tangent strain clamping ($\theta_{\text{eff}} = \theta_{\text{max}} \tanh(\theta / \theta_{\text{max}})$).
+- **Havok Zero-Taint:** Rotational deltas are fully withdrawn between animation frames, guaranteeing zero Havok cart rollover or physics explosions.
+
+<p align="center">
+  <img src="images/helgen_meta_controller_scene.jpg" alt="Helgen Cart Ride MQ101 Meta-Controller Architecture" width="100%">
+  <br>
+  <em>Figure 3: Dual-layer Meta-Controller architecture during the Helgen cart sequence (MQ101)—preserving the macro narrative Havok path while modulating micro-kinematic gaze vectors without physics instability.</em>
+</p>
+
+For full mathematical derivations, packet structures, and dialogue sentiment parsing rules, see [`docs/HCEP_META_CONTROLLER_SPEC.md`](HCEP_META_CONTROLLER_SPEC.md).
 
 ## 13. Console Diagnostics
 
