@@ -10,7 +10,7 @@
 namespace TrueGaze::Engine
 {
 
-    /// @brief Per-actor simulation state, persisted across frames.
+    /// @brief Per-actor kinematics state, persisted across frames.
     ///
     /// Every kinematics module is a pure function over a state struct. Something has
     /// to own those structs for the lifetime of an actor. Before this existed, no
@@ -45,10 +45,10 @@ namespace TrueGaze::Engine
         /// True while the eyes are at their limit and cannot reach the target.
         bool eyeSaturated{false};
 
-        /// Wall-clock seconds since this actor was last simulated. Used for eviction.
+        /// Wall-clock seconds since this actor was last evaluated. Used for eviction.
         float idleSec{0.0f};
 
-        /// True once the actor has been simulated at least once.
+        /// True once the actor has been evaluated at least once.
         bool initialised{false};
 
         /// True once this actor's skeleton has been probed and the result logged.
@@ -69,7 +69,7 @@ namespace TrueGaze::Engine
         /// Timer for throttled 3D gaze ray diagnostic logging.
         float rayDebugTimerSec{0.0f};
 
-        /// Monotonic engine frame number when this actor was last simulated.
+        /// Monotonic engine frame number when this actor was last evaluated.
         /// Prevents double-ticking within a single render frame.
         uint64_t lastFrameTicked{0};
 
@@ -91,7 +91,7 @@ namespace TrueGaze::Engine
         RE::NiAVObject *cachedEyeL{nullptr};
         RE::NiAVObject *cachedEyeR{nullptr};
 
-        /// Reset the simulation to a known state, e.g. after a cell change.
+        /// Reset the kinematics runtime to a known state, e.g. after a cell change.
         void Reset(float startYaw, float startPitch) noexcept
         {
             saccade = {};

@@ -6,7 +6,7 @@
 namespace TrueGaze::Engine
 {
 
-    /// @brief Drives the gaze simulation each frame and applies it to actor skeletons.
+    /// @brief Drives the gaze kinematics engine each frame and applies it to actor skeletons.
     ///
     /// Installed on Actor/Character/PlayerCharacter Update vtables. Each actor's
     /// previous procedural pose is restored before Skyrim animates it, then fresh
@@ -17,7 +17,7 @@ namespace TrueGaze::Engine
         /// @brief Installs the per-frame gaze driver.
         static void Install() noexcept;
 
-        /// @brief Simulates and applies gaze for every eligible loaded actor.
+        /// @brief Evaluates and applies gaze kinematics for every eligible loaded actor.
         static void TickAllActors(float deltaSeconds) noexcept;
 
         /// @brief Releases modified bones and retires idle actors. Call after ticking.

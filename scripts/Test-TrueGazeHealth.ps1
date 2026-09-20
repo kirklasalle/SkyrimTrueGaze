@@ -435,7 +435,7 @@ function Invoke-TGPreFlight {
             Add-TGResult -Name 'TrueGaze.ini deployed and parseable' -Status 'Pass' `
                 -Detail "bEnableTrueGaze=$val"
             if ($val -match '^(false|0)$') {
-                Add-TGResult -Name 'Gaze simulation enabled' -Status 'Warn' `
+                Add-TGResult -Name 'Gaze kinematics enabled' -Status 'Warn' `
                     -Detail 'bEnableTrueGaze is false. The plugin will load but do nothing.' `
                     -Fix 'Set bEnableTrueGaze=true once the load-only test has passed.'
             }

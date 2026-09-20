@@ -123,7 +123,7 @@ Transforms the HCEP cognitive mode into physical skeletal deflections:
 
 ### Tier 3: Visual & Audio Synchronization
 * **Blink Coordination:** Eye blinks are triggered dynamically during the peak velocity phase of large saccades ($> 15^\circ$), hiding saccadic blur just as the human brain suppresses visual processing during rapid eye motion (saccadic masking).
-* **Micro-Jitter & Physiological Drift:** Sub-degree Brownian drift ($0.15^\circ - 0.35^\circ$) is continuously injected to simulate physiological tremor, preventing actors from looking like rigid mannequins even when holding a fixed gaze.
+* **Micro-Jitter & Physiological Drift:** Sub-degree Brownian drift ($0.15^\circ - 0.35^\circ$) is continuously injected to reproduce living physiological tremor, preventing actors from looking like rigid mannequins even when holding a fixed gaze.
 
 ---
 

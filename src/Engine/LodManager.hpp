@@ -12,7 +12,7 @@ namespace TrueGaze::Engine
     public:
         enum class LodTier : uint8_t
         {
-            Tier1_DialogueRange = 0, // < 5 meters: Full biological simulation (Eyes, Saccades, VOR, Micro-drift, Eyelid Blinks)
+            Tier1_DialogueRange = 0, // < 5 meters: Full biological kinematics (Eyes, Saccades, VOR, Micro-drift, Eyelid Blinks)
             Tier2_Proximity = 1,     // 5m - 15m: Head & Neck kinematics active; Eye tracking simplified; Micro-drift disabled
             Tier3_Culled = 2         // > 15 meters: Standard game engine LOD; processing bypassed entirely
         };

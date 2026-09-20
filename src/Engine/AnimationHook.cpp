@@ -51,7 +51,7 @@ namespace TrueGaze::Engine
         /// So every actor and the player share the single inherited implementation
         /// at `Actor::Update`. Patching that one vtable entry gives one call per
         /// actor per frame, with the game's own delta time, on the game thread —
-        /// exactly what the simulation needs, and the same shape of hook the
+        /// exactly what the kinematics engine needs, and the same shape of hook the
         /// original design intended.
         ///
         struct ActorTag
@@ -92,7 +92,7 @@ namespace TrueGaze::Engine
                                  a_actor ? a_actor->GetFormID() : 0u, a_delta);
                 }
 
-                // Everything that follows is ours. A defect in the simulation must
+                // Everything that follows is ours. A defect in the kinematics engine must
                 // degrade gaze, not take the game down with it.
                 //
                 // LIMITATION (stated honestly): this catches C++ exceptions only.

@@ -205,7 +205,7 @@ namespace TrueGaze::Integrations
             { return b ? "ON " : "OFF"; };
 
             ConsolePrint("TrueGaze - status");
-            ConsolePrint("  simulation       %s  bEnableTrueGaze", onOff(cfg.enableTrueGaze));
+            ConsolePrint("  kinematics       %s  bEnableTrueGaze", onOff(cfg.enableTrueGaze));
             ConsolePrint("  creatures        %s  bEnableCreatures", onOff(cfg.enableCreatures));
             ConsolePrint("  in-game visuals  %s  bEnableInGameVisuals", onOff(cfg.enableInGameVisuals));
             ConsolePrint("  gaze rays        %s  bGazeRaysEnabled", onOff(cfg.gazeRaysEnabled));
@@ -298,7 +298,7 @@ namespace TrueGaze::Integrations
         /// One table, so the registrations and the count can never disagree.
         /// Deliberately small and focused: toggles, plus a status read-out.
         constexpr CommandDef kCommands[] = {
-            {"tg", "Toggle the TrueGaze simulation on/off", &CmdMaster},
+            {"tg", "Toggle the TrueGaze kinematics engine on/off", &CmdMaster},
             {"tgvisuals", "Toggle all in-game visuals on/off", &CmdVisuals},
             {"tgv", "Toggle the gaze-ray emitters (laser eyes)", &CmdRays},
             {"tgon", "Turn every in-game visual on", &CmdOn},

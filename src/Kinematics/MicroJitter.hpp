@@ -101,7 +101,7 @@ namespace TrueGaze::Kinematics
             }
 
             constexpr float kFixedStep = 1.0f / 120.0f;
-            constexpr float kMaxCatchUp = 0.25f; // never simulate more than 250 ms at once
+            constexpr float kMaxCatchUp = 0.25f; // never integrate more than 250 ms at once
 
             state.accumulatorSec += deltaSeconds;
 

@@ -7,7 +7,7 @@ namespace TrueGaze::Engine
 
     /// @brief Immutable per-frame snapshot of the tunable parameters.
     ///
-    /// The simulation modules take their constants as arguments rather than reading
+    /// The kinematics modules take their constants as arguments rather than reading
     /// globals. This struct is the single place where configuration is converted into
     /// those arguments, so that a value in TrueGaze.ini has exactly one path to the
     /// mathematics.

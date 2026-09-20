@@ -84,7 +84,7 @@ $shortcuts = @(
     @{
         Name = 'TrueGaze - Safe Load-Only Test.lnk'
         Args = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -LoadOnly"
-        Desc = 'Deploy with simulation disabled and launch, to prove the plugin loads safely'
+        Desc = 'Deploy with kinematics engine disabled and launch, to prove the plugin loads safely'
     },
     @{
         Name = 'TrueGaze - Verify Only.lnk'

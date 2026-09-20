@@ -149,8 +149,8 @@ For security and integrity verification:
 
 | Package | File Name | Size | SHA-256 Checksum |
 | :--- | :--- | :--- | :--- |
-| **Main Mod Archive** | `TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` | ~304 KB | `41AB39649F3B78F505F6BA4D972460365CC4EFAA0352C61297CB66F60991410F` |
-| **Companion Symbols** | `TrueGaze-v1.0.0-Symbols.zip` | ~4.87 MB | `5021AB863EF30539F0A0DE4FC87A9C88C090AEB55B16FF3BC4FF74F28D10EA28` |
+| **Main Mod Archive** | `TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` | 304.3 KB | `E8CB51DB733E63D33B3CCCAD57B761417C78F0831BA31C975D2B50D67066DFB1` |
+| **Companion Symbols** | `TrueGaze-v1.0.0-Symbols.zip` | 5.16 MB | `39D750349D3C2EA2250F1BC24991DAAC43132494937309AC36B3564A285B523D` |
 
 ---
 

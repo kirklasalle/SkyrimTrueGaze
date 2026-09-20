@@ -145,7 +145,7 @@ This sets `bEnableTrueGaze=true`.
 
 | Distance | Tier | What runs |
 | :--- | :--- | :--- |
-| **< 5 m** | Tier 1 — Dialogue range | Full simulation: saccades, VOR, micro-drift, saccadic blinks |
+| **< 5 m** | Tier 1 — Dialogue range | Full biological kinematics: saccades, VOR, micro-drift, saccadic blinks |
 | **5–15 m** | Tier 2 — Proximity | Head & neck kinematics; micro-drift disabled |
 | **> 15 m** | Tier 3 — Culled | Nothing. Game's own LOD takes over. |
 

@@ -107,7 +107,7 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
   When NPCs evaluate complex questions, recite memories, or change topics, they must execute an avert-saccade away from the player's face toward the upper-left or upper-right peripheral quadrant for 1.2–2.5 seconds before returning to foveal contact.
 
 - **[FR-7] Saccadic Blink Coupling (EFM Integration):**
-  Large-amplitude saccades ($> 20^\circ$) must automatically trigger a 120ms micro-blink curve applied to Expressive Facegen Morphs or eyelid bone scales, simulating saccadic suppression.
+  Large-amplitude saccades ($> 20^\circ$) must automatically trigger a 120ms micro-blink curve applied to Expressive Facegen Morphs or eyelid bone scales, reproducing physiological saccadic suppression.
 
 ### 4.3 Connected HCEP Desktop Telemetry Bridge
 
@@ -133,7 +133,7 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
   All tuning exposed through `Data\SKSE\Plugins\TrueGaze.ini`, edited via the self-contained `TrueGazeConfig.html` page (auto-loads the INI; launch via `Launch-TrueGazeConfig.cmd`). Covers saccade speed, jitter amplitude and interval, skeletal strain shares, gaze aversion, HCEP desktop sync, mutual gaze threshold, LOD distances, and debug gaze rays.
 
 - **[FR-12] Dynamic Level-of-Detail (LOD):**
-  - *Tier 1 (< 5m):* Full simulation (eyes, head, neck, micro-jitter, blinks, triangle).
+  - *Tier 1 (< 5m):* Full biological kinematics (eyes, head, neck, micro-jitter, blinks, triangle).
   - *Tier 2 (5m–15m):* Head and neck kinematics; eye drift culled.
   - *Tier 3 (> 15m):* Engine bypassed entirely; 0.000ms overhead.
 

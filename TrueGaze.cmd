@@ -374,7 +374,7 @@ exit /b 1
 
 REM ===========================================================================
 REM  Deploy
-REM  %1 = 1 for load-only (disable the simulation in the deployed INI)
+REM  %1 = 1 for load-only (disable the kinematics engine in the deployed INI)
 REM ===========================================================================
 :DEPLOY_IMPL
 echo.
@@ -840,11 +840,11 @@ set "DEPINI=%GAMEPATH%\Data\SKSE\Plugins\TrueGaze.ini"
 if not exist "!DEPINI!" goto :INI_ABSENT
 findstr /i /c:"bEnableTrueGaze=true" "!DEPINI!" >nul 2>&1
 if errorlevel 1 goto :INI_DISABLED
-echo   OK    TrueGaze.ini deployed (simulation enabled)
+echo   OK    TrueGaze.ini deployed (kinematics engine enabled)
 exit /b 0
 
 :INI_DISABLED
-echo   OK    TrueGaze.ini deployed (simulation disabled)
+echo   OK    TrueGaze.ini deployed (kinematics engine disabled)
 echo   WARN  bEnableTrueGaze is false. The plugin will load but do nothing.
 set /a WARNED+=1
 exit /b 0

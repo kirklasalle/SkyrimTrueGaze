@@ -42,7 +42,7 @@ namespace TrueGaze::Visuals
     /// ## Threading
     ///
     /// Game thread only, driven from `GazeEngine::TickActor` / `ApplyToSkeleton`,
-    /// exactly like the rest of the simulation. No locks: the emitter map is touched
+    /// exactly like the rest of the kinematics engine. No locks: the emitter map is touched
     /// only from the game thread.
     class VisualEffectsManager
     {
@@ -206,7 +206,7 @@ namespace TrueGaze::Visuals
         uint64_t _geometryAttempts{0};
         uint64_t _geometryCreated{0};
 
-        /// Bound on actors holding visual emitters, independent of the simulation's
+        /// Bound on actors holding visual emitters, independent of the kinematics engine's
         /// own cap, so a large cell cannot multiply the visual cost without limit.
         static constexpr size_t kMaxEmitterActors = 64;
     };

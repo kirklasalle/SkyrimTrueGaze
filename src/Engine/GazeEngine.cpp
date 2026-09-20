@@ -215,7 +215,7 @@ namespace TrueGaze::Engine
         TargetSelector::s_crosshair.maxRangeMeters = cfg.crosshairMaxRangeMeters;
         TargetSelector::s_crosshair.pointBlankMeters = cfg.crosshairPointBlankMeters;
 
-        // In-game visual settings are snapshotted alongside the simulation tuning.
+        // In-game visual settings are snapshotted alongside the kinematics tuning.
         // The renderer is a pure consumer of the engine's solved state, so its
         // constants travel the same single path as everything else in GazeTuning.
         {
@@ -334,7 +334,7 @@ namespace TrueGaze::Engine
     }
 
     // ---------------------------------------------------------------------------
-    // Per-actor simulation
+    // Per-actor kinematics execution
     // ---------------------------------------------------------------------------
 
     void GazeEngine::TickActor(RE::Actor *actor, float deltaSeconds) noexcept

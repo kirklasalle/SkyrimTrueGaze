@@ -12,7 +12,7 @@ namespace TrueGaze::API
     namespace
     {
 
-        /// Populate telemetry for an actor from live simulation state.
+        /// Populate telemetry for an actor from live kinematics state.
         ///
         /// Before this was wired to GazeEngine, every field was a hardcoded literal and
         /// the function returned true, so a caller could not distinguish real data from
@@ -27,7 +27,7 @@ namespace TrueGaze::API
             auto *state = Engine::GazeEngine::Get().FindActor(actorFormId);
             if (!state || !state->initialised)
             {
-                return false; // no live simulation for this actor
+                return false; // no live runtime state for this actor
             }
 
             out->actorFormId = actorFormId;

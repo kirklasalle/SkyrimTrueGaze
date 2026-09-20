@@ -16,7 +16,7 @@
 namespace TrueGaze::Engine
 {
 
-    /// @brief Owns all gaze simulation state and drives every actor each frame.
+    /// @brief Owns all gaze kinematics state and drives every actor each frame.
     ///
     /// ## Why this exists
     ///
@@ -57,7 +57,7 @@ namespace TrueGaze::Engine
         void StartBridge() noexcept;
         void StopBridge() noexcept;
 
-        /// @brief Simulates and applies gaze for one actor. Game thread only.
+        /// @brief Evaluates and applies biological kinematics for one actor. Game thread only.
         /// @param deltaSeconds Real frame time, used for all integration.
         void TickActor(RE::Actor *actor, float deltaSeconds) noexcept;
 
@@ -73,10 +73,10 @@ namespace TrueGaze::Engine
 
         // --- Queries used by the API and OAR conditions ---------------------------
 
-        /// @brief Returns the live simulation state for an actor, or nullptr.
+        /// @brief Returns the live kinematics state for an actor, or nullptr.
         [[nodiscard]] ActorGazeRuntime *FindActor(uint32_t formId) noexcept;
 
-        /// @brief Number of actors currently simulated. Diagnostic.
+        /// @brief Number of actors currently tracked. Diagnostic.
         [[nodiscard]] size_t TrackedActorCount() const noexcept { return _actors.size(); }
 
         /// @brief Human-readable name of an HCEP mode id. Diagnostic.

@@ -243,7 +243,7 @@ struct HcepGazeTelemetryPacket
 To guarantee flawless performance even in heavy combat or crowded cities (Whiterun, Solitude):
 
 1. **Distance LOD Tiering**:
-   * **Tier 1 ($< 5\text{m}$ / Dialogue Range)**: Full simulation (Eyes, Saccades, VOR, Social Triangle, Micro-drift, Eyelid Blinks).
+   * **Tier 1 ($< 5\text{m}$ / Dialogue Range)**: Full biological kinematics (Eyes, Saccades, VOR, Social Triangle, Micro-drift, Eyelid Blinks).
    * **Tier 2 ($5\text{m} - 15\text{m}$ / Proximity Range)**: Head & Neck kinematics active; Eye nodes use simplified tracking; Micro-drift disabled.
    * **Tier 3 ($> 15\text{m}$)**: Standard game engine LOD; processing completely bypassed.
 2. **Multi-Threaded Evaluation**:

@@ -29,7 +29,7 @@
 
 .PARAMETER LoadOnly
     Deploy with bEnableTrueGaze=false. Proves the plugin loads and installs its
-    hook without running the simulation. This is the recommended first run.
+    hook without running the kinematics engine. This is the recommended first run.
 
 .PARAMETER PostRun
     Analyse the log from the last run instead of deploying.

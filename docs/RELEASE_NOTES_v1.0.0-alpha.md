@@ -68,7 +68,7 @@ Data/
 Open the Skyrim console (`~`) at any time during gameplay to execute:
 
 * `tgstatus` — Output full real-time engine diagnostics (tracked actors, tick counts, active targets, visual emitters, and bridge state).
-* `tg` — Toggle TrueGaze simulation on or off.
+* `tg` — Toggle TrueGaze kinematics engine on or off.
 * `tgvisuals` / `tgv` — Toggle in-game gaze visual emitters and debug rays.
 * `tgmode` — Cycle visual render modes (`0` = Lights + Geometry, `1` = Lights only, `2` = Geometry only).
 * `tgon` / `tgoff` — Turn all visual diagnostics on or off.

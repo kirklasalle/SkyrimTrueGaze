@@ -94,7 +94,7 @@ namespace TrueGaze::Engine
         // --- Visuals (in-game 3D representation of the solved gaze) ---
         //
         // These keys drive src/Visuals. The whole subsystem is off by default and
-        // developer-oriented: nothing here may affect the simulation, the save game,
+        // developer-oriented: nothing here may affect the kinematics engine, the save game,
         // or a shipped build's appearance unless explicitly enabled.
         bool enableInGameVisuals{false};  // master switch for every in-game visual
         bool gazeRaysEnabled{false};      // laser-eye beams from the pupil
