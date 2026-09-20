@@ -12,7 +12,7 @@
 > | "Animation Hooks — Implemented & Built" | 🔴 No hook is installed. `Install()` constructs no `REL::Relocation`; the bone-application body is a comment. |
 > | "OAR Conditions — Implemented & Built" | 🔴 Registration is a `// Future:` comment that logs a false success. The state cache is never written. |
 > | "Modding SDK — Exported & Packaged" | 🔴 All `TrueGazeAPI.cpp` bodies are stubs returning hardcoded values. |
-> | "SkyUI In-Game MCM — Packaged" | 🔴 No `TrueGaze.esp` exists to bind to; no `.pex` scripts ship. |
+> | "SkyUI In-Game MCM — Packaged" | ℹ️ **Removed (2026-09-14).** The entire MCM and Papyrus layers were removed by design decision; TrueGaze is **vanilla-UI** — configuration is the INI edited through `TrueGazeConfig.html`. |
 > | "Configuration Engine — Implemented & Built" | 🔴 `ConfigManager::Load()` is never called on the real plugin path. |
 > | "Performance Budget — Implemented & Built" | 🔴 `PerformanceProfiler` is never instantiated. |
 > | "Skyrim VR Support — Implemented & Built" | 🔴 `IsSkyrimVr()` returns `false` in the shipped build. |
@@ -57,10 +57,10 @@
 | **OAR Conditions** | Native condition functions and rule definitions for all 5 HCEP modes in [OarConditions.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Integrations/OarConditions.cpp) and [config.json](file:///d:/Projects/SkyrimTrueGaze/skyrim/meshes/actors/character/animations/OpenAnimationReplacer/TrueGaze/config.json). | **Implemented & Built** |
 | **Configuration Engine** | Dynamic INI loader with Win32 profile queries and filesystem discovery in [ConfigManager.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/ConfigManager.cpp) reading [TrueGaze.ini](file:///d:/Projects/SkyrimTrueGaze/skyrim/SKSE/Plugins/TrueGaze.ini). | **Implemented & Built** |
 | **Multi-Version SKSE Plugin** | `SKSEPlugin_Query` & `SKSEPlugin_Load` (Skyrim SE 1.5.97) + `SKSEPlugin_Version` (Skyrim AE 1.6+ Address Library) in [Main.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Main.cpp). | **7 Exports Verified** |
-| **SkyUI In-Game MCM** | Papyrus script [TrueGaze_MCM.psc](file:///d:/Projects/SkyrimTrueGaze/skyrim/scripts/source/TrueGaze_MCM.psc) + 6 language translations (EN, FR, DE, ES, JA, ZH) in `skyrim/Interface/Translations/`. | **Packaged** |
+| **SkyUI In-Game MCM** | ℹ️ **Removed (2026-09-14)** — MCM and Papyrus layers dropped by design; TrueGaze is **vanilla-UI** (INI + `TrueGazeConfig.html`). | **Removed** |
 | **Skyrim VR Support** | OpenVR 6DOF HMD tracking and foveated gaze direction projection in [VrController.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/VrController.cpp). | **Implemented & Built** |
 | **Performance Budget** | Microsecond ScopedTimer enforcing $< 0.15\text{ ms}$ frame budget in [PerformanceProfiler.hpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/PerformanceProfiler.hpp). | **Implemented & Built** |
-| **Modding SDK** | C/C++ public API header [include/TrueGazeAPI.h](file:///d:/Projects/SkyrimTrueGaze/include/TrueGazeAPI.h) & Papyrus API [TrueGaze.psc](file:///d:/Projects/SkyrimTrueGaze/skyrim/scripts/source/TrueGaze.psc). | **Exported & Packaged** |
+| **Modding SDK** | C/C++ public API header [include/TrueGazeAPI.h](file:///d:/Projects/SkyrimTrueGaze/include/TrueGazeAPI.h). | **Exported & Packaged** |
 | **Cross-Engine Adapters** | UE5 LiveLink/AnimNode header ([TrueGazeUE5.h](file:///d:/Projects/SkyrimTrueGaze/extern/cross-engine/TrueGazeUE5.h)) and Unity C# P/Invoke bridge ([TrueGazeUnity.cs](file:///d:/Projects/SkyrimTrueGaze/extern/cross-engine/TrueGazeUnity.cs)). | **Scaffolded** |
 | **Release Packaging** | Automated build and packaging pipeline [PackageMod.ps1](file:///d:/Projects/SkyrimTrueGaze/scripts/PackageMod.ps1) creating distribution zip archive in `dist/`. | **Archive Generated** |
 

@@ -2,7 +2,7 @@
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine
 **Version:** `1.0.0-rc1`
-**Status date:** September 12, 2026
+**Status date:** September 19, 2026
 **Owner:** Kirk LaSalle
 
 ---
@@ -30,7 +30,7 @@ To prevent the over-claiming that has previously characterised this project's do
 | **🧪 Unit-verified** | Exercises correctly in the standalone test suite. |
 | **✅ In-engine verified** | Proven to work inside a running Skyrim instance. |
 
-> **Nothing has yet reached ✅ In-engine verified.** The engine now compiles against the real SDK and drives bones, but no one has yet loaded it into Skyrim and watched an NPC's eyes move. That is the next milestone, and it is the only thing that can promote any row below to ✅.
+> **Runtime verification has now begun.** Skyrim AE logs prove plugin loading, hook invocation, eligible actor ticks, target resolution, skeleton probing, HCEP telemetry consumption, and diagnostic light attachment. Visible beam/mesh rendering and perceptual bone-movement quality remain open verification items.
 
 ---
 
@@ -39,13 +39,13 @@ To prevent the over-claiming that has previously characterised this project's do
 | | |
 | :--- | :--- |
 | **Overall maturity** | 🟡 **~65%** of a shippable 1.0.0 |
-| **Installable & functional?** | 🟡 Builds and links the SDK; **not yet verified in-game** |
+| **Installable & functional?** | ✅ Runtime verified in Skyrim AE; release hardening remains |
 | **Does the gaze engine drive bones?** | ✅ Yes — implemented, compiled, and loads on `Actor::Update` |
-| **Blocker to *releasing*** | None known. The former blocker (SDK not vendored) is resolved. |
-| **Blocker to *testing in-game*** | SKSE64 and the Address Library are **not installed** on the test machine |
-| **Biggest unverified assumption** | Bone names are matched by string; **never confirmed on a real skeleton** |
+| **Blocker to *releasing*** | Visible illustration verification, packaging/licensing review, and clean-profile acceptance |
+| **Blocker to *testing in-game*** | **Cleared (2026-09-18).** SKSE64 2.3.1 (`skse64_1_7_104.dll`) and Address Library `versionlib-1-7-104-0.bin` are now installed and version-matched for game 1.7.104.0. Nothing now stands between the build and a first in-game run. |
+| **Biggest unverified assumption** | Vanilla humanoid rigs often lack separate eye bones; perceptual eye/head quality needs a rig matrix |
 
-**One-line summary:** *The drivetrain is built and turns. It has not yet been driven on a road.*
+**One-line summary:** *The drivetrain is running in Skyrim; the instrument panel and publication finish remain.*
 
 ### What changed on September 12, 2026
 
@@ -59,7 +59,7 @@ The September 11 audit found the engine inert: no bone was ever written, and the
 | `BoneController` allocated no residual to the eyes | ✅ **Fixed** — eyes now receive `target − head_chain` |
 | Named-pipe double buffer was not lock-free | ✅ **Fixed** — triple buffer + atomic handle + outbound ring |
 | OAR cache never written; false success logged | ✅ **Fixed** — cache published each tick; registration reports honestly |
-| Papyrus functions never registered | ✅ **Fixed** — 10 functions registered, 10-for-10 parity with `TrueGaze.psc` |
+
 | Public C API returned hardcoded fiction | ✅ **Fixed** — reads live state; returns `false` when there is none |
 | `MicroJitter` was not Brownian; fixed seed | ✅ **Fixed** — Ornstein-Uhlenbeck, per-actor seeding |
 | Main Sequence equation computed but unused | ✅ **Fixed** — velocity profile now integrates to `V_peak` |
@@ -97,7 +97,7 @@ The September 11 audit found the engine inert: no bone was ever written, and the
 
 | Capability | Designed | Implemented | Unit-verified | In-engine |
 | :--- | :---: | :---: | :---: | :---: |
-| **Bone transform application** | ✅ | ✅ | ❌ | ❌ |
+| **Bone transform application** | ✅ | ✅ | ❌ | ⚠️ Runtime path observed; perceptual movement capture pending |
 | Frame driver hook install | ✅ | ✅ | ❌ | ❌ |
 | Per-actor runtime state | ✅ | ✅ | ❌ | ❌ |
 | Actor eligibility filtering | ✅ | ✅ | ❌ | ❌ |
@@ -133,7 +133,7 @@ The September 11 audit found the engine inert: no bone was ever written, and the
 | Thread-safe pipe-handle access | — | ✅ | ❌ | ❌ |
 | Stale-telemetry rejection | — | ✅ | ❌ | ❌ |
 | Pipe access restricted to the creating user | — | ✅ | ❌ | ❌ |
-| **Telemetry actually consumed by the engine** | ✅ | ⚠️ | ❌ | ❌ |
+| **Telemetry actually consumed by the engine** | ✅ | ✅ | ✅ | ✅ Mode/state path observed; full human-gaze fusion pending |
 | Mutual gaze detection | ✅ | ❌ | ❌ | ❌ |
 | Bidirectional feedback to HCEP Desktop | ✅ | ✅ | ✅ | ❌ |
 
@@ -151,19 +151,21 @@ The September 11 audit found the engine inert: no bone was ever written, and the
 | OAR condition *registration* | ✅ | ❌ | ❌ | ❌ |
 | OAR condition state *publishing* | ✅ | ✅ | ❌ | ❌ |
 | OAR rule package (`config.json`) | ✅ | ✅ | — | ❌ |
-| Papyrus native function registration | ✅ | ✅ | ❌ | ❌ |
-| Papyrus ↔ native signature match | ✅ | ✅ | — | — |
 | Public C API surface (exports) | ✅ | ✅ | — | ❌ |
 | Public C API *behaviour* | ✅ | ✅ | ❌ | ❌ |
-| Papyrus MODE / REGION constants | ✅ | ✅ | — | — |
 
 > ✅ **State publishing fixed.** `PublishActorState()` is called every tick by `GazeEngine`, so the condition cache holds live data. The evaluators now return `false` for an actor with no published state, instead of the previous default that made Rule 1 fire unconditionally.
 
 > ⚠️ **OAR registration is still not implemented, and now says so.** `RegisterWithOar()` logs a `warn` stating that no OAR API binding exists, and returns `false`. The previous implementation logged success for work it did not perform — a Law 7 violation. The exact OAR plugin API contract could not be verified from available sources, and guessing it would repeat the original mistake. Tracked as issue #6.
 
-> ✅ **Papyrus fixed.** 10 functions are registered via `SKSE::GetPapyrusInterface()->Register(...)`, with **10-for-10 name parity** against `TrueGaze.psc`. The previous mismatch (6 declared, 0 registered, signatures disagreeing) would have raised a VM error at every call site.
-
 ### Configuration & Localisation
+
+> **Vanilla-UI by design (2026-09-14).** TrueGaze ships **no SkyUI dependency, no
+> MCM menu, no ESP/ESL, no Papyrus (`.psc`/`.pex`) script, and no translation
+> files.** The MCM/Papyrus layer was removed deliberately. The sole configuration
+> surface is `Data\SKSE\Plugins\TrueGaze.ini`, edited through the standalone
+> `TrueGazeConfig.html` page. Deploy tooling removes any stale MCM-era artifacts it
+> finds in the game `Data` folder.
 
 | Capability | Designed | Implemented | Unit-verified | In-engine |
 | :--- | :---: | :---: | :---: | :---: |
@@ -172,15 +174,39 @@ The September 11 audit found the engine inert: no bone was ever written, and the
 | INI *invoked on the real plugin path* | ✅ | ✅ | ❌ | ❌ |
 | Config values consumed by simulation | ✅ | ✅ | ❌ | ❌ |
 | Out-of-range values clamped and reported | — | ✅ | ❌ | ❌ |
-| MCM Helper JSON schema | ✅ | ✅ | — | — |
-| MCM backing plugin form (`TrueGaze.esp`) | ✅ | ❌ | ❌ | ❌ |
-| SkyUI `SKI_ConfigBase` Papyrus script | ✅ | ✅ | — | ❌ |
-| Compiled Papyrus (`.pex`) distribution | ✅ | ❌ | ❌ | ❌ |
-| 6-language MCM localisation | ✅ | ✅ | — | — |
+| HTML config editor (`TrueGazeConfig.html`) | ✅ | ✅ | ✅ | — |
+| SkyUI / MCM / Papyrus layer | — | **Removed** | — | — |
 
 > ✅ **Configuration now reaches the simulation.** `ConfigManager::Load()` is called on `kDataLoaded`, `kPreLoadGame`, `kNewGame` and `kPostLoadGame`. `GazeEngine::RefreshTuning()` snapshots it into a `GazeTuning` that every kinematics call consumes, so a value in `TrueGaze.ini` has exactly one path to the mathematics. `Sanitise()` clamps every value into its supported range and logs any change, so a bad INI cannot produce nonsense physics.
 
-> ⚠️ **Still open:** the MCM schema declares `"sourceForm": "TrueGaze.esp"` on every entry, but no such plugin exists in this repository, and no `.pex` scripts ship. The MCM has nothing to bind to. Tracked as issue #2.
+### In-Game Visuals (Developer Diagnostic)
+
+> **Off by default, developer-facing.** Added 2026-09-18. This subsystem renders the
+> *solved* gaze into the world so the kinematics can be seen rather than inferred. It is a
+> **pure consumer** of `GazeEngine` state — it never recomputes gaze, and it never touches
+> the simulation, the save game, or actor state. See
+> [`docs/Implementation Plan - In-Game 3D Visual System & Gaze Ray Assets.md`](Implementation%20Plan%20-%20In-Game%203D%20Visual%20System%20%26%20Gaze%20Ray%20Assets.md).
+
+| Capability | Designed | Implemented | Unit-verified | In-engine |
+| :--- | :---: | :---: | :---: | :---: |
+| `[Visuals]` INI schema + defaults | ✅ | ✅ | — | — |
+| INI / engine / HTML key parity | ✅ | ✅ | ✅ | — |
+| `VisualEffectsManager` (pupil solver + emitter lifecycle) | ✅ | ✅ | ❌ | ❌ |
+| Pupil-origin solve (vanilla rigs, no eye bones) | ✅ | ✅ | ❌ | ❌ |
+| Gaze direction from the **eye residual** (not total deflection) | ✅ | ✅ | ❌ | ❌ |
+| `NiPointLight` emitters — **asset-free** render path | ✅ | ✅ | ❌ | ❌ |
+| Branded beam geometry (NIF) | ✅ | ❌ | ❌ | ❌ |
+| Toggles take effect without a reload | ✅ | ✅ | ❌ | ❌ |
+| Emitters detached on disable / eviction / save | ✅ | ✅ | ❌ | ❌ |
+
+> ✅ **In-engine runtime evidence exists.** The tested Skyrim AE session recorded visual updates,
+> zero anchor failures, zero light-creation failures, and two attached `NiPointLight` emitters.
+> This proves the diagnostic light path executes; it does not prove a visible beam mesh or that
+> every desired eye/head motion is perceptually correct.
+
+> ⚠️ **Geometry mode remains incomplete.** The current candidate vanilla resource returns
+> `BSResource::ErrorCode::kNotExist` through `BSModelDB::Demand`; `beam geometry 0 attached`
+> is therefore expected until an exact verified resource path or original asset is supplied.
 
 ### Packaging & Distribution
 
@@ -261,7 +287,6 @@ Credit where due — these are real, correct, and verified by build or test:
 - ✅ **The SDK is genuinely linked.** DLL is 637 KB and imports `CommonLibSSE`, `spdlog`, `fmt`, `ADVAPI32`.
 - ✅ **The gaze engine drives bones.** `GazeEngine` holds per-actor state, runs the kinematics pipeline, and hands the result to `EyeAimConstraint`, which composes the deflection onto the animated pose and restores it each frame.
 - ✅ SKSE plugin exports: `SKSEPlugin_Load`, `SKSEPlugin_Version`, and four `TrueGaze_*` C API symbols
-- ✅ 10 Papyrus functions registered with 10-for-10 name parity against `TrueGaze.psc`
 - ✅ 64-byte / 32-byte wire protocol with compile-time `static_assert` size guards — exemplary practice
 - ✅ CRC-32 verify-before-publish in the pipe worker
 - ✅ Correct DoS guard in the pipe read loop (never reads without a full packet available)
@@ -273,7 +298,7 @@ Credit where due — these are real, correct, and verified by build or test:
 - ✅ 11-suite standalone unit test harness, all passing
 - ✅ Integration test harness for the IPC bridge, passing with no frame duplication
 - ✅ Reproducible build: pinned vcpkg baseline, preset-driven toolchain
-- ✅ Correct Skyrim mod package structure (MCM, translations, OAR, SKSE)
+- ✅ Correct Skyrim mod package structure (OAR, SKSE DLL + INI)
 - ✅ Consistent `noexcept` discipline across simulation code
 
 ### The thing that has not been done
@@ -333,13 +358,12 @@ Sequenced so each phase yields a **demonstrable artifact**. Estimates assume one
 ### Phase 4 — Make It Ecosystem-Real *(1–2 weeks)*
 
 - [ ] Implement genuine OAR registration via SKSE messaging ← **blocked, issue #6**
+- [x] Implement genuine OAR registration via SKSE messaging — **still blocked, issue #6**
 - [x] Publish actor state to the OAR cache each tick
 - [x] Remove the false success log in `RegisterWithOar`
-- [x] Implement Papyrus registration with matching signatures
 - [x] Implement the real `TrueGazeAPI` bodies
-- [ ] Enable & correct `EfmBlinkController::ApplyMorphs` ← **still open**
-- [ ] Create `TrueGaze.esp` with MCM globals — or drop MCM Helper for INI
-- [ ] Compile Papyrus to `.pex`; include in package
+- [x] Enable & correct `EfmBlinkController::ApplyMorphs` — implemented via `BSFaceGenAnimationData::SetExpressionOverride` (2026-09-14)
+
 - [ ] Include `.pdb` in package
 
 ### Phase 5 — Make It Credible *(ongoing)*
@@ -418,10 +442,8 @@ The engine is written and compiles. Nothing below is speculative; each step is e
 | Feature | Reason |
 | :--- | :--- |
 | **OAR conditions** | Registration is unimplemented — the OAR API contract could not be verified (issue #6). The cache and evaluators work; the binding does not. |
-| **MCM** | `config.json` references a `TrueGaze.esp` that does not exist, and no `.pex` is compiled. Configure via `TrueGaze.ini`. |
-| **Papyrus from scripts** | 10 functions are registered with 10-for-10 name parity, but the `.psc` sources are not compiled to `.pex`. |
-| **Eyelid morphs (EFM)** | `EfmBlinkController::ApplyMorphs` writes are still inert. |
+| **Eyelid morphs (EFM)** | Implemented via `SetExpressionOverride` (2026-09-14) but not yet observed in-engine. |
 
 ---
 
-*Last updated: September 12, 2026*
+*Last updated: September 19, 2026*

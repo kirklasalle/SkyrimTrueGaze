@@ -1,6 +1,9 @@
 # TRUE GAZE™ (`TrueGaze`)
+
 ## Biological NPC Gaze & Biomechanical Kinematics Engine
+
 ### A First-Party Product of the Human Communication Eye Protocol (HCEP) Architecture
+
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository / Workspace:** `D:\Projects\SkyrimTrueGaze`  
 **Native Binary:** `TrueGaze.dll` (SKSE64 / CommonLibSSE-NG)  
@@ -13,6 +16,7 @@
 **True Gaze™** is an advanced biomechanical perception and kinematics engine designed to eradicate the "dead-eye zombie syndrome" pervasive in game engines. Developed as a specialized gaming product of Kirk LaSalle's **Human Communication Eye Protocol (HCEP)**, `TrueGaze` bridges 50 years of psycholinguistic and neuroscience research (Argyle & Cook, Kendon, Glenberg) into real-time 3D game characters.
 
 Unlike traditional head-tracking mods that apply rigid spherical interpolation directly to the neck bone, `TrueGaze` models the **human oculomotor system**:
+
 * **Eyes lead, head follows** via the Vestibulo-Ocular Reflex (VOR).
 * **Ballistic Saccades** calculated via the empirical Main Sequence equation.
 * **Micro-saccadic Brownian drift** preventing visual freezing.
@@ -62,7 +66,9 @@ Unlike traditional head-tracking mods that apply rigid spherical interpolation d
 ```
 
 ### 2.1. The Main Sequence Saccade Dynamic
+
 Living eyes do not rotate with smooth linear damping. They jump ballistically:
+
 * **Duration ($\mathbf{D}$)**: $D = D_0 + d \cdot \theta$ (typically 20ms to 50ms depending on angular amplitude $\theta$).
 * **Peak Angular Velocity ($\mathbf{V_{peak}}$)**:
   $$V_{peak} = V_{max} \cdot \left(1 - e^{-\frac{\theta}{C}}\right)$$
@@ -70,19 +76,24 @@ Living eyes do not rotate with smooth linear damping. They jump ballistically:
 * The eye holds fixation on an interest point for **200ms to 600ms**, then jumps ballistically in under 40ms to the next salient landmark.
 
 ### 2.2. The Vestibulo-Ocular Reflex (VOR) & Head-Eye Decoupling
+
 * **Latency Gap**: The eye begins moving within **20ms–30ms** of a new target being selected. The heavy head and neck bones do not begin significant inertial movement until **120ms–180ms**.
 * **Counter-Rotation**: Once the eyes have snapped to the target, the head begins swinging toward the target. During this head rotation, the eyes must counter-rotate backwards in the head frame at the exact opposite angular velocity:
   $$\vec{\omega}_{\text{eye}} = -\vec{\omega}_{\text{head}}$$
   This keeps the image locked onto the fovea without visual slipping.
 
 ### 2.3. Micro-Saccadic Brownian Drift (Fixation Jitter)
+
 If a 3D model looks at an object with zero movement, the viewer's brain recognizes it as synthetic or dead. `TrueGaze` injects an organic, sub-conscious physiological drift:
+
 * **Frequency**: 1.5 Hz to 3.0 Hz.
 * **Amplitude**: $0.15^\circ$ to $0.45^\circ$.
 * Implemented as damped 2D Brownian motion across the ocular yaw/pitch plane.
 
 ### 2.4. Saccadic Suppression & Eyelid Blink Coupling
+
 Human eyes suppress visual perception during large saccades, and **large saccades (>20° amplitude) trigger synchronous micro-blinks**.
+
 * When `TrueGaze` detects a major gaze transition, it signals the character's eyelid morphs (`EyelidUpper_Down`, `EyelidLower_Up`) to execute a subtle 120ms dip-and-open, eliminating static, staring eyes.
 
 ---
@@ -102,6 +113,7 @@ One of the most powerful architectural enhancements is making `TrueGaze` a first
 ```
 
 ### Custom OAR Conditions Exposed by TrueGaze
+
 `TrueGaze` registers custom condition functions directly with OAR's native API:
 
 1. `TrueGaze_IsMode(mode_id)`:
@@ -120,7 +132,7 @@ One of the most powerful architectural enhancements is making `TrueGaze` a first
 `TrueGaze` applies biomechanically sound hierarchical strain distribution to prevent distorted necks:
 
 | Bone Node | Strain % | Maximum Angle Constraint | Purpose |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **`NPC Spine2`** | 10% | $\pm 15^\circ$ Yaw | Base upper-torso lead |
 | **`NPC Neck [Neck]`** | 25% | $\pm 25^\circ$ Yaw, $\pm 20^\circ$ Pitch | Cervical curvature distribution |
 | **`NPC Head [Head]`** | 65% | $\pm 55^\circ$ Yaw, $\pm 45^\circ$ Pitch | Primary head orientation |
@@ -176,6 +188,7 @@ One of the most powerful architectural enhancements is making `TrueGaze` a first
 ```
 
 ### IPC Telemetry Specification (`HcepGazeTelemetryPacket`)
+
 * **Transport**: Windows Asynchronous Named Pipe (`\\.\pipe\TrueGazeBridge`).
 * **Format**: 64-byte aligned binary POD struct (zero JSON overhead).
 * **Payload**: Microsecond timestamp, Player Gaze Pitch/Yaw, HCEP Mode (0–4), Cognitive State, Blink Bitmask, and Active Target FormID.
@@ -236,14 +249,19 @@ To guarantee flawless performance even in heavy combat or crowded cities (Whiter
 
 ---
 
-## 8. Mod Configuration Menu (SkyUI MCM)
+## 8. Configuration (INI + HTML Editor)
 
-Players and modders have full control over the engine:
-* **Master Toggles**: Enable/Disable Player Tracking, NPC Gaze, Creature Gaze.
-* **Saccade Dynamics**: Adjust saccade velocity, fixation duration, and micro-jitter amplitude.
-* **Social Parameters**: Set Social Triangle cycling speed and Cognitive Gaze Aversion frequency.
-* **Connected Mode**: Toggle HCEP Desktop sync, Named Pipe status indicator, and mutual gaze sensitivity.
-* **Diagnostic Visualizer**: In-game 3D debug rays showing NPC gaze vectors and target focus cones.
+Players and modders have full control over the engine through a single INI file:
+
+* **File**: `Data\SKSE\Plugins\TrueGaze.ini` — the sole configuration surface.
+* **Editor**: `TrueGazeConfig.html` at the repository root (launch via `Launch-TrueGazeConfig.cmd`).
+* **Master Toggles**: Enable/Disable the engine, creature kinematics.
+* **Saccade Dynamics**: Saccade velocity multiplier, saturation constant, micro-jitter amplitude and correction interval, VOR head damping, ocular comfort angle.
+* **Skeletal Hierarchy**: Per-joint strain shares (spine/neck/head yaw and pitch).
+* **Social Parameters**: Social Triangle cycling, gaze aversion, mutual-gaze threshold.
+* **Connected Mode**: HCEP Desktop sync toggle, pipe name, reconnect interval.
+* **LOD**: Tier 1 / Tier 2 distance thresholds.
+* **Diagnostics**: Debug gaze rays, log level.
 
 ---
 
@@ -286,22 +304,21 @@ D:\Projects\SkyrimTrueGaze/
 │   │
 │   ├── Integrations/                 # Community ecosystem connectors
 │   │   ├── OarConditions.cpp         # Custom OAR condition registry
-│   │   ├── EfmBlinkController.cpp    # Expressive Facegen Morphs eyelid sync
-│   │   └── PapyrusInterface.cpp      # Script bindings for modders & quests
+│   │   └── EfmBlinkController.cpp    # Expressive Facegen Morphs eyelid sync
 │   │
 │   └── Bridge/                       # HCEP Desktop connectivity
 │       ├── NamedPipeServer.cpp       # Asynchronous low-latency IPC listener
 │       └── TelemetryPacket.h         # Shared 64-byte POD struct
 │
 └── skyrim/                           # Game assets & configuration
-    └── Interface/
-        └── MCM/
-            └── Config/
-                └── TrueGaze/
-                    └── config.json   # SkyUI Mod Configuration Menu definition
+    └── SKSE/
+        └── Plugins/
+            ├── TrueGaze.dll          # The engine
+            └── TrueGaze.ini          # Sole configuration surface
 ```
 
 ---
 
 ### Summary of the Product Vision
+
 With **`TrueGaze`**, Kirk LaSalle's HCEP moves from an analytical perception platform into an **embodied biological execution engine**. Characters in Skyrim will no longer merely exist as static 3D puppets—they will look, listen, hesitate, scan, and connect with the physiological fidelity of real living beings.

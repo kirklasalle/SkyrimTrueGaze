@@ -9,6 +9,7 @@
 >
 > For verified implementation status, see [`STATUS.md`](STATUS.md).
 > For the independent audit, see [`AUDIT_REPORT_2026-09-11.md`](AUDIT_REPORT_2026-09-11.md).
+> **Current runtime note:** Skyrim AE execution is now verified for plugin load, actor updates, target resolution, skeleton probing, HCEP state consumption, and diagnostic light attachment. Visible geometry, broad rig coverage, OAR registration, and Skyrim VR remain open work.
 
 ---
 
@@ -250,15 +251,22 @@ To guarantee flawless performance even in heavy combat or crowded cities (Whiter
 
 ---
 
-## 8. Mod Configuration Menu (SkyUI MCM)
+## 8. Configuration (INI + HTML Editor)
 
-Players and modders have full control over the engine:
+Players and modders have full control over the engine through a single INI file:
 
-* **Master Toggles**: Enable/Disable Player Tracking, NPC Gaze, Creature Gaze.
-* **Saccade Dynamics**: Adjust saccade velocity, fixation duration, and micro-jitter amplitude.
-* **Social Parameters**: Set Social Triangle cycling speed and Cognitive Gaze Aversion frequency.
-* **Connected Mode**: Toggle HCEP Desktop sync, Named Pipe status indicator, and mutual gaze sensitivity.
-* **Diagnostic Visualizer**: In-game 3D debug rays showing NPC gaze vectors and target focus cones.
+* **File**: `Data\SKSE\Plugins\TrueGaze.ini` — the sole configuration surface.
+* **Editor**: `TrueGazeConfig.html` at the repository root — a self-contained page that
+  auto-loads the INI (launch via `Launch-TrueGazeConfig.cmd` for direct file access),
+  renders every key with its physiological range, and writes the INI back.
+* **Master Toggles**: Enable/Disable the engine, creature kinematics.
+* **Saccade Dynamics**: Saccade velocity multiplier, saturation constant, micro-jitter
+  amplitude and correction interval, VOR head damping, ocular comfort angle.
+* **Skeletal Hierarchy**: Per-joint strain shares (spine/neck/head yaw and pitch).
+* **Social Parameters**: Social Triangle cycling, gaze aversion, mutual-gaze threshold.
+* **Connected Mode**: HCEP Desktop sync toggle, pipe name, reconnect interval.
+* **LOD**: Tier 1 / Tier 2 distance thresholds.
+* **Diagnostics**: Debug gaze rays, log level.
 
 ---
 
@@ -301,19 +309,21 @@ D:\Projects\SkyrimTrueGaze/
 │   │
 │   ├── Integrations/                 # Community ecosystem connectors
 │   │   ├── OarConditions.cpp         # Custom OAR condition registry
-│   │   ├── EfmBlinkController.cpp    # Expressive Facegen Morphs eyelid sync
-│   │   └── PapyrusInterface.cpp      # Script bindings for modders & quests
+│   │   └── EfmBlinkController.cpp    # Expressive Facegen Morphs eyelid sync
+│   │
+│   ├── Visuals/                      # In-game 3D representation of the solved gaze
+│   │   ├── VisualTuning.hpp          # Immutable per-frame visual config snapshot
+│   │   └── VisualEffectsManager.cpp  # Pupil/terminus emitters, actor-agnostic
 │   │
 │   └── Bridge/                       # HCEP Desktop connectivity
 │       ├── NamedPipeServer.cpp       # Asynchronous low-latency IPC listener
 │       └── TelemetryPacket.h         # Shared 64-byte POD struct
 │
 └── skyrim/                           # Game assets & configuration
-    └── Interface/
-        └── MCM/
-            └── Config/
-                └── TrueGaze/
-                    └── config.json   # SkyUI Mod Configuration Menu definition
+    └── SKSE/
+        └── Plugins/
+            ├── TrueGaze.dll          # The engine
+            └── TrueGaze.ini          # Sole configuration surface
 ```
 
 ---

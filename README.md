@@ -17,7 +17,7 @@
 **Target Platform:** The Elder Scrolls V: Skyrim (SE 1.5.97, AE 1.6.640+, AE 1.6.1170+, Skyrim VR) & Modern Creation Engine
 
 > [!IMPORTANT]
-> **Documentation vs. Implementation.** The architecture sections below describe the *designed* TrueGaze system — the target. The current build implements the gaze engine and compiles against the real SDK, but **has not yet been verified inside a running Skyrim instance.** For an honest, verified breakdown of what actually works today, see **[`docs/STATUS.md`](docs/STATUS.md)** and the independent **[`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md)**.
+> **Documentation vs. Implementation.** The architecture sections below describe the *designed* TrueGaze system — the target. The runtime has now been exercised inside Skyrim AE: the plugin loads through SKSE, actor hooks invoke, eligible actors tick, targets resolve, skeletons are probed, HCEP telemetry is consumed, and diagnostic light emitters attach. **The visible beam/geometry illustration layer remains under development** and is not yet verified as rendered in-game. For the verified capability matrix, see **[`docs/STATUS.md`](docs/STATUS.md)**, the current roadmap in **[`ROADMAP.md`](ROADMAP.md)**, and the independent **[`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md)**.
 
 ---
 
@@ -28,16 +28,19 @@
 | **Maturity** | 🟡 **~65%** of a shippable 1.0.0 |
 | **Builds & links the SDK?** | ✅ Yes — DLL is 637 KB and imports `CommonLibSSE`, `spdlog`, `fmt` |
 | **Drives bones?** | ✅ Yes — implemented and compiled |
-| **Verified in-game?** | ❌ **Not yet** — nobody has watched an NPC's eyes move |
-| **Hard blocker** | None. The former blocker (SDK not vendored) is resolved. |
+| **Verified in-game?** | ✅ **Runtime verified** — plugin load, actor ticks, target resolution, skeleton probing, telemetry, and diagnostic emitters are confirmed |
+| **Visible illustration layer** | 🔨 **In development** — beam geometry/resource loading remains unresolved |
 
-**Verified working:** SDK linkage · the gaze engine and bone application · per-actor simulation state · configuration reaching the simulation · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · triple-buffered IPC with a user-scoped pipe ACL · 10 registered Papyrus functions with script parity · a public C API that returns live state · 11 passing test suites · a reproducible pinned build.
+**Verified working:** SDK linkage · the gaze engine and bone application · per-actor simulation state · configuration reaching the simulation · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 11 passing test suites · a reproducible pinned build.
 
-**Not yet verified:** everything above works in a *running game*. That is the next milestone and the only thing that can promote the headline feature from 🔨 Implemented to ✅ In-engine verified.
+**In-engine verified:** the plugin has been run in Skyrim AE and its runtime path is producing actor ticks, target resolutions, skeleton probes, telemetry state, and attached diagnostic lights. **Not yet verified:** a visible beam or mesh illustration rendered in-world. That visual layer is the next development milestone and is separate from the verified runtime gaze pipeline.
 
-**Still open:** OAR condition registration (#6) · the MCM has no backing plugin form (#2) · `.pdb` files are not packaged · the tick is not yet wrapped in `try/catch` (NFR-4) · GitHub Actions does not run on this account for private repositories (#9).
+**Still open:** OAR condition registration (#6) · `.pdb` files are not packaged · GitHub Actions does not run on this account for private repositories (#9).
 
 ➡️ **Full capability matrix and remediation plan: [`docs/STATUS.md`](docs/STATUS.md)**
+
+➡️ **User guide: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)**  
+➡️ **Developer guide: [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md)**
 
 ---
 
@@ -279,15 +282,22 @@ To guarantee flawless performance even in heavy combat or crowded cities (Whiter
 
 ---
 
-## 8. Mod Configuration Menu (SkyUI MCM)
+## 8. Configuration (INI + HTML Editor)
 
-Players and modders have full control over the engine:
+Players and modders have full control over the engine through a single INI file:
 
-* **Master Toggles**: Enable/Disable Player Tracking, NPC Gaze, Creature Gaze.
-* **Saccade Dynamics**: Adjust saccade velocity, fixation duration, and micro-jitter amplitude.
-* **Social Parameters**: Set Social Triangle cycling speed and Cognitive Gaze Aversion frequency.
-* **Connected Mode**: Toggle HCEP Desktop sync, Named Pipe status indicator, and mutual gaze sensitivity.
-* **Diagnostic Visualizer**: In-game 3D debug rays showing NPC gaze vectors and target focus cones.
+* **File**: `Data\SKSE\Plugins\TrueGaze.ini` — the sole configuration surface.
+* **Editor**: `TrueGazeConfig.html` at the repository root — auto-loads the INI
+  (launch via `Launch-TrueGazeConfig.cmd` for direct file access), renders every key
+  with its physiological range, and writes the INI back.
+* **Master Toggles**: Enable/Disable the engine, creature kinematics.
+* **Saccade Dynamics**: Saccade velocity multiplier, saturation constant, micro-jitter
+  amplitude and correction interval, VOR head damping, ocular comfort angle.
+* **Skeletal Hierarchy**: Per-joint strain shares (spine/neck/head yaw and pitch).
+* **Social Parameters**: Social Triangle cycling, gaze aversion, mutual-gaze threshold.
+* **Connected Mode**: HCEP Desktop sync toggle, pipe name, reconnect interval.
+* **LOD**: Tier 1 / Tier 2 distance thresholds.
+* **Diagnostics**: Debug gaze rays, log level.
 
 ---
 
@@ -330,19 +340,17 @@ D:\Projects\SkyrimTrueGaze/
 │   │
 │   ├── Integrations/                 # Community ecosystem connectors
 │   │   ├── OarConditions.cpp         # Custom OAR condition registry
-│   │   ├── EfmBlinkController.cpp    # Expressive Facegen Morphs eyelid sync
-│   │   └── PapyrusInterface.cpp      # Script bindings for modders & quests
+│   │   └── EfmBlinkController.cpp    # Expressive Facegen Morphs eyelid sync
 │   │
 │   └── Bridge/                       # HCEP Desktop connectivity
 │       ├── NamedPipeServer.cpp       # Asynchronous low-latency IPC listener
 │       └── TelemetryPacket.h         # Shared 64-byte POD struct
 │
 └── skyrim/                           # Game assets & configuration
-    └── Interface/
-        └── MCM/
-            └── Config/
-                └── TrueGaze/
-                    └── config.json   # SkyUI Mod Configuration Menu definition
+    └── SKSE/
+        └── Plugins/
+            ├── TrueGaze.dll          # The engine
+            └── TrueGaze.ini          # Sole configuration surface
 ```
 
 ---
@@ -358,6 +366,12 @@ With **`TrueGaze`**, Kirk LaSalle's HCEP moves from an analytical perception pla
 | Document | Purpose |
 | :--- | :--- |
 | [`docs/STATUS.md`](docs/STATUS.md) | ⭐ **Start here.** Verified capability matrix — what actually works today |
+| [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md) | Current SOTA implementation, validation, and publication plan |
+| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | Installation, configuration, diagnostics, and troubleshooting |
+| [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md) | Build, runtime architecture, extension, testing, and release guidance |
+| [`docs/TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md`](docs/TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md) | Asset reuse research, visual troubleshooting, and support triage |
+| [`docs/HCEP_TRUEGAZE_BRIDGE_CLIENT.md`](docs/HCEP_TRUEGAZE_BRIDGE_CLIENT.md) | HCEP Desktop to Skyrim telemetry bridge client |
+| [`docs/HCEP_META_CONTROLLER_SPEC.md`](docs/HCEP_META_CONTROLLER_SPEC.md) | HCEP Meta-Controller specification: narrative-aware gaze & scripted scene integration |
 | [`docs/TEST_SCENARIO.md`](docs/TEST_SCENARIO.md) | Staged in-game test protocol and troubleshooting |
 | [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) | Independent technical audit, build forensics, and market assessment |
 | [`PRD.md`](PRD.md) | Product Requirements Document — FR/NFR specification |
@@ -425,7 +439,32 @@ are byte-identical across all three charter documents.
 
 > ✅ **The build now produces a real plugin.** CommonLibSSE-NG v7.5.4 is vendored as a submodule, the CMake build **fails hard** if it is absent, and the resulting DLL links the SDK. See [`docs/STATUS.md`](docs/STATUS.md) for exactly what is and is not verified.
 
-**Prerequisites:** Visual Studio 2022 (MSVC 19.44+), CMake ≥ 3.23, vcpkg at `D:\vcpkg`, and the SDK submodule initialized:
+**Prerequisites:** Visual Studio 2022+ with the C++ workload (MSVC 19.44+), CMake ≥ 3.23, vcpkg at `D:\vcpkg`, 7-Zip, and the SDK submodule initialized.
+
+**Install all of them automatically:**
+
+```powershell
+.\Install-AllPrerequisites.bat            # install everything missing
+.\Install-AllPrerequisites.bat -Verify    # report only, change nothing
+```
+
+That batch file drives `scripts\Install-AllPrerequisites.ps1` and covers, in
+order: Windows PowerShell → winget → Git → CMake → 7-Zip → Visual Studio Build
+Tools (C++ workload) → VC++ x64 Redistributable → vcpkg (`x64-windows-static-md`)
+→ the `CommonLibSSE-NG` submodule → SKSE64 + Address Library. It also **persists
+`VCPKG_ROOT`**, whose absence is the single most common fresh-machine blocker
+(`CMakePresets.json` resolves the vcpkg toolchain from it).
+
+It is idempotent: re-running it installs only what is missing, and installs that
+need administrator rights are reported rather than silently skipped.
+
+Alternatively, from the project's own tool:
+
+```powershell
+.\TrueGaze.cmd prereqs-all
+```
+
+Or initialize just the SDK submodule by hand:
 
 ```powershell
 git submodule update --init --recursive
@@ -434,6 +473,8 @@ git submodule update --init --recursive
 ### One-click workflow
 
 **`TrueGaze.cmd`** is a single self-contained batch file. It needs nothing beyond what the build already needs (CMake, MSVC, vcpkg). It finds the game, reads its version, derives the exact Address Library filename that version requires, builds, deploys, verifies the deployed binary, and only then launches.
+
+> **New machine, or a reinstall?** Run `TrueGaze.cmd prereqs-all` (or `Install-AllPrerequisites.bat`) first. It installs the toolchain, vcpkg, the SDK submodule and the game files, and persists `VCPKG_ROOT` — missing that variable is the usual reason a first configure fails.
 
 ```powershell
 .\TrueGaze.cmd              # interactive menu
@@ -450,12 +491,39 @@ Or drive it directly:
 | `TrueGaze.cmd verify` | check everything, no build, no launch |
 | `TrueGaze.cmd postrun` | report what happened on the last run |
 | `TrueGaze.cmd status` | show the detected configuration |
+| `TrueGaze.cmd prereqs` | install SKSE64 + Address Library (the Nexus files) |
+| `TrueGaze.cmd prereqs-all` | install **every** prerequisite, including the toolchain |
 
 Options: `/game "path"` to override detection, `/force` to launch despite failures, `/nopause` for automation.
 
 Exit code is `0` only when nothing failed, so it composes in scripts.
 
 > **It refuses to launch when verification fails.** The check is cheap; a two-minute game launch that crashes on load is not.
+
+### Runtime console commands (`~`)
+
+TrueGaze can be toggled **at runtime from the game's own console** — vanilla only, with
+no Papyrus, ESP, MCM or SkyUI. Set `bEnableConsoleCommands=true` under `[Console]` in
+`TrueGaze.ini`, restart once, then press `~` during play:
+
+| Command | Does |
+| :--- | :--- |
+| `tgstatus` | Print the full effective state — start here |
+| `tg` | Toggle the simulation on/off |
+| `tgvisuals` | Toggle all in-game visuals |
+| `tgv` | Toggle the gaze-ray emitters (the "laser eyes") |
+| `tgon` / `tgoff` | Turn every visual on / off |
+| `tgmode` | Cycle render mode: Both → Light only → Geometry only |
+| `tgradius` | Toggle the gaze terminus glow |
+| `tgverbose` | Toggle Debug/Info logging |
+
+Changes apply immediately **and persist** to the INI. This is the *runtime* control
+surface; `TrueGaze.ini` and this page remain the *authoring* surface.
+
+> **Off by default.** Registering commands writes into engine memory, so it is opt-in
+> until confirmed in a running game. It is **vanilla only** and works by reclaiming
+> console-table entries the engine already treats as dead or empty — so no working
+> vanilla command is displaced, and no Papyrus, ESP or MCM is involved.
 
 To additionally get clickable shortcuts in the project root and on the Desktop:
 
@@ -527,7 +595,7 @@ The full protocol is in **[`docs/TEST_SCENARIO.md`](docs/TEST_SCENARIO.md)**. It
 | 3 — Social triangle | Eye-scan cycling during dialogue |
 | 4 — Stability | No crashes or frame-budget overruns in a crowded scene |
 
-> ⚠️ **Nothing has been verified in a running game yet.** Every claim in `docs/STATUS.md` is currently build-time, unit-test or static-analysis evidence. No row is marked **✅ In-engine verified**. The protocol above is what changes that.
+> ✅ **Runtime verification has been completed for the core Skyrim AE path.** The remaining protocol work is perceptual acceptance across rigs, visible illustration geometry, VR validation, long-session stability, and release packaging. See [`docs/TEST_SCENARIO.md`](docs/TEST_SCENARIO.md) for the current acceptance matrix.
 
 ### Required game-side dependencies
 
@@ -537,6 +605,13 @@ The full protocol is in **[`docs/TEST_SCENARIO.md`](docs/TEST_SCENARIO.md)**. It
 | **Address Library for SKSE Plugins** | TrueGaze resolves game offsets through `Data/SKSE/Plugins/versionlib-<version>.bin`. |
 | Visual C++ 2015–2022 x64 Redistributable | `MSVCP140` / `VCRUNTIME140` runtime dependencies. |
 
+> **TrueGaze is deliberately vanilla-UI.** There is **no SkyUI requirement, no MCM
+> menu, no ESP, and no Papyrus script.** It does not touch the game's menus at all.
+> Configuration lives in `Data\SKSE\Plugins\TrueGaze.ini` and is edited through the
+> standalone **`TrueGazeConfig.html`** page (launch via `Launch-TrueGazeConfig.cmd`).
+> Deploying over an old MCM-era install removes the stale ESP/`.pex`/translation
+> files automatically.
+
 `Install-Prerequisites.ps1` installs the first two (after the one manual Nexus
 download) and the health check verifies all three, naming the exact filename
 each one needs.
@@ -545,13 +620,13 @@ each one needs.
 
 ## 13. Contributing
 
-Contributions are welcome, particularly in the areas the audit identified as blocking. The highest-value contributions right now are:
+Contributions are welcome, particularly in the areas identified by the current runtime evidence. The highest-value contributions right now are:
 
-1. **Vendoring CommonLibSSE-NG** and making the CMake guard a hard failure (Phase R1)
-2. **Implementing the bone-application tick** (Phase R2) — see `src/Engine/AnimationHook.cpp`
-3. **Fixing the `BoneController` eye-residual allocation bug** — see the note in [`docs/STATUS.md`](docs/STATUS.md)
-4. **Fixing the named-pipe data race** — triple-buffer or seqlock
-5. **Animation content** for the OAR condition set (for animators)
+1. **Perceptual rig validation** for vanilla humanoids, custom humanoids, creatures, and player third person
+2. **Visible developer illustration** using a verified original or vanilla-compatible asset path
+3. **OAR condition registration** against a verified OAR API contract
+4. **Skyrim VR validation** with a documented head-directed fallback and optional eye-tracking adapter
+5. **Release engineering**: clean-profile packaging, licensing resolution, and repeatable acceptance tests
 
 **Before contributing, please read [`docs/STATUS.md`](docs/STATUS.md).** All documentation and code comments in this project are expected to use the four-state vocabulary (📐 Designed / 🔨 Implemented / 🧪 Unit-verified / ✅ In-engine verified), and no log message may report success for an operation that was not performed.
 

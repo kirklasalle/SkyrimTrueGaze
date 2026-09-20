@@ -4,8 +4,10 @@
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
-**Current Milestone:** Phase 0 — Truth Reset → Phase 1 (Make the Build Real)  
-**Last Updated:** September 11, 2026
+**Current Milestone:** Phase R6 — Visible In-Game Illustration & Release Readiness  
+**Last Updated:** September 19, 2026
+
+**Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)
 
 ---
 
@@ -19,7 +21,7 @@
 > | **🧪 Unit-verified** | Exercises correctly in the standalone test suite. |
 > | **✅ In-engine verified** | Proven to work inside a running Skyrim instance. |
 >
-> **Nothing in this project has yet reached ✅ In-engine verified.** See [`docs/STATUS.md`](docs/STATUS.md) for the full capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the independent audit.
+> **In-engine verification is now partial and evidence-backed.** Skyrim AE logs prove plugin load, actor hooks, eligible ticks, target resolution, skeleton probing, HCEP telemetry consumption, and diagnostic light attachment. Visible beam geometry, perceptual bone quality, VR, OAR registration, and release readiness remain open.
 >
 > The staged completion figures below (e.g. "Phase 1 — 85%") reflect **verified** progress at each stage, not documentation coverage.
 
@@ -98,27 +100,14 @@
 
 ---
 
-## Phase 5: Player Configuration & SkyUI MCM Interface
+## Phase 5: Player Configuration
 
-*Status: **🔨 Implemented (~45%)** — assets complete; no binding, no persistence, no compiled scripts.*
+*Status: **✅ Complete (2026-09-14)** — vanilla-UI, INI-only configuration with an HTML editor. No SkyUI, MCM, ESP, or Papyrus.*
 
-- [x] **MCM JSON Schema**: Implement `skyrim/Interface/MCM/Config/TrueGaze/config.json` with sliders, toggles, and help texts.
-- [x] **SkyUI Localization**: Implemented 6 localization files:
-  - English (`TrueGaze_ENGLISH.txt`)
-  - French (`TrueGaze_FRENCH.txt`)
-  - German (`TrueGaze_GERMAN.txt`)
-  - Spanish (`TrueGaze_SPANISH.txt`)
-  - Japanese (`TrueGaze_JAPANESE.txt`)
-  - Chinese (`TrueGaze_CHINESE.txt`)
-- [x] **Papyrus MCM Script**: Implemented `skyrim/scripts/source/TrueGaze_MCM.psc` with slider/toggle callbacks.
-
-> ⚠️ **The MCM cannot bind.** `Interface/MCM/Config/TrueGaze/config.json` declares `"sourceForm": "TrueGaze.esp"` on every entry, but **no such plugin exists** in this repository. MCM Helper's `GetFormFromFile` lookup will fail.
->
-> ⚠️ **Configuration is never loaded on the real plugin path.** `ConfigManager::Load()` is called only in the `#else` fallback branch of `Main.cpp` — the branch that cannot execute inside real Skyrim. Every INI setting and every MCM slider is therefore inert.
->
-> ⚠️ **No compiled `.pex` scripts ship.** The package contains `.psc` source only, so SkyUI finds no MCM script to run.
->
-> ⚠️ The INI keys and the MCM `setting` strings are parallel, unconnected configuration systems — INI parsing via `GetPrivateProfileString` does not read MCM Helper globals. One authoring path must be chosen.
+- [x] **INI Schema**: `Data/SKSE/Plugins/TrueGaze.ini` with every key read, clamped, and consumed by the engine.
+- [x] **HTML Config Editor**: `TrueGazeConfig.html` at the repository root — auto-loads the INI (launch via `Launch-TrueGazeConfig.cmd` for direct file access), renders every key with its physiological range, writes the INI back.
+- [x] **Full key wiring**: SkeletalHierarchy strain weights, micro-jitter intervals (OU mean-reversion), LOD tier distances, engine target — all live in the mathematics.
+- [x] **Vanilla UI (no SkyUI/MCM/Papyrus)**: the MCM and Papyrus layers were removed by design. No ESP, no `.psc`/`.pex`, no translations, no menu edits. Deploy tooling removes stale MCM-era artifacts.
 
 ---
 
@@ -140,15 +129,12 @@
 
 ## Phase 7: Public Modding SDK & Nexus Distribution Packaging
 
-*Status: **🔨 Implemented (~50%)** — package builds; API surface is stub-only; no Papyrus binding.*
+*Status: **🔨 Implemented (~50%)** — package builds; API surface is stub-only.*
 
 - [x] **Public C/C++ Modding API**: Published `include/TrueGazeAPI.h` and `src/Engine/TrueGazeAPI.cpp` exporting query and mode override functions.
-- [x] **Papyrus Script API**: Published `skyrim/scripts/source/TrueGaze.psc` exposing native functions for quest/follower mod authors.
 - [x] **Automated Nexus Packager**: Created `scripts/PackageMod.ps1` and generated distribution zip archive `dist/TrueGaze-v1.0.0-rc1-SkyrimSE-AE-VR.zip`.
 
 > ⚠️ **All `TrueGazeAPI.cpp` bodies are stubs.** `TrueGaze_IsHcepConnected()` returns a hardcoded `false`; `TrueGaze_GetActorGaze()` returns hardcoded zeroes and a hardcoded `0x14` target FormID while returning `true` (reporting success with fabricated data); `TrueGaze_OverrideActorMode()` is an empty body. A third-party integrator cannot distinguish real telemetry from the stub.
->
-> ⚠️ **No Papyrus registration exists.** `TrueGaze.psc` declares six `global native` functions but there is no `SKSE::GetPapyrusInterface()->Register(...)` call anywhere, and the declared signatures do not match the exported symbols. Calling these will raise a Papyrus VM error.
 >
 > ⚠️ `PackageMod.ps1` hardcodes an absolute project path and runs `cmake --build` without a preceding configure step. `.pdb` files are not shipped.
 >
@@ -168,7 +154,7 @@
 
 ---
 
-# Remediation Roadmap (Audit-Derived)
+## Remediation Roadmap (Audit-Derived)
 
 The phases below were derived from the independent audit of September 11, 2026. They are **sequenced by dependency**: each phase produces a demonstrable artifact, and no later phase can succeed without the ones before it.
 
@@ -214,7 +200,7 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 
 ## Phase R2: Make It Move
 
-*Status: **🔨 Implemented — awaiting in-engine verification***
+*Status: **✅ Runtime path verified — perceptual acceptance and rig coverage pending***
 **Effort:** 1–2 weeks · **Dependency:** R1
 **Priority:** 🔴 **CRITICAL — this is the product**
 
@@ -225,7 +211,8 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 - [x] Fix the `BoneController` eye-residual allocation bug (eyes now take `target − head_chain`)
 - [x] Wrap the tick in a frame-budget timer
 - [ ] Wrap the tick in `try/catch(...)` for NFR-4
-- [ ] **Demonstrate: a video of an NPC whose eyes visibly move**
+- [x] Demonstrate runtime execution in Skyrim AE through logs, actor ticks, target resolution, skeleton probes, and diagnostic emitters
+- [ ] Capture perceptual evidence that an NPC's head/eyes visibly track the intended target across supported rigs
 
 **Deliverable:** 🔨 Compiles and drives bones; **not yet observed in-game.** This is the next task.
 
@@ -260,16 +247,12 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 - [ ] Implement genuine OAR condition registration via the OAR plugin API *(blocked — the API contract could not be verified from available sources, and guessing it would repeat the original mistake. Issue #6.)*
 - [x] Add `PublishActorState()` writing the OAR cache each tick
 - [x] **Remove the false success log** in `RegisterWithOar()` — now logs `warn` and returns `false`
-- [x] Implement `PapyrusInterface::RegisterFunctions()` with signatures matching `TrueGaze.psc`
-- [x] Verify 10-for-10 name parity between the script and the native registrations
 - [x] Implement real `TrueGazeAPI` bodies that read live state and fail honestly
 - [x] Add an `IsBridgeConnected()` accessor so `TrueGaze_IsHcepConnected()` reports truthfully
-- [ ] Enable and correct `EfmBlinkController::ApplyMorphs` *(morph writes remain commented out)*
-- [ ] Create `TrueGaze.esp` (or ESL) with MCM globals — or drop MCM Helper in favour of INI
-- [ ] Compile Papyrus scripts to `.pex` and include them in the package
+- [x] Enable and correct `EfmBlinkController::ApplyMorphs` — implemented via `SetExpressionOverride` (2026-09-14)
 - [ ] Include `.pdb` in the package
 
-**Deliverable:** 🔨 Most of the ecosystem surface is real. OAR registration and MCM binding remain.
+**Deliverable:** 🔨 Most of the ecosystem surface is real. OAR registration remains.
 
 ---
 
@@ -293,14 +276,14 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 
 ---
 
-## Milestone Projections
+## Updated Milestone Projections
 
 | Milestone | Estimated effort | Status |
 | :--- | :--- | :--- |
 | SDK-linked, game-facing DLL | 1–2 days | ✅ **Done** |
 | Correct, race-free, config-driven kinematics | 1 week | ✅ **Done** |
 | **"Eyes that move" — verified in game** | ~1 day | 🔨 **Next** |
-| Shippable 1.0.0 — OAR + MCM + packaging | ~1–2 weeks | 📐 Designed |
+| Shippable 1.0.0 — OAR + packaging | ~1–2 weeks | 📐 Designed |
 
 > **The critical path is now one thing:** load the plugin, watch an NPC's eyes, and confirm the deflection reads as a living person rather than a robot. Everything else is polish on top of a working engine.
 
@@ -316,3 +299,98 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 | **Shippable 1.0.0** — full ecosystem integration | ~1–2 weeks | **~4–6 weeks** |
 
 > **Note:** the ~2-week figure is significant. The research-intensive work — the biology, the mathematics, the protocol design, the ecosystem strategy — is genuinely complete. What remains is engineering labour, and it is well-scoped above.
+
+---
+
+## Phase R6: Visible In-Game Illustration & Release Readiness
+
+*Status: **🔨 Implemented — visual asset loading remains unresolved***  
+**Date:** September 19, 2026  
+**Dependency:** R2–R5  
+**Priority:** 🔴 **CRITICAL before public release**
+
+This phase exists because the runtime engine is now demonstrably active, but the development
+illustration layer is not yet visible in Skyrim. It must remain separate from the biological gaze
+claims: lights and target traces prove execution, while a visible beam or effect is required for
+fine-tuning and presentation.
+
+### Verified runtime foundation
+
+- [x] Release DLL loads through SKSE on Skyrim AE `1.7.104.0`.
+- [x] Actor update hooks invoke successfully.
+- [x] Eligible actor ticks execute in-game.
+- [x] Target resolution executes with zero `None` targets in the controlled run.
+- [x] Head skeleton resolution succeeds on the tested player rig (`spine`, `neck`, and `head`).
+- [x] Visual update calls execute with zero anchor failures.
+- [x] Two `NiPointLight` emitters attach successfully.
+- [x] `tgstatus` reports tracked actors, target resolutions, visual updates, and emitter counts.
+- [x] Release, packaged, and live DLL hashes match.
+
+### Current blocker
+
+- [ ] Attach a **visible** in-game beam/effect and confirm it visually in a running game.
+- [ ] Resolve the exact Skyrim resource path or use a verified vanilla art/effect form.
+- [ ] Confirm `BSModelDB::Demand` returns `kNone` and a model is attached through `NiNode::AttachChild`.
+- [ ] Confirm `tgstatus` reports `beam geometry > 0 attached`.
+- [ ] Confirm the effect is visible in third person near a living NPC.
+- [ ] Confirm the effect survives save/load and cell or door transitions.
+- [ ] Tune model axis, origin, scale, opacity, colour, and length after first successful render.
+
+### Evidence boundary
+
+The latest controlled run recorded:
+
+```text
+visual updates   856
+anchors failed   0
+light creates failed 0
+beam geometry    0 attached / 856 attempts
+```
+
+`BSModelDB::Demand` returned `BSResource::ErrorCode::kNotExist` for the candidate beam path.
+This means the plugin and scene-graph path are active, but no visible mesh has been attached.
+The project must not describe the beam as in-engine verified until the log contains a successful
+attachment line and the effect has been observed in Skyrim.
+
+### Asset strategy
+
+The preferred order is:
+
+1. Reuse a verified vanilla Skyrim beam/effect asset with its exact engine resource path.
+2. If the vanilla resource is unsuitable or cannot be resolved reliably, package an original
+  TrueGaze NIF/texture asset under `skyrim/meshes/` and `skyrim/textures/`.
+3. Do not redistribute Bethesda-owned assets in the TrueGaze package.
+
+`NiNode::AttachChild` remains the intended scene-graph attachment operation. The asset lookup,
+not the attachment API, is the current unresolved boundary.
+
+### Publication gate
+
+TrueGaze is **not yet ready for public 1.0 publication**. A technical preview may be published
+only with the visible-effects limitation stated clearly. Public release requires:
+
+- [ ] A fresh in-game run with visible geometry or a verified effect form.
+- [ ] No new TrueGaze runtime errors, crashes, or shutdown regressions.
+- [ ] Correct post-run health-script interpretation.
+- [ ] Clean package audit with no debug/build artifacts.
+- [ ] README, CHANGELOG, STATUS, and installation instructions updated to match evidence.
+- [ ] Clean-profile installation and save/load verification.
+- [ ] Final release archive and hash recorded.
+
+**Release decision:** the core engine is suitable for continued development and fine-tuning;
+the public release remains blocked by the unverified visible illustration asset.
+
+### R6.1: Asset Discovery and Supportable Loading
+
+*Status: **🔨 Planned with research complete***
+
+- [ ] Install a BSA Browser or equivalent extractor on the development machine.
+- [ ] Locate candidate beam/effect NIFs in the installed Skyrim archives.
+- [ ] Extract a local development copy and inspect it with NifSkope.
+- [ ] Record the exact archive path, NIF root, local axis, referenced textures, and material dependencies.
+- [ ] Test the candidate as a loose development asset under `skyrim/meshes/`.
+- [ ] Confirm `BSModelDB::Demand` returns `kNone` and a non-null model.
+- [ ] Confirm `NiNode::AttachChild` executes and the geometry survives actor rebuilds.
+- [ ] Create an original TrueGaze beam asset for any public release; do not redistribute Bethesda-owned extracted assets.
+
+Support and troubleshooting reference: [`docs/TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md`](docs/TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md).

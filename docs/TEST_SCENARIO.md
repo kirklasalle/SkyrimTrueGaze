@@ -2,7 +2,7 @@
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine
 **Owner:** Kirk LaSalle
-**Document status:** Test protocol, first in-engine verification
+**Document status:** Test protocol and regression matrix; runtime verification established September 19, 2026
 **Applies to:** Skyrim Special Edition / Anniversary Edition, SKSE64
 
 ---
@@ -11,9 +11,9 @@
 
 This is a **verification protocol**, not a demo script. It exists to answer one question honestly:
 
-> **Does the gaze engine actually move an NPC's eyes in a running game?**
-
-That question has never been answered. Every claim in `STATUS.md` is currently build-time, unit-test or static-analysis evidence. *Nothing* is marked **✅ In-engine verified**, and this document is the procedure that changes that — or proves it false.
+> **Does the gaze engine execute correctly and produce perceptible actor attention in a running game?**
+>
+> The September 19 Skyrim AE run answered the runtime portion: the plugin loaded, actor hooks invoked, eligible actors ticked, targets resolved, skeletons were probed, HCEP state was consumed, and diagnostic emitters attached. This document now governs the next evidence layer: perceptual bone movement, rig coverage, visual illustration, VR, and long-session acceptance.
 
 The protocol is ordered so that each stage isolates one failure mode. **Stop at the first stage that fails and report it.** Do not skip ahead; a later stage cannot be interpreted if an earlier one is broken.
 
@@ -81,7 +81,7 @@ This is **the most likely point of silent failure in the entire engine.** Bone n
 "NPC L Eye [LEye]"        "NPC R Eye [REye]"
 ```
 
-These candidate lists have **never been confirmed against a real rig.** If every name misses, the engine runs perfectly, computes correct kinematics, and rotates nothing. A total no-op — exactly the failure mode this project was audited for.
+The candidate lists are now confirmed on the tested player rig for spine, neck, and head. Vanilla humanoid eye nodes were absent, which is an expected rig limitation because many eyes are FaceGen-driven. If the head candidates miss on another rig, the engine can still run while rotating nothing; therefore a rig matrix remains required.
 
 **Setup:**
 
@@ -106,8 +106,8 @@ This sets `bEnableTrueGaze=true`.
 
 | Result | Meaning | Action |
 | :--- | :--- | :--- |
-| `5 of 5 resolved` | Ideal. Proceed to Stage 2. | — |
-| `head=yes`, eyes `NO` | Head will track; eyes will not lead. Degraded but useful. | Report it — extend the eye candidate names. |
+| `5 of 5 resolved` | Ideal on a rig with explicit eye nodes. Proceed to Stage 2. | — |
+| `head=yes`, eyes `NO` | Expected on many vanilla humanoids; head and geometric pupil-origin paths remain available. | Record the rig and validate perceptual quality. |
 | **`head=NO`** | **Blocking.** Gaze cannot be visible. | Stop. Report the actor's race and any skeleton mods; the candidate list needs extending. |
 | No probe line at all | No eligible actor was ticked. | Check the actor was living, non-ragdolled, within 15 m, and had `Get3D()` loaded. See "Troubleshooting". |
 
@@ -133,8 +133,8 @@ This sets `bEnableTrueGaze=true`.
 
 | Observation | Expected |
 | :--- | :--- |
-| Head rotates to keep you in view | ✅ **The headline result.** |
-| Eyes lead the head on a *large* change of position | ✅ The residual allocation — eyes snap, head damps in behind. |
+| Head rotates to keep you in view | ✅ **Runtime acceptance target.** |
+| Eyes lead the head on a *large* change of position | Acceptance target where the rig exposes usable eye nodes; otherwise validate the documented geometric fallback. |
 | Sub-degree eye flicker while fixing on you | ✅ Micro-saccadic drift (Tier 1 only, under 5 m). |
 | Head stops tracking beyond ~16 m | ✅ LOD culling. This is correct, not a bug. |
 | **Nothing moves at all** | ❌ See "Troubleshooting". |
@@ -194,6 +194,55 @@ So **stand close.** At 8 m the head still turns but the fine eye movement is int
 
 ---
 
+## Stage 5 — In-game visual layer *(optional, developer diagnostic)*
+
+**Goal:** See the solved gaze directly, and confirm the visual matches what the kinematics computed.
+
+This stage is **independent of Stages 1–4** and can be run first or last. It is off by default and requires editing the INI, so skip it for a normal play-test.
+
+**Setup** — set these in `Data\SKSE\Plugins\TrueGaze.ini` (or via `TrueGazeConfig.html` → *In-Game Visuals*):
+
+```ini
+[Visuals]
+bEnableInGameVisuals=true
+bGazeRaysEnabled=true
+iRayRenderMode=1          ; Light only - needs no art assets
+bGazeRaysTerminus=true    ; show where the gaze lands
+fGazeRayLengthMeters=10.000000
+```
+
+The INI is read at startup, so **restart the game** after changing it.
+
+**Procedure:**
+
+1. Launch and load into an interior with a few NPCs. Stand 3–5 m away from one.
+2. Watch the NPC's head and eyes. In third person, watch your own character too.
+3. Walk around the NPC and let them turn to follow you.
+4. If you use a custom skeleton (XP32/XPMSSE), note whether the glow sits in the eye socket without adjustment.
+
+**Pass criteria:**
+
+| Check | Expected |
+| :--- | :--- |
+| A gold glow appears at the eyes of nearby NPCs | Required (colour is `iGazeRayColour`, default TrueGaze gold) |
+| The glow tracks the head when the NPC turns | Required |
+| With `bGazeRaysTerminus=true`, a second dimmer glow marks the gaze target | Required |
+| The glow sits **in the socket**, not in front of or behind the face | Tune `fPupilForwardOffsetCm` / `fPupilUpOffsetCm` |
+| Disabling `bGazeRaysEnabled` removes the glow within a frame or two | Required |
+| No crash, no new `Gaze tick threw` lines | Required |
+| `iRayRenderMode=2` logs a warning and draws nothing *(expected until V2)* | Expected |
+
+**If the beams do not appear:**
+
+- Check the log for the `Visual tuning:` line. It prints every visual setting, so a typo shows up immediately.
+- `mode=2` draws nothing at all until the branded assets exist — use mode `1`.
+- If the glow is invisible in daylight but obvious indoors, it is a point light and competes with daylight. That is expected; lower or raise `fGazeRayOpacity`.
+- If the glow sits inside the head, increase `fPupilForwardOffsetCm` (default 7 cm).
+
+> **What this proves:** the visual layer consumes the solver's own state, so a beam that visibly tracks a target is direct evidence that the kinematics are driving bones. It is the cheapest way to confirm Stages 1–2 without squinting at a subtle head turn.
+
+---
+
 ## Final analysis
 
 ```powershell
@@ -233,11 +282,10 @@ Stated plainly so a passing run is not mistaken for a finished product:
 | Not tested here | Why |
 | :--- | :--- |
 | **OAR conditions** | Registration is unimplemented (issue #6). The cache works; the binding to OAR does not. |
-| **MCM menu** | No `TrueGaze.esp` exists to carry a menu. Configure via `TrueGaze.ini`. |
-| **Papyrus from scripts** | 10 functions are registered with 10-for-10 name parity, but `.psc` is not compiled to `.pex`. |
-| **Eyelid morphs (EFM)** | `EfmBlinkController::ApplyMorphs` writes are still inert. The blink *curve* runs; the morph never lands. |
+| **Eyelid morphs (EFM)** | Implemented via `SetExpressionOverride` (2026-09-14) but not yet observed in-engine. |
 | **HCEP desktop bridge** | Requires the desktop suite running and listening on the named pipe. Out of scope for a gaze test. |
 | **Eye-lead *latency*** | The eyes lead in *magnitude* but not yet in *time*. The 20–30 ms biological latency gap is not modelled. |
+
 | **Creature/gaze aversion modes** | Mode 4 (THINK) only arrives from the HCEP bridge; without it, aversion never triggers. |
 
 A passing run promotes the **gaze** rows of `STATUS.md` to ✅ In-engine verified. It does not promote any of the above.

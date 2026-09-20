@@ -12,6 +12,241 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Skyrim AE Runtime Verification and SOTA Roadmap (2026-09-19)
+
+- Updated the current documentation state after controlled Skyrim AE sessions.
+- Confirmed through runtime logs: SKSE load, actor update hooks, eligible ticks, target resolution, skeleton probing, HCEP mode/state consumption, and diagnostic light attachment.
+- Documented the remaining evidence boundary: vanilla humanoid eye-node availability varies by rig; perceptual eye/head quality still needs a formal acceptance matrix; visible beam geometry remains unresolved; OAR registration and Skyrim VR require separate validation; packaging and licensing remain release gates.
+- Added [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md), a staged implementation and publication plan.
+- Updated `README.md`, `docs/STATUS.md`, `ROADMAP.md`, `docs/TEST_SCENARIO.md`, and architecture references to distinguish verified runtime behavior from open visual and ecosystem work.
+- Added [`docs/TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md`](TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md) with web-supported BSA/NifSkope/CommonLib asset-reuse guidance, a `kNotExist` decision tree, legal boundaries, and a repeatable support-report template.
+
+### Fixed — Console Commands "not found": wrong registration mechanism (2026-09-18)
+
+The first in-game run of the console feature produced:
+
+```
+Console command table validation FAILED (count is at or beyond the declared
+ table length). No commands were registered and no memory was written.
+```
+
+**The guard worked; the assumption was wrong.** It refused to write on an unverified
+layout instead of corrupting engine memory or failing silently — exactly what it was
+built to do. The defect was the mechanism itself.
+
+- **There is no count of console commands.** The previous revision assumed a counter
+  sat immediately after the command array and tried to append past it. The SDK's own
+  `LocateConsoleCommand` disproves that: it scans the whole array and identifies a real
+  command from a **per-entry marker** — an empty `helpString` means the entry is empty,
+  and otherwise the help string ends with `1` (live) or `0` (dead).
+- **Registration now reclaims, rather than appends.** It fills entries the engine
+  already treats as not-a-command, so it needs no count and **cannot displace a working
+  vanilla command** (a live entry is never a candidate). Nothing is ever written past
+  the end of the array.
+- **Both name fields are set to the token you type** (`tgv`, not `TrueGazeRays`). The
+  SDK's lookup matches on `functionName`; we cannot be certain which field the engine's
+  parser matches, so both hold the short token and the readable text lives in
+  `helpString`, carrying the live-command marker.
+- **Registration install is now self-diagnosing.** It logs
+  `Console table scan: scanned=.. live=.. dead=.. empty=.. reclaimable=..` on every
+  launch, so a future failure states which condition broke instead of leaving a
+  "not found" to interpret. A partial registration is refused outright — registering
+  some commands and not others would be worse than registering none.
+
+### Fixed — Deploy silently wiped the user's configuration (2026-09-18)
+
+**A serious usability bug.** Both `Deploy-TrueGaze.ps1` and `TrueGaze.cmd` copied the
+*packaged* `TrueGaze.ini` over the *deployed* one on **every** deploy. The packaged file
+is the set of shipped defaults; the deployed file holds the user's live tuning, and
+everything the console commands persist. So every build/deploy reset hand-tuned
+settings to defaults — which presents as "my settings randomly reverted."
+
+- **The deployed INI is now preserved.** It is copied only when absent (first install).
+- Keys present in the newer defaults but absent from the deployed INI are **reported**
+  (not silently injected). That is safe — the engine keeps its compiled default for any
+  missing key — but you should know a new key exists.
+- **`-ForceIni`** added to `Deploy-TrueGaze.ps1` for the case where resetting to
+  shipped defaults is genuinely wanted.
+
+### Added — Runtime Console Commands (vanilla `~` console) (2026-09-18)
+
+TrueGaze could only be re-configured by editing `TrueGaze.ini` and restarting. The
+console is the right place for **runtime** toggling, because `~` pauses the game and
+frees the camera — exactly the moment you want to switch the gaze visuals on and step
+back to watch them.
+
+- **`src/Integrations/ConsoleCommands.{hpp,cpp}`** (new) — registers `tg*` commands
+  into the engine's own console command table.
+- **VANILLA ONLY.** No Papyrus, no ESP/ESL, no MCM, no SkyUI. This is also a hard
+  requirement, not just a preference: **Papyrus native functions cannot be called from
+  the console**, so the commands must be genuine `SCRIPT_FUNCTION` entries. A pre-flight
+  check asserts no Papyrus API usage anywhere in `src/**`.
+- **Press `~` and type `tgstatus`** to see the live state, or `tgv` to toggle the gaze
+  rays. Commands: `tg` (simulation), `tgvisuals`/`tgv` (visuals / rays), `tgon`/`tgoff`,
+  `tgmode` (render mode), `tgradius` (terminus glow), `tgverbose` (logging),
+  `tgstatus` (full state).
+- Toggles apply **immediately** and are **persisted** to the INI, so a console change
+  survives a restart. Each command prints its new state to the console and the file log.
+- New `[Console]` INI section + a configurator panel.
+
+> [!IMPORTANT]
+> **`bEnableConsoleCommands` is OFF by default, and that is a deliberate engineering
+> decision — not an oversight.** It writes into engine memory, so it stays opt-in until
+> confirmed inside a running game.
+>
+> **Registration does not append — it reclaims.** There is **no count** of console
+> commands; the SDK's own `LocateConsoleCommand` scans the whole array and identifies a
+> live command by a per-entry marker (empty `helpString` = empty entry; otherwise the
+> help string ends with `1` for live or `0` for dead). So TrueGaze fills entries the
+> engine already treats as not-a-command. That needs no count, and it **cannot displace
+> a working vanilla command**, because a live entry is never a candidate.
+>
+> **An earlier revision of this feature was wrong, and the failure is recorded here.**
+> It assumed a count sat after the array, guessed at that offset, and on first launch the
+> guard refused to write and logged `Console command table validation FAILED (count is at
+> or beyond the declared table length)`. That guard is exactly why nothing was corrupted —
+> the plugin did **not** write bad memory and did **not** fail silently; it declined and
+> said why. The assumption was the defect; the guard caught it. *Never guess an index;
+> never guess an offset.*
+>
+> Everything still works without this, from `TrueGaze.ini` and `TrueGazeConfig.html`.
+
+### Added — Complete Prerequisite Installer (2026-09-18)
+
+Installing TrueGaze on a fresh machine previously required assembling the
+toolchain by hand, and `TrueGaze.cmd prereqs` covered only the two Nexus mod
+files — not the build system itself. This adds a single entry point for the
+whole machine.
+
+- **`Install-AllPrerequisites.bat`** (new, repository root) — the one-click
+  entry point. Batch wrapper only: it finds PowerShell, forwards its arguments,
+  and pauses when double-clicked. All real work is delegated to PowerShell,
+  because a multi-line `-Command` argument leaks into `cmd.exe` (documented in
+  the audit notes).
+- **`scripts/Install-AllPrerequisites.ps1`** (new) — installs, in dependency
+  order: PowerShell (checked) → **winget** → **Git** → **CMake** → **7-Zip** →
+  **Visual Studio Build Tools** with the C++ workload → **VC++ 2015-2022 x64
+  Redistributable** → **vcpkg** (bootstrapped, `x64-windows-static-md`) →
+  **`CommonLibSSE-NG` submodule** → **SKSE64 + Address Library**.
+- **`VCPKG_ROOT` is now persisted.** `CMakePresets.json` resolves its toolchain
+  as `$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake`, so an unset variable
+  is a hard configure failure. This was the single most common blocker on a
+  fresh machine and is now set automatically.
+- **`-Verify` mode** reports what is present and what is missing without
+  changing anything — safe to run at any time.
+- **`TrueGaze.cmd prereqs-all`** and a new menu entry `[8]` expose it from the
+  project's existing tool.
+- Installs needing administrator rights are **reported, not silently skipped**,
+  with the exact winget command to run from an elevated terminal.
+- Idempotent: re-running installs only what is missing (`winget` "already
+  installed" is recognised, not treated as a failure).
+
+> [!IMPORTANT]
+> **SKSE64 and the Address Library are now installed** (SKSE `skse64_1_7_104.dll`,
+> Address Library `versionlib-1-7-104-0.bin`, both matched to game 1.7.104.0).
+> The blocker to in-game testing is therefore **cleared** — nothing now stands
+> between the build and a first in-game run. Note the `[Visuals]` verification
+> (see below) can now actually be performed.
+
+### Added — In-Game 3D Visual System: "Superman Laser Eyes" (2026-09-18)
+
+TrueGaze computed a full per-actor gaze solution every frame and rendered **nothing**
+in-world. The only "debug rays" were text: a throttled `spdlog` line, a console
+`Print`, and a HUD message string. `src/Integrations/DebugGazeRenderer.hpp` was an
+orphaned header with no `.cpp` and no call site (audit Finding 6). This adds a real,
+toggleable in-game 3D visual layer. See
+[`docs/Implementation Plan - In-Game 3D Visual System & Gaze Ray Assets.md`](docs/Implementation%20Plan%20-%20In-Game%203D%20Visual%20System%20%26%20Gaze%20Ray%20Assets.md).
+
+- **`src/Visuals/VisualEffectsManager.{hpp,cpp}`** (new) — a **pure consumer** of
+  `GazeEngine` state. It never recomputes gaze; it subscribes to the eye residual
+  (`eyeYaw`/`eyePitch`), the resolved head/eye bones, and the gaze region. What you
+  see is therefore the solver's own answer, not a re-derivation that could drift.
+- **`src/Visuals/VisualTuning.hpp`** (new) — immutable per-frame snapshot, mirroring
+  `GazeTuning`. A key in `TrueGaze.ini` has exactly one path to the visuals.
+- **V1 renders via `NiPointLight`** — a real light at the pupil and, optionally, at
+  the gaze terminus. This path needs **no art assets**, so the visual works today.
+  Branded beam geometry (NIF) is a later phase; `iRayRenderMode` selects
+  `0 Both / 1 Light-only / 2 Geometry-only`.
+- **Pupil origin is derived geometrically.** Vanilla humanoid rigs expose **no eye
+  bones** (eyes are FaceGen morphs), so the socket is computed from the head bone's
+  world basis plus the configurable `fPupilForwardOffsetCm` / `fPupilUpOffsetCm`.
+  Custom rigs (XP32/XPMSSE) that do expose `NPC L/R Eye` are used directly.
+- **Direction uses the eye residual, not the total deflection.** The head bone's
+  world transform already contains the head's share of the turn, so applying the
+  total here would double-count it and the beam would overshoot the true gaze.
+- **18 keys in a new `[Visuals]` INI section**, all off by default, plus an additively
+  added **"In-Game Visuals"** panel in `TrueGazeConfig.html` (14 controls + rich
+  tooltips in the page's single tooltip standard). Verified: the INI, the engine and
+  the HTML agree on every key.
+- **Safety.** Visuals are never serialized; emitters are detached on disable, on
+  actor eviction, on `ResetAll`, and on `kSaveGame` alongside `ReleaseBones()`. The
+  subsystem cannot affect the simulation, the save game, or actor state.
+
+> [!NOTE]
+> The `[Visuals]` subsystem is **developer-facing and off by default**. It is opt-in,
+> requires a game restart to take effect (the INI is read at startup), and — like the
+> rest of the engine — is **not yet verified in-game** (SKSE64 and the Address Library
+> remain uninstalled on the test machine). The `NiPointLight` path is the first thing
+> to confirm on the next launch.
+
+### Changed — Vanilla-UI Enforcement: No SkyUI, Papyrus, or MCM (2026-09-18)
+
+TrueGaze is **deliberately vanilla-UI**. The MCM and Papyrus layers were removed by
+design on 2026-09-14; this pass makes that stance explicit, enforced, and
+self-healing rather than merely documented.
+
+- **`scripts/Deploy-TrueGaze.ps1`** — deploy now **removes stale MCM-era artifacts**
+  from the game `Data` folder on every run: `TrueGaze.esp`, `TrueGaze.esl`,
+  `TrueGaze_MCM.pex`, `TrueGaze.pex`, `MCM\Config\TrueGaze`, `Interface\MCM\Config\TrueGaze`,
+  and `Interface\Translations\TrueGaze_*.txt`. Upgrading over an old install now
+  self-heals instead of leaving a stale ESP in the load order or a `.pex` SkyUI
+  might still bind.
+- **`scripts/Test-TrueGazeHealth.ps1`** — new pre-flight check
+  **"No legacy SkyUI/Papyrus/MCM artifacts"**. Reports a `Warn` naming any leftover
+  file found, so a confusing in-game state is diagnosed before launch.
+- **`LaunchTrueGaze.bat`** — cleanup block expanded to remove the same full set of
+  legacy artifacts (previously only the ESP).
+- **`TrueGaze.cmd`** — the deploy path now calls a `CLEAN_LEGACY` routine that
+  removes the same artifacts, so Kirk's primary self-contained entry point
+  self-heals identically. Written with top-level `if exist` tests only (a bare `)`
+  inside a parenthesised block would close it early, and these paths contain
+  parentheses). Verified by planting fake artifacts and confirming removal.
+- **Documentation** — the vanilla-UI stance is now stated explicitly in `README.md`
+  (dependency table), `PRD.md` (explicit non-dependencies), `docs/STATUS.md`
+  (configuration section), and `ROADMAP.md` (Phase 5). The historical audits
+  (`AUDIT_REPORT_2026-09-11.md`, the superseded walkthrough, and the original
+  implementation plan) now carry clear banners marking their MCM/Papyrus/ESP
+  findings — **C-4**, **C-9**, **C-11**, and the Phase 4 checklist — as **moot**
+  rather than merely "resolved by another mechanism".
+
+The only configuration surface is `Data\SKSE\Plugins\TrueGaze.ini`, edited through
+the standalone `TrueGazeConfig.html` page.
+
+### Changed — Unified Tooltip Standard in the Configurator (2026-09-18)
+
+`TrueGazeConfig.html` previously used two different tooltip styles: the rich
+floating tooltip card on the configuration rows, and plain native browser
+`title=""` tooltips on everything above the first section (the action toolbar and
+the Quick Presets bar). The rich card is now the **single standard across the
+entire page**.
+
+- **New `UI_TOOLTIPS` knowledge base** — each toolbar button and each Quick Preset
+  now carries a full entry with a *Function & Mechanism* description, an *Effect*
+  summary, *Context*, and a recommendation, matching the depth of the INI
+  parameter entries.
+- **Toolbar + presets rewired** — every `title=""` attribute was replaced with
+  `data-tt-ui="ui:<id>"`, wired through the same `#richTooltip` card by a new
+  `wireUiTooltips()` bootstrap pass. No native browser tooltips remain on the page.
+- **Bottom action bar** — the *Save Changes to Game* and *Export Copy* buttons in
+  the bottom bar now share the toolbar buttons' tooltips.
+- **Adaptive card** — interface entries render an `[INTERFACE]` tag (name read from
+  the button's own label) and an `Effect:` label, and omit the
+  Recommended/Shipped footer, which has no meaning for an action. Configuration
+  entries are unchanged: `[SECTION]` tag, `In-Game Visual Impact:`, and the
+  Recommended/Shipped footer.
+- **Additive only** — page layout, controls, bridge calls, and the simulation canvas
+  are untouched. No component was removed or replaced.
+
 ### Added — Crosshair-Driven Mutual Gaze (2026-09-14)
 
 - **`src/Engine/PlayerGazeResolver.{hpp,cpp}`** — resolves the player's crosshair into a "who is the player looking at" answer. Reads the game's own `CrosshairPickData` (the same pick the HUD activation prompt uses) and tests whether the crosshair ray falls within the target's **face sweet spot**. The sweet spot is angular, not a fixed radius: the crosshair must be within the head's angular size (`2·atan(0.12 m / d)`) plus a base tolerance, so a close NPC is forgiving and a distant one requires precision — matching natural vision and the crosshair's own on-screen behaviour.
@@ -58,10 +293,9 @@ The following claims in earlier entries were found to be **inaccurate** and have
 - **`EfmBlinkController::ApplyMorphs` — not implemented.** The only substantive logic (the `exprOverrides` writes) is commented out; both code paths are no-ops. The cited `RE::FaceGen::Expression::BlinkLeft` used as an array subscript will not compile once the SDK is present; this code has never been compiled against CommonLibSSE.
 - **OAR condition registration — not implemented.** `OarConditions::RegisterWithOar()` contains a `// Future:` comment where registration should be, yet logs a success message and returns `true`. The state cache the evaluators read (`g_actorGazeCache`) is never written to. Net effect: the 7-rule OAR package fires Rule 1 unconditionally and Rules 2–7 never fire.
 - **Public modding SDK — export surface only.** All `TrueGazeAPI.cpp` bodies are stubs. `TrueGaze_IsHcepConnected()` returns a hardcoded `false`; `TrueGaze_GetActorGaze()` returns hardcoded zeroes and a hardcoded `0x14` target FormID while returning `true`; `TrueGaze_OverrideActorMode()` is an empty body.
-- **Papyrus bindings — not registered.** No `SKSE::GetPapyrusInterface()->Register(...)` call exists anywhere, and the declared signatures in `TrueGaze.psc` do not match the exported symbols.
+
 - **Animation hooks — not installed.** `AnimationHook::Install()` constructs no `REL::Relocation`; the hook body that would apply bone rotation is a comment.
-- ~~**MCM — cannot bind.**~~ **Superseded (2026-09-14).** The entire MCM and Papyrus layers were removed by design decision; configuration is INI-only via `TrueGaze.ini` and the `TrueGazeConfig.html` editor.
-- **Configuration — never loaded on the real plugin path.** `ConfigManager::Load()` is called only in the `#else` fallback branch of `Main.cpp`. Every INI setting and every MCM slider is inert.
+- **Configuration — never loaded on the real plugin path.** `ConfigManager::Load()` is called only in the `#else` fallback branch of `Main.cpp`. Every INI setting is inert.
 
 ### Discovered — Verified Defects
 

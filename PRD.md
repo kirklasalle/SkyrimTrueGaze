@@ -1,5 +1,7 @@
 # Product Requirements Document (PRD)
+
 ## TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine
+
 **Product Name:** TrueGaze™ (`TrueGaze.dll`)  
 **Workspace:** `D:\Projects\SkyrimTrueGaze`  
 **Parent Ecosystem:** Kirk LaSalle's Human Communication Eye Protocol (HCEP) (`D:\Projects\HCEP`)  
@@ -13,7 +15,9 @@
 ## 1. Executive Summary & Vision
 
 ### 1.1 Problem Statement
+
 For over two decades, real-time 3D game engines have suffered from what cognitive psychologists and animators term **"Dead-Eye Syndrome."** In Bethesda's Creation Engine (and games like *Skyrim*), character head-tracking behaves like an unweighted robotic surveillance camera:
+
 1. Neck and head bones linearly interpolate toward the target at fixed angular velocity.
 2. The eyes remain static or locked dead-center in the skull sockets.
 3. Fixations are unnaturally frozen without micro-movements, triggering the uncanny valley.
@@ -21,7 +25,9 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
 5. Eye movements are disconnected from cognitive load, emotional valence, and mutual reciprocity.
 
 ### 1.2 Product Vision
+
 **TrueGaze™** is the first true biological oculomotor and head-kinematics engine for video games. Developed as a first-party gaming product derived from Kirk LaSalle's proprietary **Human Communication Eye Protocol (HCEP)**, TrueGaze replaces hardcoded neck snapping with empirical neuroscience formulas modeling:
+
 - **Ballistic Saccades** obeying the biological Main Sequence equation.
 - **Vestibulo-Ocular Reflex (VOR)**: Low-inertia eyes lead target acquisition in 20–30ms; higher-inertia head/neck follow in 120–250ms while eyes counter-rotate to preserve foveal gaze lock.
 - **Micro-Saccadic Brownian Drift (1–3 Hz)** preventing fixation freeze.
@@ -37,7 +43,7 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
 
 | Persona | Description | Needs & Desired Outcomes |
 | :--- | :--- | :--- |
-| **Skyrim Modder / Player** | Enthusiast playing heavily modded SE/AE/VR Skyrim. | Drop-in SKSE plugin, zero configuration required, seamless performance (< 0.15ms per frame), MCM tuning, zero CTDs. |
+| **Skyrim Modder / Player** | Enthusiast playing heavily modded SE/AE/VR Skyrim. | Drop-in SKSE plugin, zero configuration required, seamless performance (< 0.15ms per frame), INI tuning, zero CTDs. |
 | **Immersive Roleplayer** | Player seeking deep character intimacy and realism. | Believable eye contact, NPCs that blush or glance away during intense conversations, mutual eye contact rewards. |
 | **Animation Modder** | Creator building custom animations using Open Animation Replacer (OAR). | Native condition functions (`TrueGaze_IsMode`, `TrueGaze_IsMutualGaze`, `TrueGaze_GetGazeRegion`) to trigger custom gestures. |
 | **HCEP Hardware User** | User running the HCEP Desktop perception platform with webcam/Kinect. | High-speed telemetry bridge streaming player eye fixations and cognitive modes into Skyrim with sub-millisecond IPC latency. |
@@ -53,9 +59,13 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
 - **Runtime Dependencies:**
   - SKSE64 (Skyrim Script Extender 64-bit)
   - Address Library for SKSE Plugins (for multi-version memory offsets)
-  - SkyUI (for Mod Configuration Menu support)
   - *Optional:* Open Animation Replacer (OAR) >= 2.0.0
   - *Optional:* Expressive Facegen Morphs (EFM) / Expressive Facial Animation (EFA)
+- **Explicit non-dependencies (vanilla-UI design):**
+  - **SkyUI is NOT required.** TrueGaze ships no MCM menu, no ESP/ESL, no Papyrus
+    (`.psc`/`.pex`) script, and no translation files. It does not modify any game
+    menu. All configuration is the INI at `Data\SKSE\Plugins\TrueGaze.ini`, edited
+    through the standalone `TrueGazeConfig.html` page.
 - **Host OS:** Windows 10 / Windows 11 (x64)
 - **Compiler / Toolchain:** MSVC 19.40+ (Visual Studio 2022 / 2026), C++20 standard, CMake >= 3.23.
 
@@ -119,8 +129,8 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
   - `TrueGaze_GetGazeRegion(regionId)`
   - `TrueGaze_IsSaccadeActive()`
 
-- **[FR-11] Mod Configuration Menu (MCM):**
-  Provide an in-game SkyUI MCM allowing players to tune saccade speed, jitter amplitude, toggle gaze aversion, toggle HCEP desktop sync, adjust mutual gaze thresholds, and toggle debug gaze rays.
+- **[FR-11] Configuration (INI + HTML Editor):**
+  All tuning exposed through `Data\SKSE\Plugins\TrueGaze.ini`, edited via the self-contained `TrueGazeConfig.html` page (auto-loads the INI; launch via `Launch-TrueGazeConfig.cmd`). Covers saccade speed, jitter amplitude and interval, skeletal strain shares, gaze aversion, HCEP desktop sync, mutual gaze threshold, LOD distances, and debug gaze rays.
 
 - **[FR-12] Dynamic Level-of-Detail (LOD):**
   - *Tier 1 (< 5m):* Full simulation (eyes, head, neck, micro-jitter, blinks, triangle).
@@ -191,5 +201,5 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
 | **AC-4** | Bone Hierarchy | Gaze angle distributes 10% Spine2, 25% Neck, 65% Head with physiological angle clamping. | **Passed** (Unit Test) |
 | **AC-5** | Wire Protocol | `TrueGazeTelemetryPacket` is exactly 64 bytes; `SkyrimFeedbackPacket` is exactly 32 bytes. CRC32 validated. | **Passed** (Unit Test) |
 | **AC-6** | Plugin Build | `TrueGaze.dll` compiles for MSVC x64 with `SKSEPlugin_Query` and `SKSEPlugin_Load` exports. | **Passed** (Binary Built) |
-| **AC-7** | Mod Packaging | Mod directory contains valid `SKSE/Plugins/`, `Interface/MCM/`, `Translations/`, and `OAR` structures. | **Passed** (Verified) |
+| **AC-7** | Mod Packaging | Mod directory contains valid `SKSE/Plugins/` (DLL + INI) and `OAR` structures. | **Passed** (Verified) |
 | **AC-8** | Skyrim SE Load | SKSE64 SE 1.5.97 successfully loads `TrueGaze.dll` from plugins directory without crashing. | **Ready for Local Test** |
