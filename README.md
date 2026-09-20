@@ -35,7 +35,7 @@
 | **Verified in-game?** | ✅ **Runtime verified** — plugin load, actor ticks, target resolution, skeleton probing, telemetry, and diagnostic emitters are confirmed |
 | **Visible illustration layer** | 🔨 **In development** — beam geometry/resource loading remains unresolved |
 
-**Verified working:** SDK linkage · the gaze engine and bone application · per-actor simulation state · configuration reaching the simulation · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 11 passing test suites · a reproducible pinned build.
+**Verified working:** SDK linkage · the gaze engine and bone application · per-actor runtime kinematics state · configuration reaching the live engine · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 11 passing test suites · a reproducible pinned build.
 
 **In-engine verified:** the plugin has been run in Skyrim AE and its runtime path is producing actor ticks, target resolutions, skeleton probes, telemetry state, and attached diagnostic lights. **Not yet verified:** a visible beam or mesh illustration rendered in-world. That visual layer is the next development milestone and is separate from the verified runtime gaze pipeline.
 
@@ -306,7 +306,7 @@ struct HcepGazeTelemetryPacket
 To guarantee flawless performance even in heavy combat or crowded cities (Whiterun, Solitude):
 
 1. **Distance LOD Tiering**:
-   * **Tier 1 ($< 5\text{m}$ / Dialogue Range)**: Full simulation (Eyes, Saccades, VOR, Social Triangle, Micro-drift, Eyelid Blinks).
+   * **Tier 1 ($< 5\text{m}$ / Dialogue Range)**: Full biological kinematics (Eyes, Saccades, VOR, Social Triangle, Micro-drift, Eyelid Blinks).
    * **Tier 2 ($5\text{m} - 15\text{m}$ / Proximity Range)**: Head & Neck kinematics active; Eye nodes use simplified tracking; Micro-drift disabled.
    * **Tier 3 ($> 15\text{m}$)**: Standard game engine LOD; processing completely bypassed.
 2. **Multi-Threaded Evaluation**:
@@ -332,9 +332,9 @@ Players and modders have full control over the engine through a single INI file:
 * **Diagnostics**: Debug gaze rays, log level.
 
 <p align="center">
-  <img src="docs/images/configurator_dashboard_telemetry.jpg" alt="TrueGaze Configurator & Telemetry Hub" width="100%">
+  <img src="docs/screengrabs/truegaze_config_03.png" alt="TrueGaze Configurator & Launcher (Live Execution Screenshot)" width="100%">
   <br>
-  <em>Figure 5: The standalone TrueGaze Configurator & Telemetry Hub with real-time ocular graphs, 3D orientation gauge, silver active presets, and direct INI serialization.</em>
+  <em>Figure 5: Live screenshot of the standalone TrueGaze Configurator & Launcher—featuring automated Skyrim AE / SE installation detection, save game inspector, hero profile tracking, silver active presets, and real-time biological eye kinematics preview.</em>
 </p>
 
 ---
@@ -547,7 +547,7 @@ no Papyrus, ESP, MCM or SkyUI. Set `bEnableConsoleCommands=true` under `[Console
 | Command | Does |
 | :--- | :--- |
 | `tgstatus` | Print the full effective state — start here |
-| `tg` | Toggle the simulation on/off |
+| `tg` | Toggle the gaze kinematics engine on/off |
 | `tgvisuals` | Toggle all in-game visuals |
 | `tgv` | Toggle the gaze-ray emitters (the "laser eyes") |
 | `tgon` / `tgoff` | Turn every visual on / off |
@@ -627,7 +627,7 @@ The full protocol is in **[`docs/TEST_SCENARIO.md`](docs/TEST_SCENARIO.md)**. It
 
 | Stage | Proves |
 | :--- | :--- |
-| 0 — Load-only | The plugin loads and installs its hook, with simulation disabled |
+| 0 — Load-only | The plugin loads and installs its hook, with kinematics disabled |
 | 1 — Skeleton probe | The engine finds the bone nodes it needs *(the critical unknown)* |
 | 2 — Visible gaze | An NPC actually looks at you |
 | 3 — Social triangle | Eye-scan cycling during dialogue |

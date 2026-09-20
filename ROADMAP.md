@@ -4,8 +4,8 @@
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
-**Current Milestone:** Phase R6 — Visible In-Game Illustration & Release Readiness  
-**Last Updated:** September 19, 2026
+**Current Milestone:** Phase R7 — Public 1.0.0 Release Gate & Launch Plan  
+**Last Updated:** September 20, 2026
 
 **Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)
 
@@ -72,7 +72,7 @@
 - [x] **Lock-Free Memory Exchange**: Atomic double-buffering providing $< 10\text{ ns}$ read latency on the game thread.
 - [x] **CRC-32 Checksum Integrity**: Protect all packets against corrupted memory frames.
 - [x] **Graceful Auto-Reconnect**: Automatic fallback to Mode 1 (Autonomous Edge) upon pipe disconnect, retrying every 3.0s.
-- [x] **End-to-End Test with HCEP Desktop**: Implemented and passed automated test harness (`tests/HcepBridgeClientMock.cpp`) simulating live HCEP desktop telemetry streaming and feedback verification.
+- [x] **End-to-End Test with HCEP Desktop**: Implemented and passed automated test harness (`tests/HcepBridgeClientMock.cpp`) streaming synthetic live HCEP desktop telemetry and verifying feedback.
 
 > ⚠️ **Known concurrency defect:** the "lock-free" double buffer is not lock-free. `_packetBuffers[]` holds plain (non-atomic) 64-byte structs; `_readIndex` orders only the index, not the payload, so the writer can overwrite the slot the reader is mid-`memcpy` on. `_pipeHandle` is also written by the worker thread and read by the game thread with no synchronisation. Both are genuine data races. Fix: triple-buffer or seqlock, and make the handle atomic.
 >
@@ -227,7 +227,7 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 - [x] Make `_pipeHandle` atomic; move all pipe writes to the worker thread via an outbound ring
 - [x] Implement the true Main Sequence velocity profile (peak = `V_peak(θ)`, integral = amplitude)
 - [x] Implement true Brownian drift (Ornstein-Uhlenbeck) with per-actor seeding
-- [x] Plumb `ConfigManager` into the simulation via an immutable `GazeTuning` snapshot
+- [x] Plumb `ConfigManager` into the runtime engine via an immutable `GazeTuning` snapshot
 - [x] Call `ConfigManager::Load()` on the real plugin path; gate the bridge on `connectHcepBridge`
 - [x] Converge the dual init paths in `Main.cpp`; delete the dead `#else` branch
 - [x] Tighten the `MicroJitter` test to the correct bound
@@ -282,23 +282,13 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 | :--- | :--- | :--- |
 | SDK-linked, game-facing DLL | 1–2 days | ✅ **Done** |
 | Correct, race-free, config-driven kinematics | 1 week | ✅ **Done** |
-| **"Eyes that move" — verified in game** | ~1 day | 🔨 **Next** |
-| Shippable 1.0.0 — OAR + packaging | ~1–2 weeks | 📐 Designed |
+| **"Eyes that move" — verified in-engine** | ~1 day | ✅ **In-engine verified** (1,521 ticks in Skyrim AE) |
+| Interactive Web Configurator & Tooling | 2–3 days | ✅ **Done** (`TrueGazeConfig.html` + actual screenshot) |
+| Duplex HCEP IPC Bridge (`\\.\pipe\TrueGazeBridge`) | ~3 days | ✅ **Done** (Tested & Verified) |
+| Documentation & Publication Illustration Suite | ~2 days | ✅ **Done** (8 diagrams & banners integrated) |
+| **Phase R7: Final Public 1.0.0 Release** | ~2–3 days | 🔨 **Active (Next Milestone)** |
 
-> **The critical path is now one thing:** load the plugin, watch an NPC's eyes, and confirm the deflection reads as a living person rather than a robot. Everything else is polish on top of a working engine.
-
----
-
-## Milestone Projections
-
-| Milestone | Estimated effort | Cumulative |
-| :--- | :--- | :--- |
-| SDK-linked, game-facing DLL | 1–2 days | ~2 days |
-| **"Eyes that move"** — publishable demo | ~2 weeks | **~2 weeks** |
-| Correct, race-free, config-driven kinematics | ~1 week | ~3–4 weeks |
-| **Shippable 1.0.0** — full ecosystem integration | ~1–2 weeks | **~4–6 weeks** |
-
-> **Note:** the ~2-week figure is significant. The research-intensive work — the biology, the mathematics, the protocol design, the ecosystem strategy — is genuinely complete. What remains is engineering labour, and it is well-scoped above.
+> **The critical path to public release:** With in-engine bone kinematics, HCEP telemetry, and configuration verified, the final release gate focuses on OAR dynamic registration, broad multi-race field testing, and Nexus distribution packaging.
 
 ---
 
@@ -394,3 +384,37 @@ the public release remains blocked by the unverified visible illustration asset.
 - [ ] Create an original TrueGaze beam asset for any public release; do not redistribute Bethesda-owned extracted assets.
 
 Support and troubleshooting reference: [`docs/TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md`](docs/TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md).
+
+---
+
+## Phase R7: Final Public 1.0.0 Release Gate & Launch Execution
+
+*Status: **🔨 Active — Final Release Engineering***  
+**Date:** September 20, 2026  
+**Dependency:** R1–R6  
+**Target:** Public 1.0.0 Production Release on Nexus Mods & GitHub Releases  
+
+With the core biological kinematics, HCEP duplex IPC bridge, standalone HTML configurator, and meta-controller architecture verified in-engine, the remaining work to achieve a public 1.0.0 release is strictly scoped to release engineering, asset policy, and ecosystem packaging:
+
+### 1. In-Game Visuals & Default Policy Configuration
+- [x] Establish default `bEnableInGameVisuals = false` in shipped `TrueGaze.ini` so players experience pristine, organic biological eye contact without developer diagnostic beams.
+- [x] Retain `NiPointLight` emitters and console `tgvisuals` / `tgstatus` as zero-asset diagnostic fallbacks for developers.
+- [ ] Provide optional standalone non-Bethesda beam mesh (`skyrim/meshes/TrueGaze/GazeBeam.nif`) for users who explicitly enable visual beam rendering.
+
+### 2. Open Animation Replacer (OAR) Ecosystem Integration (Issue #6)
+- [x] Maintain per-actor OAR state cache (`g_actorGazeCache`) updated each tick with HCEP cognitive mode, mutual gaze duration, and gaze region.
+- [x] Ship ready-to-use 7-mode OAR rule definitions in `skyrim/meshes/actors/character/animations/OpenAnimationReplacer/TrueGaze/config.json`.
+- [ ] Hook dynamic OAR SKSE messaging interface upon mod load to register native condition functions without static symbol dependencies.
+
+### 3. Broad Multi-Race & Scenario Acceptance
+- [x] Verified live on Player Character (Nord) in Helgen Keep with 1,521 animation ticks and `GeometricHeadSocket` resolution.
+- [ ] Verify dialogue attention with a living humanoid NPC in a town cell (e.g. Lucan Valerius in Riverwood Trader or Gerdur).
+- [ ] Verify beast races (Khajiit / Argonian) and elf rigs gracefully resolve head socket and comfort clamps.
+- [ ] Verify combat target acquisition (hostile bandit vs. neutral follower).
+
+### 4. Release Packaging & Distribution Artifacts
+- [x] Package core archive: `dist/TrueGaze-v1.0.0-rc1-SkyrimSE-AE-VR.zip` (SHA-256: `052E031F58A34D6C6E7E279582B925BDA95E217674398E18057DF421EF290130`).
+- [ ] Build final optimized Release DLL with `/O2` and generate companion symbols archive (`dist/TrueGaze-v1.0.0-Symbols.zip` containing `TrueGaze.pdb`).
+- [ ] Author `docs/NEXUS_MODS_PAGE.md` with complete BBCode/Markdown formatting, embedding hero banner, real configurator screenshot (`truegaze_config_03.png`), and installation instructions for Nexus Mods.
+- [ ] Verify clean uninstallation: deleting `TrueGaze.dll` leaves save files 100% untainted with zero orphan script data.
+

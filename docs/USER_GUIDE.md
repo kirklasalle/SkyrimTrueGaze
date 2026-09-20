@@ -9,7 +9,7 @@
 
 ## 1. What TrueGaze Does
 
-TrueGaze is an SKSE plugin that drives an actor gaze simulation from Skyrim's actor update path. It combines target salience, saccadic movement, eye/head coordination, micro-saccadic drift, social attention, and optional HCEP telemetry.
+TrueGaze is an SKSE plugin that drives live actor gaze kinematics from Skyrim's actor update path. It combines target salience, saccadic movement, eye/head coordination, micro-saccadic drift, social attention, and optional HCEP telemetry.
 
 The current runtime can:
 
@@ -20,7 +20,7 @@ The current runtime can:
 - Receive optional HCEP telemetry through a Windows named pipe.
 - Report actor, target, skeleton, visual, and performance diagnostics through the Skyrim log and `tgstatus`.
 
-The optional Visuals subsystem is a developer diagnostic. It is not required for the gaze simulation itself.
+The optional Visuals subsystem is a developer diagnostic. It is not required for the gaze kinematics engine itself.
 
 <p align="center">
   <img src="images/target_salience_perception_cones.jpg" alt="In-Engine Gaze Perception & Target Salience Tracking" width="100%">
@@ -96,9 +96,9 @@ The configurator can:
 The top status cards use a classic Skyrim silver treatment. This is visual configurator styling only; it does not alter in-game rendering.
 
 <p align="center">
-  <img src="images/configurator_dashboard_telemetry.jpg" alt="TrueGaze Configurator & Telemetry Hub" width="100%">
+  <img src="screengrabs/truegaze_config_03.png" alt="TrueGaze Configurator & Launcher (Live Execution Screenshot)" width="100%">
   <br>
-  <em>Figure 2: The standalone TrueGaze Configurator & Telemetry Hub interface with active silver presets and real-time ocular tracking diagnostics.</em>
+  <em>Figure 2: Live screenshot of the standalone TrueGaze Configurator & Launcher—featuring automated Skyrim AE / SE installation detection, save game inspector, hero profile tracking, silver active presets, and real-time biological eye kinematics preview.</em>
 </p>
 
 ### Presets
@@ -123,7 +123,7 @@ bEnableCreatures=true
 sEngineTarget=Auto
 ```
 
-`bEnableTrueGaze` is the master simulation switch. `bEnableCreatures` determines whether non-humanoid actors may enter the biological gaze path.
+`bEnableTrueGaze` is the master kinematics engine switch. `bEnableCreatures` determines whether non-humanoid actors may enter the biological gaze path.
 
 ### Kinematics
 
@@ -191,7 +191,7 @@ fTier1DistanceMeters=5.0
 fTier2DistanceMeters=15.0
 ```
 
-Tier 1 is the full close-range simulation. Tier 2 reduces fine detail at distance. Actors beyond the configured range may be culled from the expensive gaze path.
+Tier 1 is the full close-range biological kinematics. Tier 2 reduces fine detail at distance. Actors beyond the configured range may be culled from the expensive gaze path.
 
 ### Developer visuals
 
@@ -235,7 +235,7 @@ The current command set is:
 
 | Command | Purpose |
 | --- | --- |
-| `tg` | Toggle the master simulation switch. |
+| `tg` | Toggle the master gaze kinematics engine. |
 | `tgvisuals` | Toggle the in-game visuals master switch. |
 | `tgv` | Toggle gaze rays and enable the visual master when turning them on. |
 | `tgon` | Enable TrueGaze. |

@@ -172,19 +172,19 @@ The September 11 audit found the engine inert: no bone was ever written, and the
 | `TrueGaze.ini` schema + defaults | ✅ | ✅ | — | — |
 | INI *parsing* (`ConfigManager`) | ✅ | ✅ | ❌ | ❌ |
 | INI *invoked on the real plugin path* | ✅ | ✅ | ❌ | ❌ |
-| Config values consumed by simulation | ✅ | ✅ | ❌ | ❌ |
+| Config values consumed by runtime engine | ✅ | ✅ | ❌ | ❌ |
 | Out-of-range values clamped and reported | — | ✅ | ❌ | ❌ |
 | HTML config editor (`TrueGazeConfig.html`) | ✅ | ✅ | ✅ | — |
 | SkyUI / MCM / Papyrus layer | — | **Removed** | — | — |
 
-> ✅ **Configuration now reaches the simulation.** `ConfigManager::Load()` is called on `kDataLoaded`, `kPreLoadGame`, `kNewGame` and `kPostLoadGame`. `GazeEngine::RefreshTuning()` snapshots it into a `GazeTuning` that every kinematics call consumes, so a value in `TrueGaze.ini` has exactly one path to the mathematics. `Sanitise()` clamps every value into its supported range and logs any change, so a bad INI cannot produce nonsense physics.
+> ✅ **Configuration now reaches the runtime engine.** `ConfigManager::Load()` is called on `kDataLoaded`, `kPreLoadGame`, `kNewGame` and `kPostLoadGame`. `GazeEngine::RefreshTuning()` snapshots it into a `GazeTuning` that every kinematics call consumes, so a value in `TrueGaze.ini` has exactly one path to the mathematics. `Sanitise()` clamps every value into its supported range and logs any change, so a bad INI cannot produce nonsense physics.
 
 ### In-Game Visuals (Developer Diagnostic)
 
 > **Off by default, developer-facing.** Added 2026-09-18. This subsystem renders the
 > *solved* gaze into the world so the kinematics can be seen rather than inferred. It is a
 > **pure consumer** of `GazeEngine` state — it never recomputes gaze, and it never touches
-> the simulation, the save game, or actor state. See
+> the runtime engine, the save game, or actor transforms. See
 > [`docs/Implementation Plan - In-Game 3D Visual System & Gaze Ray Assets.md`](Implementation%20Plan%20-%20In-Game%203D%20Visual%20System%20%26%20Gaze%20Ray%20Assets.md).
 
 | Capability | Designed | Implemented | Unit-verified | In-engine |
@@ -299,7 +299,7 @@ Credit where due — these are real, correct, and verified by build or test:
 - ✅ Integration test harness for the IPC bridge, passing with no frame duplication
 - ✅ Reproducible build: pinned vcpkg baseline, preset-driven toolchain
 - ✅ Correct Skyrim mod package structure (OAR, SKSE DLL + INI)
-- ✅ Consistent `noexcept` discipline across simulation code
+- ✅ Consistent `noexcept` discipline across kinematics code
 
 ### The thing that has not been done
 
@@ -349,7 +349,7 @@ Sequenced so each phase yields a **demonstrable artifact**. Estimates assume one
 - [x] Implement the true Main Sequence velocity profile
 - [ ] Add the eye-lead latency gap ← **still open**
 - [x] True Brownian (Ornstein-Uhlenbeck) drift with per-actor RNG seeding
-- [x] Plumb `ConfigManager` into the simulation
+- [x] Plumb `ConfigManager` into the runtime engine
 - [x] Call `ConfigManager::Load()` on the correct path
 - [x] Converge the dual init paths in `Main.cpp`
 
@@ -432,7 +432,7 @@ The engine is written and compiles. Nothing below is speculative; each step is e
 
 ### Verification sequence
 
-1. **Prove it loads.** `TrueGaze.cmd -LoadOnly`, launch, load a save, quit. A clean exit proves SKSE loaded the plugin and installed the hook, without the simulation running. Check `TrueGaze.log` for `"Gaze driver installed."`
+1. **Prove it loads.** `TrueGaze.cmd -LoadOnly`, launch, load a save, quit. A clean exit proves SKSE loaded the plugin and installed the hook, without the kinematics engine running. Check `TrueGaze.log` for `"Gaze driver installed."`
 2. **Prove the bones resolve.** `TrueGaze.cmd`, then stand within 5 m of a living NPC and check the `Skeleton probe` line. This is the single most likely point of silent failure — see the caveat above.
 3. **Prove the gaze is visible.** Watch the NPC's head and eyes.
 4. **Analyse.** `TrueGaze.cmd -PostRun` reports which markers were reached, the probe result, and any faults.

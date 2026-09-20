@@ -27,7 +27,7 @@ Do not upgrade a feature's state because a build succeeds. A build proves compil
 ### Minimal ownership boundaries
 
 - `ConfigManager` owns INI parsing, clamping, and effective configuration.
-- `GazeEngine` owns per-actor simulation state and the main gaze pipeline.
+- `GazeEngine` owns per-actor runtime kinematics state and the main gaze pipeline.
 - `TargetSelector` owns salience and target resolution.
 - `PlayerGazeResolver` owns player attention and HCEP direction fusion.
 - `AnimationHook` owns the post-update actor hook and safety boundary.

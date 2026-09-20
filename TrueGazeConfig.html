@@ -1034,13 +1034,13 @@
             <span class="selected-preset" id="selectedPreset" aria-live="polite">Selected: none detected</span>
         </div>
 
-        <!-- Real-Time Eye Dynamics Simulation -->
+        <!-- Real-Time Eye Dynamics & Kinematics -->
         <div class="simulation-box">
             <div class="sim-canvas-wrap">
                 <canvas id="eyeCanvas" width="140" height="90"></canvas>
             </div>
             <div class="sim-info">
-                <div class="sim-title">Real-Time Biological Eye Dynamics Simulation</div>
+                <div class="sim-title">Real-Time Biological Eye Dynamics &amp; Kinematics</div>
                 <div class="sim-desc">
                     Demonstrating Main Sequence peak ballistic saccades, micro-saccadic Brownian jitter, and comfort
                     eye-head engagement limits based on your active parameters.
@@ -1159,7 +1159,7 @@
                 fAutoReconnectIntervalSec: ['float', 3.0, 'Background worker reconnection interval (seconds)', 1, 30, 0.5, '{v} s']
             },
             'LOD': {
-                fTier1DistanceMeters: ['float', 5.0, 'Tier 1: full biological simulation distance (meters)', 1, 20, 0.5, '{v} m'],
+                fTier1DistanceMeters: ['float', 5.0, 'Tier 1: full biological kinematics distance (meters)', 1, 20, 0.5, '{v} m'],
                 fTier2DistanceMeters: ['float', 15.0, 'Tier 2: head/neck kinematics, simplified eyes (meters)', 2, 50, 1, '{v} m']
             },
             'Debug': {
@@ -1202,7 +1202,7 @@
 
         const TOOLTIPS = {
             'General:bEnableTrueGaze': {
-                desc: 'Master switch enabling the TrueGaze biological eye and kinematics simulation engine across all humanoid NPCs.',
+                desc: 'Master switch enabling the TrueGaze biological eye and kinematics runtime engine across all humanoid NPCs.',
                 impact: 'When enabled, replaces Bethesda\'s static vanilla headtracking with procedural saccadic eye movements, micro-jitter, and cervical spine distribution.',
                 context: 'Disabling reverts the game to vanilla animation behavior without needing to uninstall the plugin.',
                 rec: 'True (Always ON)',
@@ -1307,7 +1307,7 @@
                 dflt: '0.75'
             },
             'Social:bEnableGazeAversion': {
-                desc: 'Cognitive Gaze Aversion (CGA) simulation during thought processing and speech pauses.',
+                desc: 'Cognitive Gaze Aversion (CGA) execution during thought processing and speech pauses.',
                 impact: 'NPCs periodically glance away (up/left or downward) when processing information, breaking continuous unblinking staring.',
                 context: 'Cognitive psychology shows that breaking eye contact reduces visual processing load during complex thinking.',
                 rec: 'True (Deep Realism)',
@@ -1316,7 +1316,7 @@
             'Social:bEnableSocialTriangle': {
                 desc: 'Argyle & Cook Social Triangle gaze cycling (Left Eye → Right Eye → Mouth).',
                 impact: 'During close conversations, the NPC shifts micro-fixations between your eyes and lips rather than locking onto a single frozen coordinate.',
-                context: 'Simulates the universal human social scanning pattern identified by Argyle & Cook (1976).',
+                context: 'Executes the universal human social scanning pattern identified by Argyle & Cook (1976).',
                 rec: 'True',
                 dflt: 'true'
             },
@@ -1384,16 +1384,16 @@
                 dflt: '3.0 s'
             },
             'LOD:fTier1DistanceMeters': {
-                desc: 'Radius (in meters) for Tier 1 full biological ocular simulation.',
+                desc: 'Radius (in meters) for Tier 1 full biological ocular kinematics.',
                 impact: 'Actors within this distance receive full micro-saccades, VOR head-eye coordination, and eyelid morphs.',
                 context: 'Actors beyond Tier 1 transition to simplified head-only tracking to maximize framerates in crowded cities.',
                 rec: '5.0m - 7.0m',
                 dflt: '5.0 m'
             },
             'LOD:fTier2DistanceMeters': {
-                desc: 'Radius (in meters) for Tier 2 head kinematics before complete simulation cutoff.',
+                desc: 'Radius (in meters) for Tier 2 head kinematics before distance culling cutoff.',
                 impact: 'Actors between Tier 1 and Tier 2 turn their heads toward sound/players, but ocular micro-jitter is deactivated.',
-                context: 'Beyond Tier 2, actors revert to inactive low-cost simulation state.',
+                context: 'Beyond Tier 2, actors revert to standard game engine LOD.',
                 rec: '15.0m - 20.0m',
                 dflt: '15.0 m'
             },
@@ -1413,7 +1413,7 @@
             },
             'Visuals:bEnableInGameVisuals': {
                 desc: 'Master switch for the in-game 3D visual system — the "Superman laser eyes" developer diagnostic.',
-                impact: 'When on, TrueGaze renders its solved gaze into the world. It never alters the simulation, the save game, or actor state; it only attaches and removes visual emitters.',
+                impact: 'When on, TrueGaze renders its solved gaze into the world. It never alters underlying game physics, the save game, or actor transforms; it only attaches and removes visual emitters.',
                 context: 'This subsystem is developer-facing. Turn it on to see exactly where every NPC is looking, then turn it off for normal play. Requires a game restart (the INI is read at startup).',
                 rec: 'False (True only while verifying)',
                 dflt: 'false'
@@ -1511,7 +1511,7 @@
             },
             'Console:bEnableConsoleCommands': {
                 desc: 'Registers the tg* commands so the game\'s own console (~) can toggle TrueGaze at runtime.',
-                impact: 'Adds: tg (toggle simulation), tgvisuals / tgv (visuals and gaze rays), tgon / tgoff, tgmode (render mode), tgradius (terminus glow), tgverbose (logging), tgstatus (print the full state).',
+                impact: 'Adds: tg (toggle kinematics engine), tgvisuals / tgv (visuals and gaze rays), tgon / tgoff, tgmode (render mode), tgradius (terminus glow), tgverbose (logging), tgstatus (print the full state).',
                 context: 'VANILLA ONLY — no Papyrus, no ESP/ESL, no MCM, no SkyUI. Commands are registered by reclaiming console-table entries the engine already treats as dead or empty, so no working vanilla command is displaced. Off by default because it writes into engine memory and has not yet been confirmed in a running game. Requires a game restart — commands register at load.',
                 rec: 'False, then True when you want runtime toggles',
                 dflt: 'false'
@@ -1967,7 +1967,7 @@
         $('presetSocial').addEventListener('click', () => applyPreset('social'));
 
         // ------------------------------------------------------------------
-        // Live Biological Eye Simulation Canvas
+        // Live Biological Eye Kinematics Canvas
         // ------------------------------------------------------------------
         const canvas = $('eyeCanvas');
         const ctx = canvas.getContext('2d');
