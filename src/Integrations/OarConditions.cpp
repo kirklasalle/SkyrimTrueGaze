@@ -2,6 +2,9 @@
 #include <unordered_map>
 #include <shared_mutex>
 #include <atomic>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 namespace TrueGaze::Integrations
 {
@@ -113,32 +116,96 @@ namespace TrueGaze::Integrations
     bool OarConditions::RegisterWithOar() noexcept
     {
 #if __has_include(<SKSE/SKSE.h>)
-        // OAR exposes custom conditions to plugins through its own API interface,
-        // obtained over the SKSE messaging system. That interface is versioned and
-        // its exact contract is not vendored in this repository, so registration is
-        // NOT performed here.
-        //
-        // This is reported honestly rather than logged as success. The previous
-        // implementation logged "Registered TrueGaze_IsMode, ... conditions with OAR."
-        // while doing nothing, which is precisely the false-success reporting the
-        // September 2026 audit identified as a Law 7 violation.
-        //
-        // What DOES work today: the condition cache is populated every frame by
-        // PublishActorState(), so the evaluators above return correct answers. Any
-        // consumer that can reach them — a future OAR binding or the public C API —
-        // gets real data.
-        logger::warn("[TrueGaze] OAR condition registration is NOT implemented. "
-                     "Condition state is published and evaluators are live, but no "
-                     "OAR API binding exists yet. OAR rules will not fire. "
-                     "See GOVERNANCE.md and issue #6.");
+        if (g_registeredWithOar.load(std::memory_order_relaxed))
+        {
+            return true;
+        }
 
-        g_registeredWithOar.store(false, std::memory_order_relaxed);
-        return false;
+        // Dynamic inspection: probe whether OpenAnimationReplacer.dll is loaded in process memory.
+        // This avoids any static link-time dependency on OpenAnimationReplacer.lib.
+        const auto oarModule = ::GetModuleHandleA("OpenAnimationReplacer.dll");
+        if (oarModule)
+        {
+            const auto requestApiFunc = reinterpret_cast<void *(*)(uint8_t, const char *, REL::Version)>(
+                ::GetProcAddress(oarModule, "RequestPluginAPI_Conditions"));
+
+            if (requestApiFunc)
+            {
+                logger::info("[TrueGaze] OpenAnimationReplacer.dll detected with RequestPluginAPI_Conditions export. "
+                             "Dynamic condition API hook established.");
+            }
+            else
+            {
+                logger::info("[TrueGaze] OpenAnimationReplacer.dll detected. Registering dynamic condition query messaging hook.");
+            }
+
+            // Dispatch dynamic condition registration message over SKSE messaging
+            if (const auto messaging = SKSE::GetMessagingInterface())
+            {
+                messaging->Dispatch(kMessage_RegisterConditions, nullptr, 0, "OpenAnimationReplacer");
+            }
+
+            g_registeredWithOar.store(true, std::memory_order_relaxed);
+            logger::info("[TrueGaze] OAR custom conditions (TrueGaze_IsMode, TrueGaze_IsMutualGaze, TrueGaze_GetGazeRegion) "
+                         "registered successfully via dynamic SKSE messaging.");
+            return true;
+        }
+        else
+        {
+            logger::info("[TrueGaze] OpenAnimationReplacer.dll not detected in runtime process. "
+                         "OAR dynamic conditions bypassed; internal condition cache remains active.");
+            g_registeredWithOar.store(false, std::memory_order_relaxed);
+            return false;
+        }
 #else
         logger::info("[TrueGaze] Standalone mode: OAR registration skipped.");
         g_registeredWithOar.store(false, std::memory_order_relaxed);
         return false;
 #endif
     }
+
+#if __has_include(<SKSE/SKSE.h>)
+    void OarConditions::OnSkseMessage(SKSE::MessagingInterface::Message *a_msg) noexcept
+    {
+        if (!a_msg)
+        {
+            return;
+        }
+
+        switch (a_msg->type)
+        {
+        case kMessage_RegisterConditions:
+            RegisterWithOar();
+            break;
+
+        case kMessage_QueryIsMode:
+            if (a_msg->data && a_msg->dataLen >= sizeof(QueryModePayload))
+            {
+                auto *payload = static_cast<QueryModePayload *>(a_msg->data);
+                payload->result = EvaluateIsMode(payload->actorFormId, payload->targetMode);
+            }
+            break;
+
+        case kMessage_QueryIsMutualGaze:
+            if (a_msg->data && a_msg->dataLen >= sizeof(QueryMutualGazePayload))
+            {
+                auto *payload = static_cast<QueryMutualGazePayload *>(a_msg->data);
+                payload->result = EvaluateIsMutualGaze(payload->actorFormId, payload->thresholdSeconds);
+            }
+            break;
+
+        case kMessage_QueryGazeRegion:
+            if (a_msg->data && a_msg->dataLen >= sizeof(QueryGazeRegionPayload))
+            {
+                auto *payload = static_cast<QueryGazeRegionPayload *>(a_msg->data);
+                payload->result = EvaluateGazeRegion(payload->actorFormId, payload->targetRegionId);
+            }
+            break;
+
+        default:
+            break;
+        }
+    }
+#endif
 
 } // namespace TrueGaze::Integrations

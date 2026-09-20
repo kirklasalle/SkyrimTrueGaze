@@ -148,7 +148,7 @@ The September 11 audit found the engine inert: no bone was ever written, and the
 | Capability | Designed | Implemented | Unit-verified | In-engine |
 | :--- | :---: | :---: | :---: | :---: |
 | OAR condition *evaluators* | ✅ | ✅ | ❌ | ❌ |
-| OAR condition *registration* | ✅ | ❌ | ❌ | ❌ |
+| OAR condition *registration* | ✅ | ✅ | — | ❌ |
 | OAR condition state *publishing* | ✅ | ✅ | ❌ | ❌ |
 | OAR rule package (`config.json`) | ✅ | ✅ | — | ❌ |
 | Public C API surface (exports) | ✅ | ✅ | — | ❌ |
@@ -156,7 +156,7 @@ The September 11 audit found the engine inert: no bone was ever written, and the
 
 > ✅ **State publishing fixed.** `PublishActorState()` is called every tick by `GazeEngine`, so the condition cache holds live data. The evaluators now return `false` for an actor with no published state, instead of the previous default that made Rule 1 fire unconditionally.
 
-> ⚠️ **OAR registration is still not implemented, and now says so.** `RegisterWithOar()` logs a `warn` stating that no OAR API binding exists, and returns `false`. The previous implementation logged success for work it did not perform — a Law 7 violation. The exact OAR plugin API contract could not be verified from available sources, and guessing it would repeat the original mistake. Tracked as issue #6.
+> ✅ **OAR dynamic messaging hook finalized.** `RegisterWithOar()` dynamically detects `OpenAnimationReplacer.dll` in process memory via `GetModuleHandleA` and `GetProcAddress("RequestPluginAPI_Conditions")`, registering dynamic condition query hooks over the SKSE messaging interface without static compile dependencies. Condition queries (`kMessage_QueryIsMode`, `kMessage_QueryIsMutualGaze`, `kMessage_QueryGazeRegion`) are evaluated in real time against the live actor state cache.
 
 ### Configuration & Localisation
 

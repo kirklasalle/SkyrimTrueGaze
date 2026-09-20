@@ -83,6 +83,40 @@ TrueGaze is written in high-performance native C++23 with zero garbage collectio
 
 ---
 
+## 🛡️ Diagnostic Visuals Policy (Organic by Default)
+
+[quote]
+[b]Pure Biological Realism by Default:[/b]  
+Shipped `TrueGaze.ini` is set to [b]`bEnableInGameVisuals = false`[/b]. You will experience pure, organic, natural eye contact without developer diagnostic laser beams or immersion-breaking ray overlays.
+[/quote]
+
+* **For Modders & Screenshot Creators:** Toggle in-game diagnostic visuals at any time via the vanilla console using `tgvisuals` (or enable `bEnableInGameVisuals = true` in `TrueGaze.ini`).
+* **Verified Light Emitter Fallback:** When toggled on, TrueGaze checks for standalone mesh `Data/meshes/TrueGaze/GazeBeam.nif` first, followed by the Dawnguard fallback. If no mesh geometry is present, the engine automatically defaults to the verified **`NiPointLight` emitter fallback**—attaching subtle gold point lights to the pupils and gaze terminus without requiring any art assets.
+
+---
+
+## 🎭 Open Animation Replacer (OAR) Dynamic Condition Hook
+
+TrueGaze integrates directly with Open Animation Replacer (OAR) via native **dynamic SKSE messaging** without any static compile dependencies:
+* **Zero Missing-DLL Crashes:** If OAR is not installed, TrueGaze detects this cleanly at runtime with zero impact on performance or stability.
+* **Live Dynamic Conditions:** When OAR is active, animators and modders can query live TrueGaze conditions directly:
+  * `TrueGaze_IsMode [0..4]` — Fires animations based on HCEP cognitive state (LOGIC, AFFECT, SPIRIT, HEART, THINK).
+  * `TrueGaze_IsMutualGaze [seconds]` — Triggers intimate, bashful, or attentive body reactions after sustained eye contact (e.g. >= 2.0s).
+  * `TrueGaze_GetGazeRegion [0..12]` — Triggers defensive guard gestures or weapon glances when gaze fixates on drawn weapons or specific landmarks.
+* **Pre-Configured Rule Package:** Ships with 7 ready-to-use OAR rule sets under `meshes/actors/character/animations/OpenAnimationReplacer/TrueGaze/config.json`.
+
+---
+
+## 🧝 Multi-Race & Beast Race Compatibility
+
+TrueGaze dynamically evaluates bone hierarchies and derives anatomical eye sockets geometrically:
+* **Humanoid Races (Nord, Imperial, Breton, Redguard):** Full biological saccadic velocity curve, VOR head-lag, and Argyle & Cook social triangle cycling.
+* **Elven Races (Altmer, Bosmer, Dunmer):** Gracefully adapts to elongated craniomandibular rigs and high cheekbone geometries with zero FaceGen clipping.
+* **Beast Races (Khajiit & Argonian):** Fully compatible with feline and reptilian skull shapes, respect anatomical snout morphology, and enforce comfortable cervical limits (yaw <= 45°, pitch <= 35°).
+* **High Poly Head & Custom Skeletons (XP32 / XPMSSE):** 100% plug-and-play compatibility out of the box.
+
+---
+
 ## 📦 Installation & Uninstallation
 
 ### Mod Organizer 2 / Vortex:
@@ -90,25 +124,37 @@ TrueGaze is written in high-performance native C++23 with zero garbage collectio
 2. Install with your mod manager and enable the mod.
 3. Launch Skyrim via `skse64_loader.exe`.
 
-### Standalone Configurator:
-* Open `TrueGazeConfig.html` in your browser (or run `Launch-TrueGazeConfig.cmd`) to adjust presets, inspect your saves, and customize kinematics.
+### Standalone Configurator & Save Inspector:
+* Open `TrueGazeConfig.html` in any web browser (or run `Launch-TrueGazeConfig.cmd`) to inspect your hero saves, apply curated presets (Pure Oculomotor, Cinema Dynamic, True Intimacy), and tune parameters with zero game restarts.
 
-### Safe Uninstallation:
-* TrueGaze attaches no Papyrus scripts and creates no persistent form data. You can disable or remove the mod at any time without corrupting your save files.
+### Safe Mid-Playthrough Uninstallation:
+* TrueGaze attaches **no Papyrus scripts** and creates **no persistent form data** in your save. You can install, disable, or remove TrueGaze at any point in a playthrough with 100% save-file safety.
 
 ---
 
 ## ⌨️ Vanilla In-Game Console Commands (`~`)
 
-TrueGaze includes optional runtime console commands (vanilla only, zero Papyrus):
-* `tgstatus` — Display full runtime status, tracked actors, and active kinematics state.
-* `tg` — Toggle the gaze kinematics engine on/off.
-* `tgvisuals` — Toggle developer diagnostic visuals.
-* `tgverbose` — Toggle diagnostic log verbosity.
+TrueGaze provides native engine console commands (vanilla only, zero Papyrus):
+* `tgstatus` — Display live runtime status, tracked actor count, and active kinematics state.
+* `tg` — Toggle the gaze engine on/off globally.
+* `tgvisuals` — Toggle developer diagnostic visuals (pupil and terminus light emitters).
+* `tgverbose` — Toggle diagnostic log verbosity (Info vs. Debug/Trace).
+* `tgon` / `tgoff` — Explicitly enable or disable the gaze driver.
+
+---
+
+## 🔐 Release Verification & SHA-256 Checksums
+
+For security and integrity verification:
+
+| Package | File Name | Size | SHA-256 Checksum |
+| :--- | :--- | :--- | :--- |
+| **Main Mod Archive** | `TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` | ~304 KB | `41AB39649F3B78F505F6BA4D972460365CC4EFAA0352C61297CB66F60991410F` |
+| **Companion Symbols** | `TrueGaze-v1.0.0-Symbols.zip` | ~4.87 MB | `5021AB863EF30539F0A0DE4FC87A9C88C090AEB55B16FF3BC4FF74F28D10EA28` |
 
 ---
 
 [center]
-[b]TrueGaze™ is designed and created by Kirk LaSalle.[/b]  
+[b]TrueGaze™ is authored and engineered by Kirk LaSalle.[/b]  
 [i]A First-Party Implementation of the Human Communication Eye Protocol (HCEP).[/i]
 [/center]

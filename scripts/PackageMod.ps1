@@ -46,24 +46,53 @@ if (!(Test-Path $distDir)) {
     New-Item -ItemType Directory -Path $distDir | Out-Null
 }
 
-# 4. Generate zip archive
-$version = "1.0.0-rc1"
+# 4. Generate release archives
+$version = "1.0.0"
 $archiveName = "TrueGaze-v$version-SkyrimSE-AE-VR.zip"
 $archivePath = Join-Path $distDir $archiveName
+$symbolsName = "TrueGaze-v$version-Symbols.zip"
+$symbolsPath = Join-Path $distDir $symbolsName
+$releasePdb = Join-Path $projectRoot "build\windows-release\Release\TrueGaze.pdb"
 
 if (Test-Path $archivePath) {
     Remove-Item $archivePath -Force
 }
+if (Test-Path $symbolsPath) {
+    Remove-Item $symbolsPath -Force
+}
 
-Write-Host "`n[3/4] Compressing mod package into $archiveName..." -ForegroundColor Yellow
+Write-Host "`n[3/5] Compressing mod package into $archiveName..." -ForegroundColor Yellow
 Compress-Archive -Path "$skyrimDir\*" -DestinationPath $archivePath
 
-# 5. Summary
-$fileSize = (Get-Item $archivePath).Length / 1KB
+Write-Host "`n[4/5] Compressing companion debug symbols into $symbolsName..." -ForegroundColor Yellow
+if (Test-Path $releasePdb) {
+    Compress-Archive -Path $releasePdb -DestinationPath $symbolsPath
+    Write-Host "  OK   Companion PDB included: TrueGaze.pdb" -ForegroundColor DarkGray
+} else {
+    Write-Warning "PDB not found at $releasePdb; symbols archive omitted."
+}
+
+# 5. Compute SHA-256 Hashes & Summary
+$mainHash = (Get-FileHash -Path $archivePath -Algorithm SHA256).Hash
+$mainSize = (Get-Item $archivePath).Length / 1KB
+
 Write-Host ""
-Write-Host "[4/4] Package Created Successfully!" -ForegroundColor Green
-Write-Host ("  Output: " + $archivePath) -ForegroundColor White
-Write-Host ("  Size:   " + [math]::Round($fileSize, 2) + " KB") -ForegroundColor White
+Write-Host "========================================================" -ForegroundColor Green
+Write-Host "[5/5] Production Release Packages Created Successfully!" -ForegroundColor Green
+Write-Host "========================================================" -ForegroundColor Green
+Write-Host ("  Mod Package:    " + $archivePath) -ForegroundColor White
+Write-Host ("  Size:           " + [math]::Round($mainSize, 2) + " KB") -ForegroundColor White
+Write-Host ("  SHA-256:        " + $mainHash) -ForegroundColor Cyan
+
+if (Test-Path $symbolsPath) {
+    $symHash = (Get-FileHash -Path $symbolsPath -Algorithm SHA256).Hash
+    $symSize = (Get-Item $symbolsPath).Length / 1KB
+    Write-Host ""
+    Write-Host ("  Symbols:        " + $symbolsPath) -ForegroundColor White
+    Write-Host ("  Size:           " + [math]::Round($symSize, 2) + " KB") -ForegroundColor White
+    Write-Host ("  SHA-256:        " + $symHash) -ForegroundColor Cyan
+}
+
 Write-Host ""
-Write-Host "Ready for upload to Nexus Mods or installation in Mod Organizer 2 / Vortex." -ForegroundColor Cyan
+Write-Host "Ready for publication on Nexus Mods and GitHub Releases!" -ForegroundColor Green
 

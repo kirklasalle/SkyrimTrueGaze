@@ -173,7 +173,7 @@ namespace TrueGaze::Visuals
             return;
         }
 
-        // Eligibility filters. The master simulation switch has already been checked
+        // Eligibility filters. The master runtime engine switch has already been checked
         // by the caller, so only the visual-specific filters live here.
         if (a_isPlayer && !_tuning.gazeRaysOnPlayer)
         {
@@ -218,7 +218,7 @@ namespace TrueGaze::Visuals
         {
             if (_emitters.size() >= kMaxEmitterActors)
             {
-                // Bound the emitter count independently of the simulation cap so a
+                // Bound the emitter count independently of the runtime actor cap so a
                 // large cell cannot multiply the visual cost without limit.
                 return;
             }
@@ -469,7 +469,19 @@ namespace TrueGaze::Visuals
 
         RE::NiPointer<RE::NiNode> model;
         RE::BSModelDB::DBTraits::ArgsType args{};
-        const auto result = RE::BSModelDB::Demand(_tuning.beamModelPath, model, args);
+        auto result = RE::BSModelDB::Demand(_tuning.beamModelPath, model, args);
+        const char *effectivePath = _tuning.beamModelPath;
+
+        // If the primary standalone mesh path is missing, try the secondary fallback path
+        if ((result != RE::BSResource::ErrorCode::kNone || !model) && _tuning.beamModelFallbackPath)
+        {
+            result = RE::BSModelDB::Demand(_tuning.beamModelFallbackPath, model, args);
+            if (result == RE::BSResource::ErrorCode::kNone && model)
+            {
+                effectivePath = _tuning.beamModelFallbackPath;
+            }
+        }
+
         if (result != RE::BSResource::ErrorCode::kNone || !model)
         {
             a_emitters.geometryState = result == RE::BSResource::ErrorCode::kNotExist
@@ -477,9 +489,11 @@ namespace TrueGaze::Visuals
                                            : ActorEmitters::GeometryState::Invalid;
             if (a_emitters.geometryAttempts == 1 || result != RE::BSResource::ErrorCode::kNotExist)
             {
-                logger::warn("[TrueGaze] Beam geometry unavailable: '{}' result={}",
-                             _tuning.beamModelPath, static_cast<unsigned>(result));
+                logger::info("[TrueGaze] Beam geometry not found ('{}'); utilizing verified NiPointLight emitter fallback.",
+                             _tuning.beamModelPath);
             }
+            // Ensure verified light emitter fallback is active when geometry is absent
+            EnsureLight(a_emitters, a_anchor, true);
             return;
         }
 
@@ -488,7 +502,7 @@ namespace TrueGaze::Visuals
         a_emitters.geometryState = ActorEmitters::GeometryState::Loaded;
         ++_geometryCreated;
         logger::info("[TrueGaze] Visible beam geometry attached from '{}' and will follow solved gaze",
-                     _tuning.beamModelPath);
+                     effectivePath);
     }
 
 #else

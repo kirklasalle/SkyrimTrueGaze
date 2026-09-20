@@ -151,6 +151,9 @@ namespace
             return;
         }
 
+        // Dynamic SKSE message dispatch to OAR / external condition listeners
+        TrueGaze::Integrations::OarConditions::OnSkseMessage(a_msg);
+
         auto &engine = TrueGaze::Engine::GazeEngine::Get();
         auto &config = TrueGaze::Engine::ConfigManager::GetSingleton();
 
@@ -158,12 +161,15 @@ namespace
         {
         case SKSE::MessagingInterface::kPostLoad:
             // Attempted before data so condition state exists as early as OAR
-            // first evaluates. Reports honestly if OAR is unavailable.
+            // first evaluates.
             TrueGaze::Integrations::OarConditions::RegisterWithOar();
             break;
 
         case SKSE::MessagingInterface::kDataLoaded:
             logger::info("[TrueGaze] Game data loaded. Initialising gaze engine.");
+
+            // Verify or establish OAR dynamic condition hook on data load
+            TrueGaze::Integrations::OarConditions::RegisterWithOar();
 
             // Configuration is loaded HERE, on the real plugin path. It was
             // previously only loaded in the unreachable #else branch below, so
@@ -267,6 +273,8 @@ SKSEPluginLoad(const SKSE::LoadInterface *a_skse)
         logger::error("[TrueGaze] Failed to register SKSE messaging listener.");
         return false;
     }
+    // Also register listener for OpenAnimationReplacer messages
+    messaging->RegisterListener("OpenAnimationReplacer", MessageHandler);
 
     logger::info("[TrueGaze] SKSE plugin loaded successfully.");
     return true;

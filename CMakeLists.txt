@@ -135,7 +135,10 @@ if(MSVC)
     # /Zc:__cplusplus makes the __cplusplus macro report the true standard version,
     # which CommonLibSSE-NG relies on.
     target_compile_options(${PROJECT_NAME} PRIVATE
-        /W4 /permissive- /Zc:preprocessor /Zc:__cplusplus /EHsc)
+        /W4 /permissive- /Zc:preprocessor /Zc:__cplusplus /EHsc
+        $<$<CONFIG:Release>:/Zi>)
+    target_link_options(${PROJECT_NAME} PRIVATE
+        $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF>)
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE CommonLibSSE::CommonLibSSE)

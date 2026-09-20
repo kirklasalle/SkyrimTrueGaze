@@ -7,7 +7,7 @@ namespace TrueGaze::Visuals
 
     /// @brief Immutable per-frame snapshot of the in-game visual configuration.
     ///
-    /// Mirrors the role `Engine::GazeTuning` plays for the simulation: the renderer
+    /// Mirrors the role `Engine::GazeTuning` plays for the runtime engine: the renderer
     /// takes its constants as arguments rather than reading `ConfigManager` globals,
     /// so a key in `TrueGaze.ini` has exactly one path to the visuals.
     ///
@@ -30,10 +30,11 @@ namespace TrueGaze::Visuals
         float gazeRayOpacity{0.85f};
 
         /// Resource path of the visible beam model, relative to the Skyrim Data
-        /// root. Configurable so an extracted or original asset can be tested
-        /// without a rebuild. Verified with BSA Browser: the vanilla asset lives in
-        /// the Dawnguard (DLC01) effects folder, not meshes\effects.
-        const char *beamModelPath{"meshes\\dlc01\\effects\\fxsoulcairnbeam.nif"};
+        /// root. Configurable so a standalone non-Bethesda asset can be used without
+        /// a rebuild. Primary target is the standalone TrueGaze mesh path.
+        const char *beamModelPath{"meshes\\TrueGaze\\GazeBeam.nif"};
+        /// Verified secondary vanilla fallback asset in the Dawnguard effects folder.
+        const char *beamModelFallbackPath{"meshes\\dlc01\\effects\\fxsoulcairnbeam.nif"};
 
         // --- Which actors emit ---
         bool gazeRaysOnPlayer{true};

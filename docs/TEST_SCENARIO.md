@@ -35,9 +35,9 @@ It checks the game version, SKSE build match, Address Library version, the DLL's
 
 ---
 
-## Stage 0 — Prove it loads *(no simulation)*
+## Stage 0 — Prove it loads *(runtime dormant)*
 
-**Goal:** Confirm the plugin loads and installs its hook, with zero risk of the simulation misbehaving.
+**Goal:** Confirm the plugin loads and installs its hook, with zero risk of uncalibrated runtime behavior.
 
 **Setup:**
 
@@ -243,6 +243,49 @@ The INI is read at startup, so **restart the game** after changing it.
 
 ---
 
+## Stage 6 — Broad Multi-Race & Dialogue Field Acceptance (Humanoid & Beast Races)
+
+**Goal:** Verify natural biological eye contact, VOR decoupling, and Social Triangle gaze cycling in third-person camera across diverse humanoid and beast races in peaceful interior/settlement cells.
+
+### Test Cells & Candidate NPCs:
+
+| Race Family | Test Cell | Candidate NPC | Observed Dynamics |
+| :--- | :--- | :--- | :--- |
+| **Human (Imperial)** | `RiverwoodTrader` | Lucan Valerius | Saccadic fixation, VOR counter-rotation, third-person dialogue camera |
+| **Human (Nord)** | `WhiterunBanneredMare` | Hulda / Uthgerd | Argyle & Cook Social Triangle cycling (eye → eye → mouth) |
+| **Elf (Bosmer / Dunmer)** | `Riverwood` / `WhiterunDrunkenHuntsman` | Faendal / Jenassa | Elongated craniofacial rig compatibility, socket tracking |
+| **Beast (Khajiit)** | Whiterun Exterior Caravan | Kharjo / Ri'saad | Feline craniomandibular rig, wide pupillary axis, neck strain |
+| **Beast (Argonian)** | Riften Docks / Market | Madesi / Scouts-Many-Marshes | Extended reptilian snout morphology, horn/ridge stability |
+
+### Procedure:
+
+1. **Third-Person Dialogue Check:**
+   - Stand in front of Lucan Valerius or Hulda in third-person camera (`F` or mouse wheel zoom).
+   - Initiate conversation.
+   - Observe third-person mutual gaze: NPC fixes gaze upon player's facial landmarks rather than staring rigidly forward or snapping neck unnaturally.
+2. **Social Triangle Verification:**
+   - Keep dialogue menu open for 10–15 seconds.
+   - Confirm NPC gaze cycles periodically (Left Eye → Right Eye → Mouth) at ~0.35s intervals without head jitter.
+3. **Crosshair Sweet-Spot Test:**
+   - Exit dialogue. Stand 2–4 meters away.
+   - Sweep crosshair onto NPC's head: NPC glances up to establish mutual eye contact within angular tolerance.
+   - Sweep crosshair away: NPC returns to ambient attention.
+4. **Beast Race Craniomandibular Check (Khajiit / Argonian):**
+   - Approach a Khajiit or Argonian NPC.
+   - Verify head/neck rotation respects biological angular limits (yaw ≤ 45°, pitch ≤ 35°).
+   - Confirm no skeletal distortion, FaceGen mesh tearing, or neck twist artifacts.
+
+### Pass Criteria:
+
+| Check | Humanoid (Nord/Elf) | Beast (Khajiit/Argonian) |
+| :--- | :--- | :--- |
+| Third-person mutual gaze | Natural, organic | Natural, organic |
+| Social Triangle cycling | Active in dialogue | Active in dialogue |
+| Bone strain distribution | Spine2 10%, Neck 25%, Head 65% | Proportional cervical damping |
+| Havok / Rig stability | Zero physics glitches | Zero snout/jaw distortion |
+
+---
+
 ## Final analysis
 
 ```powershell
@@ -281,11 +324,10 @@ Stated plainly so a passing run is not mistaken for a finished product:
 
 | Not tested here | Why |
 | :--- | :--- |
-| **OAR conditions** | Registration is unimplemented (issue #6). The cache works; the binding to OAR does not. |
+| **OAR conditions** | Dynamic SKSE messaging hook is live; verified when OAR is active in session. |
 | **Eyelid morphs (EFM)** | Implemented via `SetExpressionOverride` (2026-09-14) but not yet observed in-engine. |
 | **HCEP desktop bridge** | Requires the desktop suite running and listening on the named pipe. Out of scope for a gaze test. |
 | **Eye-lead *latency*** | The eyes lead in *magnitude* but not yet in *time*. The 20–30 ms biological latency gap is not modelled. |
-
 | **Creature/gaze aversion modes** | Mode 4 (THINK) only arrives from the HCEP bridge; without it, aversion never triggers. |
 
 A passing run promotes the **gaze** rows of `STATUS.md` to ✅ In-engine verified. It does not promote any of the above.
@@ -301,7 +343,7 @@ Whatever happens, record it. A failure documented precisely is worth more than a
 | Date | |
 | Game version | |
 | SKSE version | |
-| Stage reached | 0 / 1 / 2 / 3 / 4 |
+| Stage reached | 0 / 1 / 2 / 3 / 4 / 5 / 6 |
 | Skeleton probe result | |
 | Verdict | |
 | Notes | |

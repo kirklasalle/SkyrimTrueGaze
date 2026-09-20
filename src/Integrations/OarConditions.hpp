@@ -34,6 +34,36 @@ namespace TrueGaze::Integrations
             THINK = 4
         };
 
+        /// @brief Custom message types for SKSE dynamic messaging interface.
+        enum MessageType : uint32_t
+        {
+            kMessage_RegisterConditions = 0x54473031, // 'TG01' - Dynamic condition registration
+            kMessage_QueryIsMode        = 0x54473032, // 'TG02' - Query if actor is in HCEP mode
+            kMessage_QueryIsMutualGaze  = 0x54473033, // 'TG03' - Query if actor holds mutual gaze
+            kMessage_QueryGazeRegion    = 0x54473034  // 'TG04' - Query actor's gaze region
+        };
+
+        struct QueryModePayload
+        {
+            uint32_t actorFormId{0};
+            uint8_t targetMode{0};
+            bool result{false};
+        };
+
+        struct QueryMutualGazePayload
+        {
+            uint32_t actorFormId{0};
+            float thresholdSeconds{0.0f};
+            bool result{false};
+        };
+
+        struct QueryGazeRegionPayload
+        {
+            uint32_t actorFormId{0};
+            uint8_t targetRegionId{0};
+            bool result{false};
+        };
+
         /// @brief Writes an actor's live gaze state into the condition cache.
         ///
         /// Called from the game thread every frame by GazeEngine. OAR reads the cache
@@ -62,10 +92,14 @@ namespace TrueGaze::Integrations
         /// @brief Evaluates whether the actor's current gaze region matches the requested region ID (0-12).
         static bool EvaluateGazeRegion(uint32_t actorFormId, uint8_t targetRegionId) noexcept;
 
-        /// @brief Registers TrueGaze custom conditions with Open Animation Replacer.
-        /// @return true only if registration actually succeeded. OAR being absent is a
-        ///         normal condition and is logged as information, not as success.
+        /// @brief Registers TrueGaze custom conditions dynamically with Open Animation Replacer via SKSE messaging.
+        /// @return true if OAR is detected and dynamic condition hook is established.
         static bool RegisterWithOar() noexcept;
+
+#if __has_include(<SKSE/SKSE.h>)
+        /// @brief Handles incoming dynamic messages from SKSE and external condition evaluators.
+        static void OnSkseMessage(SKSE::MessagingInterface::Message *a_msg) noexcept;
+#endif
     };
 
 } // namespace TrueGaze::Integrations
