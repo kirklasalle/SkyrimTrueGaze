@@ -47,25 +47,25 @@ namespace TrueGaze::Engine
         // --- Kinematics ---
         float saccadeSpeedMult{1.0f};
         float velocitySaturation{14.0f};
-        float microJitterAmp{0.35f};
+        float microJitterAmp{0.18f};
         float microJitterIntervalMin{0.2f};  // mean time between micro-corrections, lower bound (s)
         float microJitterIntervalMax{0.45f}; // upper bound (s); 1/mean drives OU mean reversion
-        float headTrackingSpeed{6.0f};
-        float maxComfortEyeAngle{35.0f};
+        float headTrackingSpeed{3.5f};
+        float maxComfortEyeAngle{28.0f};
         float headOnsetDelaySec{0.12f};
 
         // --- Skeletal hierarchy strain shares (yaw sums to 1.0; pitch: neck+head) ---
-        float spine2YawWeight{0.10f};
-        float neckYawWeight{0.25f};
-        float neckPitchWeight{0.25f};
-        float headYawWeight{0.65f};
-        float headPitchWeight{0.75f};
+        float spine2YawWeight{0.06f};
+        float neckYawWeight{0.20f};
+        float neckPitchWeight{0.20f};
+        float headYawWeight{0.50f};
+        float headPitchWeight{0.55f};
 
         // --- General ---
         std::string engineTarget{"Auto"}; // Auto | SE | AE | VR (validated at load)
 
         // --- Social ---
-        bool enableGazeAversion{true};
+        bool enableGazeAversion{false};
         bool enableSocialTriangle{true};
         float triangleFixationDuration{0.35f};
         float mutualGazeThreshold{2.0f};

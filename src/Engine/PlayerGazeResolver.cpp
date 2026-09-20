@@ -260,7 +260,7 @@ namespace TrueGaze::Engine
         result.faceX = facePos.x;
         result.faceY = facePos.y;
         result.faceZ = facePos.z;
-        result.onFace = (faceAngleDeg <= toleranceDeg) || (distanceMeters <= 4.0f);
+        result.onFace = (faceAngleDeg <= toleranceDeg);
         return result;
 #else
         (void)params;

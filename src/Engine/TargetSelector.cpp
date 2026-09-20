@@ -30,13 +30,13 @@ namespace TrueGaze::Engine
         constexpr float kAmbientNominalMeters = 3.0f;
 
         /// Humanoid comfortable forward visual cone (degrees).
-        /// Head turn comfort limit before whole-body turning is required (~60-65 deg).
+        /// Head turn comfort limit before whole-body turning is required (~75 deg).
         /// Targets outside this angle are behind or flanking the actor and must NOT be targeted.
-        constexpr float kMaxVisualConeAngleDeg = 65.0f;
+        constexpr float kMaxVisualConeAngleDeg = 75.0f;
 
-        /// Slightly wider visual cone (75 deg) used to retain an already locked target,
-        /// preventing edge chatter when a target crosses the 65 deg boundary.
-        constexpr float kMaxHoldVisualConeAngleDeg = 75.0f;
+        /// Wider visual cone (95 deg) used to retain an already locked target,
+        /// preventing edge chatter or premature drop when talking/standing in personal space (< 1.8m).
+        constexpr float kMaxHoldVisualConeAngleDeg = 95.0f;
 
         constexpr float kRadToDeg = 180.0f / 3.14159265358979323846f;
         constexpr float kPi = 3.14159265358979323846f;
@@ -506,7 +506,8 @@ namespace TrueGaze::Engine
 
         // Check if player is in visual cone
         float effPlayerDist = playerDistanceMeters;
-        const bool playerInCone = IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos, kMaxVisualConeAngleDeg);
+        const float coneAngle = (playerDistanceMeters <= 1.8f) ? kMaxHoldVisualConeAngleDeg : kMaxVisualConeAngleDeg;
+        const bool playerInCone = IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos, coneAngle);
         if (!playerInCone)
         {
             effPlayerDist = 999.0f; // Player is behind observer; do not turn neck backwards

@@ -11,6 +11,7 @@
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/Skyrim.h>
+#include <RE/H/HighProcessData.h>
 #include <RE/S/SendHUDMessage.h>
 #include <RE/C/ConsoleLog.h>
 #include <RE/B/BSVisit.h>
@@ -487,6 +488,17 @@ namespace TrueGaze::Engine
                     char hudBuf[128];
                     std::snprintf(hudBuf, sizeof(hudBuf), "[TrueGaze] 3rd-Person Gaze: Yaw %+.1f deg | Pitch %+.1f deg", yawDeg, pitchDeg);
                     RE::SendHUDMessage::ShowHUDMessage(hudBuf);
+                }
+            }
+        }
+
+        if (!actor->IsPlayerRef())
+        {
+            if (auto *high = actor->GetHighProcess())
+            {
+                for (std::uint32_t i = 0; i < RE::HighProcessData::HEAD_TRACK_TYPE::kTotal; ++i)
+                {
+                    high->ClearHeadtrackTarget(static_cast<RE::HighProcessData::HEAD_TRACK_TYPE>(i), false);
                 }
             }
         }

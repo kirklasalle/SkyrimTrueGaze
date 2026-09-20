@@ -5,6 +5,7 @@
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/Skyrim.h>
+#include <RE/H/HighProcessData.h>
 #include <RE/S/SendHUDMessage.h>
 #endif
 
@@ -77,6 +78,21 @@ namespace TrueGaze::Engine
                     if (a_actor)
                     {
                         EyeAimConstraint::WithdrawActor(a_actor->GetFormID());
+                    }
+                }
+                else
+                {
+                    // Suppress vanilla Skyrim headtracking for NPCs managed by TrueGaze,
+                    // preventing double-rotation stacking and erratic neck overshooting.
+                    if (a_actor && ConfigManager::GetSingleton().enableTrueGaze)
+                    {
+                        if (auto *high = a_actor->GetHighProcess())
+                        {
+                            for (std::uint32_t i = 0; i < RE::HighProcessData::HEAD_TRACK_TYPE::kTotal; ++i)
+                            {
+                                high->ClearHeadtrackTarget(static_cast<RE::HighProcessData::HEAD_TRACK_TYPE>(i), false);
+                            }
+                        }
                     }
                 }
 
