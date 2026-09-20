@@ -64,6 +64,7 @@ namespace TrueGaze::Engine
         microJitterIntervalMax = ReadFloat("Kinematics", "fMicroJitterIntervalMax", microJitterIntervalMax, p);
         headTrackingSpeed = ReadFloat("Kinematics", "fHeadTrackingSpeed", headTrackingSpeed, p);
         maxComfortEyeAngle = ReadFloat("Kinematics", "fMaxComfortEyeAngle", maxComfortEyeAngle, p);
+        headOnsetDelaySec = ReadFloat("Kinematics", "fHeadOnsetDelaySec", headOnsetDelaySec, p);
 
         // SkeletalHierarchy
         spine2YawWeight = ReadFloat("SkeletalHierarchy", "fSpine2YawWeight", spine2YawWeight, p);
@@ -214,6 +215,7 @@ namespace TrueGaze::Engine
         microJitterIntervalMax = clampReport("fMicroJitterIntervalMax", microJitterIntervalMax, 0.1f, 4.0f);
         headTrackingSpeed = clampReport("fHeadTrackingSpeed", headTrackingSpeed, 0.5f, 40.0f);
         maxComfortEyeAngle = clampReport("fMaxComfortEyeAngle", maxComfortEyeAngle, 5.0f, 45.0f);
+        headOnsetDelaySec = clampReport("fHeadOnsetDelaySec", headOnsetDelaySec, 0.0f, 0.5f);
         spine2YawWeight = clampReport("fSpine2YawWeight", spine2YawWeight, 0.0f, 1.0f);
         neckYawWeight = clampReport("fNeckYawWeight", neckYawWeight, 0.0f, 1.0f);
         neckPitchWeight = clampReport("fNeckPitchWeight", neckPitchWeight, 0.0f, 1.0f);
@@ -366,6 +368,7 @@ namespace TrueGaze::Engine
         WriteFloat("Kinematics", "fMicroJitterIntervalMax", microJitterIntervalMax);
         WriteFloat("Kinematics", "fHeadTrackingSpeed", headTrackingSpeed);
         WriteFloat("Kinematics", "fMaxComfortEyeAngle", maxComfortEyeAngle);
+        WriteFloat("Kinematics", "fHeadOnsetDelaySec", headOnsetDelaySec);
 
         WriteFloat("SkeletalHierarchy", "fSpine2YawWeight", spine2YawWeight);
         WriteFloat("SkeletalHierarchy", "fNeckYawWeight", neckYawWeight);

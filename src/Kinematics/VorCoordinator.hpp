@@ -28,12 +28,21 @@ public:
         // Tuning parameters
         float headTrackingSpeed{ 6.0f };  // Damping factor for head following
         float eyeMaxAngle{ 35.0f };       // Maximum comfortable eye angle before forced head turn
+        float headOnsetDelayTimerSec{ 0.0f }; // Biological latency gap countdown (seconds)
     };
 
     /// @brief Computes one frame of coupled Head-Eye kinematics with VOR counter-rotation.
     static void Update(VorState& state, float deltaSeconds) noexcept
     {
         if (deltaSeconds <= 0.0f) return;
+
+        // Biological latency gap: head movement is held while eyes lead
+        bool headDelayed = false;
+        if (state.headOnsetDelayTimerSec > 0.0f)
+        {
+            state.headOnsetDelayTimerSec = std::max(0.0f, state.headOnsetDelayTimerSec - deltaSeconds);
+            headDelayed = true;
+        }
 
         // 1. Calculate ideal head trajectory (smooth exponential approach to target)
         float headErrorYaw = state.targetYaw - state.headYaw;
@@ -42,8 +51,8 @@ public:
         float prevHeadYaw = state.headYaw;
         float prevHeadPitch = state.headPitch;
 
-        // Damped head following
-        float alpha = 1.0f - std::exp(-state.headTrackingSpeed * deltaSeconds);
+        // Damped head following (inhibited during biological latency delay)
+        float alpha = headDelayed ? 0.0f : (1.0f - std::exp(-state.headTrackingSpeed * deltaSeconds));
         float deltaYaw = headErrorYaw * alpha;
         float deltaPitch = headErrorPitch * alpha;
 

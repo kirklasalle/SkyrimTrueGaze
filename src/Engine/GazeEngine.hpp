@@ -109,6 +109,9 @@ namespace TrueGaze::Engine
         [[nodiscard]] uint64_t NoTargetResolutions() const noexcept { return _noTargetResolutions; }
         [[nodiscard]] uint8_t LastTargetPriority() const noexcept { return _lastTargetPriority; }
         [[nodiscard]] uint32_t LastTargetFormId() const noexcept { return _lastTargetFormId; }
+        [[nodiscard]] uint64_t SaccadesTriggered() const noexcept { return _saccadesTriggered; }
+        [[nodiscard]] uint64_t BlinksTriggered() const noexcept { return _blinksTriggered; }
+        [[nodiscard]] uint64_t MutualGazeFrames() const noexcept { return _mutualGazeFrames; }
 
         /// Phase S2 rig capability matrix. Diagnostic only.
         /// The last probed actor's visual-origin mode as a stable string, plus
@@ -171,6 +174,9 @@ namespace TrueGaze::Engine
         uint64_t _noTargetResolutions{0};
         uint8_t _lastTargetPriority{0};
         uint32_t _lastTargetFormId{0};
+        uint64_t _saccadesTriggered{0};
+        uint64_t _blinksTriggered{0};
+        uint64_t _mutualGazeFrames{0};
 
         // Phase S2 rig capability diagnostics.
         const char *_lastRigOrigin{"unknown"};

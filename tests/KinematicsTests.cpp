@@ -97,7 +97,35 @@ namespace
         assert(state.headPitch <= 45.001f);
         assert(state.eyeLocalPitch > 0.0f);
 
-        std::cout << "  -> VorCoordinator passed (including steep cervical clamping).\n";
+        // 3. Biological Latency Gap Verification:
+        // When a gaze shift begins, eye must lead while head movement is delayed.
+        TrueGaze::Kinematics::VorCoordinator::VorState latencyState;
+        latencyState.targetYaw = 25.0f;
+        latencyState.headOnsetDelayTimerSec = 0.12f; // 120 ms biological onset delay
+
+        // Step 3 frames (~48 ms)
+        for (int i = 0; i < 3; ++i)
+        {
+            TrueGaze::Kinematics::VorCoordinator::Update(latencyState, dt);
+        }
+        // Head MUST remain stationary at 0.0 deg during the delay window
+        assert(latencyState.headYaw == 0.0f);
+        // Eye MUST have absorbed the full target deflection
+        assert(latencyState.eyeLocalYaw == 25.0f);
+
+        // Step past the delay window (another 6 frames, total ~144 ms)
+        for (int i = 0; i < 6; ++i)
+        {
+            TrueGaze::Kinematics::VorCoordinator::Update(latencyState, dt);
+        }
+        // Delay timer should now be expired
+        assert(latencyState.headOnsetDelayTimerSec == 0.0f);
+        // Head must now be actively rotating towards target
+        assert(latencyState.headYaw > 0.0f);
+        // Eye must counter-rotate (VOR) as head catches up
+        assert(latencyState.eyeLocalYaw < 25.0f);
+
+        std::cout << "  -> VorCoordinator passed (including cervical clamping & biological latency gap).\n";
     }
 
     // Superseded by TestJitterIsBrownianAndSeedable, which asserts the correct

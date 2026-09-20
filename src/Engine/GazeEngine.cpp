@@ -193,6 +193,7 @@ namespace TrueGaze::Engine
         _tuning.microJitterIntervalMax = cfg.microJitterIntervalMax;
         _tuning.headTrackingSpeed = cfg.headTrackingSpeed;
         _tuning.maxComfortEyeAngle = cfg.maxComfortEyeAngle;
+        _tuning.headOnsetDelaySec = cfg.headOnsetDelaySec;
 
         _tuning.spine2YawWeight = cfg.spine2YawWeight;
         _tuning.neckYawWeight = cfg.neckYawWeight;
@@ -613,6 +614,7 @@ namespace TrueGaze::Engine
 
         if (mutualGazeNow)
         {
+            ++_mutualGazeFrames;
             state.mutualGazeHoldSec += deltaSeconds;
             if (_tuning.debugGazeRays && state.mutualGazeHoldSec >= 0.5f && state.mutualGazeHoldSec - deltaSeconds < 0.5f)
             {
@@ -655,6 +657,7 @@ namespace TrueGaze::Engine
         {
             // Salience changed: commit to a new ballistic saccade.
             state.trackedTargetFormId = targetFormId;
+            ++_saccadesTriggered;
 
             Kinematics::SaccadeGenerator::TriggerSaccade(
                 state.saccade, desiredYaw, desiredPitch,
@@ -662,8 +665,16 @@ namespace TrueGaze::Engine
                 _tuning.velocitySaturation);
 
             // A large saccade triggers a micro-blink (saccadic suppression).
+            const bool wasBlinking = state.blink.isBlinking;
             Integrations::EfmBlinkController::OnSaccadeTriggered(
                 state.blink, state.saccade.amplitudeDeg);
+            if (!wasBlinking && state.blink.isBlinking)
+            {
+                ++_blinksTriggered;
+            }
+
+            // Biological Latency Gap: Arm head onset delay so eyes lead and head lags
+            state.vor.headOnsetDelayTimerSec = _tuning.headOnsetDelaySec;
         }
         else if (!state.saccade.isBallistic)
         {
@@ -677,10 +688,22 @@ namespace TrueGaze::Engine
             if (diffDistSq > 400.0f) // > 20 degrees sudden jump
             {
                 // Target made a major sudden jump while keeping same FormID: trigger catch-up saccade
+                ++_saccadesTriggered;
                 Kinematics::SaccadeGenerator::TriggerSaccade(
                     state.saccade, desiredYaw, desiredPitch,
                     _tuning.EffectiveVMax(Kinematics::SaccadeGenerator::DEFAULT_VMAX),
                     _tuning.velocitySaturation);
+
+                const bool wasBlinking = state.blink.isBlinking;
+                Integrations::EfmBlinkController::OnSaccadeTriggered(
+                    state.blink, state.saccade.amplitudeDeg);
+                if (!wasBlinking && state.blink.isBlinking)
+                {
+                    ++_blinksTriggered;
+                }
+
+                // Biological Latency Gap on major catch-up saccade
+                state.vor.headOnsetDelayTimerSec = _tuning.headOnsetDelaySec;
             }
             else
             {

@@ -25,6 +25,7 @@ namespace TrueGaze::Engine
         float microJitterIntervalMax{0.45f}; // seconds
         float headTrackingSpeed{6.0f};       // head damping factor
         float maxComfortEyeAngle{35.0f};     // ocular yaw limit
+        float headOnsetDelaySec{0.12f};      // biological latency gap (seconds head lags eyes)
 
         // --- Skeletal hierarchy strain shares ---
         float spine2YawWeight{0.10f};

@@ -52,6 +52,7 @@ namespace TrueGaze::Engine
         float microJitterIntervalMax{0.45f}; // upper bound (s); 1/mean drives OU mean reversion
         float headTrackingSpeed{6.0f};
         float maxComfortEyeAngle{35.0f};
+        float headOnsetDelaySec{0.12f};
 
         // --- Skeletal hierarchy strain shares (yaw sums to 1.0; pitch: neck+head) ---
         float spine2YawWeight{0.10f};

@@ -230,6 +230,12 @@ namespace TrueGaze::Integrations
                          engine.LastRigOrigin(),
                          static_cast<unsigned long long>(engine.EyeNodeAbsentCount()),
                          static_cast<unsigned long long>(engine.HeadAnchorAbsentCount()));
+            ConsolePrint("  bio latency      %.3f s (head onset delay)", cfg.headOnsetDelaySec);
+            ConsolePrint("  saccades/blinks  %llu / %llu",
+                         static_cast<unsigned long long>(engine.SaccadesTriggered()),
+                         static_cast<unsigned long long>(engine.BlinksTriggered()));
+            ConsolePrint("  mutual gaze      %llu frames",
+                         static_cast<unsigned long long>(engine.MutualGazeFrames()));
 
             // Phase S4: HCEP intent-fusion diagnostics. Answers WHY fusion is or
             // is not active: no telemetry, low confidence, stale, or blink.
