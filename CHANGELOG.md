@@ -8,9 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [!IMPORTANT]
 > **Correction notice.** Earlier entries in this changelog described several features as "implemented" that are not functional, because they were written from design intent rather than from the code. Those entries have been annotated below. See [`docs/STATUS.md`](docs/STATUS.md) for the verified capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the full independent audit.
 
----
+## [1.0.0] - 2026-09-20
 
-## [Unreleased]
+### Public Production Release on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480))
+
+- **Public Distribution Packaging:** Packaged production archive `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` (SHA-256: `41AB39649F3B78F505F6BA4D972460365CC4EFAA0352C61297CB66F60991410F`) and companion debug symbols `dist/TrueGaze-v1.0.0-Symbols.zip` (`TrueGaze.pdb`, SHA-256: `5021AB863EF30539F0A0DE4FC87A9C88C090AEB55B16FF3BC4FF74F28D10EA28`).
+- **Diagnostic Visuals Policy:** Shipped `TrueGaze.ini` defaults `bEnableInGameVisuals = false` for pristine, organic eye contact without developer diagnostic laser beams. When toggled (`tgvisuals`), `VisualEffectsManager` probes standalone mesh `meshes\TrueGaze\GazeBeam.nif`, falls back to Dawnguard `fxsoulcairnbeam.nif`, and seamlessly defaults to the verified `NiPointLight` emitter fallback (`TrueGaze_PupilLight`, `TrueGaze_TerminusLight`).
+- **Open Animation Replacer (OAR) Dynamic Messaging Hook:** Dynamic SKSE messaging registration (`OarConditions::OnSkseMessage`, `RegisterWithOar`) with zero static compile dependencies. Evaluates `TrueGaze_IsMode`, `TrueGaze_IsMutualGaze`, and `TrueGaze_GetGazeRegion` against live per-actor state cache in real time.
+- **Broad Multi-Race & Dialogue Field Acceptance:** Documented Stage 6 test protocol in `docs/TEST_SCENARIO.md` across Humanoid (Nord/Imperial in Whiterun/Riverwood), Elven (Bosmer/Dunmer), and Beast races (Khajiit/Argonian) for third-person dialogue camera, VOR counter-rotation, and Social Triangle cycling.
+- **Nexus Mods Presentation:** Authored `docs/NEXUS_MODS_PAGE.md` with complete BBCode/Markdown formatting, live configurator screengrabs, hero banner, and release documentation.
 
 ### Changed — Skyrim AE Runtime Verification and SOTA Roadmap (2026-09-19)
 

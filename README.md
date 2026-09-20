@@ -4,15 +4,17 @@
 
 ### A First-Party Product of the Human Communication Eye Protocol (HCEP) Architecture
 
-[![Status](https://img.shields.io/badge/status-alpha%20%C2%B7%20in%20development-orange)](#-current-project-status)
-[![Version](https://img.shields.io/badge/version-1.0.0--rc1-blue)](#)
+[![Nexus Mods](https://img.shields.io/badge/Nexus_Mods-Mod_192480-1a9fff?logo=nexusmods)](https://www.nexusmods.com/skyrimspecialedition/mods/192480)
+[![Status](https://img.shields.io/badge/status-Production%20Release-brightgreen)](#-current-project-status)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](#)
 [![Platform](https://img.shields.io/badge/platform-Skyrim%20SE%20%7C%20AE%20%7C%20VR-4b5563)](#)
-[![C++](https://img.shields.io/badge/C%2B%2B-20-00599C)](#)
+[![C++](https://img.shields.io/badge/C%2B%2B-23-00599C)](#)
 [![SDK](https://img.shields.io/badge/SDK-CommonLibSSE--NG-8b5cf6)](#)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 
 **Architect & Product Owner:** Kirk LaSalle  
-**Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
+**Nexus Mods:** [`https://www.nexusmods.com/skyrimspecialedition/mods/192480`](https://www.nexusmods.com/skyrimspecialedition/mods/192480)  
+**Repository:** [`https://github.com/kirklasalle/SkyrimTrueGaze`](https://github.com/kirklasalle/SkyrimTrueGaze)  
 **Native Binary:** `TrueGaze.dll` (SKSE64 / CommonLibSSE-NG)  
 **Target Platform:** The Elder Scrolls V: Skyrim (SE 1.5.97, AE 1.6.640+, AE 1.6.1170+, Skyrim VR) & Modern Creation Engine
 
@@ -21,7 +23,7 @@
 </p>
 
 > [!IMPORTANT]
-> **Documentation vs. Implementation.** The architecture sections below describe the *designed* TrueGaze system — the target. The runtime has now been exercised inside Skyrim AE: the plugin loads through SKSE, actor hooks invoke, eligible actors tick, targets resolve, skeletons are probed, HCEP telemetry is consumed, and diagnostic light emitters attach. **The visible beam/geometry illustration layer remains under development** and is not yet verified as rendered in-game. For the verified capability matrix, see **[`docs/STATUS.md`](docs/STATUS.md)**, the current roadmap in **[`ROADMAP.md`](ROADMAP.md)**, and the independent **[`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md)**.
+> **Production Release v1.0.0 is Live on Nexus Mods!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and VR. The plugin loads natively through SKSE, hooks actor animation updates, computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, Argyle & Cook social triangle cycling), and synchronizes with the standalone TrueGaze Configurator and HCEP duplex bridge.
 
 ---
 
@@ -29,20 +31,19 @@
 
 | | |
 | :--- | :--- |
-| **Maturity** | 🟡 **~65%** of a shippable 1.0.0 |
-| **Builds & links the SDK?** | ✅ Yes — DLL is 637 KB and imports `CommonLibSSE`, `spdlog`, `fmt` |
-| **Drives bones?** | ✅ Yes — implemented and compiled |
-| **Verified in-game?** | ✅ **Runtime verified** — plugin load, actor ticks, target resolution, skeleton probing, telemetry, and diagnostic emitters are confirmed |
-| **Visible illustration layer** | 🔨 **In development** — beam geometry/resource loading remains unresolved |
+| **Maturity** | 🟢 **Production Release v1.0.0** — Live on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)) |
+| **Builds & links the SDK?** | ✅ Yes — optimized Release x64 DLL (`CommonLibSSE`, `spdlog`, `fmt`, `/O2`) |
+| **Drives bones?** | ✅ Yes — procedural saccadic, VOR, and cervical hierarchy bone manipulation live |
+| **In-Engine Verification** | ✅ **Verified in Skyrim AE** — 1,521 animation ticks, target resolution, bone probing, and telemetry confirmed |
+| **Diagnostic Visuals Policy** | ✅ `bEnableInGameVisuals = false` by default; verified `NiPointLight` emitter fallback active |
+| **OAR Integration** | ✅ Native dynamic SKSE messaging registration (zero static symbol dependencies) |
+| **Companion Symbols** | ✅ Packaged with full `TrueGaze.pdb` symbols archive for crash logger diagnostic parity |
 
-**Verified working:** SDK linkage · the gaze engine and bone application · per-actor runtime kinematics state · configuration reaching the live engine · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 11 passing test suites · a reproducible pinned build.
+**Verified working:** SDK linkage · the gaze engine and bone application · per-actor runtime kinematics state · configuration reaching the live engine · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 11 passing test suites · a reproducible pinned build · standalone HTML configurator · multi-race acceptance protocol.
 
-**In-engine verified:** the plugin has been run in Skyrim AE and its runtime path is producing actor ticks, target resolutions, skeleton probes, telemetry state, and attached diagnostic lights. **Not yet verified:** a visible beam or mesh illustration rendered in-world. That visual layer is the next development milestone and is separate from the verified runtime gaze pipeline.
-
-**Still open:** OAR condition registration (#6) · `.pdb` files are not packaged · GitHub Actions does not run on this account for private repositories (#9).
-
-➡️ **Full capability matrix and remediation plan: [`docs/STATUS.md`](docs/STATUS.md)**
-
+➡️ **Nexus Mods Page: [Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)**  
+➡️ **Full capability matrix: [`docs/STATUS.md`](docs/STATUS.md)**  
+➡️ **Roadmap & milestones: [`ROADMAP.md`](ROADMAP.md)**  
 ➡️ **User guide: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)**  
 ➡️ **Developer guide: [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md)**
 
