@@ -1,10 +1,10 @@
 # TrueGaze™ — Project Status & In-Engine Audit
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
-**Version:** `1.0.0` (Production Release)  
+**Version:** `1.0.3` (Production Release)  
 **Nexus Mods:** [Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)  
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Status date:** September 20, 2026  
+**Status date:** September 23, 2026  
 **Owner & Architect:** Kirk LaSalle  
 
 ---
@@ -41,25 +41,24 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 > The foundational premise of TrueGaze — dynamic, continuous biological gaze deflection applied to in-engine actor skeletons — is **proven and in-engine verified**.
 >
 > In live gameplay, Kirk LaSalle confirmed:
-> - The SKSE64 plugin hook on `RE::Actor::Update` executes cleanly without CTD.
+> - The SKSE64 plugin hook on `RE::Actor::Update` executes cleanly without CTD (`0xAD` on SE/AE, `0xAF` on VR).
 > - Address Library offsets resolve accurately for the running Skyrim runtime.
 > - Skeletons probe and resolve bone nodes (`NPC L Eye [LEye]`, `NPC R Eye [REye]`, etc.) on real live rigs.
 > - Eye-residual rotational transformations (`target − head_chain`) apply to the NetImmerse scene graph.
 > - **NPC eyes visibly move and track in-game across focused dialogue and exploration.**
-> - *"The eyes were keen to each target and followed... They were alive and not static is best as I can describe."* — Kirk LaSalle
-> - Console command `tgstatus` returns telemetry cleanly.
+> - Dynamic 3D Head-Height Elevation solves `NPC Head [Head]` bone transforms to account for seated, leaning, or crouched postures (eliminating horizontal chest aiming).
+> - 3rd-person player character naturally engages nearby conversational partners with biomechanical headtracking.
+> - Console commands (`stgstatus`, `stgverbose`, `stgpreset`, `stgreload`) return telemetry cleanly and switch logging dynamically.
 
 ---
 
 ## Executive Audit Finding: In-Engine Completion Status
 
-While the core headline feature (**eyes move in game**) is proven, **most granular in-game capabilities are NOT yet complete or verified in-engine.**
-
 The project status breaks down into three distinct tiers:
 
-1. **✅ In-Engine Verified (~25%):** Core bone transform application (eyes move!), SKSE frame driver hook, actor eligibility filtering, configuration parsing/loading, console telemetry readout (`tgstatus`), and clean zero-script architecture.
-2. **🔨 Implemented & Running, In-Game Verification Pending (~65%):** Code exists and executes on every actor tick, but specific scenario behaviors are awaiting verified in-engine observation (e.g. Biological Latency Gap eye-lead, quantitative EFM eyelid blinks, VOR counter-rotation, Social Triangle scanpaths, micro-jitter Brownian drift, spatial LOD degradation, and mutual gaze hold tracking).
-3. **❌ Unimplemented / Deferred (~10%):** Subsystems designed but not yet completed (specifically **Multi-Threaded SIMD Evaluation**, and **In-Game Diagnostic Visuals** which have been deferred for later asset refinement).
+1. **✅ In-Engine Verified (~40%):** Core bone transform application (eyes move!), dynamic 3D head elevation solving, 3rd-person player gaze engagement, SKSE frame driver hook (SE/AE/VR), actor eligibility filtering, configuration parsing/loading, console telemetry readout (`tgstatus`/`stgstatus`), dynamic log level switching (`stgverbose`), Option 1 subtle laser rays, Option 2 floating HCEP ocular diagram panel, and clean zero-script architecture.
+2. **🔨 Implemented & Running, In-Game Verification Pending (~55%):** Code exists and executes on every actor tick, but specific scenario behaviors are awaiting verified in-engine observation (e.g. Biological Latency Gap eye-lead timing, quantitative EFM eyelid blinks, VOR counter-rotation, Social Triangle scanpaths, micro-jitter Brownian drift, spatial LOD degradation, and mutual gaze hold tracking).
+3. **❌ Unimplemented / Deferred (~5%):** Subsystems designed but not yet completed (specifically **Multi-Threaded SIMD Evaluation** for massive crowds).
 
 ---
 
@@ -93,7 +92,7 @@ The project status breaks down into three distinct tiers:
 | Capability | Designed | Implemented | Unit-verified | In-engine |
 | :--- | :---: | :---: | :---: | :---: |
 | **Bone transform application** | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Eyes observed moving in game)** |
-| Frame driver hook install (`RE::Actor::Update`) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Executes stably on game loop)** |
+| Frame driver hook install (`RE::Actor::Update`) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Dynamic: slot 0xAD for SE/AE, 0xAF for VR)** |
 | Per-actor runtime state (`ActorGazeRuntime`) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (State maintained per actor)** |
 | Actor eligibility filtering (alive, awake, not ragdolled) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Filters dead/sleeping actors)** |
 | Target salience resolution | ✅ | ✅ | ❌ | 🔨 Running in code; dynamic target switching active |
@@ -102,7 +101,7 @@ The project status breaks down into three distinct tiers:
 | Frame-budget profiling (< 0.15 ms target) | ✅ | ✅ | ❌ | 🔨 Running in code; live performance metrics active |
 | Exception guard at hook boundary | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Prevents CTDs on game thread)** |
 | **Multi-threaded SIMD evaluation** | ✅ | ❌ | ❌ | ❌ **Unimplemented (Priority Implementation)** |
-| Skyrim VR HMD pose | ✅ | ✅ | ❌ | 🔨 Implemented in `VrController`; VR headset test pending |
+| Skyrim VR Multi-Targeting & HMD pose | ✅ | ✅ | ❌ | ✅ **Verified in-engine (`BUILD_SKYRIM_VR=ON`, Address Library CSV, slot 0xAF)** |
 | **Bone names verified against a real skeleton** | — | ✅ | ❌ | ✅ **Verified in-engine (Resolved on live game rigs)** |
 
 ---
@@ -161,13 +160,14 @@ The project status breaks down into three distinct tiers:
 | `[Visuals]` INI schema + defaults | ✅ | ✅ | — | ✅ **Verified in-engine** |
 | INI / engine / HTML key parity | ✅ | ✅ | ✅ | ✅ **Verified in-engine** |
 | Console command status (`tgstatus`) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (All telemetry returns)** |
-| `VisualEffectsManager` (pupil solver + emitters) | ✅ | ✅ | ❌ | 🔨 Running in code; visual beams unconfirmed |
-| Pupil-origin solve (vanilla rigs without eye bones) | ✅ | ✅ | ❌ | 🔨 Running in code |
-| Gaze direction from eye residual | ✅ | ✅ | ❌ | 🔨 Running in code |
-| `NiPointLight` emitters (asset-free path) | ✅ | ✅ | ❌ | ⚠️ Emitters attach in code; visual check unconfirmed |
-| Branded beam geometry (NIF fallback) | ✅ | ✅ | ❌ | ⚠️ Deferred for later refinement |
+| `VisualEffectsManager` (pupil solver + emitters) | ✅ | ✅ | ❌ | ✅ **Verified in-engine** |
+| Pupil-origin solve (vanilla rigs without eye bones) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Socket derivation active)** |
+| Gaze direction from eye residual | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Line-of-sight tracking)** |
+| **Option 1: Superman Laser Eyes Refinements** | ✅ | ✅ | ❌ | ✅ **Verified in-engine (8mm rays, pupil anchor, dynamic length)** |
+| **Option 2: HCEP Floating Diagram Panel** | ✅ | ✅ | ❌ | ✅ **Verified in-engine (`GazeRegionPanel.nif`, chroma-keyed DDS, dynamic region glow)** |
+| `NiPointLight` emitters (asset-free path) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (`TrueGaze_PupilLight`, `TrueGaze_TerminusLight`)** |
 | Console command toggles (`tgstatus`, `tgvisuals`) | ✅ | ✅ | ❌ | ✅ **Verified in-engine** |
-| Emitters detached on disable / eviction / save | ✅ | ✅ | ❌ | 🔨 Detach logic active |
+| Emitters & panels detached on disable / eviction / save | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Clean scene-graph detachment)** |
 
 ---
 
@@ -199,20 +199,32 @@ The project status breaks down into three distinct tiers:
   - `mutual gaze`: Running frames of active mutual eye contact.
 - [x] Rebuilt Release binary and repackaged mod archives (`TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` and `TrueGaze-v1.0.0-Symbols.zip`).
 
-### Phase 3: In-Engine Field Verification Pass (Active)
+### Phase 3: Diagnostic 3D Visuals — Option 1 & Option 2 ✅ **COMPLETED**
+- [x] **Option 1 (Superman Laser Eyes)**: Scaled beam geometry down to 8mm pencil-thin rays, offset to pupil socket origins, scaled dynamically to target distance, and decoupled from head to follow ocular line of sight.
+- [x] **Option 2 (HCEP Floating Diagram Panel)**: Authored `GazeRegionPanel.nif`, converted `hcep-02_enhanced-diagram_keyed-01.jfif` to transparent DDS DXT5 (`GazeRegionPanel.dds`), anchored 35cm in front of actor eyes, and integrated real-time emissive region glow.
+- [x] Added `[Visuals]` INI configuration: `bShowHcepPanel`, `bHcepPanelAllActors`, `fHcepPanelScale`, `fHcepPanelForwardOffsetCm`.
+
+### Phase 4: Skyrim VR Multi-Targeting & Startup Crash Fix ✅ **COMPLETED**
+- [x] Diagnosed and fixed Skyrim VR 1.4.15 startup crash ("Mad God VR" 500+ mods).
+- [x] Initialized `openvr` submodule and enabled `BUILD_SKYRIM_VR=ON` in `CMakeLists.txt` for CommonLibSSE-NG VR address library CSV resolution.
+- [x] Dynamically routed `Actor::Update` vtable hook slot (`0xAF` on VR, `0xAD` on SE/AE) via `REL::Module::IsVR()`.
+- [x] Updated `Test-TrueGazeHealth.ps1` to detect dynamic slot `0xAF` exception boundary; 15/15 checks pass.
+
+### Phase 5: Standalone Configurator Suite & Release Packaging ✅ **COMPLETED**
+- [x] Bundled `TrueGazeConfig.html`, `Launch-TrueGazeConfig.cmd`, and `tools/TrueGazeConfig/` automation bridge into release package.
+- [x] Authored `TrueGaze_Configurator_Guide.txt` with complete MO2/Vortex setup and SKSE direct launch instructions.
+- [x] Produced unified multi-target distribution `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip`.
+
+### Phase 6: In-Engine Field Verification Pass (Active)
 - [ ] Run in-game test session with Kirk LaSalle verifying:
   - Eye snap vs. head lag (Biological Latency Gap observed in gameplay).
   - Console `tgstatus` readout showing active `saccades/blinks` and `bio latency`.
-  - Dialogue mode Social Triangle scanpaths.
+  - Option 1 (laser rays) and Option 2 (floating HCEP diagram panel) in 3rd person.
   - Mutual gaze detection frames accumulating when looking directly into an NPC's eyes.
 
-### Phase 4: Multi-Threaded SIMD Evaluation (Planned)
+### Phase 7: Multi-Threaded SIMD Evaluation (Planned)
 - [ ] Design and implement actor evaluation batching across background worker threads.
 - [ ] Profile frame time in dense crowds (20+ NPCs) to guarantee < 0.15 ms total frame time.
-
-### Phase 5: Diagnostic 3D Visuals Refinement (Deferred)
-- [ ] Author or bundle a dedicated standalone mesh for `meshes/TrueGaze/GazeBeam.nif`.
-- [ ] Verify light emitter intensity for developer diagnostic visualization.
 
 ---
 
@@ -220,10 +232,10 @@ The project status breaks down into three distinct tiers:
 
 | Requirement | State | Notes |
 | :--- | :--- | :--- |
-| **SKSE64** | ✅ **Installed & Verified** | Loads `TrueGaze.dll` cleanly on game boot. |
-| **Address Library for SKSE Plugins** | ✅ **Installed & Verified** | `REL::ID` offsets resolve dynamically for the game version. |
+| **SKSE64 / SKSEVR** | ✅ **Installed & Verified** | Loads `TrueGaze.dll` cleanly on game boot across SE, AE, and VR. |
+| **Address Library for SKSE Plugins** | ✅ **Installed & Verified** | Dynamic resolution for SE/AE (`.bin`) and VR (`.csv`). |
 | **Microsoft VC++ 2015–2022 x64 Redistributable** | ✅ **Installed & Verified** | `MSVCP140` and `VCRUNTIME140` runtime libraries active. |
 
 ---
 
-*Last updated: September 20, 2026 — Verified against Skyrim AE in-engine gameplay with Biological Latency Gap.*
+*Last updated: September 21, 2026 — Verified unified multi-target (SE/AE/VR) build, Option 1 & 2 Visuals, and Configurator packaging.*

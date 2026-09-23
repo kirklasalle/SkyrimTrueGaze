@@ -131,7 +131,7 @@ namespace TrueGaze::Engine
         static void SetHcepTelemetry(const Bridge::TrueGazeTelemetryPacket &packet) noexcept;
         static void ClearHcepTelemetry() noexcept;
 
-        /// @brief Current intent-fusion state for diagnostics (tgstatus). Game thread.
+        /// @brief Current intent-fusion state for diagnostics (stgstatus). Game thread.
         static IntentDiagnostic LastIntent() noexcept;
 
         /// @brief True when the crosshair currently rests on the given actor's face.

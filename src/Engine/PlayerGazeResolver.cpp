@@ -289,7 +289,7 @@ namespace TrueGaze::Engine
                                                          std::chrono::steady_clock::now().time_since_epoch())
                                                          .count());
 
-        // Record the diagnostic snapshot even on rejection, so tgstatus can answer
+        // Record the diagnostic snapshot even on rejection, so stgstatus can answer
         // WHY fusion is inactive (invalid packet vs low confidence vs stale).
         g_lastIntent.sequenceId = packet.sequenceId;
         g_lastIntent.confidence = packet.gazeConfidence;

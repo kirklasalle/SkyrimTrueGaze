@@ -19,8 +19,8 @@ namespace TrueGaze::Engine
         constexpr float kUnitsPerMeter = 70.0f;
         constexpr float kUnitsToMeters = 1.0f / kUnitsPerMeter;
 
-        /// Approximate eye height above an actor's origin, in Skyrim units (~1.6 m).
-        constexpr float kEyeHeightOffsetUnits = 160.0f;
+        /// Approximate eye height above an actor's origin, in Skyrim units (~1.25 m for standing eye level).
+        constexpr float kEyeHeightOffsetUnits = 125.0f;
 
         /// An approaching actor is worth tracking out to this range.
         constexpr float kNearbyRangeMeters = 8.0f;
@@ -80,6 +80,29 @@ namespace TrueGaze::Engine
         }
 
 #if __has_include(<RE/Skyrim.h>)
+        /// Retrieve the true 3D world position of an actor's head/face (using head bone transform if available).
+        /// Dynamically tracks seated postures, counter-leaning idles, crouching, and race scales.
+        RE::NiPoint3 GetActorHeadPosition(RE::Actor *actor) noexcept
+        {
+            if (!actor) return RE::NiPoint3{0.0f, 0.0f, 0.0f};
+            if (auto *root = actor->Get3D())
+            {
+                static const char *kHeadCandidates[] = {
+                    "NPC Head [Head]", "Head", "Head1", "Bip01 Head"
+                };
+                for (const auto *name : kHeadCandidates)
+                {
+                    if (auto *bone = root->GetObjectByName(RE::BSFixedString(name)))
+                    {
+                        return bone->world.translate;
+                    }
+                }
+                return RE::NiPoint3{root->world.translate.x, root->world.translate.y, root->world.translate.z + kEyeHeightOffsetUnits};
+            }
+            const auto pos = actor->GetPosition();
+            return RE::NiPoint3{pos.x, pos.y, pos.z + kEyeHeightOffsetUnits};
+        }
+
         /// Retrieve the true 3D world position of an actor (using 3D node transform if available)
         RE::NiPoint3 GetActorWorldPosition(RE::Actor *actor) noexcept
         {
@@ -120,14 +143,9 @@ namespace TrueGaze::Engine
 
         const auto observerPos = GetActorWorldPosition(observer);
         const auto playerPos = GetActorWorldPosition(player);
+        const auto observerHeadPos = GetActorHeadPosition(observer);
+        const auto playerHeadPos = GetActorHeadPosition(player);
 
-        // 0. Highest priority: the player's crosshair is on this actor's face.
-        //
-        // The player's gaze is the strongest social signal in the world: a person
-        // you are looking at feels watched and looks back. When the crosshair sits
-        // inside the face sweet spot, this actor looks back at the PLAYER'S FACE
-        // (not origin + eye height), which is what produces true eye-to-eye
-        // contact and lets mutualGazeHoldSec accumulate meaningfully.
         // 0. Highest priority: the player's crosshair is on this actor's face / upper body.
         //
         // The player's gaze is the strongest social signal in the world: a person
@@ -160,16 +178,16 @@ namespace TrueGaze::Engine
 
             if (state && state->crosshairHoldTimerSec > 0.0f)
             {
-                const float pDist = DistanceMeters(observerPos, playerPos);
+                const float pDist = DistanceMeters(observerHeadPos, playerHeadPos);
                 // Verify player is alive and within natural forward visual cone
                 if (pDist <= s_crosshair.maxRangeMeters &&
                     IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos, kMaxHoldVisualConeAngleDeg))
                 {
                     target.targetFormId = player->GetFormID();
                     target.priority = TargetPriority::CrosshairFocus;
-                    target.worldX = playerPos.x;
-                    target.worldY = playerPos.y;
-                    target.worldZ = playerPos.z + kEyeHeightOffsetUnits;
+                    target.worldX = playerHeadPos.x;
+                    target.worldY = playerHeadPos.y;
+                    target.worldZ = playerHeadPos.z;
                     target.distanceMeters = pDist;
                     target.isPlayer = true;
                     return target;
@@ -185,7 +203,7 @@ namespace TrueGaze::Engine
 
         // When the observer is the player in 3rd person:
         // Engage TrueGaze biological eye tracking toward dialogue partner, crosshair target,
-        // combat opponent, or forward ambient gaze point.
+        // combat opponent, conversational candidate NPC, or forward ambient gaze point.
         if (observer == player)
         {
             if (ui && ui->IsMenuOpen(RE::RaceSexMenu::MENU_NAME))
@@ -196,7 +214,7 @@ namespace TrueGaze::Engine
                 target.worldX = cameraPos.x;
                 target.worldY = cameraPos.y;
                 target.worldZ = cameraPos.z;
-                target.distanceMeters = DistanceMeters(observerPos, cameraPos);
+                target.distanceMeters = DistanceMeters(observerHeadPos, cameraPos);
                 target.isPlayer = true;
                 return target;
             }
@@ -211,13 +229,13 @@ namespace TrueGaze::Engine
                     {
                         if (auto *speakerActor = speakerPtr->As<RE::Actor>())
                         {
-                            const auto sPos = GetActorWorldPosition(speakerActor);
+                            const auto sHeadPos = GetActorHeadPosition(speakerActor);
                             target.targetFormId = speakerActor->GetFormID();
                             target.priority = TargetPriority::DialoguePartner;
-                            target.worldX = sPos.x;
-                            target.worldY = sPos.y;
-                            target.worldZ = sPos.z + kEyeHeightOffsetUnits;
-                            target.distanceMeters = DistanceMeters(observerPos, sPos);
+                            target.worldX = sHeadPos.x;
+                            target.worldY = sHeadPos.y;
+                            target.worldZ = sHeadPos.z;
+                            target.distanceMeters = DistanceMeters(observerHeadPos, sHeadPos);
                             target.isPlayer = false;
                             return target;
                         }
@@ -238,13 +256,13 @@ namespace TrueGaze::Engine
                 {
                     if (auto *aimActor = aimForm->As<RE::Actor>())
                     {
-                        const auto aimPos = GetActorWorldPosition(aimActor);
+                        const auto aimHeadPos = GetActorHeadPosition(aimActor);
                         target.targetFormId = aimActor->GetFormID();
                         target.priority = TargetPriority::CrosshairFocus;
-                        target.worldX = aimPos.x;
-                        target.worldY = aimPos.y;
-                        target.worldZ = aimPos.z + kEyeHeightOffsetUnits;
-                        target.distanceMeters = DistanceMeters(observerPos, aimPos);
+                        target.worldX = aimHeadPos.x;
+                        target.worldY = aimHeadPos.y;
+                        target.worldZ = aimHeadPos.z;
+                        target.distanceMeters = DistanceMeters(observerHeadPos, aimHeadPos);
                         target.isPlayer = false;
                         return target;
                     }
@@ -258,15 +276,15 @@ namespace TrueGaze::Engine
                 {
                     if (auto *cTarget = combatPtr.get())
                     {
-                        if (cTarget->GetLifeState() == RE::ACTOR_LIFE_STATE::kAlive)
+                        if (!cTarget->IsDead() && !cTarget->IsDisabled())
                         {
-                            const auto cPos = GetActorWorldPosition(cTarget);
+                            const auto cHeadPos = GetActorHeadPosition(cTarget);
                             target.targetFormId = cTarget->GetFormID();
                             target.priority = TargetPriority::CombatTarget;
-                            target.worldX = cPos.x;
-                            target.worldY = cPos.y;
-                            target.worldZ = cPos.z + kEyeHeightOffsetUnits;
-                            target.distanceMeters = DistanceMeters(observerPos, cPos);
+                            target.worldX = cHeadPos.x;
+                            target.worldY = cHeadPos.y;
+                            target.worldZ = cHeadPos.z;
+                            target.distanceMeters = DistanceMeters(observerHeadPos, cHeadPos);
                             target.isPlayer = false;
                             return target;
                         }
@@ -274,12 +292,55 @@ namespace TrueGaze::Engine
                 }
             }
 
-            // 4. Ambient forward gaze aligned with player's facing direction
+            // 4. Conversational Candidate Scan (3rd person / free exploration)
+            // When walking up to NPCs or standing near people in town/shops (e.g. Lucan, Camilla),
+            // engage natural social gaze if an NPC is within conversational range and forward cone.
+            RE::Actor *closestNpc = nullptr;
+            float closestDistMeters = 4.5f;
+            if (auto *processLists = RE::ProcessLists::GetSingleton())
+            {
+                for (auto &handle : processLists->highActorHandles)
+                {
+                    if (auto actorPtr = handle.get())
+                    {
+                        auto *otherActor = actorPtr.get();
+                        if (otherActor && otherActor != player &&
+                            !otherActor->IsDead() && !otherActor->IsDisabled())
+                        {
+                            const auto oPos = GetActorWorldPosition(otherActor);
+                            if (IsInVisualCone(observerPos, player->GetAngleZ(), oPos, kMaxVisualConeAngleDeg))
+                            {
+                                const float d = DistanceMeters(observerPos, oPos);
+                                if (d < closestDistMeters)
+                                {
+                                    closestDistMeters = d;
+                                    closestNpc = otherActor;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (closestNpc)
+            {
+                const auto nHeadPos = GetActorHeadPosition(closestNpc);
+                target.targetFormId = closestNpc->GetFormID();
+                target.priority = TargetPriority::NearbyActor;
+                target.worldX = nHeadPos.x;
+                target.worldY = nHeadPos.y;
+                target.worldZ = nHeadPos.z;
+                target.distanceMeters = DistanceMeters(observerHeadPos, nHeadPos);
+                target.isPlayer = false;
+                return target;
+            }
+
+            // 5. Ambient forward gaze aligned with player's facing direction
             const float heading = player->GetAngleZ();
             target.priority = TargetPriority::AmbientInterest;
-            target.worldX = observerPos.x + std::sin(heading) * kAmbientForwardUnits;
-            target.worldY = observerPos.y + std::cos(heading) * kAmbientForwardUnits;
-            target.worldZ = observerPos.z + kEyeHeightOffsetUnits;
+            target.worldX = observerHeadPos.x + std::sin(heading) * kAmbientForwardUnits;
+            target.worldY = observerHeadPos.y + std::cos(heading) * kAmbientForwardUnits;
+            target.worldZ = observerHeadPos.z;
             target.distanceMeters = kAmbientForwardUnits / 70.0f;
             target.isPlayer = false;
             return target;
@@ -297,10 +358,10 @@ namespace TrueGaze::Engine
                     {
                         target.targetFormId = player->GetFormID();
                         target.priority = TargetPriority::DialoguePartner;
-                        target.worldX = playerPos.x;
-                        target.worldY = playerPos.y;
-                        target.worldZ = playerPos.z + kEyeHeightOffsetUnits;
-                        target.distanceMeters = DistanceMeters(observerPos, playerPos);
+                        target.worldX = playerHeadPos.x;
+                        target.worldY = playerHeadPos.y;
+                        target.worldZ = playerHeadPos.z;
+                        target.distanceMeters = DistanceMeters(observerHeadPos, playerHeadPos);
                         target.isPlayer = true;
                         return target;
                     }
@@ -315,7 +376,7 @@ namespace TrueGaze::Engine
             {
                 if (auto *dlgActor = dlgPtr->As<RE::Actor>())
                 {
-                    if (dlgActor != observer && dlgActor->GetLifeState() == RE::ACTOR_LIFE_STATE::kAlive)
+                    if (dlgActor != observer && !dlgActor->IsDead() && !dlgActor->IsDisabled())
                     {
                         const auto dPos = GetActorWorldPosition(dlgActor);
                         const float dDist = DistanceMeters(observerPos, dPos);
@@ -324,11 +385,12 @@ namespace TrueGaze::Engine
                         // Forcing gaze to an actor at >75 degrees causes severe neck/head snapping.
                         if (dDist <= 6.0f && IsInVisualCone(observerPos, observer->GetAngleZ(), dPos, kMaxHoldVisualConeAngleDeg))
                         {
+                            const auto dHeadPos = GetActorHeadPosition(dlgActor);
                             target.targetFormId = dlgActor->GetFormID();
                             target.priority = TargetPriority::DialoguePartner;
-                            target.worldX = dPos.x;
-                            target.worldY = dPos.y;
-                            target.worldZ = dPos.z + kEyeHeightOffsetUnits;
+                            target.worldX = dHeadPos.x;
+                            target.worldY = dHeadPos.y;
+                            target.worldZ = dHeadPos.z;
                             target.distanceMeters = dDist;
                             target.isPlayer = (dlgActor == player);
                             return target;
@@ -347,7 +409,7 @@ namespace TrueGaze::Engine
                 {
                     if (auto *htActor = htPtr->As<RE::Actor>())
                     {
-                        if (htActor != observer && htActor->GetLifeState() == RE::ACTOR_LIFE_STATE::kAlive)
+                        if (htActor != observer && !htActor->IsDead() && !htActor->IsDisabled())
                         {
                             const auto htPos = GetActorWorldPosition(htActor);
                             const float htDist = DistanceMeters(observerPos, htPos);
@@ -356,11 +418,12 @@ namespace TrueGaze::Engine
                             // NPCs wrench their head 80-120 deg over their shoulder, then flap back to ambient.
                             if (htDist <= 6.0f && IsInVisualCone(observerPos, observer->GetAngleZ(), htPos, kMaxHoldVisualConeAngleDeg))
                             {
+                                const auto htHeadPos = GetActorHeadPosition(htActor);
                                 target.targetFormId = htActor->GetFormID();
                                 target.priority = TargetPriority::DialoguePartner;
-                                target.worldX = htPos.x;
-                                target.worldY = htPos.y;
-                                target.worldZ = htPos.z + kEyeHeightOffsetUnits;
+                                target.worldX = htHeadPos.x;
+                                target.worldY = htHeadPos.y;
+                                target.worldZ = htHeadPos.z;
                                 target.distanceMeters = htDist;
                                 target.isPlayer = (htActor == player);
                                 return target;
@@ -388,18 +451,19 @@ namespace TrueGaze::Engine
             const float cDist = DistanceMeters(observerPos, combatPos);
             if (cDist <= 15.0f && IsInVisualCone(observerPos, observer->GetAngleZ(), combatPos, 75.0f))
             {
+                const auto cHeadPos = GetActorHeadPosition(combatTarget);
                 target.targetFormId = combatTarget->GetFormID();
                 target.priority = TargetPriority::CombatTarget;
-                target.worldX = combatPos.x;
-                target.worldY = combatPos.y;
-                target.worldZ = combatPos.z + kEyeHeightOffsetUnits;
+                target.worldX = cHeadPos.x;
+                target.worldY = cHeadPos.y;
+                target.worldZ = cHeadPos.z;
                 target.distanceMeters = cDist;
                 target.isPlayer = (combatTarget == player);
                 return target;
             }
         }
 
-        const float playerDistanceMeters = DistanceMeters(observerPos, playerPos);
+        const float playerDistanceMeters = DistanceMeters(observerHeadPos, playerHeadPos);
 
         // 3. Target Fixation Stability (Dwell Time Hysteresis)
         // If the actor is currently fixating on a valid target, maintain lock for at least 1.5s
@@ -416,9 +480,9 @@ namespace TrueGaze::Engine
                         state->fixationHoldSec += deltaSeconds;
                         target.targetFormId = player->GetFormID();
                         target.priority = TargetPriority::NearbyActor;
-                        target.worldX = playerPos.x;
-                        target.worldY = playerPos.y;
-                        target.worldZ = playerPos.z + kEyeHeightOffsetUnits;
+                        target.worldX = playerHeadPos.x;
+                        target.worldY = playerHeadPos.y;
+                        target.worldZ = playerHeadPos.z;
                         target.distanceMeters = playerDistanceMeters;
                         target.isPlayer = true;
                         return target;
@@ -433,7 +497,7 @@ namespace TrueGaze::Engine
             {
                 auto *heldForm = RE::TESForm::LookupByID(state->trackedTargetFormId);
                 auto *heldActor = heldForm ? heldForm->As<RE::Actor>() : nullptr;
-                if (heldActor && heldActor->GetLifeState() == RE::ACTOR_LIFE_STATE::kAlive)
+                if (heldActor && !heldActor->IsDead() && !heldActor->IsDisabled())
                 {
                     const auto hPos = GetActorWorldPosition(heldActor);
                     const float hDist = DistanceMeters(observerPos, hPos);
@@ -442,12 +506,13 @@ namespace TrueGaze::Engine
                     {
                         if (state->fixationHoldSec < 1.5f)
                         {
+                            const auto hHeadPos = GetActorHeadPosition(heldActor);
                             state->fixationHoldSec += deltaSeconds;
                             target.targetFormId = heldActor->GetFormID();
                             target.priority = TargetPriority::NearbyActor;
-                            target.worldX = hPos.x;
-                            target.worldY = hPos.y;
-                            target.worldZ = hPos.z + kEyeHeightOffsetUnits;
+                            target.worldX = hHeadPos.x;
+                            target.worldY = hHeadPos.y;
+                            target.worldZ = hHeadPos.z;
                             target.distanceMeters = hDist;
                             target.isPlayer = false;
                             return target;
@@ -476,7 +541,7 @@ namespace TrueGaze::Engine
                 {
                     auto *otherActor = actorPtr.get();
                     if (otherActor && otherActor != observer && otherActor != player &&
-                        otherActor->GetLifeState() == RE::ACTOR_LIFE_STATE::kAlive)
+                        !otherActor->IsDead() && !otherActor->IsDisabled())
                     {
                         const auto oPos = GetActorWorldPosition(otherActor);
 
@@ -519,13 +584,13 @@ namespace TrueGaze::Engine
 
         if (closestNpc && closestDistMeters < effPlayerDist)
         {
-            const auto nPos = GetActorWorldPosition(closestNpc);
+            const auto nHeadPos = GetActorHeadPosition(closestNpc);
             target.targetFormId = closestNpc->GetFormID();
             target.priority = TargetPriority::NearbyActor;
-            target.worldX = nPos.x;
-            target.worldY = nPos.y;
-            target.worldZ = nPos.z + kEyeHeightOffsetUnits;
-            target.distanceMeters = DistanceMeters(observerPos, nPos);
+            target.worldX = nHeadPos.x;
+            target.worldY = nHeadPos.y;
+            target.worldZ = nHeadPos.z;
+            target.distanceMeters = DistanceMeters(observerHeadPos, nHeadPos);
             target.isPlayer = false;
             if (state) state->fixationHoldSec = 0.0f;
             return target;
@@ -535,10 +600,10 @@ namespace TrueGaze::Engine
         {
             target.targetFormId = player->GetFormID();
             target.priority = TargetPriority::NearbyActor;
-            target.worldX = playerPos.x;
-            target.worldY = playerPos.y;
-            target.worldZ = playerPos.z + kEyeHeightOffsetUnits;
-            target.distanceMeters = playerDistanceMeters;
+            target.worldX = playerHeadPos.x;
+            target.worldY = playerHeadPos.y;
+            target.worldZ = playerHeadPos.z;
+            target.distanceMeters = DistanceMeters(observerHeadPos, playerHeadPos);
             target.isPlayer = true;
             if (state) state->fixationHoldSec = 0.0f;
             return target;
@@ -550,9 +615,9 @@ namespace TrueGaze::Engine
         if (state) state->fixationHoldSec = 0.0f;
         target.priority = TargetPriority::AmbientInterest;
         const float actorYaw = observer->GetAngleZ();
-        target.worldX = observerPos.x + std::sin(actorYaw) * kAmbientForwardUnits;
-        target.worldY = observerPos.y + std::cos(actorYaw) * kAmbientForwardUnits;
-        target.worldZ = observerPos.z + kEyeHeightOffsetUnits;
+        target.worldX = observerHeadPos.x + std::sin(actorYaw) * kAmbientForwardUnits;
+        target.worldY = observerHeadPos.y + std::cos(actorYaw) * kAmbientForwardUnits;
+        target.worldZ = observerHeadPos.z;
         target.distanceMeters = kAmbientNominalMeters;
         return target;
 

@@ -106,6 +106,7 @@ namespace TrueGaze::Engine
         gazeRaysEnabled = ReadBool("Visuals", "bGazeRaysEnabled", gazeRaysEnabled, p);
         rayRenderMode = GetPrivateProfileIntA("Visuals", "iRayRenderMode", rayRenderMode, p);
         gazeRayLengthMeters = ReadFloat("Visuals", "fGazeRayLengthMeters", gazeRayLengthMeters, p);
+        gazeRayThicknessCm = ReadFloat("Visuals", "fGazeRayThicknessCm", gazeRayThicknessCm, p);
         gazeRayColour = GetPrivateProfileIntA("Visuals", "iGazeRayColour", gazeRayColour, p);
         gazeRayOpacity = ReadFloat("Visuals", "fGazeRayOpacity", gazeRayOpacity, p);
         gazeRaysOnPlayer = ReadBool("Visuals", "bGazeRaysOnPlayer", gazeRaysOnPlayer, p);
@@ -116,6 +117,10 @@ namespace TrueGaze::Engine
         pupilForwardOffsetCm = ReadFloat("Visuals", "fPupilForwardOffsetCm", pupilForwardOffsetCm, p);
         pupilUpOffsetCm = ReadFloat("Visuals", "fPupilUpOffsetCm", pupilUpOffsetCm, p);
         pupilGlowIntensity = ReadFloat("Visuals", "fPupilGlowIntensity", pupilGlowIntensity, p);
+        showHcepPanel = ReadBool("Visuals", "bShowHcepPanel", showHcepPanel, p);
+        hcepPanelAllActors = ReadBool("Visuals", "bHcepPanelAllActors", hcepPanelAllActors, p);
+        hcepPanelScale = ReadFloat("Visuals", "fHcepPanelScale", hcepPanelScale, p);
+        hcepPanelForwardOffsetCm = ReadFloat("Visuals", "fHcepPanelForwardOffsetCm", hcepPanelForwardOffsetCm, p);
 
         // Console commands
         enableConsoleCommands = ReadBool("Console", "bEnableConsoleCommands", enableConsoleCommands, p);
@@ -310,6 +315,8 @@ namespace TrueGaze::Engine
         pupilGlowIntensity = clampReport("fPupilGlowIntensity", pupilGlowIntensity, 0.0f, 5.0f);
         pupilForwardOffsetCm = clampReport("fPupilForwardOffsetCm", pupilForwardOffsetCm, 0.0f, 30.0f);
         pupilUpOffsetCm = clampReport("fPupilUpOffsetCm", pupilUpOffsetCm, -30.0f, 30.0f);
+        hcepPanelScale = clampReport("fHcepPanelScale", hcepPanelScale, 0.5f, 30.0f);
+        hcepPanelForwardOffsetCm = clampReport("fHcepPanelForwardOffsetCm", hcepPanelForwardOffsetCm, 5.0f, 200.0f);
 
         // Colour is stored as 0xRRGGBB. Mask off any stray high bits so the
         // per-channel extraction in the renderer is always in range.
@@ -409,6 +416,7 @@ namespace TrueGaze::Engine
             WritePrivateProfileStringA("Visuals", "iRayRenderMode", mode, p);
         }
         WriteFloat("Visuals", "fGazeRayLengthMeters", gazeRayLengthMeters);
+        WriteFloat("Visuals", "fGazeRayThicknessCm", gazeRayThicknessCm);
         {
             // 0xRRGGBB reads as decimal in the INI; keep it that way so the HTML
             // page and the engine agree on the representation.
@@ -425,6 +433,10 @@ namespace TrueGaze::Engine
         WriteFloat("Visuals", "fPupilForwardOffsetCm", pupilForwardOffsetCm);
         WriteFloat("Visuals", "fPupilUpOffsetCm", pupilUpOffsetCm);
         WriteFloat("Visuals", "fPupilGlowIntensity", pupilGlowIntensity);
+        WriteBool("Visuals", "bShowHcepPanel", showHcepPanel);
+        WriteBool("Visuals", "bHcepPanelAllActors", hcepPanelAllActors);
+        WriteFloat("Visuals", "fHcepPanelScale", hcepPanelScale);
+        WriteFloat("Visuals", "fHcepPanelForwardOffsetCm", hcepPanelForwardOffsetCm);
 
         WriteBool("Console", "bEnableConsoleCommands", enableConsoleCommands);
 

@@ -32,8 +32,8 @@ namespace TrueGaze::Engine
         /// Skyrim world units per metre.
         constexpr float kUnitsPerMeter = 70.0f;
 
-        /// Approximate eye height above an actor's origin, in Skyrim units (~1.6 m).
-        constexpr float kEyeHeightUnits = 160.0f;
+        /// Approximate eye height above an actor's origin, in Skyrim units (~1.25 m).
+        constexpr float kEyeHeightUnits = 125.0f;
 
         /// Wrap an angle in radians to (-pi, pi].
         float WrapPi(float radians) noexcept
@@ -106,15 +106,17 @@ namespace TrueGaze::Engine
         }
 
         /// Convert a world-space target into actor-relative yaw/pitch, in degrees.
-        void WorldTargetToLocalGaze(const RE::NiPoint3 &actorPos,
+        /// observerEyePos is the world position of the observer's head/eyes.
+        /// targetPos is the true 3D world position of the target's head/eyes.
+        void WorldTargetToLocalGaze(const RE::NiPoint3 &observerEyePos,
                                     float actorYawRad,
                                     const RE::NiPoint3 &targetPos,
                                     float &outYawDeg,
                                     float &outPitchDeg) noexcept
         {
-            const float dx = targetPos.x - actorPos.x;
-            const float dy = targetPos.y - actorPos.y;
-            const float dz = targetPos.z - (actorPos.z + kEyeHeightUnits);
+            const float dx = targetPos.x - observerEyePos.x;
+            const float dy = targetPos.y - observerEyePos.y;
+            const float dz = targetPos.z - observerEyePos.z;
 
             const float horizontal = std::sqrt(dx * dx + dy * dy);
 
@@ -226,6 +228,7 @@ namespace TrueGaze::Engine
             vis.gazeRaysEnabled = cfg.gazeRaysEnabled;
             vis.rayRenderMode = cfg.rayRenderMode;
             vis.gazeRayLengthMeters = cfg.gazeRayLengthMeters;
+            vis.gazeRayThicknessCm = cfg.gazeRayThicknessCm;
             vis.gazeRayColour = static_cast<uint32_t>(cfg.gazeRayColour) & 0x00FFFFFFu;
             vis.gazeRayOpacity = cfg.gazeRayOpacity;
             vis.gazeRaysOnPlayer = cfg.gazeRaysOnPlayer;
@@ -236,6 +239,10 @@ namespace TrueGaze::Engine
             vis.pupilForwardOffsetCm = cfg.pupilForwardOffsetCm;
             vis.pupilUpOffsetCm = cfg.pupilUpOffsetCm;
             vis.pupilGlowIntensity = cfg.pupilGlowIntensity;
+            vis.showHcepPanel = cfg.showHcepPanel;
+            vis.hcepPanelAllActors = cfg.hcepPanelAllActors;
+            vis.hcepPanelScale = cfg.hcepPanelScale;
+            vis.hcepPanelForwardOffsetCm = cfg.hcepPanelForwardOffsetCm;
             Visuals::VisualEffectsManager::Get().SetTuning(vis);
         }
 
@@ -321,10 +328,16 @@ namespace TrueGaze::Engine
 
         // A frame that overran its budget is worth knowing about — and is the signal
         // an adaptive LOD would consume. Recorded, not acted on, for now.
-        if (_lastFrameUs > 150)
+        if (_lastFrameUs > 1500)
         {
-            logger::warn("[TrueGaze] Frame budget exceeded: {} us across {} actors.",
-                         _lastFrameUs, _actors.size());
+            static std::chrono::steady_clock::time_point s_lastBudgetWarning{};
+            const auto now = std::chrono::steady_clock::now();
+            if (now - s_lastBudgetWarning > std::chrono::seconds(10))
+            {
+                s_lastBudgetWarning = now;
+                logger::warn("[TrueGaze] Frame budget exceeded: {} us across {} actors.",
+                             _lastFrameUs, _actors.size());
+            }
         }
 
         AdvanceFrameCounter();
@@ -365,8 +378,8 @@ namespace TrueGaze::Engine
             return;
         }
 
-        // Eligibility mirrors the original filter but is now actually reached.
-        if (!AnimationHook::IsActorEligibleForGaze(formId))
+        // Eligibility check via version-independent virtual IsDead() and 3D status.
+        if (!AnimationHook::IsActorEligibleForGaze(actor))
         {
             return;
         }
@@ -559,12 +572,20 @@ namespace TrueGaze::Engine
         if (target.priority != TargetSelector::TargetPriority::None)
         {
             const RE::NiPoint3 targetPos{target.worldX, target.worldY, target.worldZ};
-            RE::NiPoint3 actorPos = actor->GetPosition();
-            if (auto *root = actor->Get3D())
+            RE::NiPoint3 observerEyePos = actor->GetPosition();
+            if (state.cachedHead)
             {
-                actorPos = root->world.translate;
+                observerEyePos = state.cachedHead->world.translate;
             }
-            WorldTargetToLocalGaze(actorPos, actor->GetAngleZ(),
+            else if (auto *root = actor->Get3D())
+            {
+                observerEyePos = RE::NiPoint3{root->world.translate.x, root->world.translate.y, root->world.translate.z + kEyeHeightUnits};
+            }
+            else
+            {
+                observerEyePos.z += kEyeHeightUnits;
+            }
+            WorldTargetToLocalGaze(observerEyePos, actor->GetAngleZ(),
                                    targetPos, desiredYaw, desiredPitch);
         }
 
@@ -869,7 +890,7 @@ namespace TrueGaze::Engine
             const char *originMode = head ? (hasEyeNode ? "EyeNode" : "GeometricHeadSocket")
                                           : "Unavailable";
 
-            // Record the outcome for the tgstatus rig-capability summary.
+            // Record the outcome for the stgstatus rig-capability summary.
             RecordRigProbe(originMode, head != nullptr, hasEyeNode);
 
             logger::info("[TrueGaze] Skeleton probe for {:08X}: spine={} neck={} head={} "
@@ -906,18 +927,24 @@ namespace TrueGaze::Engine
         }
 
         const bool isPlayer = actor->IsPlayerRef();
+        bool allowHeadtrack = !isPlayer;
+        if (isPlayer)
+        {
+            auto *camera = RE::PlayerCamera::GetSingleton();
+            allowHeadtrack = camera && camera->IsInThirdPerson();
+        }
 
         if (!isPlayer && spine)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), spine, strain.spineYaw, 0.0f);
         }
 
-        if (!isPlayer && neck)
+        if (allowHeadtrack && neck)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), neck, strain.neckYaw, strain.neckPitch);
         }
 
-        if (!isPlayer && head)
+        if (allowHeadtrack && head)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), head, strain.headYaw, strain.headPitch);
         }
@@ -943,16 +970,27 @@ namespace TrueGaze::Engine
         // *eye residual* - what the eyes carry beyond the already-turned head. Passing
         // the total deflection here would double-count the head's share and the beam
         // would overshoot the true gaze direction.
-        Visuals::VisualEffectsManager::Get().UpdateActor(
-            actor,
-            state.cachedHead,
-            state.cachedEyeL,
-            state.cachedEyeR,
-            eyeYaw,
-            eyePitch,
-            state.gazeRegion,
-            isPlayer,
-            actor->IsHumanoid());
+        try
+        {
+            Visuals::VisualEffectsManager::Get().UpdateActor(
+                actor,
+                state.cachedHead,
+                state.cachedEyeL,
+                state.cachedEyeR,
+                eyeYaw,
+                eyePitch,
+                state.gazeRegion,
+                isPlayer,
+                actor->IsHumanoid());
+        }
+        catch (const std::exception &e)
+        {
+            logger::error("[TrueGaze] VisualEffectsManager::UpdateActor exception: {}", e.what());
+        }
+        catch (...)
+        {
+            logger::error("[TrueGaze] VisualEffectsManager::UpdateActor unknown exception.");
+        }
 #else
         (void)actor;
         (void)state;

@@ -165,6 +165,12 @@ namespace TrueGaze::Integrations
             // Debug). Someone reaching for this wants more detail, not less.
             cfg.logLevel = (cfg.logLevel == 1) ? 2 : 1;
             PersistQuietly();
+            if (auto log = spdlog::default_logger())
+            {
+                auto lvl = (cfg.logLevel == 1) ? spdlog::level::debug : spdlog::level::info;
+                log->set_level(lvl);
+                log->flush_on(lvl);
+            }
             ConsolePrint("TrueGaze: iLogLevel = %d (%s)", cfg.logLevel,
                          cfg.logLevel == 1 ? "Debug" : "Info");
             return true;
@@ -304,15 +310,15 @@ namespace TrueGaze::Integrations
         /// One table, so the registrations and the count can never disagree.
         /// Deliberately small and focused: toggles, plus a status read-out.
         constexpr CommandDef kCommands[] = {
-            {"tg", "Toggle the TrueGaze kinematics engine on/off", &CmdMaster},
-            {"tgvisuals", "Toggle all in-game visuals on/off", &CmdVisuals},
-            {"tgv", "Toggle the gaze-ray emitters (laser eyes)", &CmdRays},
-            {"tgon", "Turn every in-game visual on", &CmdOn},
-            {"tgoff", "Turn every in-game visual off", &CmdOff},
-            {"tgmode", "Cycle render mode: Both / Light / Geometry", &CmdRenderMode},
-            {"tgradius", "Toggle the gaze terminus glow", &CmdTerminus},
-            {"tgverbose", "Toggle Debug/Info logging", &CmdVerbose},
-            {"tgstatus", "Print the effective TrueGaze state", &CmdStatus},
+            {"stg", "Toggle the SkyrimTrueGaze kinematics engine on/off", &CmdMaster},
+            {"stgvisuals", "Toggle all in-game visuals on/off", &CmdVisuals},
+            {"stgv", "Toggle the gaze-ray emitters (laser eyes)", &CmdRays},
+            {"stgon", "Turn every in-game visual on", &CmdOn},
+            {"stgoff", "Turn every in-game visual off", &CmdOff},
+            {"stgmode", "Cycle render mode: Both / Light / Geometry", &CmdRenderMode},
+            {"stgradius", "Toggle the gaze terminus glow", &CmdTerminus},
+            {"stgverbose", "Toggle Debug/Info logging", &CmdVerbose},
+            {"stgstatus", "Print the effective SkyrimTrueGaze state", &CmdStatus},
         };
 
         // -----------------------------------------------------------------------
@@ -470,7 +476,7 @@ namespace TrueGaze::Integrations
         {
             logger::info("[TrueGaze] Console commands are disabled by configuration "
                          "(bEnableConsoleCommands=false). Set it true under [Console] and "
-                         "restart to enable the tg* commands.");
+                         "restart to enable the stg* commands.");
             return;
         }
 
@@ -567,7 +573,7 @@ namespace TrueGaze::Integrations
         // opcode each command now answers to. If a command still fails, the opcode is
         // the first thing to compare against the engine's own dispatch table.
         logger::info("[TrueGaze] Registered {} console command(s) by reclaiming {} dead/empty "
-                     "console-table entries. Type 'tgstatus' at the console (~).",
+                     "console-table entries. Type 'stgstatus' at the console (~).",
                      std::size(kCommands), slots.found);
         logger::info("[TrueGaze] Bound opcodes: {}",
                      [&]

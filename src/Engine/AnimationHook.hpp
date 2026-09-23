@@ -24,7 +24,10 @@ namespace TrueGaze::Engine
         static void FrameEnd() noexcept;
 
         /// @brief Evaluates whether an actor should receive procedural gaze overrides.
-        /// Returns false if the actor is dead, paralyzed, sleeping, or ragdolled.
+        /// Returns false if the actor is dead, disabled, deleted, or has no 3D root.
+#if __has_include(<RE/Skyrim.h>)
+        static bool IsActorEligibleForGaze(RE::Actor *actor) noexcept;
+#endif
         static bool IsActorEligibleForGaze(uint32_t actorFormId) noexcept;
 
         /// @brief Gets the current animation blend weight [0.0f, 1.0f] for an actor.

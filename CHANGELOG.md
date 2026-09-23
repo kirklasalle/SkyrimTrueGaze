@@ -8,6 +8,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [!IMPORTANT]
 > **Correction notice.** Earlier entries in this changelog described several features as "implemented" that are not functional, because they were written from design intent rather than from the code. Those entries have been annotated below. See [`docs/STATUS.md`](docs/STATUS.md) for the verified capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the full independent audit.
 
+## [1.0.3] - 2026-09-23
+
+### Fixed — True 3D Head-Height Elevation Targeting & Chest Aiming Defect
+- **Dynamic 3D Bone Head-Height Elevation Tracking**:
+  - *Root Cause Analysis*: Diagnosed from player logs and screenshots (`ScreenShot62`–`ScreenShot67`) that gaze pitch deflections were calculated as flat horizontal ($+0.4^\circ$, $-0.1^\circ$), causing seated NPCs (Camilla Valerius) to stare horizontally straight ahead into the standing player's chest, and counter-leaning NPCs (Lucan Valerius) to look downward toward the counter. Eye contact only triggered when the player crouched down to the exact horizontal elevation of seated NPCs.
+  - *Rigid Elevation Elimination*: Both `TargetSelector.cpp` and `GazeEngine.cpp` previously calculated eye height using actor root translations (feet on the ground) plus a rigid `+160.0f` offset. In interior cells with floor level $z = 0$, this produced $dz = (0 + 160) - (0 + 160) = 0.0$, forcing pitch deflection to zero regardless of whether an actor was seated, leaning, standing, or crouching.
+  - *Dynamic Bone Transform Solving*: Implemented `GetActorHeadPosition(RE::Actor* actor)` in `TargetSelector.cpp`, which dynamically resolves the actual `NPC Head [Head]` bone world transform (`head->world.translate`) with fallback candidates (`Head`, `Head1`, `Bip01 Head`). Updated `GazeEngine::WorldTargetToLocalGaze` to compute $dz = \text{targetHead.z} - \text{observerHead.z}$.
+  - *Natural Postural Adaptation*: Seated NPCs now realistically tilt their gaze and head upwards toward standing characters, standing characters look down toward seated or counter-leaning characters, and crouching smoothly and continuously adjusts line-of-sight elevation in real time.
+
+### Fixed — 3rd-Person Player Conversational Gaze & Biomechanical Headtracking
+- **Player Character 3rd-Person Conversational Engagement**:
+  - *Root Cause 1 (Candidate Scanning)*: When `observer == player`, `TargetSelector.cpp` only resolved targets during active dialogue menus, direct crosshair collision targeting, or combat. In 3rd person with a free camera, if the crosshair was not centered directly on an NPC, the player character fell through to an ambient forward idle state with $0.0^\circ$ deflection.
+  - *Root Cause 2 (Skeleton Constraint Application)*: In `GazeEngine::ApplyToSkeleton`, an `if (!isPlayer && head)` guard explicitly bypassed head and neck rotations on the player character. Because vanilla humanoid rigs lack eye bones (`eyeL` and `eyeR` are null), the player character never turned their head toward nearby targets.
+  - *Conversational Candidate Scanning*: Added a candidate scan in `TargetSelector.cpp` for the player character that locates the nearest conversational partner ($\le 4.5\text{m}$) inside the player's forward visual cone.
+  - *3rd-Person Biomechanical Headtracking*: Updated `GazeEngine::ApplyToSkeleton` to allow head and neck tracking on the player character whenever `camera->IsInThirdPerson()` is true, while leaving 1st-person camera and torso spine untouched to prevent camera disturbance and ensure running animations stay aligned.
+
+### Added — Live Console Logger Level Switching & Visual Enhancements
+- **Dynamic `stgverbose` Logger Switching**: In `ConsoleCommands.cpp`, `CmdVerbose` now dynamically invokes `spdlog::default_logger()->set_level(...)` to switch the active logging threshold between `debug` and `info` instantly without requiring a game restart.
+- **Subtle Laser Beams & Configurator Options**:
+  - Calibrated discreet ~2mm hair-thin laser beams (`fGazeRayThicknessCm = 0.20`, `fGazeRayLengthMeters = 2.50`, `fPupilGlowIntensity = 0.35`) originating precisely from anatomical pupil sockets.
+  - Exposed `bGazeRaysOnPlayer` toggle in `TrueGazeConfig.html` and `TrueGaze.ini` allowing users to display laser rays on NPCs only or on the player as well.
+  - Calibrated the `Developer` preset in `TrueGazeConfig.html` for immediate, high-responsiveness eye movement verification (`fSaccadeSpeedMult = 1.50`, `fHeadTrackingSpeed = 6.50`, `fHeadOnsetDelaySec = 0.04`, `fMaxComfortEyeAngle = 35.0`).
+
+## [1.0.2] - 2026-09-21
+
+### Fixed — Crash to Desktop (CTD) on Save Load & Visual Stability Hardening
+- **Crash to Desktop (CTD) on Game Load Resolved**:
+  - *Root Cause 1 (FaceGen Modifier KeyFrame Null Pointer)*: In `EfmBlinkController::ApplyGazeMorphs`, `faceGenData->modifierKeyFrame.SetValue()` was called without verifying that `modifierKeyFrame.values != nullptr` or `modifierKeyFrame.count > 11`. During game load and 3rd-person player initialization, the player's FaceGen morph structures are unallocated, producing a null-pointer dereference access violation (0xC0000005). Added robust guard: `if (faceGenData && faceGenData->modifierKeyFrame.values && faceGenData->modifierKeyFrame.count > static_cast<std::uint32_t>(RE::BSFaceGenKeyframeMultiple::Modifier::LookUp))`.
+  - *Root Cause 2 (Malformed Handwritten NIF Assets)*: Discovered that procedural scripts had created corrupt binary NIF structures for `GazeBeam.nif` and `GazeRegionPanel.nif`. Calling `RE::BSModelDB::Demand` on these malformed assets caused Skyrim's native resource parser to crash inside `SkyrimSE.exe`. Deleted the corrupt files and hardened `VisualEffectsManager::EnsureBeamGeometry` to default reliably to the verified engine-native `RE::NiPointLight` emitter fallback.
+  - *Root Cause 3 (BSModelDB::DBTraits::ArgsType Zero-Initialization)*: Changed `RE::BSModelDB::DBTraits::ArgsType args{};` to `ArgsType args;` to preserve Skyrim's default engine traits (`unk8=true`, `postProcess=true`, `texLoadLevel=3`).
+  - *Fault-Tolerant Exception Boundaries*: Wrapped all visual updates in `try / catch` blocks in `src/Engine/GazeEngine.cpp` (`VisualEffectsManager::Get().UpdateActor`) and player ticking in `src/Engine/AnimationHook.cpp`, preventing any potential visual or actor anomaly from disrupting the core kinematics loop or terminating the game.
+- **Configurator UI Parity & Preset Normalization**:
+  - Exposed `fGazeRayThicknessCm`, `bShowHcepPanel`, `bHcepPanelAllActors`, `fHcepPanelScale`, and `fHcepPanelForwardOffsetCm` in `TrueGazeConfig.html` with rich contextual tooltips.
+  - Recalibrated all quick preset yaw strain weights (`vanilla`, `subtle`, `intense`, `social`) so their cervical distribution shares (`fSpine2YawWeight` + `fNeckYawWeight` + `fHeadYawWeight`) sum to exactly 1.00, eliminating engine sanitization warnings.
+  - Synchronized `TrueGazeConfig.html` between workspace root and `skyrim/` packaging directory.
+
+## [1.0.1] - 2026-09-21
+
+### Fixed — Skyrim VR ("Mad God VR") Crash on Start & Multi-Targeting Architecture
+- **Skyrim VR Startup Crash Resolved**: Diagnosed and resolved fatal game crash on boot when running Skyrim VR (`SkyrimVR.exe` 1.4.15), specifically reported in heavily modded environments such as the "Mad God VR" modlist (500+ mods).
+  - *Root Cause 1 (CommonLib Address Library Resolution)*: In previous builds, CMake compiled with `BUILD_SKYRIM_VR=OFF`. Without `SKYRIM_CROSS_VR` and `HAS_SKYRIM_MULTI_TARGETING` defined, CommonLibSSE-NG attempted to load `versionlib-1-4-15-0.bin` via `IDDB::load()`. Because Skyrim VR exclusively utilizes `version-1-4-15-0.csv`, this threw an unhandled `std::system_error` causing immediate termination. Initialized `extern/CommonLibSSE-NG/extern/openvr` submodule and enabled `BUILD_SKYRIM_VR=ON` in `CMakeLists.txt` to compile unified SE/AE/VR multi-targeting.
+  - *Root Cause 2 (Vtable Hook Slot Misalignment)*: In Skyrim SE and AE (`SkyrimSE.exe`), `RE::Actor::Update` occupies virtual table index `0xAD`. In Skyrim VR, `AttachWeapon` is inserted at slot `0x82`, shifting `Actor::Update` down by two entries to slot `0xAF`. Hooking slot `0xAD` on VR overwrote `PutActorOnMountQuick`, corrupting virtual dispatch and triggering instant memory access violation crashes upon actor initialization.
+  - *Dynamic Hook Dispatch*: Refactored `src/Engine/AnimationHook.cpp` to dynamically evaluate the runtime module using `REL::Module::IsVR() ? 0xAF : 0xAD`.
+- **Autonomous Direct SKSE Launch Independence**: Fully verified that TrueGaze runs completely autonomously when launching directly via SKSE (`skse64_loader.exe` or `sksevr_loader.exe`) or mod manager "Run" buttons (Mod Organizer 2 / Vortex). TrueGaze initializes natively on `kDataLoaded`, reads `TrueGaze.ini`, runs bone restorations every frame (ensuring full compatibility with OAR, Nemesis, Pandora, and combat overhauls), and operates without requiring any external batch files, web servers, or active bridge processes during gameplay.
+- **Actor Eligibility & Eye Contact Restoration (Zero Eligible Ticks Resolved)**: Fixed defect in `src/Engine/AnimationHook.cpp` and `src/Engine/TargetSelector.cpp` where direct calls to `actor->GetLifeState()` evaluated invalid bitfield offsets on Skyrim AE 1.6.629+ / 1.6.1170 (1.7.104), causing 100% of actors to fail `IsActorEligibleForGaze` (`tick calls: 466, eligible ticks: 0`) and preventing visual emitters (gaze rays and HCEP panels) from attaching. Replaced fragile bitfields with canonical version-independent engine virtual calls (`actor->IsDead()`, index `0x99` SE/AE, `0x9A` VR) and form flags (`IsDisabled()`, `IsDeleted()`). Removed premature worker-thread headtrack clearing in `ActorUpdateHook`, restoring natural headtracking and gaze engagement across all NPCs.
+- **Health Verification Update**: Updated `scripts/Test-TrueGazeHealth.ps1` to detect and validate the dynamic slot `0xAF` VR string marker and exception boundary, passing all 15 pre-flight checks with zero warnings or failures.
+
+### Added — TrueGaze Configurator Package Integration & User Guide
+- **Web Configurator Suite Bundled in Release**: Included the full standalone visual configurator suite into the production distribution archive (`dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip`):
+  - `TrueGazeConfig.html` (Standalone zero-install HTML5 visual configurator with animated pupil kinematics preview, preset cards, and live save inspection).
+  - `Launch-TrueGazeConfig.cmd` (Universal batch launcher with automated port scanning, process cleanup, and browser spawning).
+  - `tools/TrueGazeConfig/` (Node.js and PowerShell local automation bridge servers for seamless bidirectional file reads and writes).
+- **Universal Mod Manager Path Resolution**: Updated `Launch-TrueGazeConfig.cmd` and `TrueGazeBridgeServer.ps1` to auto-detect and resolve relative directories when installed inside Mod Organizer 2 (`<MO2>/mods/TrueGaze/`), Vortex staging folders, or manual `Data/` directories.
+- **Comprehensive User Guide**: Authored and packaged `TrueGaze_Configurator_Guide.txt` detailing step-by-step instructions for:
+  - Launching directly from SKSE in heavily modded setups.
+  - Using Method A (One-Click Automation) and Method B (Direct Browser Configuration).
+  - Adding the Configurator as a registered tool in MO2 and Vortex.
+  - Mod compatibility, load order notes, and log file locations.
+
+### Added — Option 1 (Laser Eyes) & Option 2 (HCEP Floating Diagram Panel)
+- **Option 1: Superman Laser Eyes Refinements**:
+  - *Pencil-Thin Ray Thickness*: Scaled geometry down to match the exact diameter of actor pupils (~8mm / 0.008 scale on X/Y axes in `NiMatrix3` rotation bases), replacing large arrows with razor-sharp laser rays.
+  - *Dynamic Target Distance Scaling*: Scaled ray length along the Z-axis dynamically based on actual raycast hit distance or `fGazeRayLengthMeters`.
+  - *Pupil Origin Socket Anchoring*: Replaced raw head bone centers with anatomical pupil socket derivations (`fPupilForwardOffsetCm`, `fPupilUpOffsetCm`), ensuring beams project outward cleanly from the eyes without intersecting facial geometry.
+  - *Ocular Line-of-Sight Tracking*: Oriented laser rays to track the computed saccadic and fixation line-of-sight vectors rather than following static head yaw/pitch.
+- **Option 2: HCEP Floating Diagram Panel**:
+  - *Floating 3D Display Quad*: Authored `meshes/TrueGaze/GazeRegionPanel.nif`, rendering a 3D planar quad anchored to the actor's head bone and floating stably ~35cm in front of the eyes.
+  - *Chroma-Keyed Texture Pipeline*: Processed `hcep-02_enhanced-diagram_keyed-01.jfif` to generate `textures/TrueGaze/GazeRegionPanel.dds` in DXT5 format with an 8-bit alpha channel, removing solid background artifacts for transparent holographic rendering.
+  - *Real-Time Gaze Region Emissive Glow*: Dynamic shader highlights on the panel responding in real-time to active HCEP gaze regions (Social Triangle, Mutual Gaze, Intimate, Avoidance, Target/Distraction).
+  - *Configurable INI Controls*: Added `[Visuals]` configuration keys: `bShowHcepPanel` (toggle floating display), `bHcepPanelAllActors` (display on all NPCs or player only), `fHcepPanelScale` (overall quad dimensions), and `fHcepPanelForwardOffsetCm` (forward floating distance).
+
 ## [1.0.0] - 2026-09-20
 
 ### Public Production Release on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480))

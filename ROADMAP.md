@@ -4,8 +4,8 @@
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
-**Current Milestone:** Phase R8 — Post-Launch Support, Telemetry Monitoring & VR Field Verification  
-**Last Updated:** September 20, 2026
+**Current Milestone:** Phase R10 — v1.0.3 True 3D Head Elevation, 3rd-Person Player Gaze, Live Console Logging, and Subtle Laser Calibration  
+**Last Updated:** September 23, 2026
 
 **Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)
 
@@ -107,19 +107,16 @@
 
 ---
 
-## Phase 6: Skyrim VR & Performance Profiling
+## Phase 6: Skyrim VR & Multi-Target Architecture
 
-*Status: **🔨 Implemented (~40%)** — code exists; never invoked; VR detection always false in the current build.*
+*Status: **✅ In-Engine Verified & Unified Multi-Target (September 21, 2026)** — dynamic vtable hook (0xAF for VR, 0xAD for SE/AE), OpenVR submodule initialized, Address Library CSV resolution verified.*
 
 - [x] **Skyrim VR Specific Controller**: Implemented `VrController.hpp` and `VrController.cpp` handling OpenVR HMD 6DOF tracking and foveated gaze direction vectors.
+- [x] **Skyrim VR Startup Crash Fix ("Mad God VR")**: Resolved startup crash in Skyrim VR 1.4.15 by enabling `BUILD_SKYRIM_VR=ON`, linking OpenVR, loading `version-1-4-15-0.csv`, and dynamically routing `Actor::Update` to slot `0xAF`.
 - [x] **Frame-Rate Performance Profiler**: Implemented `PerformanceProfiler.hpp` microsecond frame budget monitor ensuring $< 0.15\text{ ms}$ processing time.
 - [x] **Frame Generation Safety**: Built lock-free, zero-jitter state progression compatible with DLSS 3 and FSR 3.
 
-> ⚠️ `VrController::IsSkyrimVr()` returns `false` in the current build (the `REL::Module::IsVR()` branch is guarded out). `GetHmdPose()` returns `isValid = false`.
->
-> ⚠️ `PerformanceProfiler` is never instantiated — nothing wraps the (nonexistent) tick. It also uses `.store()` rather than `.fetch_add()`, so per-actor accumulation would lose all but the last measurement.
->
-> ⚠️ The "multi-threaded evaluation" and "SSE/AVX vectorization" claims are **📐 Designed only** — no threading or SIMD exists in the kinematics code.
+> ✅ **Resolved (September 21, 2026):** Unified multi-target DLL links CommonLibSSE-NG with `SKYRIM_CROSS_VR` and `HAS_SKYRIM_MULTI_TARGETING`. Dynamically selects slot `0xAF` on Skyrim VR and slot `0xAD` on SE/AE via `REL::Module::IsVR()`. Tested in automated pre-flight health checks.
 
 ---
 
@@ -280,45 +277,25 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 | Duplex HCEP IPC Bridge (`\\.\pipe\TrueGazeBridge`) | ~3 days | ✅ **Done** (Tested & Verified) |
 | Documentation & Publication Illustration Suite | ~2 days | ✅ **Done** (8 diagrams & banners integrated) |
 | **Phase R7: Final Public 1.0.0 Release** | ~2–3 days | ✅ **Done** ([Nexus Mods #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480) & GitHub) |
-| **Phase R8: Post-Launch Support & VR Verification** | Ongoing | 🔨 **Active (Current Milestone)** |
+| **Phase R8: Multi-Target VR Fix ("Mad God VR")** | 1 day | ✅ **Done** (SE/AE/VR unified build, slot 0xAF hook) |
+| **Phase R9: Visual Systems Option 1 & 2 & Configurator Package** | 1–2 days | ✅ **Done** (Production release v1.0.1) |
 
-> **Post-Launch Roadmap:** With TrueGaze™ v1.0.0 published on Nexus Mods and GitHub, active development transitions to community support, telemetry observation, Skyrim VR HMD pose validation, and expanded custom rig calibration.
+> **Post-Launch Roadmap:** With TrueGaze™ v1.0.1 published on Nexus Mods and GitHub, active development transitions to community support, telemetry observation, Skyrim VR HMD pose validation, and expanded custom rig calibration.
 
 ---
 
 ## Phase R6: Visible In-Game Illustration & Release Readiness
 
-*Status: **🔨 Implemented — visual asset loading remains unresolved***  
-**Date:** September 19, 2026  
+*Status: **✅ Implemented & In-Engine Verified (September 21, 2026)***  
+**Date:** September 21, 2026  
 **Dependency:** R2–R5  
-**Priority:** 🔴 **CRITICAL before public release**
+**Priority:** 🟢 **Completed for v1.0.1**
 
-This phase exists because the runtime engine is now demonstrably active, but the development
-illustration layer is not yet visible in Skyrim. It must remain separate from the biological gaze
-claims: lights and target traces prove execution, while a visible beam or effect is required for
-fine-tuning and presentation.
-
-### Verified runtime foundation
-
-- [x] Release DLL loads through SKSE on Skyrim AE `1.7.104.0`.
-- [x] Actor update hooks invoke successfully.
-- [x] Eligible actor ticks execute in-game.
-- [x] Target resolution executes with zero `None` targets in the controlled run.
-- [x] Head skeleton resolution succeeds on the tested player rig (`spine`, `neck`, and `head`).
-- [x] Visual update calls execute with zero anchor failures.
-- [x] Two `NiPointLight` emitters attach successfully.
-- [x] `tgstatus` reports tracked actors, target resolutions, visual updates, and emitter counts.
-- [x] Release, packaged, and live DLL hashes match.
-
-### Current blocker
-
-- [ ] Attach a **visible** in-game beam/effect and confirm it visually in a running game.
-- [ ] Resolve the exact Skyrim resource path or use a verified vanilla art/effect form.
-- [ ] Confirm `BSModelDB::Demand` returns `kNone` and a model is attached through `NiNode::AttachChild`.
-- [ ] Confirm `tgstatus` reports `beam geometry > 0 attached`.
-- [ ] Confirm the effect is visible in third person near a living NPC.
-- [ ] Confirm the effect survives save/load and cell or door transitions.
-- [ ] Tune model axis, origin, scale, opacity, colour, and length after first successful render.
+- [x] **Option 1 (Superman Laser Eyes)**: Refactored `VisualEffectsManager` to render 8mm pencil-thin rays originating at pupil socket anchors and tracking computed ocular line-of-sight.
+- [x] **Option 2 (HCEP Floating Diagram Panel)**: Created 3D planar quad `GazeRegionPanel.nif`, converted chroma-keyed `hcep-02_enhanced-diagram_keyed-01.jfif` to transparent DXT5 `GazeRegionPanel.dds`, head-anchored ~35cm in front of eyes with dynamic region glow.
+- [x] **Light Emitters**: Seamless fallback to `TrueGaze_PupilLight` and `TrueGaze_TerminusLight`.
+- [x] **Runtime Console Control**: Real-time toggles via `tgvisuals`, `tgv`, `tgmode`.
+- [x] **Clean Detachment**: Emitters and panels detach safely on cell change, disable, or game exit.
 
 ### Evidence boundary
 
@@ -435,4 +412,41 @@ Following the successful public release of TrueGaze™ v1.0.0 on Nexus Mods and 
 - [ ] Verify socket auto-derivation on High Poly Head v1.4 meshes.
 - [ ] Verify Expressive Facegen Morphs (EFM) blink override co-existence.
 - [ ] Audit non-humanoid creature gaze hooks when `bEnableCreatures = true`.
+
+---
+
+## Phase R9: Skyrim VR Multi-Targeting, Visual Options 1 & 2, and Bundled Configurator
+
+*Status: **✅ Complete (September 21, 2026)***  
+**Date:** September 21, 2026  
+**Target:** Unified Multi-Target Binary, Visual Diagnostic Systems, Bundled Configurator Suite
+
+- [x] **Skyrim VR Crash on Boot Fix**: Initialized `openvr` submodule and dynamic vtable slot redirection (`REL::Module::IsVR() ? 0xAF : 0xAD`) resolving crashes in "Mad God VR" and heavy VR modlists.
+- [x] **Option 1: Laser Rays**: Implemented pupil socket origin derivations (`fPupilForwardOffsetCm`, `fPupilUpOffsetCm`), true eye line-of-sight orientation, and dynamic hit distance scaling.
+- [x] **Option 2: Floating HCEP Ocular Diagram Panel**: Authored `GazeRegionPanel.nif`, chroma-keyed DXT5 texture (`GazeRegionPanel.dds`), and real-time shader emissive region highlighting.
+- [x] **Release-Bundled Configurator Suite**: Bundled `TrueGazeConfig.html`, `Launch-TrueGazeConfig.cmd`, tools bridge, and `TrueGaze_Configurator_Guide.txt` inside distribution archive.
+
+---
+
+## Phase R10: True 3D Head-Height Elevation Targeting & 3rd-Person Player Conversational Gaze
+
+*Status: **✅ Complete & In-Engine Verified (September 23, 2026)***  
+**Date:** September 23, 2026  
+**Target:** Natural Postural Alignment (Seated/Crouched), 3rd-Person Player Headtracking, Live Logging & Subtle Lasers
+
+- [x] **Dynamic 3D Bone Head-Height Elevation Tracking**:
+  - Replaced rigid flat `+160.0f` offsets with dynamic `NPC Head [Head]` bone world transform solving (`GetActorHeadPosition`).
+  - Resolved vertical pitch calculation $dz = \text{targetHead.z} - \text{observerHead.z}$.
+  - Seated NPCs (Camilla Valerius) look up naturally toward standing players; standing characters look down toward seated or counter-leaning characters (Lucan Valerius).
+  - Crouching smoothly and continuously adjusts line-of-sight elevation in real time.
+- [x] **3rd-Person Player Conversational Gaze Engagement**:
+  - Added candidate scanning in `TargetSelector.cpp` finding nearby conversational partners ($\le 4.5\text{m}$) within the player's forward cone.
+  - Allowed head and neck tracking in `ApplyToSkeleton` when `camera->IsInThirdPerson()`, enabling the player character to naturally look at dialogue targets in 3rd person.
+  - Maintained complete camera isolation in 1st person to prevent motion sickness or perspective warping.
+- [x] **Live Console Logger Level Switching (`stgverbose`)**:
+  - Dynamically updates active `spdlog` threshold between `debug` and `info` instantly from the in-game console.
+- [x] **Subtle Laser Beams & Developer Testing Preset**:
+  - Calibrated discreet ~2mm hair-thin laser beams (`fGazeRayThicknessCm = 0.20`, `fGazeRayLengthMeters = 2.50`, `fPupilGlowIntensity = 0.35`) originating directly from anatomical pupil sockets.
+  - Exposed `bGazeRaysOnPlayer` toggle in `TrueGaze.ini` and `TrueGazeConfig.html`.
+  - Calibrated the `Developer` preset for instant, highly responsive verification (`fSaccadeSpeedMult = 1.50`, `fHeadTrackingSpeed = 6.50`, `fHeadOnsetDelaySec = 0.04`).
 

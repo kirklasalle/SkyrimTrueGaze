@@ -107,7 +107,7 @@ namespace TrueGaze::Visuals
         /// not a second reading of the config file.
         [[nodiscard]] bool EmittersActive() const noexcept
         {
-            return _tuning.enableInGameVisuals && _tuning.gazeRaysEnabled;
+            return _tuning.enableInGameVisuals && (_tuning.gazeRaysEnabled || _tuning.showHcepPanel);
         }
 
         /// @brief True once the geometry-mode notice has been emitted (success or not).
@@ -144,6 +144,14 @@ namespace TrueGaze::Visuals
             uint32_t geometryAttempts{0};
             GeometryState geometryState{GeometryState::Unknown};
             uint64_t lastGeometryAttemptFrame{0};
+            bool usingFallbackMesh{false}; ///< true when marker_arrow.nif is in use
+
+            // HCEP Floating Diagram Panel
+            RE::NiPointer<RE::NiAVObject> hcepPanel{};
+            uint32_t panelAttempts{0};
+            GeometryState panelState{GeometryState::Unknown};
+            uint64_t lastPanelAttemptFrame{0};
+            uint8_t lastGazeRegion{0xFF};
 
             /// The parent the emitters were attached to, so detach targets the right node.
             RE::NiPointer<RE::NiAVObject> parent{};
@@ -182,6 +190,15 @@ namespace TrueGaze::Visuals
         /// Load and attach the visible beam model. The model is deliberately loaded
         /// through Skyrim's BSModelDB so loose files and BSA assets both work.
         void EnsureBeamGeometry(ActorEmitters &a_emitters, RE::NiAVObject *a_anchor) noexcept;
+
+        /// Load and attach the floating HCEP diagram panel.
+        void EnsureHcepPanel(ActorEmitters &a_emitters, RE::NiAVObject *a_anchor) noexcept;
+
+        /// Update the floating HCEP diagram panel's position, orientation, and active region highlight.
+        void UpdateHcepPanel(ActorEmitters &a_emitters, RE::NiAVObject *a_anchor, uint8_t a_gazeRegion) noexcept;
+
+        /// Detach the HCEP diagram panel.
+        void DetachPanel(ActorEmitters &a_emitters) noexcept;
 
         /// Detach and release both light emitters. Safe when none exist.
         void DetachLights(ActorEmitters &a_emitters) noexcept;

@@ -33,13 +33,19 @@ if ($LASTEXITCODE -ne 0) {
     Write-Error "CMake build failed with exit code $LASTEXITCODE"
 }
 
-# 2. Deploy binary to skyrim structure
-Write-Host "`n[2/4] Deploying TrueGaze.dll to skyrim/SKSE/Plugins/..." -ForegroundColor Yellow
+# 2. Deploy binary and configurator suite to skyrim structure
+Write-Host "`n[2/4] Deploying TrueGaze.dll and Configurator suite to skyrim/..." -ForegroundColor Yellow
 Copy-Item -Path $releaseDll -Destination $pluginTarget -Force
 
-# The active beam model is a verified vanilla Skyrim archive asset. It is not
-# copied into the package: BSModelDB resolves it from Skyrim - Meshes0.bsa.
-Write-Host "  OK   Beam asset resolved from Skyrim - Meshes0.bsa: meshes\\effects\\fxsoulcairnbeam.nif" -ForegroundColor DarkGray
+# Stage Configurator files for Mod Organizer 2, Vortex, and manual modders
+Copy-Item -Path (Join-Path $projectRoot "TrueGazeConfig.html") -Destination (Join-Path $skyrimDir "TrueGazeConfig.html") -Force
+Copy-Item -Path (Join-Path $projectRoot "Launch-TrueGazeConfig.cmd") -Destination (Join-Path $skyrimDir "Launch-TrueGazeConfig.cmd") -Force
+$toolsDir = Join-Path $skyrimDir "tools\TrueGazeConfig"
+if (!(Test-Path $toolsDir)) { New-Item -ItemType Directory -Path $toolsDir -Force | Out-Null }
+Copy-Item -Path (Join-Path $projectRoot "scripts\Launch-TrueGazeConfig.ps1") -Destination (Join-Path $toolsDir "Launch-TrueGazeConfig.ps1") -Force
+Copy-Item -Path (Join-Path $projectRoot "scripts\TrueGazeBridgeServer.ps1") -Destination (Join-Path $toolsDir "TrueGazeBridgeServer.ps1") -Force
+
+Write-Host "  OK   TrueGaze Configurator HTML and Launchers staged into skyrim/" -ForegroundColor DarkGray
 
 # 3. Create dist output directory
 if (!(Test-Path $distDir)) {

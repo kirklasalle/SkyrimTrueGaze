@@ -257,6 +257,32 @@ else {
 }
 
 # ---------------------------------------------------------------------------
+# Deploy TrueGaze custom visual assets (meshes & textures)
+# ---------------------------------------------------------------------------
+$repoMeshes = Join-Path $projectRoot 'skyrim\meshes\TrueGaze'
+$repoTextures = Join-Path $projectRoot 'skyrim\textures\TrueGaze'
+$destMeshes = Join-Path $game.Path 'Data\meshes\TrueGaze'
+$destTextures = Join-Path $game.Path 'Data\textures\TrueGaze'
+
+if (Test-Path $repoMeshes) {
+    if (-not (Test-Path $destMeshes)) {
+        New-Item -ItemType Directory -Path $destMeshes -Force | Out-Null
+    }
+    Copy-Item -Path (Join-Path $repoMeshes '*') -Destination $destMeshes -Force
+    $meshCount = (Get-ChildItem -Path $destMeshes -File).Count
+    Write-Ok "TrueGaze meshes -> $destMeshes ($meshCount files)"
+}
+
+if (Test-Path $repoTextures) {
+    if (-not (Test-Path $destTextures)) {
+        New-Item -ItemType Directory -Path $destTextures -Force | Out-Null
+    }
+    Copy-Item -Path (Join-Path $repoTextures '*') -Destination $destTextures -Force
+    $texCount = (Get-ChildItem -Path $destTextures -File).Count
+    Write-Ok "TrueGaze textures -> $destTextures ($texCount files)"
+}
+
+# ---------------------------------------------------------------------------
 # Remove legacy SkyUI / Papyrus / MCM artifacts.
 #
 # TrueGaze is deliberately vanilla-UI: configuration is the INI edited through

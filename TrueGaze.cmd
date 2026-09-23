@@ -443,6 +443,9 @@ REM an upgrade self-heals. (Top-level "if exist" only: a bare ")" inside a
 REM parenthesised block would close it early, and these paths contain parens.)
 call :CLEAN_LEGACY
 
+REM ---- Deploy mesh and texture assets ----
+call :DEPLOY_ASSETS
+
 if not "%~1"=="1" exit /b 0
 if not exist "%PLUGDIR%\TrueGaze.ini" exit /b 0
 
@@ -503,6 +506,33 @@ if exist "%DATADIR%\TrueGaze.pex" del /q "%DATADIR%\TrueGaze.pex" >nul 2>&1
 if exist "%DATADIR%\MCM\Config\TrueGaze" rd /s /q "%DATADIR%\MCM\Config\TrueGaze" >nul 2>&1
 if exist "%DATADIR%\Interface\MCM\Config\TrueGaze" rd /s /q "%DATADIR%\Interface\MCM\Config\TrueGaze" >nul 2>&1
 if exist "%DATADIR%\Interface\Translations\TrueGaze_*.txt" del /q "%DATADIR%\Interface\Translations\TrueGaze_*.txt" >nul 2>&1
+exit /b 0
+
+REM ---------------------------------------------------------------------------
+REM DEPLOY_ASSETS - copy meshes and textures to the game Data folder.
+REM
+REM BSModelDB::Demand loads NIF files from the game Data/ directory (or BSA
+REM archives). Without these files the plugin falls back to marker_arrow.nif.
+REM ---------------------------------------------------------------------------
+:DEPLOY_ASSETS
+set "DATADIR=%GAMEPATH%\Data"
+set "SRC_MESHES=%PROJECT_ROOT%\skyrim\meshes\TrueGaze"
+set "SRC_TEXTURES=%PROJECT_ROOT%\skyrim\textures\TrueGaze"
+set "DST_MESHES=%DATADIR%\meshes\TrueGaze"
+set "DST_TEXTURES=%DATADIR%\textures\TrueGaze"
+
+if not exist "%DST_MESHES%" mkdir "%DST_MESHES%" >nul 2>&1
+if not exist "%DST_TEXTURES%" mkdir "%DST_TEXTURES%" >nul 2>&1
+
+if exist "%SRC_MESHES%\GazeBeam.nif" copy /y "%SRC_MESHES%\GazeBeam.nif" "%DST_MESHES%\GazeBeam.nif" >nul 2>&1
+if exist "%SRC_MESHES%\GazeRegionPanel.nif" copy /y "%SRC_MESHES%\GazeRegionPanel.nif" "%DST_MESHES%\GazeRegionPanel.nif" >nul 2>&1
+if exist "%SRC_TEXTURES%\GazeRegionPanel.dds" copy /y "%SRC_TEXTURES%\GazeRegionPanel.dds" "%DST_TEXTURES%\GazeRegionPanel.dds" >nul 2>&1
+
+if exist "%DST_MESHES%\GazeBeam.nif" echo   OK    GazeBeam.nif deployed.
+if exist "%DST_MESHES%\GazeRegionPanel.nif" echo   OK    GazeRegionPanel.nif deployed.
+if exist "%DST_TEXTURES%\GazeRegionPanel.dds" echo   OK    GazeRegionPanel.dds deployed.
+
+if not exist "%DST_MESHES%\GazeBeam.nif" echo   WARN  GazeBeam.nif not found; fallback marker_arrow.nif will be used.
 exit /b 0
 
 :DEPLOY_NO_DLL

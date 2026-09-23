@@ -6,9 +6,9 @@
 **Workspace:** `D:\Projects\SkyrimTrueGaze`  
 **Parent Ecosystem:** Kirk LaSalle's Human Communication Eye Protocol (HCEP) (`D:\Projects\HCEP`)  
 **Author & Product Owner:** Kirk LaSalle  
-**Version:** 1.0.0-rc1  
-**Status:** In Active Development / Local Testing  
-**Target Games:** The Elder Scrolls V: Skyrim (Special Edition 1.5.97, Anniversary Edition 1.6.640+, Skyrim VR)
+**Version:** 1.0.3  
+**Status:** Production Release ([Nexus Mods #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480))  
+**Target Games:** The Elder Scrolls V: Skyrim (Special Edition 1.5.97, Anniversary Edition 1.6.318–1.6.1170+, Skyrim VR 1.4.15)
 
 ---
 
@@ -136,6 +136,12 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
   - *Tier 1 (< 5m):* Full biological kinematics (eyes, head, neck, micro-jitter, blinks, triangle).
   - *Tier 2 (5m–15m):* Head and neck kinematics; eye drift culled.
   - *Tier 3 (> 15m):* Engine bypassed entirely; 0.000ms overhead.
+
+- **[FR-13] Dynamic 3D Head-Height Elevation Targeting:**
+  Target vectors must evaluate dynamic 3D head bone transforms (`NPC Head [Head]`) for both observer and target, correctly calculating vertical pitch deflection $dz = \text{targetHead.z} - \text{observerHead.z}$. Seated, leaning, or crouching actors must naturally align eye-to-eye rather than aiming horizontally straight into chests or down at furniture.
+
+- **[FR-14] 3rd-Person Player Conversational Gaze & Headtracking:**
+  In 3rd-person camera perspective, the player character must identify nearby conversational candidates ($\le 4.5\text{m}$) within the forward visual cone and apply biomechanical head and neck tracking toward dialogue partners, while strictly isolating 1st-person camera and torso spine bones.
 
 ---
 

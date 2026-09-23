@@ -25,16 +25,24 @@ namespace TrueGaze::Visuals
         int rayRenderMode{0};
 
         // --- Beam appearance ---
-        float gazeRayLengthMeters{10.0f};
+        float gazeRayLengthMeters{2.5f};  // beam reach in metres (~175 Skyrim units)
+        float gazeRayThicknessCm{0.2f};   // beam cross-section diameter; ~2mm hair-thin laser
         uint32_t gazeRayColour{0xC9A86A}; // 0xRRGGBB, TrueGaze gold
         float gazeRayOpacity{0.85f};
 
         /// Resource path of the visible beam model, relative to the Skyrim Data
         /// root. Configurable so a standalone non-Bethesda asset can be used without
-        /// a rebuild. Primary target is the standalone TrueGaze mesh path.
+        /// a rebuild.
+        ///
+        /// PRIMARY is the hand-crafted TrueGaze beam NIF (BSTriShape unit cylinder
+        /// + BSEffectShaderProperty emissive gold glow + NiAlphaProperty blending).
+        /// Regenerated 2026-09-22 with the correct SSE BSEffectShaderProperty
+        /// layout (SizedString texture fields, byte-wise clamp/lighting params).
         const char *beamModelPath{"meshes\\TrueGaze\\GazeBeam.nif"};
-        /// Verified secondary vanilla fallback asset in the Dawnguard effects folder.
-        const char *beamModelFallbackPath{"meshes\\dlc01\\effects\\fxsoulcairnbeam.nif"};
+        /// Fallback: vanilla engine marker arrow (Skyrim - Meshes0.bsa), guaranteed
+        /// present in every install. Opaque white debug mesh — the runtime shader
+        /// tint in VisualEffectsManager recolours it when this path is used.
+        const char *beamModelFallbackPath{"meshes\\marker_arrow.nif"};
 
         // --- Which actors emit ---
         bool gazeRaysOnPlayer{true};
@@ -44,9 +52,16 @@ namespace TrueGaze::Visuals
         // --- Attachment / origin ---
         bool gazeRaysAttachHead{true};
         bool gazeRaysTerminus{false};
-        float pupilForwardOffsetCm{7.0f};
-        float pupilUpOffsetCm{1.5f};
-        float pupilGlowIntensity{0.5f};
+        float pupilForwardOffsetCm{12.0f}; // ~12cm forward from head bone to eye socket
+        float pupilUpOffsetCm{6.0f};       // ~6cm up from head bone to eye socket
+        float pupilGlowIntensity{0.35f};
+
+        // --- HCEP Floating Diagram Panel ---
+        bool showHcepPanel{false};             // master switch for the HCEP diagram panel
+        bool hcepPanelAllActors{true};         // true = Player + NPCs + Creatures; false = Player only
+        float hcepPanelScale{5.0f};            // panel scale factor in Skyrim units (~7cm readable label)
+        float hcepPanelForwardOffsetCm{35.0f}; // ~24.5 Skyrim units forward from head bone
+        const char *hcepPanelModelPath{"meshes\\TrueGaze\\GazeRegionPanel.nif"};
 
         // --- Skyrim world constants ---
         static constexpr float kUnitsPerMeter = 70.0f;
@@ -71,6 +86,12 @@ namespace TrueGaze::Visuals
             return gazeRayLengthMeters * kUnitsPerMeter;
         }
 
+        /// Beam cross-section radius in Skyrim units (diameter -> radius).
+        [[nodiscard]] constexpr float ThicknessUnits() const noexcept
+        {
+            return (gazeRayThicknessCm * 0.5f / kCmPerMeter) * kUnitsPerMeter;
+        }
+
         /// Pupil forward offset in Skyrim units.
         [[nodiscard]] constexpr float ForwardOffsetUnits() const noexcept
         {
@@ -81,6 +102,12 @@ namespace TrueGaze::Visuals
         [[nodiscard]] constexpr float UpOffsetUnits() const noexcept
         {
             return pupilUpOffsetCm / kCmPerMeter * kUnitsPerMeter;
+        }
+
+        /// HCEP panel forward offset in Skyrim units.
+        [[nodiscard]] constexpr float HcepPanelForwardOffsetUnits() const noexcept
+        {
+            return hcepPanelForwardOffsetCm / kCmPerMeter * kUnitsPerMeter;
         }
 
         /// Normalised red channel, 0..1.

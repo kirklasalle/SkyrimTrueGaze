@@ -6,7 +6,7 @@
 
 [![Nexus Mods](https://img.shields.io/badge/Nexus_Mods-Mod_192480-1a9fff?logo=nexusmods)](https://www.nexusmods.com/skyrimspecialedition/mods/192480)
 [![Status](https://img.shields.io/badge/status-Production%20Release-brightgreen)](#-current-project-status)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](#)
+[![Version](https://img.shields.io/badge/version-1.0.3-blue)](#)
 [![Platform](https://img.shields.io/badge/platform-Skyrim%20SE%20%7C%20AE%20%7C%20VR-4b5563)](#)
 [![C++](https://img.shields.io/badge/C%2B%2B-23-00599C)](#)
 [![SDK](https://img.shields.io/badge/SDK-CommonLibSSE--NG-8b5cf6)](#)
@@ -15,15 +15,15 @@
 **Architect & Product Owner:** Kirk LaSalle  
 **Nexus Mods:** [`https://www.nexusmods.com/skyrimspecialedition/mods/192480`](https://www.nexusmods.com/skyrimspecialedition/mods/192480)  
 **Repository:** [`https://github.com/kirklasalle/SkyrimTrueGaze`](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Native Binary:** `TrueGaze.dll` (SKSE64 / CommonLibSSE-NG)  
-**Target Platform:** The Elder Scrolls V: Skyrim (SE 1.5.97, AE 1.6.640+, AE 1.6.1170+, Skyrim VR) & Modern Creation Engine
+**Native Binary:** `TrueGaze.dll` (SKSE64 / CommonLibSSE-NG Multi-Target SE/AE/VR)  
+**Target Platform:** The Elder Scrolls V: Skyrim (SE 1.5.97, AE 1.6.640+, AE 1.6.1170+, Skyrim VR 1.4.15) & Modern Creation Engine
 
 <p align="center">
   <img src="docs/images/truegaze_hero_banner.jpg" alt="TrueGaze Hero Banner - Biological Perception & Biomechanical Kinematics Engine" width="100%">
 </p>
 
 > [!IMPORTANT]
-> **Production Release v1.0.0 is Live on Nexus Mods!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and VR. The plugin loads natively through SKSE, hooks actor animation updates, computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, Argyle & Cook social triangle cycling), and synchronizes with the standalone TrueGaze Configurator and HCEP duplex bridge.
+> **Production Release v1.0.3 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, Argyle & Cook social triangle cycling), dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, bundles both Option 1 (Pencil-thin subtle laser rays) and Option 2 (Floating HCEP ocular diagram panel) visual systems, and packages the standalone TrueGaze Web Configurator suite and User Guide directly in the distribution archive.
 
 ---
 
@@ -31,17 +31,22 @@
 
 | | |
 | :--- | :--- |
-| **Maturity** | 🟢 **Production Release v1.0.0** — Live on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)) |
-| **Builds & links the SDK?** | ✅ Yes — optimized Release x64 DLL (`CommonLibSSE`, `spdlog`, `fmt`, `/O2`) |
+| **Maturity** | 🟢 **Production Release v1.0.3** — Live on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)) |
+| **Builds & links the SDK?** | ✅ Yes — unified multi-target Release x64 DLL (`CommonLibSSE-NG`, `OpenVR`, `spdlog`, `fmt`, `/O2`) |
 | **Drives bones?** | ✅ Yes — procedural saccadic, VOR, and cervical hierarchy bone manipulation live |
-| **In-Engine Verification** | ✅ **Verified in Skyrim AE** — 1,521 animation ticks, target resolution, bone probing, and telemetry confirmed |
-| **Diagnostic Visuals Policy** | ✅ `bEnableInGameVisuals = false` by default; verified `NiPointLight` emitter fallback active |
+| **In-Engine Verification** | ✅ **Verified in Skyrim AE & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, and telemetry confirmed |
+| **3D Head Elevation Targeting** | ✅ Dynamic `NPC Head [Head]` bone world transform solving for seated, leaning, and crouched eye-to-eye alignment |
+| **3rd-Person Player Gaze** | ✅ Player character headtracks and engages nearby conversational partners in 3rd person view |
+| **Diagnostic Visual Systems** | ✅ **Option 1** (discreet ~2mm laser rays from pupils) & **Option 2** (floating HCEP ocular diagram panel) implemented |
+| **Skyrim VR Multi-Targeting** | ✅ Unified build supporting SE 1.5.97, AE 1.6.318–1.6.1170+, and Skyrim VR 1.4.15 ("Mad God VR") |
+| **Configurator Packaging** | ✅ Bundles standalone HTML5 configurator, one-click launcher, and quickstart guide (`TrueGaze_Configurator_Guide.txt`) |
 | **OAR Integration** | ✅ Native dynamic SKSE messaging registration (zero static symbol dependencies) |
 | **Companion Symbols** | ✅ Packaged with full `TrueGaze.pdb` symbols archive for crash logger diagnostic parity |
 
-**Verified working:** SDK linkage · the gaze engine and bone application · per-actor runtime kinematics state · configuration reaching the live engine · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 11 passing test suites · a reproducible pinned build · standalone HTML configurator · multi-race acceptance protocol.
+**Verified working:** Multi-target SDK linkage (SE/AE/VR) · the gaze engine and bone application · dynamic 3D head elevation solving · 3rd-person player conversational engagement · dynamic vtable slot redirection (`0xAF` for VR) · per-actor runtime kinematics state · configuration reaching the live engine · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · Option 1 subtle laser rays & Option 2 floating HCEP panel · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 11 passing test suites · a reproducible pinned build · standalone HTML configurator · multi-race acceptance protocol.
 
 ➡️ **Nexus Mods Page: [Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)**  
+➡️ **User Quickstart Guide: [`TrueGaze_Configurator_Guide.txt`](TrueGaze_Configurator_Guide.txt)**  
 ➡️ **Full capability matrix: [`docs/STATUS.md`](docs/STATUS.md)**  
 ➡️ **Roadmap & milestones: [`ROADMAP.md`](ROADMAP.md)**  
 ➡️ **User guide: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)**  
@@ -606,7 +611,7 @@ Pre-flight verifies, in about a second, everything that is expensive to discover
 * that the Address Library is present **and version-matched** — a library for the *wrong* version is worse than none
 * the VC++ runtime dependencies
 * that the DLL exports the full SKSE loader contract (`SKSEPlugin_Load`, `SKSEPlugin_Query`, `SKSEPlugin_Version`)
-* that the compiled binary targets `Actor::Update` slot `0xAD` and carries the tick exception guard
+* that the compiled binary targets `Actor::Update` dynamically (slot `0xAD` for SE/AE, slot `0xAF` for VR) and carries the tick exception guard
 * that the deployed copy **hashes identically** to the build — a stale deployed binary has shipped twice
 
 ### Manual build

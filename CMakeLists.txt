@@ -32,7 +32,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Build options
 option(BUILD_SKYRIM_SE "Target Skyrim Special Edition (1.5.97)" ON)
 option(BUILD_SKYRIM_AE "Target Skyrim Anniversary Edition (1.6+)" ON)
-option(BUILD_SKYRIM_VR "Target Skyrim VR" OFF)
+option(BUILD_SKYRIM_VR "Target Skyrim VR" ON)
 
 if(NOT BUILD_SKYRIM_SE AND NOT BUILD_SKYRIM_AE AND NOT BUILD_SKYRIM_VR)
     message(FATAL_ERROR "At least one Skyrim runtime must be enabled.")

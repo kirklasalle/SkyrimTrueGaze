@@ -26,7 +26,8 @@ namespace TrueGaze::Integrations
         // This directly enhances Expressive Facial Animation (EFA) & Expressive Facegen Morphs (EFM),
         // as well as vanilla Skyrim eye meshes, without corrupting expression keyframes.
         auto *faceGenData = actor->GetFaceGenAnimationData();
-        if (faceGenData)
+        if (faceGenData && faceGenData->modifierKeyFrame.values &&
+            faceGenData->modifierKeyFrame.count > static_cast<std::uint32_t>(RE::BSFaceGenKeyframeMultiple::Modifier::LookUp))
         {
             using Modifier = RE::BSFaceGenKeyframeMultiple::Modifier;
 

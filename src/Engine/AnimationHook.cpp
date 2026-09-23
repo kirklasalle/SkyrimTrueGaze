@@ -80,21 +80,6 @@ namespace TrueGaze::Engine
                         EyeAimConstraint::WithdrawActor(a_actor->GetFormID());
                     }
                 }
-                else
-                {
-                    // Suppress vanilla Skyrim headtracking for NPCs managed by TrueGaze,
-                    // preventing double-rotation stacking and erratic neck overshooting.
-                    if (a_actor && ConfigManager::GetSingleton().enableTrueGaze)
-                    {
-                        if (auto *high = a_actor->GetHighProcess())
-                        {
-                            for (std::uint32_t i = 0; i < RE::HighProcessData::HEAD_TRACK_TYPE::kTotal; ++i)
-                            {
-                                high->ClearHeadtrackTarget(static_cast<RE::HighProcessData::HEAD_TRACK_TYPE>(i), false);
-                            }
-                        }
-                    }
-                }
 
                 // Advance the game's own state. This deliberately remains outside
                 // our exception guard: it is Skyrim's code, not ours to swallow.
@@ -155,7 +140,18 @@ namespace TrueGaze::Engine
                             if (isThirdPerson)
                             {
                                 // 3rd Person: Player eyes engage TrueGaze normally.
-                                GazeEngine::Get().TickActor(a_actor, a_delta);
+                                try
+                                {
+                                    GazeEngine::Get().TickActor(a_actor, a_delta);
+                                }
+                                catch (const std::exception &e)
+                                {
+                                    ReportTickFailure(e.what());
+                                }
+                                catch (...)
+                                {
+                                    ReportTickFailure("player tick exception");
+                                }
                             }
                             else
                             {
@@ -224,8 +220,9 @@ namespace TrueGaze::Engine
         void InstallActorUpdateHook(const REL::VariantID &vtable, const char *name)
         {
             REL::Relocation<std::uintptr_t> table{vtable};
-            Hook::_original = table.write_vfunc(0xAD, Hook::Hook);
-            logger::info("[TrueGaze] Gaze driver installed on {}::Update (slot 0xAD).", name);
+            const std::size_t updateSlot = REL::Module::IsVR() ? 0xAF : 0xAD;
+            Hook::_original = table.write_vfunc(updateSlot, Hook::Hook);
+            logger::info("[TrueGaze] Gaze driver installed on {}::Update (slot 0xAD / VR slot 0xAF, active: 0x{:02X}).", name, updateSlot);
         }
 
         void TickActorList(RE::BSTArray<RE::ActorHandle> &list,
@@ -254,7 +251,7 @@ namespace TrueGaze::Engine
                     continue;
                 }
 
-                if (!AnimationHook::IsActorEligibleForGaze(actor->GetFormID()))
+                if (!AnimationHook::IsActorEligibleForGaze(actor))
                 {
                     continue;
                 }
@@ -329,6 +326,32 @@ namespace TrueGaze::Engine
 #endif
     }
 
+#if __has_include(<RE/Skyrim.h>)
+    bool AnimationHook::IsActorEligibleForGaze(RE::Actor *actor) noexcept
+    {
+        if (!actor)
+        {
+            return false;
+        }
+
+        // 3D must be loaded; without it there is no skeleton to rotate.
+        if (!actor->Get3D())
+        {
+            return false;
+        }
+
+        // Only living, enabled actors have a meaningful head pose.
+        // Uses the engine's canonical virtual function (SE/AE 0x99, VR 0x9A) and form flags,
+        // which are completely version-independent across SE, AE, and VR runtimes.
+        if (actor->IsDead() || actor->IsDisabled() || actor->IsDeleted())
+        {
+            return false;
+        }
+
+        return true;
+    }
+#endif
+
     bool AnimationHook::IsActorEligibleForGaze(uint32_t actorFormId) noexcept
     {
         if (actorFormId == 0)
@@ -343,40 +366,7 @@ namespace TrueGaze::Engine
             return false;
         }
 
-        auto *actor = form->As<RE::Actor>();
-        if (!actor)
-        {
-            return false;
-        }
-
-        // 3D must be loaded; without it there is no skeleton to rotate.
-        if (!actor->Get3D())
-        {
-            return false;
-        }
-
-        // Only living actors have a meaningful head pose. kAlive covers the resting
-        // case; anything else (dead, bleedout, essential-down, reanimate) is out.
-        if (actor->GetLifeState() != RE::ACTOR_LIFE_STATE::kAlive)
-        {
-            return false;
-        }
-
-        // Unconscious actors (paralysis, sleep, knockout) should not track.
-        if (auto *actorState = actor->AsActorState())
-        {
-            if (actorState->IsUnconscious())
-            {
-                return false;
-            }
-        }
-
-        if (actor->IsInRagdollState())
-        {
-            return false;
-        }
-
-        return true;
+        return IsActorEligibleForGaze(form->As<RE::Actor>());
 #else
         return true;
 #endif

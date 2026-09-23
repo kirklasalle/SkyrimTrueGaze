@@ -26,6 +26,8 @@ In vanilla Skyrim and traditional head-tracking mods, characters rotate their ne
 reaching peak angular speeds of 700°–900°/second.
 [*] [b]Micro-Saccadic Brownian Drift:[/b] To prevent subconscious uncanny-valley freezing, TrueGaze injects 1.5–3.0 Hz micro-drift across the ocular plane.
 [*] [b]Argyle & Cook Social Triangle Cycling:[/b] During dialogue, NPCs naturally shift their gaze across your facial landmarks (Left Eye → Right Eye → Lips) rather than staring unblinkingly at your chin.
+[*] [b]Dynamic 3D Head-Height Elevation Targeting:[/b] Resolves actual head bone world transforms for both actors. Seated characters (e.g. Camilla Valerius) look up naturally toward standing players, standing NPCs look down at seated/leaning characters (Lucan Valerius), and crouching smoothly adapts gaze elevation in real time.
+[*] [b]3rd-Person Player Conversational Gaze:[/b] Your player character naturally turns and tracks conversation partners in third person.
 [*] [b]Cognitive Gaze Aversion:[/b] NPCs glance away momentarily when processing complex thoughts or answering questions, reflecting natural human cognitive load.
 [*] [b]Scripted Scene Meta-Controller (Helgen Safe):[/b] TrueGaze operates as an intelligent meta-controller during scripted sequences like the Helgen cart ride ([font=Courier New]MQ101[/font]). It modulates micro-kinematic gaze vectors without ever modifying root translations, preserving Havok physics stability.
 [/list]
@@ -96,7 +98,19 @@ Shipped [font=Courier New]TrueGaze.ini[/font] is set to [b][font=Courier New]bEn
 
 [list]
 [*] [b]For Modders & Screenshot Creators:[/b] Toggle in-game diagnostic visuals at any time via the vanilla console using [font=Courier New]tgvisuals[/font] (or enable [font=Courier New]bEnableInGameVisuals = true[/font] in [font=Courier New]TrueGaze.ini[/font]).
-[*] [b]Verified Light Emitter Fallback:[/b] When toggled on, TrueGaze checks for standalone mesh [font=Courier New]Data/meshes/TrueGaze/GazeBeam.nif[/font] first, followed by the Dawnguard fallback. If no mesh geometry is present, the engine automatically defaults to the verified [b][font=Courier New]NiPointLight[/font] emitter fallback[/b]—attaching subtle gold point lights to the pupils and gaze terminus without requiring any art assets.
+[*] [b]Option 1: Superman Laser Eyes (Ocular Rays):[/b]
+  [list]
+  [*] Renders pencil-thin (~8mm) laser rays originating precisely from pupil socket anchors.
+  [*] Scaled dynamically to target distance or [font=Courier New]fGazeRayLengthMeters[/font].
+  [*] Follows ocular line of sight ballistically rather than static head rotation.
+  [/list]
+[*] [b]Option 2: HCEP Floating Diagram Panel:[/b]
+  [list]
+  [*] Renders a floating 3D planar quad displaying the chroma-keyed HCEP-02 ocular diagram ([font=Courier New]GazeRegionPanel.nif[/font] / [font=Courier New]GazeRegionPanel.dds[/font]).
+  [*] Head-anchored and floating ~35cm in front of actor eyes, oriented toward the camera.
+  [*] Dynamic real-time emissive glow highlights active gaze regions (Social Triangle, Mutual Gaze, Intimate, Avoidance, Target/Distraction).
+  [/list]
+[*] [b]Verified Light Emitter Fallback:[/b] Seamlessly defaults to the verified [b][font=Courier New]NiPointLight[/font] emitter fallback[/b] ([font=Courier New]TrueGaze_PupilLight[/font], [font=Courier New]TrueGaze_TerminusLight[/font])—attaching subtle gold point lights to the pupils and gaze terminus.
 [/list]
 
 [line]
@@ -131,16 +145,19 @@ TrueGaze dynamically evaluates bone hierarchies and derives anatomical eye socke
 
 [size=5][b]💾 Installation & Uninstallation[/b][/size]
 
-[size=4][b]Mod Organizer 2 / Vortex:[/b][/size]
+[size=4][b]Mod Organizer 2 / Vortex / Direct SKSE Launch:[/b][/size]
 [list=1]
 [*] Download [font=Courier New]TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip[/font].
-[*] Install with your mod manager and enable the mod.
-[*] Launch Skyrim via [font=Courier New]skse64_loader.exe[/font].
+[*] Install with your mod manager (MO2 / Vortex) and enable the mod.
+[*] Launch Skyrim via [font=Courier New]skse64_loader.exe[/font] or [font=Courier New]sksevr_loader.exe[/font] (or your mod manager's SKSE button).
+[*] TrueGaze operates 100% autonomously in-engine—no external processes or launcher windows needed!
 [/list]
 
-[size=4][b]Standalone Configurator & Save Inspector:[/b][/size]
+[size=4][b]Included Standalone Configurator Suite & Quickstart Guide:[/b][/size]
 [list]
-[*] Open [font=Courier New]TrueGazeConfig.html[/font] in any web browser (or run [font=Courier New]Launch-TrueGazeConfig.cmd[/font]) to inspect your hero saves, apply curated presets (Pure Oculomotor, Cinema Dynamic, True Intimacy), and tune parameters with zero game restarts.
+[*] [b]TrueGazeConfig.html:[/b] Open directly in any web browser to adjust sliders, inspect save games, and export your INI.
+[*] [b]Launch-TrueGazeConfig.cmd:[/b] Double-click to start the automated local configuration bridge.
+[*] [b]TrueGaze_Configurator_Guide.txt:[/b] Full step-by-step instructions included in the mod folder for adding the configurator to MO2/Vortex tool menus and troubleshooting.
 [/list]
 
 [size=4][b]Safe Mid-Playthrough Uninstallation:[/b][/size]
@@ -154,9 +171,10 @@ TrueGaze dynamically evaluates bone hierarchies and derives anatomical eye socke
 
 TrueGaze provides native engine console commands (vanilla only, zero Papyrus):
 [list]
-[*] [font=Courier New][b]tgstatus[/b][/font] — Display live runtime status, tracked actor count, and active kinematics state.
+[*] [font=Courier New][b]tgstatus[/b][/font] — Display live runtime status, tracked actor count, bio-latency, blinks, and active kinematics state.
 [*] [font=Courier New][b]tg[/b][/font] — Toggle the gaze engine on/off globally.
-[*] [font=Courier New][b]tgvisuals[/b][/font] — Toggle developer diagnostic visuals (pupil and terminus light emitters).
+[*] [font=Courier New][b]tgvisuals[/b][/font] / [font=Courier New][b]tgv[/b][/font] — Toggle developer diagnostic visuals (rays, floating diagram panel, point lights).
+[*] [font=Courier New][b]tgmode[/b][/font] — Cycle render modes (0 = Both, 1 = Light Only, 2 = Geometry Only).
 [*] [font=Courier New][b]tgverbose[/b][/font] — Toggle diagnostic log verbosity (Info vs. Debug/Trace).
 [*] [font=Courier New][b]tgon[/b][/font] / [font=Courier New][b]tgoff[/b][/font] — Explicitly enable or disable the gaze driver.
 [/list]
@@ -169,12 +187,12 @@ For security and integrity verification:
 
 [code]
 Package:       TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip
-Size:          305.4 KB
-SHA-256:       98D9654F807D1530B6619321C6FE9D97E0618AF2E6CD58DA20DE4AF3A19065DF
+Size:          4.40 MB (4,612,955 bytes)
+SHA-256:       C41369DCACC4C93D50C5348844830EFA13CBF1B80C56CD8E2FECF225573F05EC
 
 Package:       TrueGaze-v1.0.0-Symbols.zip
-Size:          5.37 MB
-SHA-256:       FFCC6680C5EE03F1E47A94098412582BBC7C21A592D2E17C79F2F60D3426BA94
+Size:          5.44 MB (5,709,040 bytes)
+SHA-256:       4089CBA5B76F7CE009CC9794D2D6455D96C72BDF08D8E396EB2A2773BF119693
 [/code]
 
 [line]

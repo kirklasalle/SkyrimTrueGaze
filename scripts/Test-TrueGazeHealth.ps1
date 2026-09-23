@@ -385,11 +385,11 @@ function Invoke-TGPreFlight {
     # vtable index corrupts unrelated entries. Confirm the corrected target is the
     # one that actually got compiled in.
     $ascii = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($PluginPath))
-    if ($ascii.Contains('slot 0xAD')) {
-        Add-TGResult -Name 'Gaze driver targets Actor::Update (slot 0xAD)' -Status 'Pass'
+    if ($ascii.Contains('slot 0xAD') -or $ascii.Contains('VR slot 0xAF')) {
+        Add-TGResult -Name 'Gaze driver targets Actor::Update (slot 0xAD / VR 0xAF)' -Status 'Pass'
     }
     else {
-        Add-TGResult -Name 'Gaze driver targets Actor::Update (slot 0xAD)' -Status 'Fail' `
+        Add-TGResult -Name 'Gaze driver targets Actor::Update (slot 0xAD / VR 0xAF)' -Status 'Fail' `
             -Detail 'The hook target string is not in the binary.' `
             -Fix 'Rebuild. An old binary may still target the invalid Main vtable slot 0x05.'
     }

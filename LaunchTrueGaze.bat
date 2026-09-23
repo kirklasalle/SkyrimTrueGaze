@@ -38,7 +38,7 @@ if not errorlevel 1 (
 )
 
 :: ---- Check 1: Skyrim Installation ----
-echo  [1/8] Skyrim Installation...
+echo  [1/9] Skyrim Installation...
 if exist "%SKYRIM%\SkyrimSE.exe" (
     echo        PASS - SkyrimSE.exe found
     set /a PASS+=1
@@ -48,7 +48,7 @@ if exist "%SKYRIM%\SkyrimSE.exe" (
 )
 
 :: ---- Check 2: SKSE Loader ----
-echo  [2/8] SKSE Loader...
+echo  [2/9] SKSE Loader...
 if exist "%SKYRIM%\skse64_loader.exe" (
     echo        PASS - skse64_loader.exe found
     set /a PASS+=1
@@ -58,7 +58,7 @@ if exist "%SKYRIM%\skse64_loader.exe" (
 )
 
 :: ---- Check 3: SKSE Runtime DLL ----
-echo  [3/8] SKSE Runtime...
+echo  [3/9] SKSE Runtime...
 if exist "%SKYRIM%\skse64_1_7_104.dll" (
     echo        PASS - skse64_1_7_104.dll found
     set /a PASS+=1
@@ -73,7 +73,7 @@ if exist "%SKYRIM%\skse64_1_7_104.dll" (
 )
 
 :: ---- Check 4: Address Library ----
-echo  [4/8] Address Library...
+echo  [4/9] Address Library...
 if exist "%PLUGINS%\versionlib-1-7-104-0.bin" (
     echo        PASS - versionlib-1-7-104-0.bin found
     set /a PASS+=1
@@ -83,7 +83,7 @@ if exist "%PLUGINS%\versionlib-1-7-104-0.bin" (
 )
 
 :: ---- Check 5: Plugins Directory ----
-echo  [5/8] Plugins Directory...
+echo  [5/9] Plugins Directory...
 if exist "%PLUGINS%\" (
     echo        PASS - Plugins directory exists
     set /a PASS+=1
@@ -99,7 +99,7 @@ if exist "%PLUGINS%\" (
 )
 
 :: ---- Check 6: Deploy TrueGaze.dll ----
-echo  [6/8] TrueGaze.dll...
+echo  [6/9] TrueGaze.dll...
 set "BUILD_DLL=%PROJECT%\build\windows-release\Release\TrueGaze.dll"
 set "REPO_DLL=%PROJECT%\skyrim\SKSE\Plugins\TrueGaze.dll"
 set "DEST_DLL=%PLUGINS%\TrueGaze.dll"
@@ -129,17 +129,17 @@ if exist "%DEST_DLL%" (
 )
 
 :: ---- Check 7: Deploy TrueGaze.ini ----
-echo  [7/8] TrueGaze.ini...
+echo  [7/9] TrueGaze.ini...
 set "REPO_INI=%PROJECT%\skyrim\SKSE\Plugins\TrueGaze.ini"
 set "DEST_INI=%PLUGINS%\TrueGaze.ini"
 
-if exist "%DEST_INI%" (
-    echo        PASS - TrueGaze.ini already present
+if exist "%REPO_INI%" (
+    copy /y "%REPO_INI%" "%DEST_INI%" >nul 2>&1
+    echo        PASS - TrueGaze.ini deployed (always refreshed from repo)
     set /a PASS+=1
 ) else (
-    if exist "%REPO_INI%" (
-        copy /y "%REPO_INI%" "%DEST_INI%" >nul 2>&1
-        echo        PASS - TrueGaze.ini deployed
+    if exist "%DEST_INI%" (
+        echo        PASS - TrueGaze.ini already present
         set /a PASS+=1
     ) else (
         echo        FAIL - TrueGaze.ini not found
@@ -147,8 +147,47 @@ if exist "%DEST_INI%" (
     )
 )
 
-:: ---- Check 8: INI Enabled ----
-echo  [8/8] INI Settings...
+:: ---- Check 8: Deploy mesh and texture assets ----
+echo  [8/9] TrueGaze Assets...
+set "SRC_MESHES=%PROJECT%\skyrim\meshes\TrueGaze"
+set "SRC_TEXTURES=%PROJECT%\skyrim\textures\TrueGaze"
+set "DEST_MESHES=%SKYRIM%\Data\meshes\TrueGaze"
+set "DEST_TEXTURES=%SKYRIM%\Data\textures\TrueGaze"
+
+if not exist "%DEST_MESHES%" mkdir "%DEST_MESHES%" >nul 2>&1
+if not exist "%DEST_TEXTURES%" mkdir "%DEST_TEXTURES%" >nul 2>&1
+
+set ASSET_OK=1
+if exist "%SRC_MESHES%\GazeBeam.nif" (
+    copy /y "%SRC_MESHES%\GazeBeam.nif" "%DEST_MESHES%\GazeBeam.nif" >nul 2>&1
+    echo        Deployed GazeBeam.nif
+) else (
+    echo        WARN - GazeBeam.nif not found in repo
+    set ASSET_OK=0
+)
+if exist "%SRC_MESHES%\GazeRegionPanel.nif" (
+    copy /y "%SRC_MESHES%\GazeRegionPanel.nif" "%DEST_MESHES%\GazeRegionPanel.nif" >nul 2>&1
+    echo        Deployed GazeRegionPanel.nif
+) else (
+    echo        WARN - GazeRegionPanel.nif not found in repo
+)
+if exist "%SRC_TEXTURES%\GazeRegionPanel.dds" (
+    copy /y "%SRC_TEXTURES%\GazeRegionPanel.dds" "%DEST_TEXTURES%\GazeRegionPanel.dds" >nul 2>&1
+    echo        Deployed GazeRegionPanel.dds
+) else (
+    echo        WARN - GazeRegionPanel.dds not found in repo
+)
+
+if !ASSET_OK! equ 1 (
+    echo        PASS - TrueGaze assets deployed
+    set /a PASS+=1
+) else (
+    echo        WARN - Some assets missing; fallback rendering will be used
+    set /a PASS+=1
+)
+
+:: ---- Check 9: INI Enabled ----
+echo  [9/9] INI Settings...
 if exist "%DEST_INI%" (
     findstr /i "bEnableTrueGaze=true" "%DEST_INI%" >nul 2>&1
     if !errorlevel! equ 0 (

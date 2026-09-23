@@ -2,12 +2,12 @@
 
 **Project:** TrueGaze - Biological NPC Gaze and Biomechanical Kinematics Engine
 **Audience:** Contributors, engine programmers, mod authors, HCEP integrators, and release engineers
-**Status date:** September 19, 2026
-**Current validation runtime:** Skyrim AE `1.7.104.0`
+**Status date:** September 23, 2026
+**Current validation runtime:** Skyrim AE `1.7.104.0`, SE `1.5.97`, Skyrim VR `1.4.15` ("Mad God VR")
 **Primary language:** C++23/C++20-compatible project code with MSVC
-**Game SDK:** CommonLibSSE-NG v7.5.4
+**Game SDK:** CommonLibSSE-NG v7.5.4 (Multi-target SE/AE/VR, OpenVR)
 
-> This guide describes the implemented repository as it exists today. It intentionally separates implemented code, standalone-tested code, and in-engine evidence. The project has real Skyrim runtime evidence for loading, actor updates, target resolution, skeleton probing, and light emitter attachment. The visible beam geometry path remains unresolved because `BSModelDB::Demand` returns `kNotExist` for the current candidate asset path.
+> This guide describes the implemented repository as it exists today. It intentionally separates implemented code, standalone-tested code, and in-engine evidence. The project has real Skyrim runtime evidence for loading, actor updates, target resolution, skeleton probing, light emitter attachment, and visual geometry. The unified multi-target binary dynamically routes `Actor::Update` (`0xAD` on SE/AE, `0xAF` on VR), avoiding vtable corruption on Skyrim VR. True 3D Head-Height Elevation dynamically resolves `NPC Head [Head]` bone transforms for seated, leaning, and crouched eye-to-eye alignment. 3rd-person player conversational gaze engagement allows the player character to track nearby dialogue partners. Both Option 1 (discreet ~2mm subtle laser rays: pupil-offset, eye line-of-sight tracking) and Option 2 (HCEP floating diagram panel: `GazeRegionPanel.nif` / `GazeRegionPanel.dds` chroma-keyed quad with real-time region highlight) are implemented and operational.
 
 ## 1. Development Principles
 

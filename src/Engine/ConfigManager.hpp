@@ -55,10 +55,10 @@ namespace TrueGaze::Engine
         float headOnsetDelaySec{0.12f};
 
         // --- Skeletal hierarchy strain shares (yaw sums to 1.0; pitch: neck+head) ---
-        float spine2YawWeight{0.06f};
-        float neckYawWeight{0.20f};
+        float spine2YawWeight{0.10f};
+        float neckYawWeight{0.25f};
         float neckPitchWeight{0.20f};
-        float headYawWeight{0.50f};
+        float headYawWeight{0.65f};
         float headPitchWeight{0.55f};
 
         // --- General ---
@@ -101,20 +101,27 @@ namespace TrueGaze::Engine
         bool gazeRaysEnabled{false};      // laser-eye beams from the pupil
         int rayRenderMode{0};             // 0=Both(branded), 1=LightOnly(bare-bones), 2=GeometryOnly(branded)
         float gazeRayLengthMeters{10.0f}; // beam length; drives the light radius
+        float gazeRayThicknessCm{0.8f};   // beam cross-section diameter; ~8mm pencil beam
         int gazeRayColour{0xC9A86A};      // 0xRRGGBB TrueGaze gold (alpha is separate)
         float gazeRayOpacity{0.85f};      // 0..1 emitter brightness
         bool gazeRaysOnPlayer{true};
         bool gazeRaysOnNPCs{true};
         bool gazeRaysOnCreatures{true};
-        bool gazeRaysAttachHead{true};    // attach emitters under the head bone (vs actor root)
-        bool gazeRaysTerminus{false};     // emit a second glow at the gaze terminus
-        float pupilForwardOffsetCm{7.0f}; // pupil origin, forward from the head bone origin
-        float pupilUpOffsetCm{1.5f};      // pupil origin, up from the head bone origin
-        float pupilGlowIntensity{0.5f};   // pupil emitter brightness multiplier
+        bool gazeRaysAttachHead{true};     // attach emitters under the head bone (vs actor root)
+        bool gazeRaysTerminus{false};      // emit a second glow at the gaze terminus
+        float pupilForwardOffsetCm{12.0f}; // pupil origin, forward from the head bone origin
+        float pupilUpOffsetCm{6.0f};       // pupil origin, up from the head bone origin
+        float pupilGlowIntensity{0.5f};    // pupil emitter brightness multiplier
+
+        // --- HCEP Floating Diagram Panel ---
+        bool showHcepPanel{false};             // master switch for the HCEP diagram panel
+        bool hcepPanelAllActors{true};         // true = Player + NPCs + Creatures; false = Player only
+        float hcepPanelScale{0.5f};            // panel scale factor
+        float hcepPanelForwardOffsetCm{35.0f}; // distance in front of head bone (cm)
 
         // --- Console commands (~) ---
         //
-        // Registers the tg* commands so the game's own console can toggle TrueGaze
+        // Registers the stg* commands so the game's own console can toggle TrueGaze
         // at runtime. Uses only the vanilla console: no Papyrus, no ESP, no MCM.
         //
         // DEFAULT OFF. Registration reclaims entries the engine already treats as dead

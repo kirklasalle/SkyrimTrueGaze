@@ -1,11 +1,11 @@
 # TrueGaze User Guide
 
-**Product:** TrueGaze - Biological NPC Gaze and Biomechanical Kinematics Engine
-**Audience:** Skyrim SE/AE/VR players, mod testers, and development partners
-**Status date:** September 19, 2026
-**Current release line:** 1.0.0-rc1 development build
+**Product:** TrueGaze - Biological NPC Gaze and Biomechanical Kinematics Engine  
+**Audience:** Skyrim SE/AE/VR players, mod testers, and development partners  
+**Status date:** September 23, 2026  
+**Current release line:** 1.0.3 Production Release ([Nexus Mods #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480))  
 
-> TrueGaze is an active development project. The core plugin, actor update path, target resolution, skeleton probing, configuration, and runtime diagnostics have been exercised in a real Skyrim AE session. The optional visible 3D illustration beam remains under development: the current runtime can attach light emitters, but the beam geometry asset has not yet loaded successfully in the tested installation.
+> TrueGaze is an active production runtime engine. The plugin loads natively through SKSE across Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). It drives biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, Argyle & Cook social triangle cycling), dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, and offers two optional in-engine 3D visual diagnostics: Option 1 (discreet ~2mm hair-thin laser rays originating from pupils tracking line of sight) and Option 2 (head-anchored HCEP floating diagram panel with real-time region highlight).
 
 ## 1. What TrueGaze Does
 
@@ -13,14 +13,15 @@ TrueGaze is an SKSE plugin that drives live actor gaze kinematics from Skyrim's 
 
 The current runtime can:
 
-- Track eligible living actors.
+- Track eligible living actors across SE, AE, and VR.
 - Resolve a target from dialogue, combat, proximity, crosshair attention, or ambient interest.
 - Apply hierarchical gaze motion through the available skeleton nodes.
 - Use configurable saccade, VOR, comfort, jitter, social, and LOD parameters.
+- Provide Option 1 (Superman laser eyes) and Option 2 (HCEP floating ocular diagram panel) developer visual overlays.
 - Receive optional HCEP telemetry through a Windows named pipe.
 - Report actor, target, skeleton, visual, and performance diagnostics through the Skyrim log and `tgstatus`.
 
-The optional Visuals subsystem is a developer diagnostic. It is not required for the gaze kinematics engine itself.
+The optional Visuals subsystem is an opt-in developer diagnostic. It is not required for the gaze kinematics engine itself.
 
 <p align="center">
   <img src="images/target_salience_perception_cones.jpg" alt="In-Engine Gaze Perception & Target Salience Tracking" width="100%">
@@ -32,15 +33,16 @@ The optional Visuals subsystem is a developer diagnostic. It is not required for
 
 ### Skyrim and runtime
 
-- Skyrim Special Edition or Anniversary Edition supported by the installed CommonLib/SKSE build.
-- The current development validation target is Skyrim AE runtime `1.7.104.0`.
-- Matching SKSE runtime, currently `skse64_1_7_104.dll` for the validation machine.
-- Matching Address Library file, currently `versionlib-1-7-104-0.bin`.
-- Windows x64.
+- **Skyrim Special Edition (SE):** 1.5.97
+- **Skyrim Anniversary Edition (AE):** 1.6.318 through 1.6.1170+ (including 1.7.104.0+)
+- **Skyrim VR:** 1.4.15 (including Wabbajack modlists like "Mad God VR")
+- Matching SKSE runtime (`skse64_loader.exe` / `sksevr_loader.exe`)
+- Matching Address Library for SKSE Plugins (`.bin` for SE/AE, `.csv` for VR)
+- Windows x64
 
 ### Plugin prerequisites
 
-- SKSE64.
+- SKSE64 / SKSEVR.
 - Address Library for SKSE Plugins.
 - Microsoft Visual C++ 2015-2022 x64 runtime.
 - A working Skyrim Data directory.
@@ -49,18 +51,24 @@ TrueGaze does not require SkyUI, MCM Helper, an ESP/ESL plugin, Papyrus scripts,
 
 ## 3. Installation Layout
 
-A normal installation places the plugin at:
+A normal installation (via MO2, Vortex, or manual) places files at:
 
 ```text
-Skyrim Special Edition\Data\SKSE\Plugins\TrueGaze.dll
-Skyrim Special Edition\Data\SKSE\Plugins\TrueGaze.ini
+Data\SKSE\Plugins\TrueGaze.dll
+Data\SKSE\Plugins\TrueGaze.ini
+Data\meshes\TrueGaze\GazeBeam.nif
+Data\meshes\TrueGaze\GazeRegionPanel.nif
+Data\textures\TrueGaze\GazeRegionPanel.dds
+Data\meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze\config.json
 ```
 
-The repository package also contains the standalone configurator:
+The release package also contains the standalone configurator suite and guide:
 
 ```text
 TrueGazeConfig.html
 Launch-TrueGazeConfig.cmd
+TrueGaze_Configurator_Guide.txt
+tools\TrueGazeConfig\
 ```
 
 Do not place the DLL beside `SkyrimSE.exe`. SKSE plugins belong under `Data\SKSE\Plugins`.
@@ -193,7 +201,9 @@ fTier2DistanceMeters=15.0
 
 Tier 1 is the full close-range biological kinematics. Tier 2 reduces fine detail at distance. Actors beyond the configured range may be culled from the expensive gaze path.
 
-### Developer visuals
+### Developer visuals (Option 1 & Option 2)
+
+TrueGaze includes two in-engine developer visual diagnostic systems (opt-in, disabled by default in production):
 
 ```ini
 [Visuals]
@@ -210,15 +220,30 @@ bGazeRaysTerminus=true
 fPupilForwardOffsetCm=7.0
 fPupilUpOffsetCm=1.5
 fPupilGlowIntensity=0.5
+
+; Option 2: HCEP Floating Ocular Diagram Panel
+bShowHcepPanel=true
+bHcepPanelAllActors=true
+fHcepPanelScale=0.35
+fHcepPanelForwardOffsetCm=35.0
 ```
 
-Visual modes:
+Visual subsystems:
 
-- `0`: light emitters plus geometry when a valid beam asset is available.
-- `1`: light emitters only. This is not a visible beam or mesh.
-- `2`: geometry only. This produces no visual if the geometry asset cannot load.
+- **Option 1: Superman Laser Eyes**:
+  - Gaze beams render as pencil-thin (~8mm) laser rays projecting directly from anatomical pupil socket anchors.
+  - Dynamically scaled in length based on actual target distance or `fGazeRayLengthMeters`.
+  - Oriented dynamically to track computed saccadic/fixation eye line of sight (not head rotation).
+- **Option 2: HCEP Floating Diagram Panel**:
+  - A 3D planar quad rendering the chroma-keyed HCEP-02 ocular diagram (`GazeRegionPanel.nif` / `GazeRegionPanel.dds`).
+  - Head-anchored and floating ~35cm in front of actor eyes, oriented toward the camera.
+  - Highlights active gaze regions in real time with an emissive glow (Social Triangle, Mutual Gaze, Intimate, Avoidance, Target).
+- **Visual Modes (`iRayRenderMode`)**:
+  - `0`: Geometry plus point light emitters (`TrueGaze_PupilLight`, `TrueGaze_TerminusLight`).
+  - `1`: Light emitters only (subtle gold ambient eye/terminus glow without geometry).
+  - `2`: Geometry only (pure 3D mesh rays and panel quad).
 
-The current development blocker is the geometry asset lookup. A successful `tgstatus` line showing two lights does not prove that a visible beam exists.
+You can toggle visuals live in-game at any time using the console command `stgvisuals` (or `stgv`).
 
 ### Console commands
 
@@ -227,25 +252,25 @@ The current development blocker is the geometry asset lookup. A successful `tgst
 bEnableConsoleCommands=true
 ```
 
-Console commands are disabled by default in the repository INI. Deployment may preserve an existing user INI, so always inspect the live file rather than assuming the repository defaults are active.
+Console commands are enabled when `bEnableConsoleCommands = true` in `TrueGaze.ini`. To avoid name collisions with vanilla Skyrim commands or other mods, TrueGaze registers commands with the `stg` prefix:
 
 ## 7. Console Commands
 
-The current command set is:
+The current registered in-game console commands are:
 
 | Command | Purpose |
 | --- | --- |
-| `tg` | Toggle the master gaze kinematics engine. |
-| `tgvisuals` | Toggle the in-game visuals master switch. |
-| `tgv` | Toggle gaze rays and enable the visual master when turning them on. |
-| `tgon` | Enable TrueGaze. |
-| `tgoff` | Disable TrueGaze. |
-| `tgmode` | Cycle the render mode. |
-| `tgradius` | Adjust the configured ray length. |
-| `tgverbose` | Toggle verbose diagnostics. |
-| `tgstatus` | Print effective configuration and runtime counters. |
+| `stg` | Toggle the master gaze kinematics engine on/off. |
+| `stgvisuals` | Toggle all in-game visuals (master visual switch) on/off. |
+| `stgv` | Toggle gaze-ray emitters (subtle laser rays) on/off. |
+| `stgon` | Turn every in-game visual diagnostic on. |
+| `stgoff` | Turn every in-game visual diagnostic off. |
+| `stgmode` | Cycle render mode: `0` (Both) / `1` (Light only) / `2` (Geometry only). |
+| `stgradius` | Toggle the gaze terminus landing glow. |
+| `stgverbose` | Dynamically switch logging threshold between `Debug` and `Info` live without restarting. |
+| `stgstatus` | Print effective runtime state, tracked actors, ray deflections, and telemetry counters. |
 
-### Reading `tgstatus`
+### Reading `stgstatus`
 
 The most important fields are:
 
