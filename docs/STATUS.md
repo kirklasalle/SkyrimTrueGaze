@@ -1,7 +1,7 @@
 # TrueGaze™ — Project Status & In-Engine Audit
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
-**Version:** `1.0.3` (Production Release)  
+**Version:** `1.0.4` (Production Release)  
 **Nexus Mods:** [Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)  
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
 **Status date:** September 23, 2026  
@@ -41,6 +41,7 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 > The foundational premise of TrueGaze — dynamic, continuous biological gaze deflection applied to in-engine actor skeletons — is **proven and in-engine verified**.
 >
 > In live gameplay, Kirk LaSalle confirmed:
+>
 > - The SKSE64 plugin hook on `RE::Actor::Update` executes cleanly without CTD (`0xAD` on SE/AE, `0xAF` on VR).
 > - Address Library offsets resolve accurately for the running Skyrim runtime.
 > - Skeletons probe and resolve bone nodes (`NPC L Eye [LEye]`, `NPC R Eye [REye]`, etc.) on real live rigs.
@@ -187,12 +188,14 @@ The project status breaks down into three distinct tiers:
 ## Concrete Implementation & Verification Roadmap
 
 ### Phase 1: Implement Biological Latency Gap ✅ **COMPLETED**
+
 - [x] Add `headOnsetDelayTimerSec` to `VorState` in `VorCoordinator.hpp`.
 - [x] Add `float headOnsetDelaySec{0.12f};` to `GazeTuning.hpp`, `ConfigManager.hpp/.cpp`, and `TrueGaze.ini`.
 - [x] Update `GazeEngine.cpp` to hold cervical tracking advancement during the delay window while the ocular residual snaps instantly.
 - [x] Add unit test in `KinematicsTests.cpp` verifying head freeze and eye snap during the delay window, followed by VOR counter-rotation. All 11 unit tests pass.
 
 ### Phase 2: Diagnostic HUD & Console Telemetry Readout ✅ **COMPLETED**
+
 - [x] Enhanced `tgstatus` in `ConsoleCommands.cpp` to output:
   - `bio latency`: Configured head onset delay (`fHeadOnsetDelaySec`).
   - `saccades/blinks`: Running counts of ballistic saccades and triggered suppression blinks.
@@ -200,22 +203,26 @@ The project status breaks down into three distinct tiers:
 - [x] Rebuilt Release binary and repackaged mod archives (`TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` and `TrueGaze-v1.0.0-Symbols.zip`).
 
 ### Phase 3: Diagnostic 3D Visuals — Option 1 & Option 2 ✅ **COMPLETED**
+
 - [x] **Option 1 (Superman Laser Eyes)**: Scaled beam geometry down to 8mm pencil-thin rays, offset to pupil socket origins, scaled dynamically to target distance, and decoupled from head to follow ocular line of sight.
 - [x] **Option 2 (HCEP Floating Diagram Panel)**: Authored `GazeRegionPanel.nif`, converted `hcep-02_enhanced-diagram_keyed-01.jfif` to transparent DDS DXT5 (`GazeRegionPanel.dds`), anchored 35cm in front of actor eyes, and integrated real-time emissive region glow.
 - [x] Added `[Visuals]` INI configuration: `bShowHcepPanel`, `bHcepPanelAllActors`, `fHcepPanelScale`, `fHcepPanelForwardOffsetCm`.
 
 ### Phase 4: Skyrim VR Multi-Targeting & Startup Crash Fix ✅ **COMPLETED**
+
 - [x] Diagnosed and fixed Skyrim VR 1.4.15 startup crash ("Mad God VR" 500+ mods).
 - [x] Initialized `openvr` submodule and enabled `BUILD_SKYRIM_VR=ON` in `CMakeLists.txt` for CommonLibSSE-NG VR address library CSV resolution.
 - [x] Dynamically routed `Actor::Update` vtable hook slot (`0xAF` on VR, `0xAD` on SE/AE) via `REL::Module::IsVR()`.
 - [x] Updated `Test-TrueGazeHealth.ps1` to detect dynamic slot `0xAF` exception boundary; 15/15 checks pass.
 
 ### Phase 5: Standalone Configurator Suite & Release Packaging ✅ **COMPLETED**
+
 - [x] Bundled `TrueGazeConfig.html`, `Launch-TrueGazeConfig.cmd`, and `tools/TrueGazeConfig/` automation bridge into release package.
 - [x] Authored `TrueGaze_Configurator_Guide.txt` with complete MO2/Vortex setup and SKSE direct launch instructions.
 - [x] Produced unified multi-target distribution `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip`.
 
 ### Phase 6: In-Engine Field Verification Pass (Active)
+
 - [ ] Run in-game test session with Kirk LaSalle verifying:
   - Eye snap vs. head lag (Biological Latency Gap observed in gameplay).
   - Console `tgstatus` readout showing active `saccades/blinks` and `bio latency`.
@@ -223,6 +230,7 @@ The project status breaks down into three distinct tiers:
   - Mutual gaze detection frames accumulating when looking directly into an NPC's eyes.
 
 ### Phase 7: Multi-Threaded SIMD Evaluation (Planned)
+
 - [ ] Design and implement actor evaluation batching across background worker threads.
 - [ ] Profile frame time in dense crowds (20+ NPCs) to guarantee < 0.15 ms total frame time.
 

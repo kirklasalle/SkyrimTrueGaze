@@ -118,7 +118,7 @@ namespace
 #if __has_include(<SKSE/SKSE.h>)
         // Plugin build identity. __DATE__/__TIME__ pin the exact binary that ran,
         // which is the cheapest defence against the stale-DLL class of confusion.
-        logger::info("[TrueGaze] Runtime identity: plugin v1.0.0 build {} {}",
+        logger::info("[TrueGaze] Runtime identity: plugin v1.0.4 build {} {}",
                      __DATE__, __TIME__);
 
         // Game runtime version, formatted as the human-readable dotted string the
@@ -251,7 +251,7 @@ namespace
 // it, so it indents the following function as if it were still part of the
 // macro arguments. An empty declaration at namespace scope is legal C++.
 SKSEPluginInfo(
-        .Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 0, 0},
+        .Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 4, 0},
         .Name = "TrueGaze",
         .Author = "Kirk LaSalle (HCEP)",
         .SupportEmail = "",

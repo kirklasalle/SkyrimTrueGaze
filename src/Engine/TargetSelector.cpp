@@ -23,7 +23,9 @@ namespace TrueGaze::Engine
         constexpr float kEyeHeightOffsetUnits = 125.0f;
 
         /// An approaching actor is worth tracking out to this range.
-        constexpr float kNearbyRangeMeters = 8.0f;
+        /// Widened from 8m: a person 10m away is still clearly in the same room
+        /// and warrants social attention from nearby NPCs.
+        constexpr float kNearbyRangeMeters = 12.0f;
 
         /// Distance to an ambient focus point placed ahead of the observer.
         constexpr float kAmbientForwardUnits = 200.0f;
@@ -34,9 +36,11 @@ namespace TrueGaze::Engine
         /// Targets outside this angle are behind or flanking the actor and must NOT be targeted.
         constexpr float kMaxVisualConeAngleDeg = 75.0f;
 
-        /// Wider visual cone (95 deg) used to retain an already locked target,
-        /// preventing edge chatter or premature drop when talking/standing in personal space (< 1.8m).
-        constexpr float kMaxHoldVisualConeAngleDeg = 95.0f;
+        /// Wider visual cone used to retain an already locked target and to detect
+        /// the player even when the NPC is not squarely facing them. 110° covers
+        /// nearly the full peripheral social attention range without allowing
+        /// backwards neck-snap (that needs a full body turn, not a head turn).
+        constexpr float kMaxHoldVisualConeAngleDeg = 110.0f;
 
         constexpr float kRadToDeg = 180.0f / 3.14159265358979323846f;
         constexpr float kPi = 3.14159265358979323846f;
@@ -44,8 +48,10 @@ namespace TrueGaze::Engine
 
         float WrapPi(float angle) noexcept
         {
-            while (angle > kPi) angle -= kTwoPi;
-            while (angle < -kPi) angle += kTwoPi;
+            while (angle > kPi)
+                angle -= kTwoPi;
+            while (angle < -kPi)
+                angle += kTwoPi;
             return angle;
         }
 
@@ -84,12 +90,12 @@ namespace TrueGaze::Engine
         /// Dynamically tracks seated postures, counter-leaning idles, crouching, and race scales.
         RE::NiPoint3 GetActorHeadPosition(RE::Actor *actor) noexcept
         {
-            if (!actor) return RE::NiPoint3{0.0f, 0.0f, 0.0f};
+            if (!actor)
+                return RE::NiPoint3{0.0f, 0.0f, 0.0f};
             if (auto *root = actor->Get3D())
             {
                 static const char *kHeadCandidates[] = {
-                    "NPC Head [Head]", "Head", "Head1", "Bip01 Head"
-                };
+                    "NPC Head [Head]", "Head", "Head1", "Bip01 Head"};
                 for (const auto *name : kHeadCandidates)
                 {
                     if (auto *bone = root->GetObjectByName(RE::BSFixedString(name)))
@@ -106,7 +112,8 @@ namespace TrueGaze::Engine
         /// Retrieve the true 3D world position of an actor (using 3D node transform if available)
         RE::NiPoint3 GetActorWorldPosition(RE::Actor *actor) noexcept
         {
-            if (!actor) return RE::NiPoint3{0.0f, 0.0f, 0.0f};
+            if (!actor)
+                return RE::NiPoint3{0.0f, 0.0f, 0.0f};
             if (auto *root = actor->Get3D())
             {
                 return root->world.translate;
@@ -118,8 +125,8 @@ namespace TrueGaze::Engine
     } // namespace
 
     TargetSelector::GazeTarget TargetSelector::ResolveTarget(uint32_t observerFormId,
-                                                            ActorGazeRuntime *state,
-                                                            float deltaSeconds) noexcept
+                                                             ActorGazeRuntime *state,
+                                                             float deltaSeconds) noexcept
     {
         GazeTarget target{};
 
@@ -530,9 +537,11 @@ namespace TrueGaze::Engine
             }
         }
 
-        // 4. Candidate selection with strict forward visual cone filtering
+        // 4. Candidate selection with forward visual cone filtering.
+        // Extended to 6m: conversational range in a room (e.g. inn, shop) spans
+        // up to ~5-6m before it reads as shouting across the room.
         RE::Actor *closestNpc = nullptr;
-        float closestDistMeters = 3.5f; // within conversational range
+        float closestDistMeters = 6.0f; // within conversational room range
         if (auto *processLists = RE::ProcessLists::GetSingleton())
         {
             for (auto &handle : processLists->highActorHandles)
@@ -569,13 +578,16 @@ namespace TrueGaze::Engine
             }
         }
 
-        // Check if player is in visual cone
+        // Check if player is in visual cone.
+        // Use the wider hold cone for player detection: an NPC should notice the
+        // player approaching from the side (up to ~110°) and turn to face them,
+        // which is natural social behaviour. Only block detection if the player
+        // is genuinely behind the NPC (> 110° = essentially behind the shoulders).
         float effPlayerDist = playerDistanceMeters;
-        const float coneAngle = (playerDistanceMeters <= 1.8f) ? kMaxHoldVisualConeAngleDeg : kMaxVisualConeAngleDeg;
-        const bool playerInCone = IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos, coneAngle);
+        const bool playerInCone = IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos, kMaxHoldVisualConeAngleDeg);
         if (!playerInCone)
         {
-            effPlayerDist = 999.0f; // Player is behind observer; do not turn neck backwards
+            effPlayerDist = 999.0f; // Player is behind observer; do not snap neck backwards
         }
         else if (state && state->trackedTargetFormId == player->GetFormID())
         {
@@ -592,7 +604,8 @@ namespace TrueGaze::Engine
             target.worldZ = nHeadPos.z;
             target.distanceMeters = DistanceMeters(observerHeadPos, nHeadPos);
             target.isPlayer = false;
-            if (state) state->fixationHoldSec = 0.0f;
+            if (state)
+                state->fixationHoldSec = 0.0f;
             return target;
         }
 
@@ -605,14 +618,16 @@ namespace TrueGaze::Engine
             target.worldZ = playerHeadPos.z;
             target.distanceMeters = DistanceMeters(observerHeadPos, playerHeadPos);
             target.isPlayer = true;
-            if (state) state->fixationHoldSec = 0.0f;
+            if (state)
+                state->fixationHoldSec = 0.0f;
             return target;
         }
 
         // 5. Ambient interest: a point ahead of the observer, oriented along the
         //    actor's heading so they look forward along their own facing angle
         //    rather than staring sideways or snapping backwards.
-        if (state) state->fixationHoldSec = 0.0f;
+        if (state)
+            state->fixationHoldSec = 0.0f;
         target.priority = TargetPriority::AmbientInterest;
         const float actorYaw = observer->GetAngleZ();
         target.worldX = observerHeadPos.x + std::sin(actorYaw) * kAmbientForwardUnits;

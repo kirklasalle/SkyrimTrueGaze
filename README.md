@@ -6,7 +6,7 @@
 
 [![Nexus Mods](https://img.shields.io/badge/Nexus_Mods-Mod_192480-1a9fff?logo=nexusmods)](https://www.nexusmods.com/skyrimspecialedition/mods/192480)
 [![Status](https://img.shields.io/badge/status-Production%20Release-brightgreen)](#-current-project-status)
-[![Version](https://img.shields.io/badge/version-1.0.3-blue)](#)
+[![Version](https://img.shields.io/badge/version-1.0.4-blue)](#)
 [![Platform](https://img.shields.io/badge/platform-Skyrim%20SE%20%7C%20AE%20%7C%20VR-4b5563)](#)
 [![C++](https://img.shields.io/badge/C%2B%2B-23-00599C)](#)
 [![SDK](https://img.shields.io/badge/SDK-CommonLibSSE--NG-8b5cf6)](#)
@@ -23,7 +23,7 @@
 </p>
 
 > [!IMPORTANT]
-> **Production Release v1.0.3 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, Argyle & Cook social triangle cycling), dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, bundles both Option 1 (Pencil-thin subtle laser rays) and Option 2 (Floating HCEP ocular diagram panel) visual systems, and packages the standalone TrueGaze Web Configurator suite and User Guide directly in the distribution archive.
+> **Production Release v1.0.4 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, Argyle & Cook social triangle cycling), dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, bundles both Option 1 (Pencil-thin subtle laser rays) and Option 2 (Floating HCEP ocular diagram panel) visual systems, and packages the standalone TrueGaze Web Configurator suite and User Guide directly in the distribution archive.
 
 ---
 
@@ -31,7 +31,7 @@
 
 | | |
 | :--- | :--- |
-| **Maturity** | 🟢 **Production Release v1.0.3** — Live on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)) |
+| **Maturity** | 🟢 **Production Release v1.0.4** — Live on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)) |
 | **Builds & links the SDK?** | ✅ Yes — unified multi-target Release x64 DLL (`CommonLibSSE-NG`, `OpenVR`, `spdlog`, `fmt`, `/O2`) |
 | **Drives bones?** | ✅ Yes — procedural saccadic, VOR, and cervical hierarchy bone manipulation live |
 | **In-Engine Verification** | ✅ **Verified in Skyrim AE & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, and telemetry confirmed |

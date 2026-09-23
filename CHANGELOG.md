@@ -8,9 +8,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [!IMPORTANT]
 > **Correction notice.** Earlier entries in this changelog described several features as "implemented" that are not functional, because they were written from design intent rather than from the code. Those entries have been annotated below. See [`docs/STATUS.md`](docs/STATUS.md) for the verified capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the full independent audit.
 
+## [1.0.4] - 2026-09-23
+
+### Fixed — NPC Gaze Crash (Multi-Actor Beam Geometry) & NPC Looking-Away
+
+#### 🛑 Crash Fix: Beam Geometry SEH Crash Under Multiple Actors
+
+- **Root Cause**: The Python-generated `GazeBeam.nif` (hand-crafted binary NIF) loaded
+  via `BSModelDB::Demand` without error but caused a delayed SEH access violation
+  (0xC0000005) inside Skyrim's NIF renderer when 7+ actors simultaneously carried beam
+  geometry. C++ `try/catch` cannot intercept SEH — the game crashed silently with no
+  log entry. Confirmed via `TrueGaze.log` analysis: log stopped cleanly mid-frame at
+  16:19:22 with `priority=5` crosshair focus on the bard (actor `0003550C`), no warning.
+- **Fix**: Switched primary beam model from `meshes\TrueGaze\GazeBeam.nif` to
+  `meshes\dlc01\effects\fxsoulcairnbeam.nif` (proven vanilla Dawnguard Soul Cairn beam
+  strip, present in every AE/SE install via `Meshes01.bsa`). The hand-crafted NIF is
+  retired until validated in NifSkope.
+- **Default render mode**: `iRayRenderMode` changed from `0` (Both) to `1` (LightOnly).
+  NiPointLight emitters are proven crash-free across all actor counts. Mode `0` now
+  uses the Dawnguard beam (safe), available via the Developer preset or `stgmode` console
+  command. `usingFallbackMesh` detection extended to recognise `fxsoulcairnbeam` for
+  correct non-uniform scale compensation.
+- **Files**: `src/Visuals/VisualTuning.hpp`, `src/Visuals/VisualEffectsManager.cpp`,
+  `skyrim/SKSE/Plugins/TrueGaze.ini`, `TrueGazeConfig.html`, `skyrim/TrueGazeConfig.html`
+
+#### 🛑 Behavioural Fix: NPCs Looking Away From Player
+
+- **Root Cause 1 — Unconditional `ClearHeadtrackTarget`**: Every frame, TrueGaze called
+  `ClearHeadtrackTarget` on every NPC before writing its own gaze. When the engine fell
+  back to `AmbientInterest` (priority=1, `targetFormId=0`) — a vacant point in the air
+  ahead of the NPC — it had already destroyed Skyrim's own tracking. NPCs stared at
+  nothing rather than the player. Log confirmed: `priority=1 form=00000000` for several
+  minutes of gameplay (Embry, Sven, Delphine all looking away in screenshots).
+- **Root Cause 2 — Detection ranges too small**: NPC candidate scan capped at 3.5 m,
+  player nearby range 8 m, player cone 75°. Log showed player at 5.85 m — beyond NPC
+  scan but within player range, yet outside the 75° cone → ambient fallback.
+- **Fix 1**: `ClearHeadtrackTarget` now only called when `state.trackedTargetFormId != 0`
+  (a real actor target is locked). When only ambient interest is resolved, Skyrim's
+  native headtracking is left in place.
+- **Fix 2**: NPC candidate scan widened `3.5 m → 6.0 m`; player nearby range
+  `8 m → 12 m`; player detection cone `75° → 110°` (covers natural peripheral social
+  attention without allowing backwards neck-snap).
+- **Files**: `src/Engine/GazeEngine.cpp`, `src/Engine/TargetSelector.cpp`
+
+#### 🔧 Diagnostic Visuals Off By Default
+
+- `bEnableInGameVisuals`, `bGazeRaysEnabled`, `bDebugGazeRays` all default to `false`.
+  Log level defaults to `Info` (2) instead of `Debug` (1).
+- All non-developer presets (Vanilla, Subtle, Intense, Social & Dialogue) explicitly set
+  these keys to `false` so switching away from the Developer preset cleanly disables
+  diagnostic overlays.
+- The in-game effect of TrueGaze is the NPC's actual head rotation and FaceGen pupil
+  morphs (`LookLeft`/`LookRight`/`LookUp`/`LookDown`) — no laser beams required.
+- **Files**: `skyrim/SKSE/Plugins/TrueGaze.ini`, `TrueGazeConfig.html`,
+  `skyrim/TrueGazeConfig.html`
+
+### Changed — Version Bump
+
+- CMake project version, `SKSEPluginInfo`, and runtime identity log updated to `1.0.4`.
+  On launch the log will show: `TrueGaze v1-0-4-0` and
+  `Runtime identity: plugin v1.0.4 build Sep 23 2026`.
+
+---
+
 ## [1.0.3] - 2026-09-23
 
 ### Fixed — True 3D Head-Height Elevation Targeting & Chest Aiming Defect
+
 - **Dynamic 3D Bone Head-Height Elevation Tracking**:
   - *Root Cause Analysis*: Diagnosed from player logs and screenshots (`ScreenShot62`–`ScreenShot67`) that gaze pitch deflections were calculated as flat horizontal ($+0.4^\circ$, $-0.1^\circ$), causing seated NPCs (Camilla Valerius) to stare horizontally straight ahead into the standing player's chest, and counter-leaning NPCs (Lucan Valerius) to look downward toward the counter. Eye contact only triggered when the player crouched down to the exact horizontal elevation of seated NPCs.
   - *Rigid Elevation Elimination*: Both `TargetSelector.cpp` and `GazeEngine.cpp` previously calculated eye height using actor root translations (feet on the ground) plus a rigid `+160.0f` offset. In interior cells with floor level $z = 0$, this produced $dz = (0 + 160) - (0 + 160) = 0.0$, forcing pitch deflection to zero regardless of whether an actor was seated, leaning, standing, or crouching.
@@ -18,6 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - *Natural Postural Adaptation*: Seated NPCs now realistically tilt their gaze and head upwards toward standing characters, standing characters look down toward seated or counter-leaning characters, and crouching smoothly and continuously adjusts line-of-sight elevation in real time.
 
 ### Fixed — 3rd-Person Player Conversational Gaze & Biomechanical Headtracking
+
 - **Player Character 3rd-Person Conversational Engagement**:
   - *Root Cause 1 (Candidate Scanning)*: When `observer == player`, `TargetSelector.cpp` only resolved targets during active dialogue menus, direct crosshair collision targeting, or combat. In 3rd person with a free camera, if the crosshair was not centered directly on an NPC, the player character fell through to an ambient forward idle state with $0.0^\circ$ deflection.
   - *Root Cause 2 (Skeleton Constraint Application)*: In `GazeEngine::ApplyToSkeleton`, an `if (!isPlayer && head)` guard explicitly bypassed head and neck rotations on the player character. Because vanilla humanoid rigs lack eye bones (`eyeL` and `eyeR` are null), the player character never turned their head toward nearby targets.
@@ -25,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - *3rd-Person Biomechanical Headtracking*: Updated `GazeEngine::ApplyToSkeleton` to allow head and neck tracking on the player character whenever `camera->IsInThirdPerson()` is true, while leaving 1st-person camera and torso spine untouched to prevent camera disturbance and ensure running animations stay aligned.
 
 ### Added — Live Console Logger Level Switching & Visual Enhancements
+
 - **Dynamic `stgverbose` Logger Switching**: In `ConsoleCommands.cpp`, `CmdVerbose` now dynamically invokes `spdlog::default_logger()->set_level(...)` to switch the active logging threshold between `debug` and `info` instantly without requiring a game restart.
 - **Subtle Laser Beams & Configurator Options**:
   - Calibrated discreet ~2mm hair-thin laser beams (`fGazeRayThicknessCm = 0.20`, `fGazeRayLengthMeters = 2.50`, `fPupilGlowIntensity = 0.35`) originating precisely from anatomical pupil sockets.
@@ -34,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.2] - 2026-09-21
 
 ### Fixed — Crash to Desktop (CTD) on Save Load & Visual Stability Hardening
+
 - **Crash to Desktop (CTD) on Game Load Resolved**:
   - *Root Cause 1 (FaceGen Modifier KeyFrame Null Pointer)*: In `EfmBlinkController::ApplyGazeMorphs`, `faceGenData->modifierKeyFrame.SetValue()` was called without verifying that `modifierKeyFrame.values != nullptr` or `modifierKeyFrame.count > 11`. During game load and 3rd-person player initialization, the player's FaceGen morph structures are unallocated, producing a null-pointer dereference access violation (0xC0000005). Added robust guard: `if (faceGenData && faceGenData->modifierKeyFrame.values && faceGenData->modifierKeyFrame.count > static_cast<std::uint32_t>(RE::BSFaceGenKeyframeMultiple::Modifier::LookUp))`.
   - *Root Cause 2 (Malformed Handwritten NIF Assets)*: Discovered that procedural scripts had created corrupt binary NIF structures for `GazeBeam.nif` and `GazeRegionPanel.nif`. Calling `RE::BSModelDB::Demand` on these malformed assets caused Skyrim's native resource parser to crash inside `SkyrimSE.exe`. Deleted the corrupt files and hardened `VisualEffectsManager::EnsureBeamGeometry` to default reliably to the verified engine-native `RE::NiPointLight` emitter fallback.
@@ -47,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.1] - 2026-09-21
 
 ### Fixed — Skyrim VR ("Mad God VR") Crash on Start & Multi-Targeting Architecture
+
 - **Skyrim VR Startup Crash Resolved**: Diagnosed and resolved fatal game crash on boot when running Skyrim VR (`SkyrimVR.exe` 1.4.15), specifically reported in heavily modded environments such as the "Mad God VR" modlist (500+ mods).
   - *Root Cause 1 (CommonLib Address Library Resolution)*: In previous builds, CMake compiled with `BUILD_SKYRIM_VR=OFF`. Without `SKYRIM_CROSS_VR` and `HAS_SKYRIM_MULTI_TARGETING` defined, CommonLibSSE-NG attempted to load `versionlib-1-4-15-0.bin` via `IDDB::load()`. Because Skyrim VR exclusively utilizes `version-1-4-15-0.csv`, this threw an unhandled `std::system_error` causing immediate termination. Initialized `extern/CommonLibSSE-NG/extern/openvr` submodule and enabled `BUILD_SKYRIM_VR=ON` in `CMakeLists.txt` to compile unified SE/AE/VR multi-targeting.
   - *Root Cause 2 (Vtable Hook Slot Misalignment)*: In Skyrim SE and AE (`SkyrimSE.exe`), `RE::Actor::Update` occupies virtual table index `0xAD`. In Skyrim VR, `AttachWeapon` is inserted at slot `0x82`, shifting `Actor::Update` down by two entries to slot `0xAF`. Hooking slot `0xAD` on VR overwrote `PutActorOnMountQuick`, corrupting virtual dispatch and triggering instant memory access violation crashes upon actor initialization.
@@ -56,6 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Health Verification Update**: Updated `scripts/Test-TrueGazeHealth.ps1` to detect and validate the dynamic slot `0xAF` VR string marker and exception boundary, passing all 15 pre-flight checks with zero warnings or failures.
 
 ### Added — TrueGaze Configurator Package Integration & User Guide
+
 - **Web Configurator Suite Bundled in Release**: Included the full standalone visual configurator suite into the production distribution archive (`dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip`):
   - `TrueGazeConfig.html` (Standalone zero-install HTML5 visual configurator with animated pupil kinematics preview, preset cards, and live save inspection).
   - `Launch-TrueGazeConfig.cmd` (Universal batch launcher with automated port scanning, process cleanup, and browser spawning).
@@ -68,6 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Mod compatibility, load order notes, and log file locations.
 
 ### Added — Option 1 (Laser Eyes) & Option 2 (HCEP Floating Diagram Panel)
+
 - **Option 1: Superman Laser Eyes Refinements**:
   - *Pencil-Thin Ray Thickness*: Scaled geometry down to match the exact diameter of actor pupils (~8mm / 0.008 scale on X/Y axes in `NiMatrix3` rotation bases), replacing large arrows with razor-sharp laser rays.
   - *Dynamic Target Distance Scaling*: Scaled ray length along the Z-axis dynamically based on actual raycast hit distance or `fGazeRayLengthMeters`.

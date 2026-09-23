@@ -505,7 +505,14 @@ namespace TrueGaze::Engine
             }
         }
 
-        if (!actor->IsPlayerRef())
+        // Only clear Skyrim's native headtracking when TrueGaze has resolved a
+        // real social target (trackedTargetFormId != 0, meaning NearbyActor or higher).
+        // AmbientInterest always resolves to targetFormId == 0 (a vacant forward point).
+        // If we only have ambient, leave vanilla headtracking running — it does a better
+        // job than overriding it with an empty stare into space. Without this guard, NPCs
+        // with the player outside their forward cone had their native tracking cleared and
+        // replaced with nothing, causing them to look away from the player.
+        if (!actor->IsPlayerRef() && state.trackedTargetFormId != 0)
         {
             if (auto *high = actor->GetHighProcess())
             {

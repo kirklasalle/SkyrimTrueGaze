@@ -1177,7 +1177,7 @@
             'Visuals': {
                 bEnableInGameVisuals: ['bool', false, 'Master switch for every in-game 3D visual (the "Superman laser eyes" subsystem)'],
                 bGazeRaysEnabled: ['bool', false, 'Emit a gaze beam from each actor\'s pupil along the solved gaze direction'],
-                iRayRenderMode: ['choice', '0', 'Render mode: Both (light + branded geometry) / Light only (no art needed) / Geometry only', ['0', '1', '2']],
+                iRayRenderMode: ['choice', '1', 'Render mode: Both (light + Dawnguard beam) / Light only (safest) / Geometry only', ['0', '1', '2']],
                 fGazeRayLengthMeters: ['float', 2.5, 'Beam reach in meters (drives light radius and terminus position)', 0.5, 50, 0.5, '{v} m'],
                 fGazeRayThicknessCm: ['float', 0.2, 'Beam cross-section diameter (cm) (~2mm hair-thin laser)', 0.05, 5.0, 0.05, '{v} cm'],
                 iGazeRayColour: ['text', '13174890', 'Beam colour as decimal 0xRRGGBB (13174890 = #C9A86A TrueGaze gold)'],
@@ -1959,7 +1959,12 @@
                     'SkeletalHierarchy:fHeadPitchWeight': '0.55',
                     'Social:bEnableGazeAversion': 'false',
                     'Social:bEnableSocialTriangle': 'true',
-                    'Crosshair:bEnableCrosshairGaze': 'true'
+                    'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Visuals:bEnableInGameVisuals': 'false',
+                    'Visuals:bGazeRaysEnabled': 'false',
+                    'Visuals:bShowHcepPanel': 'false',
+                    'Debug:bDebugGazeRays': 'false',
+                    'Debug:iLogLevel': '2'
                 },
                 subtle: {
                     'Kinematics:fSaccadeSpeedMult': '0.7',
@@ -1973,7 +1978,12 @@
                     'SkeletalHierarchy:fHeadPitchWeight': '0.40',
                     'Social:bEnableGazeAversion': 'false',
                     'Social:bEnableSocialTriangle': 'true',
-                    'Crosshair:bEnableCrosshairGaze': 'true'
+                    'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Visuals:bEnableInGameVisuals': 'false',
+                    'Visuals:bGazeRaysEnabled': 'false',
+                    'Visuals:bShowHcepPanel': 'false',
+                    'Debug:bDebugGazeRays': 'false',
+                    'Debug:iLogLevel': '2'
                 },
                 intense: {
                     'Kinematics:fSaccadeSpeedMult': '1.15',
@@ -1987,7 +1997,12 @@
                     'SkeletalHierarchy:fHeadPitchWeight': '0.70',
                     'Social:bEnableGazeAversion': 'false',
                     'Social:bEnableSocialTriangle': 'true',
-                    'Crosshair:bEnableCrosshairGaze': 'true'
+                    'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Visuals:bEnableInGameVisuals': 'false',
+                    'Visuals:bGazeRaysEnabled': 'false',
+                    'Visuals:bShowHcepPanel': 'false',
+                    'Debug:bDebugGazeRays': 'false',
+                    'Debug:iLogLevel': '2'
                 },
                 social: {
                     'Kinematics:fSaccadeSpeedMult': '0.85',
@@ -2003,7 +2018,12 @@
                     'Social:bEnableSocialTriangle': 'true',
                     'Social:fMutualGazeThreshold': '1.5',
                     'Crosshair:bEnableCrosshairGaze': 'true',
-                    'Crosshair:fCrosshairToleranceDeg': '6.0'
+                    'Crosshair:fCrosshairToleranceDeg': '6.0',
+                    'Visuals:bEnableInGameVisuals': 'false',
+                    'Visuals:bGazeRaysEnabled': 'false',
+                    'Visuals:bShowHcepPanel': 'false',
+                    'Debug:bDebugGazeRays': 'false',
+                    'Debug:iLogLevel': '2'
                 },
                 developer: {
                     // --- Master switches: everything ON ---

@@ -19,10 +19,12 @@ namespace TrueGaze::Visuals
         bool enableInGameVisuals{false};
         bool gazeRaysEnabled{false};
 
-        /// 0 = Both (light emitter + branded geometry, when available)
+        /// 0 = Both (light emitter + beam geometry)
         /// 1 = LightOnly (bare-bones; NiPointLight emitters only, no art required)
         /// 2 = GeometryOnly (suppress the light emitters)
-        int rayRenderMode{0};
+        /// Default 1: light-only is the only mode proven crash-free across all
+        /// actor counts. Switch to 0 to enable beam geometry (Dawnguard beam).
+        int rayRenderMode{1};
 
         // --- Beam appearance ---
         float gazeRayLengthMeters{2.5f};  // beam reach in metres (~175 Skyrim units)
@@ -34,11 +36,14 @@ namespace TrueGaze::Visuals
         /// root. Configurable so a standalone non-Bethesda asset can be used without
         /// a rebuild.
         ///
-        /// PRIMARY is the hand-crafted TrueGaze beam NIF (BSTriShape unit cylinder
-        /// + BSEffectShaderProperty emissive gold glow + NiAlphaProperty blending).
-        /// Regenerated 2026-09-22 with the correct SSE BSEffectShaderProperty
-        /// layout (SizedString texture fields, byte-wise clamp/lighting params).
-        const char *beamModelPath{"meshes\\TrueGaze\\GazeBeam.nif"};
+        /// PRIMARY: Dawnguard Soul Cairn beam (Meshes01.bsa). Thin glowing beam
+        /// strip, PROVEN stable in-game across all actor counts. Used since the
+        /// hand-crafted GazeBeam.nif (Python-generated binary) was confirmed to
+        /// cause delayed SEH access violations during rendering when multiple
+        /// actors carry beam geometry simultaneously (2026-09-22, 2026-09-23).
+        /// The custom NIF loads via BSModelDB::Demand without error but the
+        /// renderer crashes later — uncatchable by C++ try/catch.
+        const char *beamModelPath{"meshes\\dlc01\\effects\\fxsoulcairnbeam.nif"};
         /// Fallback: vanilla engine marker arrow (Skyrim - Meshes0.bsa), guaranteed
         /// present in every install. Opaque white debug mesh — the runtime shader
         /// tint in VisualEffectsManager recolours it when this path is used.

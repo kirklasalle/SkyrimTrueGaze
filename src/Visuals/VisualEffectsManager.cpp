@@ -722,10 +722,13 @@ namespace TrueGaze::Visuals
         a_emitters.geometryState = ActorEmitters::GeometryState::Loaded;
         // The arrow mesh is NOT unit-sized (~35u long, ~2u radius) and needs
         // dimension compensation in BeamTransform regardless of which slot it
-        // was loaded from (primary or fallback).
+        // was loaded from (primary or fallback). The Dawnguard beam strip is
+        // also non-unit (BSA asset, variable dimensions) and uses BeamTransform
+        // rotation-only with uniform scale, same as the arrow.
         a_emitters.usingFallbackMesh =
             (effectivePath == _tuning.beamModelFallbackPath) ||
-            (std::strstr(effectivePath, "marker_arrow") != nullptr);
+            (std::strstr(effectivePath, "marker_arrow") != nullptr) ||
+            (std::strstr(effectivePath, "fxsoulcairnbeam") != nullptr);
         ++_geometryCreated;
 
         // Recolour the freshly cloned geometry so the fallback arrow stops
