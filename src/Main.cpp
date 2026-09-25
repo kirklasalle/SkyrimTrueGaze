@@ -251,7 +251,7 @@ namespace
 // it, so it indents the following function as if it were still part of the
 // macro arguments. An empty declaration at namespace scope is legal C++.
 SKSEPluginInfo(
-        .Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 4, 0},
+        .Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 5, 0},
         .Name = "TrueGaze",
         .Author = "Kirk LaSalle (HCEP)",
         .SupportEmail = "",

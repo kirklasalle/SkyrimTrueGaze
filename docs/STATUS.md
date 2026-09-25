@@ -1,10 +1,10 @@
 # TrueGaze™ — Project Status & In-Engine Audit
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
-**Version:** `1.0.4` (Production Release)  
+**Version:** `1.0.5` (Production Release)  
 **Nexus Mods:** [Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)  
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Status date:** September 23, 2026  
+**Status date:** September 25, 2026  
 **Owner & Architect:** Kirk LaSalle  
 
 ---
