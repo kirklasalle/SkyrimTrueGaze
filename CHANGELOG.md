@@ -8,6 +8,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [!IMPORTANT]
 > **Correction notice.** Earlier entries in this changelog described several features as "implemented" that are not functional, because they were written from design intent rather than from the code. Those entries have been annotated below. See [`docs/STATUS.md`](docs/STATUS.md) for the verified capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the full independent audit.
 
+## [1.0.5] - 2026-09-25
+
+### Added — Eye-Dominant Gaze, Dialogue-Synced CGA Return & Organic Motion
+
+#### 👁️ Eyes Now Lead, Head Follows (Biologically Correct Gaze Distribution)
+
+- **Head chain weights dramatically reduced**: `fHeadYawWeight` 0.65→0.245, `fNeckYawWeight`
+  0.25→0.07, `fHeadPitchWeight` 0.55→0.245 (after two tuning passes: −50% then −30%). Eyes
+  now receive the **majority** of the gaze deflection as the residual, producing the natural
+  "eyes move first, head follows subtly" effect documented in oculomotor literature.
+- **Head onset delay increased**: `fHeadOnsetDelaySec` 0.04→0.10 seconds. The biological
+  latency gap between eye saccade onset and head following is now visually perceptible,
+  matching the ~80-150ms observed in human subjects (Guitton & Volle, 1987).
+- **Head engagement threshold** (`fHeadEngageThresholdDeg`, default 8°): for small gaze
+  shifts (e.g. social triangle cycling between eyes/mouth at close range), the head stays
+  **perfectly still** and only the eyes move. Eliminates robotic micro-head-turns.
+
+#### 🧠 Eye-Dominant CGA (Cognitive Gaze Aversion) — "Embry Fix"
+
+- **CGA aversion is now eye-only**: `BoneController::CalculateCgaStrain()` routes aversion
+  deflections almost entirely to the eye bones with minimal head chain involvement
+  (`fCgaHeadInvolvement`, default 0.08 = 8% head, 92% eyes). Eliminates the grotesque
+  neck-twist observed on Embry when averting gaze.
+- **Per-actor dialogue-sync CGA return** (`bDialogueSyncCgaReturn`): when dialogue begins,
+  NPCs in CGA aversion snap their gaze back to the speaker's face — the natural "oh, they
+  said something" attention capture. Kirk LaSalle's insight: *timing is the sweet spot for
+  CGA; the return-to-face timed with dialogue is what makes bots look alive.*
+- **Organic offset variation** (`fCgaDialogueOffsetSec`, default ±2.0s): each NPC gets a
+  unique random offset per CGA episode. Some return slightly before dialogue (anticipatory
+  — sensed the speaker was about to talk), some after (delayed processing — deep in
+  thought). Prevents identical crowd reactions.
+- **SocialTriangle::ReturnToFace()**: new method forces CGA scanpath back to the dominant
+  eye, consumed by the dialogue-sync system.
+
+#### 🎲 Organic Social Triangle Scanpath (No More Repetitive Orbit)
+
+- **Weighted-random path selection** (`fTrianglePathRandomness`, default 0.6): replaces the
+  deterministic LeftEye→RightEye→Mouth orbit with weighted transitions — 45% eye-to-eye
+  (the transition humans favour), 35% lateral jumps, 20% same-point re-fixations. At 0 the
+  classic orbit is preserved; at 1 full free wandering.
+- **Per-visit landing scatter**: every fixation lands on a slightly different angle
+  (±max(0.18°, 12% of offset magnitude)), so no orbit can ever repeat — the polygon-tracing
+  look is gone. Also de-repetitizes CGA aversion points.
+- **Extended diagram de-looped** (SPIRIT/HEART): exits from Third-Eye/Chest land on a
+  random triangle vertex; the mouth now jumps to either eye.
+- **Fixation rhythm widened**: dwell now varies 200–550ms (was 250–450ms).
+
+#### 🌊 Smooth & Graceful Motion (Snappiness Eliminated)
+
+- **Root cause of the snap found**: the smooth-pursuit path teleported the eyes to each new
+  fixation in a single frame (`currentYaw = desiredYaw`), and that hard step propagated
+  into the head through the VOR. Replaced with an **exponential glide**
+  (`fEyePursuitSpeed`, default 12/s) with exact settle below a 0.02° remainder. Eyes and
+  head now move fluidly between fixation points.
+- **Head 20% slower**: `fHeadTrackingSpeed` 6.5→5.2; cervical slew caps 130→104 deg/s yaw
+  and 90→72 deg/s pitch. All presets cut proportionally.
+
+#### 📋 New INI Keys (TrueGaze.ini)
+
+- `[SkeletalHierarchy] fHeadEngageThresholdDeg` — degrees below which only eyes move
+- `[Social] fCgaHeadInvolvement` — head chain fraction during aversion (0=eyes-only)
+- `[Social] bDialogueSyncCgaReturn` — CGA ends when dialogue begins
+- `[Social] fCgaDialogueOffsetSec` — per-actor ±offset around dialogue onset
+- `[Social] fTrianglePathRandomness` — 0 = fixed orbit, 1 = free organic wandering
+- `[Kinematics] fEyePursuitSpeed` — smooth ocular pursuit glide rate (1/s)
+
+#### 🔌 Public API (TrueGazeAPI.h)
+
+- `ActorGazeTelemetry` gained `gazeRegion` (0..12, HCEP-02 Enhanced Diagram) + 3 reserved
+  padding bytes for ABI stability.
+- `TrueGaze_GetVersion()` now reports 0x01000500 (v1.0.5).
+- Beam region colours in `VisualEffectsManager` re-matched to `ClassifyRegion()` IDs.
+
+### Changed
+
+- All preset weights updated across TrueGazeConfig.html to reflect eye-dominant tuning,
+  slower head speeds, and organic path randomness (vanilla 0.6, subtle 0.5, intense 0.7,
+  social 0.7, developer 0.6).
+- `BoneController` compiled defaults updated to eye-dominant values.
+- Unit tests extended: head engagement threshold, CGA eye-dominant strain, deterministic
+  orbit preservation at randomness 0, no fixed loop at randomness 1, landing scatter.
+- Codebase reformatted (clang-format) across VorCoordinator, TrueGazeAPI, and headers.
+
 ## [1.0.4] - 2026-09-23
 
 ### Fixed — NPC Gaze Crash (Multi-Actor Beam Geometry) & NPC Looking-Away

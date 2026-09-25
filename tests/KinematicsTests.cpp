@@ -171,14 +171,85 @@ namespace
         // Vertex must have cycled
         assert(state.currentVertex != initialVertex);
 
-        std::cout << "  -> SocialTriangle passed.\n";
+        // --- Organic path verification (r = 0: deterministic orbit preserved) ---
+        {
+            TrueGaze::Kinematics::SocialTriangle::TriangleState s;
+            TrueGaze::Kinematics::SocialTriangle::SeedRng(s, 0x1234u);
+            using V = TrueGaze::Kinematics::SocialTriangle::Vertex;
+            V v = V::LeftEye;
+            // At randomness 0 the classic cycle must be exactly preserved.
+            const V expected[] = {V::RightEye, V::Mouth, V::LeftEye, V::RightEye};
+            for (int i = 0; i < 4; ++i)
+            {
+                v = TrueGaze::Kinematics::SocialTriangle::NextTriangleVertex(s, v, 0.0f);
+                assert(v == expected[i]);
+            }
+        }
+
+        // --- Organic path verification (r = 1: no fixed loop over 60 steps) ---
+        {
+            TrueGaze::Kinematics::SocialTriangle::TriangleState s;
+            TrueGaze::Kinematics::SocialTriangle::SeedRng(s, 0x5678u);
+            using V = TrueGaze::Kinematics::SocialTriangle::Vertex;
+            V v = V::LeftEye;
+            int canonicalSteps = 0;
+            const V seq[] = {V::LeftEye, V::RightEye, V::Mouth, V::LeftEye,
+                             V::RightEye, V::Mouth, V::LeftEye, V::RightEye};
+            // The classic orbit would visit L,R,M,L,R,M,L,R — count matches.
+            for (int i = 0; i < 8; ++i)
+            {
+                const V next = TrueGaze::Kinematics::SocialTriangle::NextTriangleVertex(s, v, 1.0f);
+                if (next == seq[i])
+                    ++canonicalSteps;
+                v = next;
+            }
+            // A deterministic orbit would match all 8. Random wandering must not.
+            assert(canonicalSteps < 8);
+        }
+
+        // --- Landing scatter: revisiting a vertex must not land identically ---
+        {
+            TrueGaze::Kinematics::SocialTriangle::TriangleState s;
+            TrueGaze::Kinematics::SocialTriangle::SeedRng(s, 0x9ABCu);
+            float firstX = 0.0f, firstY = 0.0f;
+            bool differ = false;
+            // Walk the orbit with randomness 0; LeftEye recurs every 3 fixations.
+            for (int i = 0; i < 12; ++i)
+            {
+                TrueGaze::Kinematics::SocialTriangle::Update(s, 1.0f, 1.5f, 0.0f);
+                if (s.currentVertex == TrueGaze::Kinematics::SocialTriangle::Vertex::LeftEye)
+                {
+                    if (firstX != 0.0f || firstY != 0.0f)
+                    {
+                        if (std::abs(s.vertexOffsetXDeg - firstX) > 1e-4f ||
+                            std::abs(s.vertexOffsetYDeg - firstY) > 1e-4f)
+                        {
+                            differ = true;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        firstX = s.vertexOffsetXDeg;
+                        firstY = s.vertexOffsetYDeg;
+                    }
+                }
+            }
+            assert(differ); // same vertex, different landing angle each visit
+        }
+
+        std::cout << "  -> SocialTriangle passed (organic path + landing scatter).\n";
     }
 
     void TestBoneController()
     {
         std::cout << "[TEST] Running BoneController hierarchy strain verification...\n";
 
-        auto strain = TrueGaze::Engine::BoneController::CalculateHierarchyStrain(40.0f, 20.0f);
+        // Use explicit old-style weights to verify the math is still correct.
+        const TrueGaze::Engine::BoneController::StrainWeights legacyWeights{
+            .spineYaw = 0.10f, .neckYaw = 0.25f, .neckPitch = 0.25f, .headYaw = 0.65f, .headPitch = 0.75f};
+        auto strain = TrueGaze::Engine::BoneController::CalculateHierarchyStrain(
+            40.0f, 20.0f, 35.0f, 25.0f, legacyWeights);
         // Spine2: 10% of 40 = 4.0
         assert(std::abs(strain.spineYaw - 4.0f) < 0.01f);
         // Neck: 25% of 40 = 10.0, 25% of 20 = 5.0
@@ -187,6 +258,26 @@ namespace
         // Head: 65% of 40 = 26.0, 75% of 20 = 15.0
         assert(std::abs(strain.headYaw - 26.0f) < 0.01f);
         assert(std::abs(strain.headPitch - 15.0f) < 0.01f);
+
+        // New eye-dominant defaults: verify eyes get large residual with default weights.
+        auto strainNew = TrueGaze::Engine::BoneController::CalculateHierarchyStrain(20.0f, 10.0f);
+        // Head chain: 5%+10%+35% = 50% of yaw = 10.0 deg → residual = 10.0 deg → eyes get 10.0
+        assert(std::abs(strainNew.eyeYaw) > 5.0f);          // eyes must carry significant share
+        assert(std::abs(strainNew.HeadChainYaw()) < 15.0f); // head chain takes less than before
+
+        // Head engagement threshold: below threshold, only eyes move.
+        auto strainSmall = TrueGaze::Engine::BoneController::CalculateHierarchyStrain(
+            5.0f, 3.0f, 35.0f, 25.0f, TrueGaze::Engine::BoneController::StrainWeights{}, 8.0f);
+        // Total magnitude ~5.83 < threshold 8.0 → head suppressed
+        assert(std::abs(strainSmall.headYaw) < 0.01f);
+        assert(std::abs(strainSmall.neckYaw) < 0.01f);
+        assert(std::abs(strainSmall.eyeYaw - 5.0f) < 0.01f); // eyes carry entire yaw
+
+        // CGA eye-dominant strain: head gets minimal fraction.
+        auto cgaStrain = TrueGaze::Engine::BoneController::CalculateCgaStrain(
+            18.0f, 15.0f, 35.0f, 25.0f, 0.08f);
+        assert(std::abs(cgaStrain.HeadChainYaw()) < 2.0f); // tiny head contribution
+        assert(std::abs(cgaStrain.eyeYaw) > 15.0f);        // eyes carry most of the aversion
 
         std::cout << "  -> BoneController passed.\n";
     }
@@ -201,9 +292,12 @@ namespace
     {
         std::cout << "[TEST] Running eye residual allocation verification...\n";
 
-        // Small deflection: the head chain covers all of it, so the residual is ~0.
+        // Small deflection with legacy weights (sum=1.0): head chain covers all, residual ~0.
         {
-            auto strain = TrueGaze::Engine::BoneController::CalculateHierarchyStrain(5.0f, 0.0f);
+            const TrueGaze::Engine::BoneController::StrainWeights legacyW{
+                .spineYaw = 0.10f, .neckYaw = 0.25f, .neckPitch = 0.25f, .headYaw = 0.65f, .headPitch = 0.75f};
+            auto strain = TrueGaze::Engine::BoneController::CalculateHierarchyStrain(
+                5.0f, 0.0f, 35.0f, 25.0f, legacyW);
             const float chain = strain.HeadChainYaw();
             assert(std::abs(chain - 5.0f) < 0.01f);
             assert(std::abs(strain.eyeYaw) < 0.01f);

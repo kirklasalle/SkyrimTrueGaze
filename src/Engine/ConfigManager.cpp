@@ -63,6 +63,7 @@ namespace TrueGaze::Engine
         microJitterIntervalMin = ReadFloat("Kinematics", "fMicroJitterIntervalMin", microJitterIntervalMin, p);
         microJitterIntervalMax = ReadFloat("Kinematics", "fMicroJitterIntervalMax", microJitterIntervalMax, p);
         headTrackingSpeed = ReadFloat("Kinematics", "fHeadTrackingSpeed", headTrackingSpeed, p);
+        eyePursuitSpeed = ReadFloat("Kinematics", "fEyePursuitSpeed", eyePursuitSpeed, p);
         maxComfortEyeAngle = ReadFloat("Kinematics", "fMaxComfortEyeAngle", maxComfortEyeAngle, p);
         headOnsetDelaySec = ReadFloat("Kinematics", "fHeadOnsetDelaySec", headOnsetDelaySec, p);
 
@@ -72,12 +73,17 @@ namespace TrueGaze::Engine
         neckPitchWeight = ReadFloat("SkeletalHierarchy", "fNeckPitchWeight", neckPitchWeight, p);
         headYawWeight = ReadFloat("SkeletalHierarchy", "fHeadYawWeight", headYawWeight, p);
         headPitchWeight = ReadFloat("SkeletalHierarchy", "fHeadPitchWeight", headPitchWeight, p);
+        headEngageThresholdDeg = ReadFloat("SkeletalHierarchy", "fHeadEngageThresholdDeg", headEngageThresholdDeg, p);
 
         // Social
         enableGazeAversion = ReadBool("Social", "bEnableGazeAversion", enableGazeAversion, p);
         enableSocialTriangle = ReadBool("Social", "bEnableSocialTriangle", enableSocialTriangle, p);
         triangleFixationDuration = ReadFloat("Social", "fTriangleFixationDuration", triangleFixationDuration, p);
+        trianglePathRandomness = ReadFloat("Social", "fTrianglePathRandomness", trianglePathRandomness, p);
         mutualGazeThreshold = ReadFloat("Social", "fMutualGazeThreshold", mutualGazeThreshold, p);
+        cgaHeadInvolvement = ReadFloat("Social", "fCgaHeadInvolvement", cgaHeadInvolvement, p);
+        dialogueSyncCgaReturn = ReadBool("Social", "bDialogueSyncCgaReturn", dialogueSyncCgaReturn, p);
+        cgaDialogueOffsetSec = ReadFloat("Social", "fCgaDialogueOffsetSec", cgaDialogueOffsetSec, p);
 
         // Crosshair (player gaze sweet spot)
         enableCrosshairGaze = ReadBool("Crosshair", "bEnableCrosshairGaze", enableCrosshairGaze, p);
@@ -219,6 +225,7 @@ namespace TrueGaze::Engine
         microJitterIntervalMin = clampReport("fMicroJitterIntervalMin", microJitterIntervalMin, 0.05f, 2.0f);
         microJitterIntervalMax = clampReport("fMicroJitterIntervalMax", microJitterIntervalMax, 0.1f, 4.0f);
         headTrackingSpeed = clampReport("fHeadTrackingSpeed", headTrackingSpeed, 0.5f, 40.0f);
+        eyePursuitSpeed = clampReport("fEyePursuitSpeed", eyePursuitSpeed, 1.0f, 60.0f);
         maxComfortEyeAngle = clampReport("fMaxComfortEyeAngle", maxComfortEyeAngle, 5.0f, 45.0f);
         headOnsetDelaySec = clampReport("fHeadOnsetDelaySec", headOnsetDelaySec, 0.0f, 0.5f);
         spine2YawWeight = clampReport("fSpine2YawWeight", spine2YawWeight, 0.0f, 1.0f);
@@ -226,7 +233,11 @@ namespace TrueGaze::Engine
         neckPitchWeight = clampReport("fNeckPitchWeight", neckPitchWeight, 0.0f, 1.0f);
         headYawWeight = clampReport("fHeadYawWeight", headYawWeight, 0.0f, 1.0f);
         headPitchWeight = clampReport("fHeadPitchWeight", headPitchWeight, 0.0f, 1.0f);
+        headEngageThresholdDeg = clampReport("fHeadEngageThresholdDeg", headEngageThresholdDeg, 0.0f, 45.0f);
+        cgaHeadInvolvement = clampReport("fCgaHeadInvolvement", cgaHeadInvolvement, 0.0f, 1.0f);
+        cgaDialogueOffsetSec = clampReport("fCgaDialogueOffsetSec", cgaDialogueOffsetSec, 0.0f, 5.0f);
         triangleFixationDuration = clampReport("fTriangleFixationDuration", triangleFixationDuration, 0.05f, 2.0f);
+        trianglePathRandomness = clampReport("fTrianglePathRandomness", trianglePathRandomness, 0.0f, 1.0f);
         mutualGazeThreshold = clampReport("fMutualGazeThreshold", mutualGazeThreshold, 0.1f, 30.0f);
         crosshairToleranceDeg = clampReport("fCrosshairToleranceDeg", crosshairToleranceDeg, 0.0f, 30.0f);
         crosshairMaxRangeMeters = clampReport("fCrosshairMaxRangeMeters", crosshairMaxRangeMeters, 2.0f, 100.0f);
@@ -374,6 +385,7 @@ namespace TrueGaze::Engine
         WriteFloat("Kinematics", "fMicroJitterIntervalMin", microJitterIntervalMin);
         WriteFloat("Kinematics", "fMicroJitterIntervalMax", microJitterIntervalMax);
         WriteFloat("Kinematics", "fHeadTrackingSpeed", headTrackingSpeed);
+        WriteFloat("Kinematics", "fEyePursuitSpeed", eyePursuitSpeed);
         WriteFloat("Kinematics", "fMaxComfortEyeAngle", maxComfortEyeAngle);
         WriteFloat("Kinematics", "fHeadOnsetDelaySec", headOnsetDelaySec);
 
@@ -382,11 +394,16 @@ namespace TrueGaze::Engine
         WriteFloat("SkeletalHierarchy", "fNeckPitchWeight", neckPitchWeight);
         WriteFloat("SkeletalHierarchy", "fHeadYawWeight", headYawWeight);
         WriteFloat("SkeletalHierarchy", "fHeadPitchWeight", headPitchWeight);
+        WriteFloat("SkeletalHierarchy", "fHeadEngageThresholdDeg", headEngageThresholdDeg);
 
         WriteBool("Social", "bEnableGazeAversion", enableGazeAversion);
         WriteBool("Social", "bEnableSocialTriangle", enableSocialTriangle);
         WriteFloat("Social", "fTriangleFixationDuration", triangleFixationDuration);
+        WriteFloat("Social", "fTrianglePathRandomness", trianglePathRandomness);
         WriteFloat("Social", "fMutualGazeThreshold", mutualGazeThreshold);
+        WriteFloat("Social", "fCgaHeadInvolvement", cgaHeadInvolvement);
+        WriteBool("Social", "bDialogueSyncCgaReturn", dialogueSyncCgaReturn);
+        WriteFloat("Social", "fCgaDialogueOffsetSec", cgaDialogueOffsetSec);
 
         WriteBool("Crosshair", "bEnableCrosshairGaze", enableCrosshairGaze);
         WriteFloat("Crosshair", "fCrosshairToleranceDeg", crosshairToleranceDeg);

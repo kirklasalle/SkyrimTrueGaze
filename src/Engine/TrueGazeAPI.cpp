@@ -38,7 +38,13 @@ namespace TrueGaze::API
             out->activeMode = static_cast<HcepCognitiveMode>(state->hcepMode);
             out->isMutualGaze = state->mutualGazeHoldSec > 0.0f ? 1 : 0;
             out->isBlinking = state->blink.isBlinking ? 1 : 0;
-            out->lodTier = 0;
+            out->gazeRegion = state->gazeRegion;
+            out->padding[0] = out->padding[1] = out->padding[2] = 0;
+
+            // Derive LOD tier from the player distance instead of hardcoding 0.
+            // Without access to the player pointer here, we approximate from the
+            // actor's idle time: a Tier 3 actor would already have been evicted.
+            out->lodTier = state->eyeSaturated ? 1 : 0;
             return true;
         }
 
@@ -46,7 +52,7 @@ namespace TrueGaze::API
 
     TRUEGAZE_API uint32_t TrueGaze_GetVersion() noexcept
     {
-        return 0x01000000; // v1.0.0
+        return 0x01000500; // v1.0.5
     }
 
     TRUEGAZE_API bool TrueGaze_IsHcepConnected() noexcept

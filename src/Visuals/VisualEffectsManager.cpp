@@ -862,53 +862,65 @@ namespace TrueGaze::Visuals
                                 if (material)
                                 {
                                     float r = 1.0f, g = 1.0f, b = 1.0f;
+                                    // Region colours matched to ClassifyRegion() IDs
+                                    // and the HCEP-02 Enhanced Diagram.
                                     switch (a_gazeRegion)
                                     {
                                     case 0:
-                                        r = 0.85f;
-                                        g = 0.40f;
-                                        b = 1.00f;
-                                        break; // Third-eye: purple/violet
-                                    case 1:
-                                        r = 0.20f;
-                                        g = 0.80f;
-                                        b = 1.00f;
-                                        break; // Upper: cyan
-                                    case 2:
-                                        r = 1.00f;
-                                        g = 0.60f;
-                                        b = 0.15f;
-                                        break; // Right eye: orange
-                                    case 3:
                                         r = 0.20f;
                                         g = 1.00f;
                                         b = 0.35f;
-                                        break; // Left eye: green
-                                    case 4:
+                                        break; // LeftEye: green
+                                    case 1:
+                                        r = 1.00f;
+                                        g = 0.60f;
+                                        b = 0.15f;
+                                        break; // RightEye: orange
+                                    case 2:
                                         r = 1.00f;
                                         g = 0.35f;
                                         b = 0.75f;
                                         break; // Mouth: pink
+                                    case 3:
+                                        r = 0.85f;
+                                        g = 0.40f;
+                                        b = 1.00f;
+                                        break; // Forehead/ThirdEye: purple/violet
+                                    case 4:
+                                        r = 0.90f;
+                                        g = 0.75f;
+                                        b = 0.60f;
+                                        break; // Chin: warm tan
                                     case 5:
                                         r = 1.00f;
                                         g = 0.15f;
                                         b = 0.20f;
-                                        break; // Chest: crimson red
-                                    case 6:
-                                        r = 0.40f;
-                                        g = 0.95f;
-                                        b = 1.00f;
-                                        break; // Far Upper: bright cyan
-                                    case 7:
-                                        r = 0.65f;
-                                        g = 0.70f;
-                                        b = 0.80f;
-                                        break; // Far Lower: silver
+                                        break; // Torso/Chest: crimson red
                                     case 8:
                                         r = 0.15f;
                                         g = 0.35f;
                                         b = 0.90f;
-                                        break; // Lower: blue
+                                        break; // Ground: blue (shame/submission)
+                                    case 9:
+                                        r = 0.20f;
+                                        g = 0.80f;
+                                        b = 1.00f;
+                                        break; // UpperLeftPeripheral (CGA: positivity): cyan
+                                    case 10:
+                                        r = 0.40f;
+                                        g = 0.95f;
+                                        b = 1.00f;
+                                        break; // UpperRightPeripheral (CGA: memory): bright cyan
+                                    case 11:
+                                        r = 0.65f;
+                                        g = 0.70f;
+                                        b = 0.80f;
+                                        break; // LowerLeftPeripheral (CGA: tiredness): silver
+                                    case 12:
+                                        r = 0.50f;
+                                        g = 0.50f;
+                                        b = 0.65f;
+                                        break; // LowerRightPeripheral (CGA: shyness/fear): slate
                                     default:
                                         r = 1.00f;
                                         g = 1.00f;

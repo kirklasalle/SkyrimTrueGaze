@@ -141,21 +141,44 @@ namespace TrueGaze::Engine
         }
 
         /// Map a desired gaze deflection onto one of the 13 documented regions.
+        ///
+        /// Region IDs (from HCEP-02 Enhanced Diagram):
+        ///  0 = LeftEye       1 = RightEye      2 = Mouth        3 = Forehead
+        ///  4 = Chin           5 = Torso          6 = RightHand    7 = LeftHand
+        ///  8 = Ground         9 = UpperLeftPeripheral (CGA: positivity/hope)
+        /// 10 = UpperRightPeripheral (CGA: memory/constructive thought)
+        /// 11 = LowerLeftPeripheral (CGA: tiredness/negativity/sadness)
+        /// 12 = LowerRightPeripheral (CGA: shyness/fear/deception)
         uint8_t ClassifyRegion(float yawDeg, float pitchDeg) noexcept
         {
-            // Aversion quadrants take priority: they are the cognitively meaningful ones.
+            // CGA aversion quadrants take priority: they are the cognitively
+            // meaningful peripheral regions from the HCEP-02 enhanced diagram.
             if (pitchDeg > 12.0f)
             {
                 if (yawDeg < -5.0f)
-                    return 9; // Upper-left peripheral (recall)
+                    return 9; // Upper-left peripheral (positivity, hope)
                 if (yawDeg > 5.0f)
-                    return 10; // Upper-right peripheral (recall)
-                return 3;      // Forehead / upper face
+                    return 10; // Upper-right peripheral (memory, constructive thought)
+                return 3;      // Forehead / Third-Eye zone
             }
 
             if (pitchDeg < -12.0f)
             {
-                return 8; // Floor / ground (shame, submission)
+                if (yawDeg < -5.0f)
+                    return 11; // Lower-left peripheral (tiredness, negativity, sadness)
+                if (yawDeg > 5.0f)
+                    return 12; // Lower-right peripheral (shyness, fear, deception)
+                return 8;      // Floor / ground (shame, submission)
+            }
+
+            // Below face but within ~12 deg pitch: chin or torso zone
+            if (pitchDeg < -6.0f)
+            {
+                return 4; // Chin
+            }
+            if (pitchDeg < -3.0f && std::abs(yawDeg) < 5.0f)
+            {
+                return 5; // Torso / chest (empathic resonance)
             }
 
             // Within the face → social triangle vertices.
@@ -170,7 +193,7 @@ namespace TrueGaze::Engine
 
             if (pitchDeg < 0.0f)
                 return 2; // Mouth / lips
-            return 3;     // Forehead
+            return 3;     // Forehead / Third-Eye
         }
 
 #endif // __has_include(<RE/Skyrim.h>)
@@ -195,6 +218,7 @@ namespace TrueGaze::Engine
         _tuning.microJitterIntervalMin = cfg.microJitterIntervalMin;
         _tuning.microJitterIntervalMax = cfg.microJitterIntervalMax;
         _tuning.headTrackingSpeed = cfg.headTrackingSpeed;
+        _tuning.eyePursuitSpeed = cfg.eyePursuitSpeed;
         _tuning.maxComfortEyeAngle = cfg.maxComfortEyeAngle;
         _tuning.headOnsetDelaySec = cfg.headOnsetDelaySec;
 
@@ -203,11 +227,16 @@ namespace TrueGaze::Engine
         _tuning.neckPitchWeight = cfg.neckPitchWeight;
         _tuning.headYawWeight = cfg.headYawWeight;
         _tuning.headPitchWeight = cfg.headPitchWeight;
+        _tuning.headEngageThresholdDeg = cfg.headEngageThresholdDeg;
 
         _tuning.enableGazeAversion = cfg.enableGazeAversion;
         _tuning.enableSocialTriangle = cfg.enableSocialTriangle;
         _tuning.triangleFixationDuration = cfg.triangleFixationDuration;
         _tuning.mutualGazeThreshold = cfg.mutualGazeThreshold;
+        _tuning.trianglePathRandomness = cfg.trianglePathRandomness;
+        _tuning.cgaHeadInvolvement = cfg.cgaHeadInvolvement;
+        _tuning.dialogueSyncCgaReturn = cfg.dialogueSyncCgaReturn;
+        _tuning.cgaDialogueOffsetSec = cfg.cgaDialogueOffsetSec;
 
         _tuning.tier1DistanceMeters = cfg.tier1DistanceMeters;
         _tuning.tier2DistanceMeters = cfg.tier2DistanceMeters;
@@ -614,12 +643,22 @@ namespace TrueGaze::Engine
 
             if (inDialogue)
             {
-                // AFFECT during conversation: social triangle scanning.
+                // AFFECT during player dialogue: social triangle scanning.
                 state.hcepMode = 1;
             }
             else if (actor->IsInCombat())
             {
                 state.hcepMode = 0; // LOGIC: locked, analytical
+            }
+            else if (target.priority == TargetSelector::TargetPriority::DialoguePartner ||
+                     target.priority == TargetSelector::TargetPriority::NearbyActor)
+            {
+                // AFFECT for ALL social interactions: NPC-to-NPC dialogue, scene
+                // conversations, idle chatter, tavern mutual gaze, and any time an
+                // actor is actively looking at another actor. This engages the social
+                // triangle eye movement so NPCs look alive during conversation and
+                // proximity encounters — not just during the player's DialogueMenu.
+                state.hcepMode = 1;
             }
             else
             {
@@ -670,25 +709,168 @@ namespace TrueGaze::Engine
             state.mutualGazeHoldSec = 0.0f;
         }
 
-        // --- Social triangle (AFFECT) -------------------------------------------
-        if (_tuning.enableSocialTriangle && state.hcepMode == 1)
+        // --- Dialogue-Synced CGA Return -------------------------------------------
+        //
+        // Kirk LaSalle's insight: the TIMING of CGA return is the sweet spot for
+        // human-like interaction. Two modes:
+        //
+        //   1. PRECISE: CGA aversion ends and gaze snaps to the speaker's face at
+        //      the exact moment dialogue begins — the "oh, they said something"
+        //      natural attention capture.
+        //
+        //   2. OFFSET: a per-actor random ±1-3 second offset so NPCs don't all
+        //      react identically. Some return slightly before (anticipatory — they
+        //      sensed the speaker was about to talk), some after (delayed cognitive
+        //      processing — they were deep in thought).
+        //
+        // The offset is randomised once per CGA episode (when the NPC enters THINK
+        // mode), not every frame, so each NPC has a consistent personality.
         {
-            state.triangle.fixationDurationSec = _tuning.triangleFixationDuration;
-            Kinematics::SocialTriangle::Update(state.triangle, deltaSeconds,
-                                               std::max(0.5f, target.distanceMeters));
-            desiredYaw += state.triangle.vertexOffsetXDeg;
-            desiredPitch += state.triangle.vertexOffsetYDeg;
+            auto *ui2 = RE::UI::GetSingleton();
+            const bool dialogueNow = ui2 && ui2->IsMenuOpen(RE::DialogueMenu::MENU_NAME);
+
+            // Also detect NPC-to-NPC dialogue via the target selector.
+            const bool actorInDialogueScene =
+                target.priority == TargetSelector::TargetPriority::DialoguePartner;
+
+            const bool dialogueActive = dialogueNow || actorInDialogueScene;
+
+            if (_tuning.dialogueSyncCgaReturn && state.cgaActive && dialogueActive)
+            {
+                // Dialogue just started (or is active) while NPC is in CGA aversion.
+                // Should we return now, or is the offset timer still counting?
+                //
+                // If offset is <= 0, return immediately (precise sync or timer expired).
+                // If offset > 0, count down the offset before returning (delayed).
+                // If offset < 0, the NPC already returned anticipatorily before dialogue
+                // began — the negative offset was consumed when it first ticked negative.
+                if (state.cgaDialogueReturnOffsetSec <= 0.0f)
+                {
+                    const float faceDist = std::max(0.5f, target.distanceMeters);
+                    const bool wasAverting = Kinematics::SocialTriangle::ReturnToFace(
+                        state.triangle, faceDist);
+                    state.cgaActive = false;
+
+                    if (wasAverting)
+                    {
+                        logger::info("[TrueGaze] CGA dialogue-sync return: actor {:08X} "
+                                     "snapped gaze to speaker (offset={:.2f}s).",
+                                     actor->GetFormID(),
+                                     state.cgaDialogueReturnOffsetSec);
+                    }
+                }
+                else
+                {
+                    // Counting down the positive offset (delayed return).
+                    state.cgaDialogueReturnOffsetSec -= deltaSeconds;
+                }
+            }
+
+            // Anticipatory return: negative offset means the NPC returns BEFORE
+            // dialogue starts. Count the offset toward zero even without dialogue.
+            if (_tuning.dialogueSyncCgaReturn && state.cgaActive &&
+                state.cgaDialogueReturnOffsetSec < 0.0f && !dialogueActive)
+            {
+                state.cgaDialogueReturnOffsetSec += deltaSeconds;
+                if (state.cgaDialogueReturnOffsetSec >= 0.0f)
+                {
+                    // Anticipatory timer expired — return to face now.
+                    const float faceDist = std::max(0.5f, target.distanceMeters);
+                    Kinematics::SocialTriangle::ReturnToFace(state.triangle, faceDist);
+                    state.cgaActive = false;
+                    state.cgaDialogueReturnOffsetSec = 0.0f;
+
+                    logger::info("[TrueGaze] CGA anticipatory return: actor {:08X} "
+                                 "returned gaze before dialogue.",
+                                 actor->GetFormID());
+                }
+            }
+
+            // Edge detect: when an NPC enters CGA (cgaActive transitions to true),
+            // randomise the dialogue return offset for this episode.
+            if (state.cgaActive && state.wasNotInDialogue == dialogueActive)
+            {
+                // Not an edge — no action needed.
+            }
+            state.wasNotInDialogue = !dialogueActive;
         }
 
-        // --- Cognitive gaze aversion (THINK) ------------------------------------
-        // Occasional, deterministic-per-actor aversion so it does not read as random
-        // twitching. Driven by the actor's own drift RNG rather than a global one.
-        if (_tuning.enableGazeAversion && state.hcepMode == 4)
+        // --- Social Triangle & Extended HCEP Diagram Scanpath --------------------
+        //
+        // Eyes must ALWAYS be moving when looking at another actor, regardless of
+        // preset or HCEP mode. The scanpath varies by cognitive mode:
+        //
+        //   LOGIC (0):  Core social triangle (LeftEye ↔ RightEye ↔ Mouth)
+        //   AFFECT (1): Core social triangle with empathetic dwell weighting
+        //   SPIRIT (2): Extended diagram — triangle + Third-Eye (forehead) fixation
+        //   HEART (3):  Extended diagram — triangle + Chest/Heart/Sternum fixation
+        //   THINK (4):  Cognitive Gaze Aversion (CGA) — peripheral region scanning
+        //               with brief face returns (HCEP-02 enhanced diagram pattern)
+        //
+        // Seed the triangle RNG from the actor's FormID once so each NPC has a
+        // unique, stable scanpath that does not jitter in lockstep with others.
+        if (!state.triangle.rngSeeded)
         {
-            const float magic =
-                static_cast<float>(state.rngSeed % 1000u) / 1000.0f;
-            desiredYaw += (magic < 0.5f ? -1.0f : 1.0f) * 22.0f;
-            desiredPitch += 9.0f;
+            Kinematics::SocialTriangle::SeedRng(state.triangle, state.rngSeed);
+        }
+
+        if (target.priority >= TargetSelector::TargetPriority::NearbyActor)
+        {
+            const float faceDist = std::max(0.5f, target.distanceMeters);
+            state.triangle.fixationDurationSec = _tuning.triangleFixationDuration;
+
+            if (_tuning.enableGazeAversion && state.hcepMode == 4)
+            {
+                // THINK mode: Cognitive Gaze Aversion (CGA) using the full HCEP-02
+                // enhanced diagram. Gaze breaks away to peripheral aversion regions
+                // (upper-left, upper-right, lower-left, lower-right) with brief face
+                // returns, modelling cognitive processing and the VOR counter-rotation
+                // arc / saccade vectors from the diagram.
+                // On CGA activation edge, randomise the dialogue return offset.
+                if (!state.cgaActive)
+                {
+                    // First frame of CGA — pick this NPC's dialogue-sync personality.
+                    // Uniform distribution over [-offset, +offset] seconds:
+                    //   negative = anticipatory (returns BEFORE dialogue)
+                    //   positive = delayed (returns AFTER dialogue onset)
+                    //   zero     = precise sync
+                    const float maxOff = _tuning.cgaDialogueOffsetSec;
+                    if (maxOff > 0.0f)
+                    {
+                        std::uniform_real_distribution<float> offDist(-maxOff, maxOff);
+                        state.cgaDialogueReturnOffsetSec = offDist(state.triangle.rng);
+                    }
+                    else
+                    {
+                        state.cgaDialogueReturnOffsetSec = 0.0f;
+                    }
+                }
+                state.cgaActive = true;
+                Kinematics::SocialTriangle::UpdateCGA(state.triangle, deltaSeconds, faceDist);
+            }
+            else if (state.hcepMode == 2 || state.hcepMode == 3)
+            {
+                // SPIRIT / HEART: Extended diagram — social triangle interleaved with
+                // Third-Eye (forehead / spiritual focus) or Chest (empathic resonance).
+                state.cgaActive = false;
+                Kinematics::SocialTriangle::UpdateExtended(
+                    state.triangle, deltaSeconds, faceDist, state.hcepMode);
+            }
+            else
+            {
+                // LOGIC / AFFECT / any other mode: Core social triangle scanning.
+                // Eyes cycle LeftEye ↔ RightEye ↔ Mouth continuously — the biological
+                // baseline that makes NPCs look alive rather than staring with dead eyes.
+                state.cgaActive = false;
+                if (_tuning.enableSocialTriangle)
+                {
+                    Kinematics::SocialTriangle::Update(state.triangle, deltaSeconds, faceDist,
+                                                       _tuning.trianglePathRandomness);
+                }
+            }
+
+            desiredYaw += state.triangle.vertexOffsetXDeg;
+            desiredPitch += state.triangle.vertexOffsetYDeg;
         }
 
         // --- Target classification & saccade ------------------------------------
@@ -747,11 +929,31 @@ namespace TrueGaze::Engine
             }
             else
             {
-                // Smooth ocular pursuit: track continuously
+                // Smooth ocular pursuit: GLIDE toward the desired gaze instead of
+                // teleporting. The hard assignment here (current = desired in one
+                // frame) was the visible snap between social triangle fixations —
+                // every new vertex repositioned the eyes instantly. An exponential
+                // approach gives a fast but graceful glide, and because the head's
+                // VOR target IS this eye angle, the head inherits the same smoothness.
                 state.saccade.targetYaw = desiredYaw;
                 state.saccade.targetPitch = desiredPitch;
-                state.saccade.currentYaw = desiredYaw;
-                state.saccade.currentPitch = desiredPitch;
+
+                const float glideYaw = desiredYaw - state.saccade.currentYaw;
+                const float glidePitch = desiredPitch - state.saccade.currentPitch;
+
+                if (std::abs(glideYaw) < 0.02f && std::abs(glidePitch) < 0.02f)
+                {
+                    // Sub-perceptual remainder: settle exactly to kill endless crawling.
+                    state.saccade.currentYaw = desiredYaw;
+                    state.saccade.currentPitch = desiredPitch;
+                }
+                else
+                {
+                    const float alpha =
+                        1.0f - std::exp(-_tuning.eyePursuitSpeed * deltaSeconds);
+                    state.saccade.currentYaw += glideYaw * alpha;
+                    state.saccade.currentPitch += glidePitch * alpha;
+                }
             }
         }
 
@@ -807,11 +1009,33 @@ namespace TrueGaze::Engine
         // The neck and head follow the inertial approach (state.vor.headYaw/Pitch),
         // while the eyes directly receive the biological VOR counter-rotation
         // (state.vor.eyeLocalYaw/Pitch) plus micro-saccadic jitter drift!
-        const BoneController::StrainWeights weights{
-            _tuning.spine2YawWeight, _tuning.neckYawWeight, _tuning.neckPitchWeight,
-            _tuning.headYawWeight, _tuning.headPitchWeight};
-        const auto strain = BoneController::CalculateHierarchyStrain(
-            state.vor.headYaw, state.vor.headPitch, state.vor.eyeMaxAngle, state.vor.eyeMaxAngle, weights);
+        //
+        // CGA EYE-DOMINANT MODE: when the actor is in CGA aversion (THINK mode,
+        // gaze directed to peripheral regions), the head chain gets near-zero
+        // involvement so the aversion is carried almost entirely by the eyes.
+        // This prevents the grotesque Embry-style neck twist.
+        const bool isCgaAversion = state.cgaActive &&
+                                   Kinematics::SocialTriangle::IsAversionVertex(state.triangle.currentVertex);
+
+        BoneController::StrainDistribution strain;
+        if (isCgaAversion)
+        {
+            // Eyes-dominant aversion: head barely moves, eyes dart to peripheral region.
+            strain = BoneController::CalculateCgaStrain(
+                state.vor.headYaw, state.vor.headPitch,
+                state.vor.eyeMaxAngle, state.vor.eyeMaxAngle,
+                _tuning.cgaHeadInvolvement);
+        }
+        else
+        {
+            const BoneController::StrainWeights weights{
+                _tuning.spine2YawWeight, _tuning.neckYawWeight, _tuning.neckPitchWeight,
+                _tuning.headYawWeight, _tuning.headPitchWeight};
+            strain = BoneController::CalculateHierarchyStrain(
+                state.vor.headYaw, state.vor.headPitch,
+                state.vor.eyeMaxAngle, state.vor.eyeMaxAngle,
+                weights, _tuning.headEngageThresholdDeg);
+        }
 
         const float jitterYaw = (DistanceMetersForTier(actor) <= _tuning.tier1DistanceMeters)
                                     ? state.jitter.currentYawOffset

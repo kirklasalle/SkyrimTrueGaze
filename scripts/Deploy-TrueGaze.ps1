@@ -80,6 +80,7 @@ function Write-Step {
 function Write-Ok { param([string]$t) Write-Host ("  OK   " + $t) -ForegroundColor Green }
 function Write-Bad { param([string]$t) Write-Host ("  FAIL " + $t) -ForegroundColor Red }
 function Write-Info { param([string]$t) Write-Host ("  ..   " + $t) -ForegroundColor DarkGray }
+function Write-Warn { param([string]$t) Write-Host ("  WARN " + $t) -ForegroundColor Yellow }
 
 # Run a native executable and capture everything it writes.
 #

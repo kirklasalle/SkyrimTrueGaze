@@ -81,6 +81,16 @@ namespace TrueGaze::Engine
         /// Prevents rapid edge-chatter and head twitching when player crosshair grazes the NPC.
         float crosshairHoldTimerSec{0.0f};
 
+        /// True when CGA is active for this actor (THINK mode aversion in progress).
+        bool cgaActive{false};
+
+        /// Per-actor dialogue-sync CGA return offset (±seconds). Randomised once
+        /// per CGA episode so NPCs don't all snap back at the same instant.
+        float cgaDialogueReturnOffsetSec{0.0f};
+
+        /// True when the actor was NOT in dialogue last frame (edge detection).
+        bool wasNotInDialogue{true};
+
         /// Cached resolved bones in the actor's 3D scene graph.
         /// Avoids thousands of redundant recursive traversals per frame.
         bool skeletonResolved{false};
@@ -104,6 +114,7 @@ namespace TrueGaze::Engine
 
             jitter = {};
             triangle = {};
+            triangle.rngSeeded = false; // Will be re-seeded on first use
             blink = {};
 
             mutualGazeHoldSec = 0.0f;
@@ -118,6 +129,9 @@ namespace TrueGaze::Engine
             lastFrameTicked = 0;
             fixationHoldSec = 0.0f;
             crosshairHoldTimerSec = 0.0f;
+            cgaActive = false;
+            cgaDialogueReturnOffsetSec = 0.0f;
+            wasNotInDialogue = true;
             skeletonResolved = false;
             cachedRoot = nullptr;
             cachedSpine = nullptr;

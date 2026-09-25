@@ -46,11 +46,11 @@ namespace TrueGaze::Engine
         // Share of the head-chain deflection absorbed at each joint. These are the
         // compiled fallbacks; the live values come from GazeTuning (TrueGaze.ini
         // [SkeletalHierarchy]) and are passed into CalculateHierarchyStrain.
-        static constexpr float SPINE_YAW_SHARE = 0.10f;
-        static constexpr float NECK_YAW_SHARE = 0.25f;
-        static constexpr float NECK_PITCH_SHARE = 0.25f;
-        static constexpr float HEAD_YAW_SHARE = 0.65f;
-        static constexpr float HEAD_PITCH_SHARE = 0.75f;
+        static constexpr float SPINE_YAW_SHARE = 0.035f;
+        static constexpr float NECK_YAW_SHARE = 0.070f;
+        static constexpr float NECK_PITCH_SHARE = 0.070f;
+        static constexpr float HEAD_YAW_SHARE = 0.245f;
+        static constexpr float HEAD_PITCH_SHARE = 0.245f;
 
         struct StrainWeights
         {
@@ -91,17 +91,20 @@ namespace TrueGaze::Engine
         };
 
         /// @brief Distributes a desired gaze deflection across the skeletal hierarchy.
-        /// @param totalYawDeg   Desired gaze yaw relative to the actor's forward.
-        /// @param totalPitchDeg Desired gaze pitch relative to the actor's forward.
-        /// @param eyeYawLimit   Ocular yaw limit (configurable).
-        /// @param eyePitchLimit Ocular pitch limit (configurable).
-        /// @param weights       Strain shares from configuration (defaults = compiled).
+        /// @param totalYawDeg       Desired gaze yaw relative to the actor's forward.
+        /// @param totalPitchDeg     Desired gaze pitch relative to the actor's forward.
+        /// @param eyeYawLimit       Ocular yaw limit (configurable).
+        /// @param eyePitchLimit     Ocular pitch limit (configurable).
+        /// @param weights           Strain shares from configuration (defaults = compiled).
+        /// @param headEngageThresh  Head engagement threshold (degrees). Below this angle
+        ///                          the head chain is zeroed and only eyes move.
         static StrainDistribution CalculateHierarchyStrain(
             float totalYawDeg,
             float totalPitchDeg,
             float eyeYawLimit = EYE_YAW_LIMIT,
             float eyePitchLimit = EYE_PITCH_LIMIT,
-            const StrainWeights &weights = StrainWeights{}) noexcept
+            const StrainWeights &weights = StrainWeights{},
+            float headEngageThresh = 0.0f) noexcept
         {
             StrainDistribution dist;
 
@@ -111,6 +114,21 @@ namespace TrueGaze::Engine
             float clampedPitch = std::clamp(totalPitchDeg,
                                             -CHAIN_PITCH_LIMIT_DOWN,
                                             CHAIN_PITCH_LIMIT_UP);
+
+            // HEAD ENGAGEMENT THRESHOLD: for small gaze shifts, the head stays still
+            // and only the eyes move. This eliminates robotic micro-head-turns during
+            // social triangle cycling at close range. Human heads don't visibly move
+            // for tiny 2-5 degree gaze shifts — only the eyes do.
+            const float totalMag = std::sqrt(clampedYaw * clampedYaw + clampedPitch * clampedPitch);
+            const bool headSuppressed = (headEngageThresh > 0.0f && totalMag < headEngageThresh);
+
+            if (headSuppressed)
+            {
+                // Eyes carry the entire deflection; head chain stays at zero.
+                dist.eyeYaw = std::clamp(clampedYaw, -eyeYawLimit, eyeYawLimit);
+                dist.eyePitch = std::clamp(clampedPitch, -eyePitchLimit, eyePitchLimit);
+                return dist;
+            }
 
             // --- Head chain: spine -> neck -> head (yaw), neck -> head (pitch) ---
             dist.spineYaw = std::clamp(clampedYaw * weights.spineYaw,
@@ -127,6 +145,51 @@ namespace TrueGaze::Engine
                                         -HEAD_PITCH_LIMIT, HEAD_PITCH_LIMIT);
 
             // --- Eyes: the residual the head chain did not cover ---
+            float residualYaw = clampedYaw - dist.HeadChainYaw();
+            float residualPitch = clampedPitch - dist.HeadChainPitch();
+
+            dist.eyeYaw = std::clamp(residualYaw, -eyeYawLimit, eyeYawLimit);
+            dist.eyePitch = std::clamp(residualPitch, -eyePitchLimit, eyePitchLimit);
+
+            return dist;
+        }
+
+        /// @brief CGA (Cognitive Gaze Aversion) eye-dominant strain distribution.
+        ///
+        /// During THINK mode gaze aversion, the deflection should be carried almost
+        /// entirely by the eyes with minimal head involvement. This prevents the
+        /// grotesque neck-twist seen when CGA's ±18° peripheral offsets route through
+        /// the normal head chain at full weight.
+        ///
+        /// @param cgaHeadFraction  0.0 = pure eye aversion, 1.0 = normal head chain.
+        ///                         Recommended: 0.05–0.15 for subtle head drift.
+        static StrainDistribution CalculateCgaStrain(
+            float totalYawDeg,
+            float totalPitchDeg,
+            float eyeYawLimit = EYE_YAW_LIMIT,
+            float eyePitchLimit = EYE_PITCH_LIMIT,
+            float cgaHeadFraction = 0.08f) noexcept
+        {
+            StrainDistribution dist;
+
+            float clampedYaw = std::clamp(totalYawDeg, -CHAIN_YAW_LIMIT, CHAIN_YAW_LIMIT);
+            float clampedPitch = std::clamp(totalPitchDeg,
+                                            -CHAIN_PITCH_LIMIT_DOWN,
+                                            CHAIN_PITCH_LIMIT_UP);
+
+            // Eyes take the lion's share of the aversion deflection.
+            // The head chain gets only a tiny fraction for organic subtlety.
+            const float headYaw = clampedYaw * cgaHeadFraction;
+            const float headPitch = clampedPitch * cgaHeadFraction;
+
+            // Distribute the small head fraction across the chain naturally.
+            dist.spineYaw = std::clamp(headYaw * 0.15f, -SPINE_YAW_LIMIT, SPINE_YAW_LIMIT);
+            dist.neckYaw = std::clamp(headYaw * 0.35f, -NECK_YAW_LIMIT, NECK_YAW_LIMIT);
+            dist.neckPitch = std::clamp(headPitch * 0.35f, -NECK_PITCH_LIMIT, NECK_PITCH_LIMIT);
+            dist.headYaw = std::clamp(headYaw * 0.50f, -HEAD_YAW_LIMIT, HEAD_YAW_LIMIT);
+            dist.headPitch = std::clamp(headPitch * 0.65f, -HEAD_PITCH_LIMIT, HEAD_PITCH_LIMIT);
+
+            // Eyes get the full deflection minus whatever tiny head contribution there was.
             float residualYaw = clampedYaw - dist.HeadChainYaw();
             float residualPitch = clampedPitch - dist.HeadChainPitch();
 

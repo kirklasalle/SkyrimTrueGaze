@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 project(
     TrueGaze
-    VERSION 1.0.4
+    VERSION 1.0.5
     DESCRIPTION "True Gaze - Biological NPC Gaze & Kinematics Engine for Skyrim SE/AE/VR (An HCEP Product)"
     LANGUAGES CXX
 )

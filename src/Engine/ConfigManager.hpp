@@ -51,24 +51,32 @@ namespace TrueGaze::Engine
         float microJitterIntervalMin{0.2f};  // mean time between micro-corrections, lower bound (s)
         float microJitterIntervalMax{0.45f}; // upper bound (s); 1/mean drives OU mean reversion
         float headTrackingSpeed{3.5f};
+        float eyePursuitSpeed{12.0f}; // smooth ocular pursuit glide rate (1/s)
         float maxComfortEyeAngle{28.0f};
         float headOnsetDelaySec{0.12f};
 
         // --- Skeletal hierarchy strain shares (yaw sums to 1.0; pitch: neck+head) ---
-        float spine2YawWeight{0.10f};
-        float neckYawWeight{0.25f};
-        float neckPitchWeight{0.20f};
-        float headYawWeight{0.65f};
-        float headPitchWeight{0.55f};
+        float spine2YawWeight{0.035f};
+        float neckYawWeight{0.070f};
+        float neckPitchWeight{0.070f};
+        float headYawWeight{0.245f};
+        float headPitchWeight{0.245f};
+        float headEngageThresholdDeg{8.0f}; // below this angle, only eyes move
 
         // --- General ---
         std::string engineTarget{"Auto"}; // Auto | SE | AE | VR (validated at load)
 
         // --- Social ---
-        bool enableGazeAversion{false};
+        bool enableGazeAversion{true};
         bool enableSocialTriangle{true};
         float triangleFixationDuration{0.35f};
         float mutualGazeThreshold{2.0f};
+        float trianglePathRandomness{0.6f}; // 0 = fixed orbit, 1 = free wandering
+
+        // --- CGA Timing ---
+        float cgaHeadInvolvement{0.08f};  // head chain fraction during aversion (0=eyes-only)
+        bool dialogueSyncCgaReturn{true}; // CGA returns gaze to face when dialogue starts
+        float cgaDialogueOffsetSec{2.0f}; // per-actor +/- random offset around dialogue onset
 
         // --- Crosshair sweet spot (player gaze) ---
         bool enableCrosshairGaze{true};
