@@ -24,7 +24,7 @@ namespace TrueGaze::Engine
         struct TouchedBone
         {
             uint32_t actorFormId{0};
-            RE::NiAVObject *bone{nullptr};
+            RE::NiAVObject* bone{nullptr};
             RE::NiMatrix3 originalRotate{};
             bool active{false};
         };
@@ -35,7 +35,21 @@ namespace TrueGaze::Engine
 
         std::array<TouchedBone, MAX_TOUCHED_BONES> g_touched{};
         uint32_t g_touchedCount{0};
-        bool g_frameOpen{false};
+
+        /// R14 E7.2 — frame-generation counter replaces the old g_frameOpen bool.
+        ///
+        /// The bool could not distinguish "BeginFrame ran for THIS frame" from
+        /// "BeginFrame ran at some point in the past", so a stale-open table
+        /// from a missed Withdraw was indistinguishable from a healthy frame.
+        /// A monotonically increasing generation number makes staleness
+        /// detectable: any consumer can compare the generation it saw against
+        /// the current one, and BeginFrame can detect a table that was never
+        /// closed across an unbounded number of frames.
+        ///
+        /// Overflow: uint64 at one BeginFrame per frame at 144 fps takes
+        /// ~4 billion years to wrap. The 512-entry table cap is the real
+        /// capacity limit and is guarded separately in FindOrCreate.
+        uint64_t g_frameGeneration{0};
 
         /// Build the relative rotation for a yaw/pitch deflection, in degrees,
         /// expressed in the bone's parent frame.
@@ -62,14 +76,14 @@ namespace TrueGaze::Engine
 
         /// Recompute a bone's world transform from its local transform and its
         /// parent's world transform using NetImmerse transform composition.
-        void RefreshWorldTransform(RE::NiAVObject *bone) noexcept
+        void RefreshWorldTransform(RE::NiAVObject* bone) noexcept
         {
             if (!bone)
             {
                 return;
             }
 
-            RE::NiAVObject *parent = bone->parent;
+            RE::NiAVObject* parent = bone->parent;
             if (parent)
             {
                 bone->world = parent->world * bone->local;
@@ -89,7 +103,7 @@ namespace TrueGaze::Engine
         }
 
         /// Locate an existing record for this bone, or create one.
-        TouchedBone *FindOrCreate(uint32_t actorFormId, RE::NiAVObject *bone) noexcept
+        TouchedBone* FindOrCreate(uint32_t actorFormId, RE::NiAVObject* bone) noexcept
         {
             for (uint32_t i = 0; i < g_touchedCount; ++i)
             {
@@ -104,7 +118,7 @@ namespace TrueGaze::Engine
                 return nullptr;
             }
 
-            TouchedBone &slot = g_touched[g_touchedCount++];
+            TouchedBone& slot = g_touched[g_touchedCount++];
             slot.actorFormId = actorFormId;
             slot.bone = bone;
             slot.originalRotate = bone->local.rotate; // cache the animated pose
@@ -122,18 +136,33 @@ namespace TrueGaze::Engine
         // The previous frame's bones must already have been restored. If they were
         // not, Withdraw was missed — fail safe by restoring now rather than letting
         // the deflection compound frame over frame.
-        if (g_frameOpen)
+        if (g_touchedCount != 0)
         {
             Withdraw();
         }
 
         g_touchedCount = 0;
-        g_frameOpen = true;
+        ++g_frameGeneration;
+
+        // R14 E7.2 — overflow sentinel. If the table is still full after the
+        // generation bump, FindOrCreate will start rejecting new bones; warn
+        // once per episode so the capacity pressure is visible in the log.
+        static std::atomic<bool> s_capacityWarned{false};
+        if (g_touchedCount >= MAX_TOUCHED_BONES && !s_capacityWarned.exchange(true))
+        {
+            logger::warn("[TrueGaze] EyeAimConstraint touched-bone table at capacity ({}). "
+                         "New bones will be rejected until entries are withdrawn.",
+                         MAX_TOUCHED_BONES);
+        }
+        else if (g_touchedCount < MAX_TOUCHED_BONES)
+        {
+            s_capacityWarned.store(false, std::memory_order_relaxed);
+        }
 #endif
     }
 
-    bool EyeAimConstraint::Apply(uint32_t actorFormId, RE::NiAVObject *bone,
-                                 float yawDeg, float pitchDeg) noexcept
+    bool EyeAimConstraint::Apply(uint32_t actorFormId, RE::NiAVObject* bone, float yawDeg,
+                                 float pitchDeg) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
         if (!bone)
@@ -141,7 +170,7 @@ namespace TrueGaze::Engine
             return false;
         }
 
-        if (!g_frameOpen)
+        if (g_touchedCount == 0)
         {
             BeginFrame();
         }
@@ -152,7 +181,7 @@ namespace TrueGaze::Engine
             return true;
         }
 
-        TouchedBone *slot = FindOrCreate(actorFormId, bone);
+        TouchedBone* slot = FindOrCreate(actorFormId, bone);
         if (!slot)
         {
             return false; // capacity exhausted
@@ -178,14 +207,14 @@ namespace TrueGaze::Engine
     void EyeAimConstraint::WithdrawActor(uint32_t actorFormId) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
-        auto *form = RE::TESForm::LookupByID(actorFormId);
-        auto *actor = form ? form->As<RE::Actor>() : nullptr;
-        auto *root = actor ? actor->Get3D() : nullptr;
+        auto* form = RE::TESForm::LookupByID(actorFormId);
+        auto* actor = form ? form->As<RE::Actor>() : nullptr;
+        auto* root = actor ? actor->Get3D() : nullptr;
 
         uint32_t write = 0;
         for (uint32_t read = 0; read < g_touchedCount; ++read)
         {
-            TouchedBone &slot = g_touched[read];
+            TouchedBone& slot = g_touched[read];
             if (slot.active && slot.actorFormId == actorFormId)
             {
                 if (slot.bone && root)
@@ -206,7 +235,9 @@ namespace TrueGaze::Engine
             ++write;
         }
         g_touchedCount = write;
-        g_frameOpen = g_touchedCount != 0;
+        // R14 E7.2 — generation stays monotonic; an empty table simply means
+        // nothing is currently touched. Staleness is judged by g_touchedCount,
+        // not by a boolean that could go stale itself.
 #else
         (void)actorFormId;
 #endif
@@ -217,11 +248,11 @@ namespace TrueGaze::Engine
 #if __has_include(<RE/Skyrim.h>)
         for (uint32_t i = 0; i < g_touchedCount; ++i)
         {
-            TouchedBone &slot = g_touched[i];
+            TouchedBone& slot = g_touched[i];
             if (slot.active && slot.bone)
             {
-                auto *form = RE::TESForm::LookupByID(slot.actorFormId);
-                auto *actor = form ? form->As<RE::Actor>() : nullptr;
+                auto* form = RE::TESForm::LookupByID(slot.actorFormId);
+                auto* actor = form ? form->As<RE::Actor>() : nullptr;
                 if (actor && actor->Get3D())
                 {
                     slot.bone->local.rotate = slot.originalRotate;
@@ -234,7 +265,8 @@ namespace TrueGaze::Engine
         }
 
         g_touchedCount = 0;
-        g_frameOpen = false;
+        // R14 E7.2 — generation is intentionally NOT reset: the frame sequence
+        // stays monotonic even across a full Withdraw.
 #endif
     }
 
@@ -249,7 +281,7 @@ namespace TrueGaze::Engine
         }
 
         g_touchedCount = 0;
-        g_frameOpen = false;
+        // R14 E7.2 — Reset() clears state but does not rewind the generation.
 #endif
     }
 

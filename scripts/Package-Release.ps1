@@ -66,7 +66,8 @@ try {
         Write-Host "Created: $sevenZipPath [$sevenZipSizeKB KB]" -ForegroundColor Green
         $sevenZipDone = $true
     }
-} catch {
+}
+catch {
     Write-Warning "Failed to create 7z archive: $_"
 }
 

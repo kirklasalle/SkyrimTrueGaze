@@ -393,7 +393,7 @@ function Invoke-TGPreFlight {
             -Detail 'The hook target string is not in the binary.' `
             -Fix 'Rebuild. An old binary may still target the invalid Main vtable slot 0x05.'
     }
-    if ($ascii.Contains('Gaze tick threw')) {
+    if ($ascii.Contains('Gaze tick threw') -or $ascii.Contains('SEH fault')) {
         Add-TGResult -Name 'Tick exception guard compiled in' -Status 'Pass'
     }
     else {

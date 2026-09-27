@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 project(
     TrueGaze
-    VERSION 1.0.5
+    VERSION 1.0.6
     DESCRIPTION "True Gaze - Biological NPC Gaze & Kinematics Engine for Skyrim SE/AE/VR (An HCEP Product)"
     LANGUAGES CXX
 )
@@ -38,6 +38,28 @@ if(NOT BUILD_SKYRIM_SE AND NOT BUILD_SKYRIM_AE AND NOT BUILD_SKYRIM_VR)
     message(FATAL_ERROR "At least one Skyrim runtime must be enabled.")
 endif()
 
+# R14 E4.4 — fail fast with an actionable message when VCPKG_ROOT is unset.
+# The presets reference $env{VCPKG_ROOT}; without it CMake's error is a cryptic
+# "could not find toolchain file" deep inside configure.
+if(NOT DEFINED ENV{VCPKG_ROOT} AND NOT TRUEGAZE_STANDALONE)
+    message(FATAL_ERROR
+        "\n"
+        "  VCPKG_ROOT is not set.\n"
+        "\n"
+        "  The windows-* presets resolve the vcpkg toolchain from the VCPKG_ROOT\n"
+        "  environment variable. Set it to your vcpkg checkout, e.g.:\n"
+        "      setx VCPKG_ROOT \"C:\\dev\\vcpkg\"\n"
+        "\n"
+        "  (Standalone mode does not need vcpkg and is unaffected.)\n")
+endif()
+
+# ---------------------------------------------------------------------------
+# Test infrastructure (R14 E3.4)
+# ---------------------------------------------------------------------------
+# CTest registration so `ctest` runs every suite from one command, and CI
+# (scripts/Invoke-CiGate.ps1, E4.2) has a single invocation to gate on.
+enable_testing()
+
 # ---------------------------------------------------------------------------
 # Platform-agnostic kinematics core
 # ---------------------------------------------------------------------------
@@ -49,6 +71,18 @@ if(MSVC)
     target_compile_options(TrueGazeKinematics INTERFACE /W4 /permissive- /Zc:preprocessor /EHsc)
 endif()
 
+# Test executables must keep asserts LIVE. Raw assert() compiles out under
+# NDEBUG, so a Release-built test suite silently verifies nothing. Forcing the
+# Debug runtime + no NDEBUG on the test targets makes that failure impossible
+# (R14 E3.4). /RTC1 requires /Od (D8016), so optimization is disabled for the
+# Release-configured test binaries — correctness of the tests matters more
+# than their speed.
+function(truegaze_force_asserts target)
+    target_compile_definitions(${target} PRIVATE $<$<CONFIG:Release>:_DEBUG> $<$<CONFIG:Release>:/DNDEBUG>)
+    target_compile_options(${target} PRIVATE $<$<CONFIG:Release>:/MDd>)
+    target_compile_options(${target} PRIVATE $<$<CONFIG:Release>:/Od /RTC1>)
+endfunction()
+
 # ---------------------------------------------------------------------------
 # Standalone mode: tests only, no SDK required
 # ---------------------------------------------------------------------------
@@ -58,8 +92,18 @@ if(TRUEGAZE_STANDALONE)
     if(TRUEGAZE_BUILD_TESTS)
         add_executable(KinematicsTests "${CMAKE_CURRENT_SOURCE_DIR}/tests/KinematicsTests.cpp")
         target_link_libraries(KinematicsTests PRIVATE TrueGazeKinematics)
+        truegaze_force_asserts(KinematicsTests)
         set_target_properties(KinematicsTests PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+        add_test(NAME KinematicsTests COMMAND KinematicsTests)
+
+        # R14 E3.3 — telemetry validation fuzz-lite (SDK-free, standalone-safe).
+        add_executable(ValidationTests "${CMAKE_CURRENT_SOURCE_DIR}/tests/ValidationTests.cpp")
+        target_link_libraries(ValidationTests PRIVATE TrueGazeKinematics)
+        truegaze_force_asserts(ValidationTests)
+        set_target_properties(ValidationTests PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+        add_test(NAME ValidationTests COMMAND ValidationTests)
 
         # The bridge mock exercises NamedPipeServer directly, so it needs the
         # implementation and the precompiled header the server expects.
@@ -72,8 +116,12 @@ if(TRUEGAZE_STANDALONE)
         target_precompile_headers(HcepBridgeClientMock PRIVATE
             "${CMAKE_CURRENT_SOURCE_DIR}/src/PCH.h")
         target_link_libraries(HcepBridgeClientMock PRIVATE TrueGazeKinematics)
+        truegaze_force_asserts(HcepBridgeClientMock)
         set_target_properties(HcepBridgeClientMock PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+        # The mock needs a real pipe round-trip; give it a generous timeout.
+        add_test(NAME HcepBridgeClientMock COMMAND HcepBridgeClientMock)
+        set_tests_properties(HcepBridgeClientMock PROPERTIES TIMEOUT 120)
     endif()
 
     message(STATUS "[TrueGaze] Standalone configuration complete.")
@@ -120,12 +168,35 @@ endif()
 # ---------------------------------------------------------------------------
 # TrueGaze plugin
 # ---------------------------------------------------------------------------
-file(GLOB_RECURSE SOURCES
-    CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+# R14 E4.4 — explicit source list. The previous file(GLOB_RECURSE) meant a new
+# .cpp file was invisible to the build until CMake happened to re-run; with
+# CONFIGURE_DEPENDS it re-globs per build, but that is still a known CMake
+# anti-pattern (silent staleness, no portability guarantee). Enumerate instead.
+set(TRUEGAZE_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Main.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Bridge/NamedPipeServer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/AnimationHook.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/ConfigManager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/EyeAimConstraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/GazeEngine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/PlayerGazeResolver.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/TargetSelector.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/TrueGazeAPI.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/VrController.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/ConsoleCommands.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/EfmBlinkController.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/OarConditions.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Visuals/VisualEffectsManager.cpp"
 )
 
-add_library(${PROJECT_NAME} SHARED ${SOURCES})
+foreach(_src IN LISTS TRUEGAZE_SOURCES)
+    if(NOT EXISTS "${_src}")
+        message(FATAL_ERROR "Listed source file does not exist: ${_src}\n"
+                            "Update TRUEGAZE_SOURCES in CMakeLists.txt when adding files.")
+    endif()
+endforeach()
+
+add_library(${PROJECT_NAME} SHARED ${TRUEGAZE_SOURCES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
@@ -186,8 +257,18 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 if(TRUEGAZE_BUILD_TESTS)
     add_executable(KinematicsTests "${CMAKE_CURRENT_SOURCE_DIR}/tests/KinematicsTests.cpp")
     target_link_libraries(KinematicsTests PRIVATE TrueGazeKinematics)
+    truegaze_force_asserts(KinematicsTests)
     set_target_properties(KinematicsTests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+    add_test(NAME KinematicsTests COMMAND KinematicsTests)
+
+    # R14 E3.3 — telemetry validation fuzz-lite (SDK-free, standalone-safe).
+    add_executable(ValidationTests "${CMAKE_CURRENT_SOURCE_DIR}/tests/ValidationTests.cpp")
+    target_link_libraries(ValidationTests PRIVATE TrueGazeKinematics)
+    truegaze_force_asserts(ValidationTests)
+    set_target_properties(ValidationTests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+    add_test(NAME ValidationTests COMMAND ValidationTests)
 
     add_executable(HcepBridgeClientMock
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/HcepBridgeClientMock.cpp"
@@ -198,8 +279,11 @@ if(TRUEGAZE_BUILD_TESTS)
     target_precompile_headers(HcepBridgeClientMock PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src/PCH.h")
     target_link_libraries(HcepBridgeClientMock PRIVATE TrueGazeKinematics)
+    truegaze_force_asserts(HcepBridgeClientMock)
     set_target_properties(HcepBridgeClientMock PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+    add_test(NAME HcepBridgeClientMock COMMAND HcepBridgeClientMock)
+    set_tests_properties(HcepBridgeClientMock PROPERTIES TIMEOUT 120)
 endif()
 
 message(STATUS "[TrueGaze] Configured - CommonLibSSE-NG linked, SE=${BUILD_SKYRIM_SE} AE=${BUILD_SKYRIM_AE} VR=${BUILD_SKYRIM_VR}")

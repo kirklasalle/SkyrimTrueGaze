@@ -8,6 +8,156 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [!IMPORTANT]
 > **Correction notice.** Earlier entries in this changelog described several features as "implemented" that are not functional, because they were written from design intent rather than from the code. Those entries have been annotated below. See [`docs/STATUS.md`](docs/STATUS.md) for the verified capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the full independent audit.
 
+## [1.0.6] - 2026-09-27 - Engineering Excellence Implementation
+
+> Execution of `docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md`
+> (roadmap Phase R14). Builds on the 2026-09-26 audit entry below. All changes
+> verified: standalone test suite 3/3 green, full SKSE plugin builds and links
+> against CommonLibSSE-NG v7.5.4.
+
+### Added
+
+- **License resolution (E6.1)** — `docs/LICENSE_RESOLUTION.md` analysis; LICENSE
+  confirmed GPLv3 (forced by the CommonLibSSE-NG GPLv3 dependency) with a
+  project notice: copyright Kirk LaSalle 2026, SCOPE section excluding HCEP
+  theory as proprietary trade secret, honest biometric-data notice. README
+  badge corrected to GPL-3.0.
+- **`tests/ValidationTests.cpp` (E3.3)** — telemetry-validation fuzz-lite:
+  10,000-mutation deterministic corpus (byte flips with CRC recompute, NaN, Inf,
+  enum range, reserved bytes, magic/version) asserting `ValidateTelemetryPacket`
+  rejects malformed input. SDK-free; runs in standalone mode.
+- **Test infrastructure (E3.4)** — `enable_testing()` + CTest registration for
+  KinematicsTests, ValidationTests, HcepBridgeClientMock in both standalone and
+  plugin builds; `truegaze_force_asserts()` keeps asserts live in Release-built
+  tests (`/MDd`, `/Od`, `/RTC1`, `_DEBUG`).
+- **Quality configs (E4.1)** — `.clang-format` (4-space, Allman, 100-col),
+  `.clang-tidy` (bugprone/performance/modernize, conservative), `.editorconfig`.
+- **CI (E4.2)** — `.github/workflows/build-test.yml` (windows-latest, vcpkg
+  cache, configure→build→ctest) and `scripts/Invoke-CiGate.ps1` local gate
+  (configure, build, test, charter-manifest verify, doc-consistency spot check).
+- **`src/Engine/GazeAnchors.hpp` (E7.5)** — shared eye-anchor geometry; the
+  byte-identical `EyeAnchorFromHeadBone` copies in GazeEngine.cpp and
+  TargetSelector.cpp consolidated, and the 125-vs-160 eye-height disagreement
+  (PlayerGazeResolver) resolved to the canonical 125.
+- **CMake test presets (E4.2)** — `testPresets` for debug/release/standalone so
+  `ctest --preset` works for CI and the local gate.
+
+### Changed
+
+- **`NamedPipeServer::Stop()` (E1.1)** — `JoinPolicy` enum {Join, Abandon};
+  Join unconditionally joins the worker and closes all handles (fixes the
+  use-after-free detach path); Abandon deliberately leaks at process exit.
+  `Main.cpp` atexit uses Abandon. Double-Stop is a safe no-op (stress-tested).
+- **Triple-buffer memory model (E1.2)** — full happens-before proof documented
+  in `NamedPipeServer.hpp`; 30k-publish stress test with per-packet CRC +
+  sequence-regression assertions added to the bridge mock.
+- **Drain-event churn (E1.3)** — `DrainOutboundQueue` reuses a member
+  `_drainEvent` instead of CreateEvent/CloseHandle per call; security warning
+  rate-limited. HCEP_BRIDGE_SPEC gained a Security & Threat Model section.
+- **`PerformanceProfiler` made real (E2.1)** — atomic fetch_add ScopedTimer,
+  CAS peak tracking, `RecordFrame()` wired into `GazeEngine::EndFrame`; the
+  over-budget warn threshold now derives from `kFrameBudgetUs` (×10
+  conservative) instead of a divergent literal; `stgstatus` prints
+  last/peak/budget.
+- **Cull before resolve (E2.2)** — `TickActor` LOD cull moved ahead of
+  ComputeDeflection so culled actors no longer pay solver cost.
+- **Per-frame scan cache (E2.3)** — `TargetSelector` rebuilds its candidate
+  position cache once per frame (frame-tagged) and iterates cone+distance only,
+  removing the per-observer O(N) position re-resolution from the social scan.
+- **Per-actor SEH isolation (E7.1)** — each `TickActor` call wrapped in its own
+  `__try` frame; a defective actor skips exactly one actor instead of aborting
+  the whole list for the frame.
+- **EyeAimConstraint frame generation (E7.2)** — `g_frameOpen` bool replaced by
+  a monotonic `g_frameGeneration` counter; touched-bone table capacity (512)
+  warns once per saturation episode.
+- **Emitter cap logging (E7.3)** — the silent 64-actor visual emitter cap now
+  warns once per saturation episode and re-arms when capacity frees.
+- **Singularity gate alignment (E7.4)** — `WorldTargetToLocalGaze` point-blank
+  gate reduced 25→4 units to match `IsInVisualCone`'s 4-unit guard; NPCs 4-25
+  units away are no longer forced to stare dead ahead while still being
+  selected as targets.
+- **Feedback packet semantics (E7.6)** — `relationshipRank` now reports the
+  real `BGSRelationship` level mapped onto the documented -4..+4 axis (was
+  hard-coded 0); `gameFrameNumber` reports the engine's monotonic frame counter
+  (was 0).
+- **TrueGazeAPI lodTier (E7.7)** — telemetry `lodTier` now comes from the real
+  `LodManager` classifier (was an eye-saturation placeholder); contract docs
+  added to `include/TrueGazeAPI.h`.
+- **Trivial batch (E7.8)** — dead `startYaw` removed; `fGazeRayThicknessCm`,
+  `fGazeRayLengthMeters`, `fGazeRayOpacity` clamped in `Sanitise`; dialogue-menu
+  singleton lookup cached once per frame; frame-scope scratch members grouped
+  into `GazeEngine::FrameScope`.
+- **CMake hygiene (E4.4)** — explicit plugin source list (replaces
+  `file(GLOB_RECURSE)`), existence-checked; VCPKG_ROOT configure check with an
+  actionable message; `vcpkg.json` version-string synced 1.0.0 → 1.0.5.
+
+### Fixed
+
+- `/O2` vs `/RTC1` incompatibility (D8016) in Release-built test targets —
+  force-asserts now also applies `/Od`.
+- `spdlog::debug` missing from the standalone PCH logging fallback.
+- Unused `writerFn` lambda and dead `publishes`/`kPublishCount` in the bridge
+  mock stress section; the sequence-regression check now actually sets and
+  reports the `torn` flag.
+
+### Known open (tracked, not fixed in this entry)
+
+- E3.1 TargetSelector pure-logic extraction (heavy refactor, deferred).
+- E3.2 Sanitise unit tests (Sanitise is SDK-bound via logger; needs extraction).
+- E2.4 benchmark artifacts to replace the conservative ×10 budget threshold.
+- E5 documentation truth pass (PRD 1.0.3/C++20 staleness, STATUS tier sums).
+- E6.2 retired `GazeBeam.nif` removal from the shipping tree.
+
+## [Unreleased] - Engineering Excellence Audit - 2026-09-26
+
+> **Full world-class codebase audit** (`docs/AUDIT_REPORT_2026-09-26.md`) plus a
+> companion engineering plan (`docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md`,
+> roadmap Phase R14). Documentation-only release: no code changes in this entry.
+
+### Added
+
+- **`docs/AUDIT_REPORT_2026-09-26.md`** — full codebase audit: ~7,900 lines of
+  project-owned C++ inventoried; architecture, concurrency, code-quality (12
+  structural + 10 correctness findings with file:line references), test coverage
+  gaps, build system, performance (O(N²) crowd risk identified), security,
+  tooling, governance, and a prioritized P1/P2/P3 findings register.
+- **`docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md`** — six-phase
+  plan (E1 concurrency proof, E2 performance, E3 test coverage, E4 build/CI,
+  E5 documentation truth, E6 legal/packaging, E7 robustness batch).
+- **ROADMAP Phase R14** — the engineering-excellence phase, now the current
+  milestone.
+
+### Fixed (documentation drift — audit §8)
+
+- ROADMAP Phase 1: stale "known gaps" block (smoothstep trajectory, fixed seed,
+  no eye residual) marked as resolved-by-R3 with a historical note; status raised
+  to ~95%.
+- ROADMAP Phase 3: stale "telemetry is consumed by nobody" and "data race present"
+  warnings replaced with the resolved truth (triple buffer + S4 fusion) and a
+  historical note; remaining open items (memory-model stress test, shutdown
+  lifecycle) tracked in R14 E1.
+- ROADMAP Phase 4: OAR status clarified — registration against a pinned API
+  version and a proven-firing rule remain open (SOTA S6).
+- ROADMAP R2: stale "not yet observed in-game" deliverable replaced with the
+  verified truth (field-verified September 25-26); the open try/catch item marked
+  superseded by the R13 SEH guard.
+- ROADMAP R6 publication gate: contradiction with R7's completed release resolved
+  with a historical note; open items carried into R14 E5/E6 and S5.2.
+- ROADMAP R8: "Current Milestone" header corrected (R14 is current); VR claims
+  scoped with an honesty note — `VrController` is an approximate pose, not an
+  OpenVR HMD/eye-tracking feed, until the S7 contract is implemented.
+
+### Known open (tracked, not fixed in this entry)
+
+- LICENSE is GPLv3 but the README badge still reads "Proprietary" — decision
+  pending (R14 E6.1).
+- `NamedPipeServer::Stop()` detach path use-after-free risk (R14 E1.1).
+- `PerformanceProfiler` dead code; 150 µs budget claim unmeasured (R14 E2.1).
+- `TargetSelector` has zero tests; O(N²) social scan (R14 E2.3/E3.1).
+- Retired crash-causing `GazeBeam.nif` still in the shipping tree (R14 E6.2).
+- PRD version (1.0.3) and C++20 claims stale vs v1.0.5/C++23 (R14 E5.1).
+- STATUS.md tier percentages sum to 110%; header/footer dates disagree (R14 E5.1).
+
 ## [Unreleased] - Gold Standard Scene Integration - 2026-09-26
 
 > **The Gold Standard: flawless integration of TrueGaze during the Helgen opening

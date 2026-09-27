@@ -1,10 +1,15 @@
 # TrueGaze™ — Project Status & In-Engine Audit
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
-**Version:** `1.0.5` (Production Release)  
+**Version:** `1.0.6` (Production Release)  
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Status date:** September 25, 2026  
-**Owner & Architect:** Kirk LaSalle  
+**Status date:** September 26, 2026  
+**Owner & Architect:** Kirk LaSalle
+
+> **Document role:** this is the single source of truth for what is *implemented
+> and verified*. ROADMAP.md owns the plan; README.md owns the quickstart and
+> positioning. Claims in this document win over any other document on conflict.
+> Latest full audit: [`docs/AUDIT_REPORT_2026-09-26.md`](AUDIT_REPORT_2026-09-26.md).
 
 ---
 
@@ -127,11 +132,11 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 
 ## Executive Audit Finding: In-Engine Completion Status
 
-The project status breaks down into three distinct tiers:
+The project status breaks down into three distinct tiers (percentages sum to 100):
 
-1. **✅ In-Engine Verified (~50%):** Eye-to-eye targeting (eye-anchor projection from head bone world basis), FaceGen eye-lead morph gain on vanilla rigs, eyes-lead-head biological latency, head engagement threshold, point-blank seated resolution, player targeting in scripted scenes, core bone transform application (eyes move!), dynamic 3D head elevation solving, 3rd-person player gaze engagement, SKSE frame driver hook (SE/AE/VR), actor eligibility filtering, configuration parsing/loading, console telemetry readout (`tgstatus`/`stgstatus`), dynamic log level switching (`stgverbose`), Option 1 subtle laser rays, Option 2 floating HCEP ocular diagram panel, and clean zero-script architecture.
-2. **🔨 Implemented & Running, In-Game Verification Pending (~55%):** Code exists and executes on every actor tick, but specific scenario behaviors are awaiting verified in-engine observation (e.g. Biological Latency Gap eye-lead timing, quantitative EFM eyelid blinks, VOR counter-rotation, Social Triangle scanpaths, micro-jitter Brownian drift, spatial LOD degradation, and mutual gaze hold tracking).
-3. **❌ Unimplemented / Deferred (~5%):** Subsystems designed but not yet completed (specifically **Multi-Threaded SIMD Evaluation** for massive crowds).
+1. **✅ In-Engine Verified (~50%):** Eye-to-eye targeting (eye-anchor projection from head bone world basis), FaceGen eye-lead morph gain on vanilla rigs, eyes-lead-head biological latency, head engagement threshold, point-blank seated resolution, player targeting in scripted scenes, core bone transform application (eyes move!), dynamic 3D head elevation solving, 3rd-person player gaze engagement, SKSE frame driver hook (SE/AE/VR), actor eligibility filtering, configuration parsing/loading, console telemetry readout (`stgstatus`), dynamic log level switching (`stgverbose`), Option 1 subtle laser rays, Option 2 floating HCEP ocular diagram panel, Gold Standard scene integration (Helgen), calm/combat speed model, and clean zero-script architecture.
+2. **🔨 Implemented & Running, In-Game Verification Pending (~45%):** Code exists and executes on every actor tick, but specific scenario behaviors are awaiting verified in-engine observation (e.g. Character Gaze Profiles temperament differentiation, quantitative EFM eyelid blink counts, VOR counter-rotation visibility, micro-jitter Brownian drift visibility, spatial LOD degradation, mutual gaze hold tracking, HCEP joint live acceptance).
+3. **❌ Unimplemented / Deferred (~5%):** Subsystems designed but not yet completed (specifically **Multi-Threaded SIMD Evaluation** for massive crowds, **OpenVR HMD/eye-tracking feed** — `VrController` is currently an approximate pose, and **OAR registration against a pinned API version**).
 
 ---
 
@@ -318,4 +323,4 @@ The project status breaks down into three distinct tiers:
 
 ---
 
-*Last updated: September 21, 2026 — Verified unified multi-target (SE/AE/VR) build, Option 1 & 2 Visuals, and Configurator packaging.*
+*Last updated: September 26, 2026 — Engineering Excellence audit published (`docs/AUDIT_REPORT_2026-09-26.md`); Phase R14 (infrastructure hardening) is the current milestone; documentation drift corrected (tier math, dates, command names).*

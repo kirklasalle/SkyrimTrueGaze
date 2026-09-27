@@ -2,14 +2,15 @@
 
 #include "Engine/ConfigManager.hpp"
 #include "Engine/GazeEngine.hpp"
+#include "Engine/PerformanceProfiler.hpp"
 #include "Engine/PlayerGazeResolver.hpp"
 #include "Visuals/VisualEffectsManager.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
-#include <RE/Skyrim.h>
 #include <RE/C/CommandTable.h>
 #include <RE/C/ConsoleLog.h>
 #include <RE/S/Script.h>
+#include <RE/Skyrim.h>
 #include <RE/T/TESObjectREFR.h>
 #endif
 
@@ -29,7 +30,7 @@ namespace TrueGaze::Integrations
         // -----------------------------------------------------------------------
         // Console output
         // -----------------------------------------------------------------------
-        void ConsolePrint(const char *a_fmt, ...) noexcept
+        void ConsolePrint(const char* a_fmt, ...) noexcept
         {
             char buf[512]{0};
             va_list args;
@@ -37,7 +38,7 @@ namespace TrueGaze::Integrations
             std::vsnprintf(buf, sizeof(buf), a_fmt, args);
             va_end(args);
 
-            if (auto *console = RE::ConsoleLog::GetSingleton())
+            if (auto* console = RE::ConsoleLog::GetSingleton())
             {
                 // The console's Print is variadic. Passing the buffer through "%s"
                 // keeps our own formatting intact and stops it re-interpreting any
@@ -57,7 +58,7 @@ namespace TrueGaze::Integrations
         /// Re-snapshot configuration into the live tuning and report the effect.
         /// Every ON/OFF command funnels through here, so there is exactly one place
         /// that decides what "applied" means.
-        void ApplyAndReport(const char *a_label, bool a_enabled) noexcept
+        void ApplyAndReport(const char* a_label, bool a_enabled) noexcept
         {
             Engine::GazeEngine::Get().RefreshTuning();
             ConsolePrint("TrueGaze: %s = %s", a_label, a_enabled ? "ON" : "OFF");
@@ -79,20 +80,22 @@ namespace TrueGaze::Integrations
         // an exception escaping into engine code is not a risk worth taking.
         // -----------------------------------------------------------------------
 
-        bool CmdMaster(RE::SCRIPT_PARAMETER *, RE::SCRIPT_FUNCTION::ScriptData *, RE::TESObjectREFR *,
-                       RE::TESObjectREFR *, RE::Script *, RE::ScriptLocals *, double &, std::uint32_t &) noexcept
+        bool CmdMaster(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                       RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                       std::uint32_t&) noexcept
         {
-            auto &cfg = Engine::ConfigManager::GetSingleton();
+            auto& cfg = Engine::ConfigManager::GetSingleton();
             cfg.enableTrueGaze = !cfg.enableTrueGaze;
             PersistQuietly();
             ApplyAndReport("bEnableTrueGaze", cfg.enableTrueGaze);
             return true;
         }
 
-        bool CmdVisuals(RE::SCRIPT_PARAMETER *, RE::SCRIPT_FUNCTION::ScriptData *, RE::TESObjectREFR *,
-                        RE::TESObjectREFR *, RE::Script *, RE::ScriptLocals *, double &, std::uint32_t &) noexcept
+        bool CmdVisuals(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                        RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                        std::uint32_t&) noexcept
         {
-            auto &cfg = Engine::ConfigManager::GetSingleton();
+            auto& cfg = Engine::ConfigManager::GetSingleton();
             cfg.enableInGameVisuals = !cfg.enableInGameVisuals;
 
             // Turning the master ON also arms the rays. The master switch alone would
@@ -109,10 +112,11 @@ namespace TrueGaze::Integrations
             return true;
         }
 
-        bool CmdRays(RE::SCRIPT_PARAMETER *, RE::SCRIPT_FUNCTION::ScriptData *, RE::TESObjectREFR *,
-                     RE::TESObjectREFR *, RE::Script *, RE::ScriptLocals *, double &, std::uint32_t &) noexcept
+        bool CmdRays(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                     RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                     std::uint32_t&) noexcept
         {
-            auto &cfg = Engine::ConfigManager::GetSingleton();
+            auto& cfg = Engine::ConfigManager::GetSingleton();
             cfg.gazeRaysEnabled = !cfg.gazeRaysEnabled;
 
             // The rays are a child of the master switch, so enabling them implies it.
@@ -127,15 +131,16 @@ namespace TrueGaze::Integrations
         }
 
         /// Cycle Both -> Light only -> Geometry only -> Both.
-        bool CmdRenderMode(RE::SCRIPT_PARAMETER *, RE::SCRIPT_FUNCTION::ScriptData *, RE::TESObjectREFR *,
-                           RE::TESObjectREFR *, RE::Script *, RE::ScriptLocals *, double &, std::uint32_t &) noexcept
+        bool CmdRenderMode(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                           RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*,
+                           double&, std::uint32_t&) noexcept
         {
-            auto &cfg = Engine::ConfigManager::GetSingleton();
+            auto& cfg = Engine::ConfigManager::GetSingleton();
             cfg.rayRenderMode = (cfg.rayRenderMode + 1) % 3;
             PersistQuietly();
             Engine::GazeEngine::Get().RefreshTuning();
 
-            const char *name = (cfg.rayRenderMode == 0)   ? "Both (light + branded geometry)"
+            const char* name = (cfg.rayRenderMode == 0)   ? "Both (light + branded geometry)"
                                : (cfg.rayRenderMode == 1) ? "Light only (no art assets needed)"
                                                           : "Geometry only (needs the beam assets)";
             ConsolePrint("TrueGaze: iRayRenderMode = %d - %s", cfg.rayRenderMode, name);
@@ -147,20 +152,22 @@ namespace TrueGaze::Integrations
             return true;
         }
 
-        bool CmdTerminus(RE::SCRIPT_PARAMETER *, RE::SCRIPT_FUNCTION::ScriptData *, RE::TESObjectREFR *,
-                         RE::TESObjectREFR *, RE::Script *, RE::ScriptLocals *, double &, std::uint32_t &) noexcept
+        bool CmdTerminus(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                         RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*,
+                         double&, std::uint32_t&) noexcept
         {
-            auto &cfg = Engine::ConfigManager::GetSingleton();
+            auto& cfg = Engine::ConfigManager::GetSingleton();
             cfg.gazeRaysTerminus = !cfg.gazeRaysTerminus;
             PersistQuietly();
             ApplyAndReport("bGazeRaysTerminus", cfg.gazeRaysTerminus);
             return true;
         }
 
-        bool CmdVerbose(RE::SCRIPT_PARAMETER *, RE::SCRIPT_FUNCTION::ScriptData *, RE::TESObjectREFR *,
-                        RE::TESObjectREFR *, RE::Script *, RE::ScriptLocals *, double &, std::uint32_t &) noexcept
+        bool CmdVerbose(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                        RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                        std::uint32_t&) noexcept
         {
-            auto &cfg = Engine::ConfigManager::GetSingleton();
+            auto& cfg = Engine::ConfigManager::GetSingleton();
             // Flip between the shipped default (2, Info) and full diagnostics (1,
             // Debug). Someone reaching for this wants more detail, not less.
             cfg.logLevel = (cfg.logLevel == 1) ? 2 : 1;
@@ -176,10 +183,11 @@ namespace TrueGaze::Integrations
             return true;
         }
 
-        bool CmdOn(RE::SCRIPT_PARAMETER *, RE::SCRIPT_FUNCTION::ScriptData *, RE::TESObjectREFR *,
-                   RE::TESObjectREFR *, RE::Script *, RE::ScriptLocals *, double &, std::uint32_t &) noexcept
+        bool CmdOn(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                   RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                   std::uint32_t&) noexcept
         {
-            auto &cfg = Engine::ConfigManager::GetSingleton();
+            auto& cfg = Engine::ConfigManager::GetSingleton();
             cfg.enableInGameVisuals = true;
             cfg.gazeRaysEnabled = true;
             PersistQuietly();
@@ -187,10 +195,11 @@ namespace TrueGaze::Integrations
             return true;
         }
 
-        bool CmdOff(RE::SCRIPT_PARAMETER *, RE::SCRIPT_FUNCTION::ScriptData *, RE::TESObjectREFR *,
-                    RE::TESObjectREFR *, RE::Script *, RE::ScriptLocals *, double &, std::uint32_t &) noexcept
+        bool CmdOff(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                    RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                    std::uint32_t&) noexcept
         {
-            auto &cfg = Engine::ConfigManager::GetSingleton();
+            auto& cfg = Engine::ConfigManager::GetSingleton();
             cfg.enableInGameVisuals = false;
             cfg.gazeRaysEnabled = false;
             PersistQuietly();
@@ -200,32 +209,40 @@ namespace TrueGaze::Integrations
 
         /// Print the effective state of every TrueGaze switch. The most useful command
         /// in the set: it answers "is it actually on?" without reading a file.
-        bool CmdStatus(RE::SCRIPT_PARAMETER *, RE::SCRIPT_FUNCTION::ScriptData *, RE::TESObjectREFR *,
-                       RE::TESObjectREFR *, RE::Script *, RE::ScriptLocals *, double &, std::uint32_t &) noexcept
+        bool CmdStatus(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                       RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                       std::uint32_t&) noexcept
         {
-            const auto &cfg = Engine::ConfigManager::GetSingleton();
-            auto &engine = Engine::GazeEngine::Get();
-            auto &visuals = Visuals::VisualEffectsManager::Get();
+            const auto& cfg = Engine::ConfigManager::GetSingleton();
+            auto& engine = Engine::GazeEngine::Get();
+            auto& visuals = Visuals::VisualEffectsManager::Get();
 
             auto onOff = [](bool b)
-            { return b ? "ON " : "OFF"; };
+            {
+                return b ? "ON " : "OFF";
+            };
 
             ConsolePrint("TrueGaze - status");
             ConsolePrint("  kinematics       %s  bEnableTrueGaze", onOff(cfg.enableTrueGaze));
             ConsolePrint("  creatures        %s  bEnableCreatures", onOff(cfg.enableCreatures));
-            ConsolePrint("  in-game visuals  %s  bEnableInGameVisuals", onOff(cfg.enableInGameVisuals));
+            ConsolePrint("  in-game visuals  %s  bEnableInGameVisuals",
+                         onOff(cfg.enableInGameVisuals));
             ConsolePrint("  gaze rays        %s  bGazeRaysEnabled", onOff(cfg.gazeRaysEnabled));
             ConsolePrint("  terminus glow    %s  bGazeRaysTerminus", onOff(cfg.gazeRaysTerminus));
             ConsolePrint("  render mode      %d   (0=Both 1=Light 2=Geometry)", cfg.rayRenderMode);
             ConsolePrint("  ray length       %.1f m, colour #%06X, opacity %.2f",
-                         cfg.gazeRayLengthMeters, cfg.gazeRayColour & 0x00FFFFFF, cfg.gazeRayOpacity);
-            ConsolePrint("  pupil offset     fwd %.1f cm, up %.1f cm",
-                         cfg.pupilForwardOffsetCm, cfg.pupilUpOffsetCm);
+                         cfg.gazeRayLengthMeters, cfg.gazeRayColour & 0x00FFFFFF,
+                         cfg.gazeRayOpacity);
+            ConsolePrint("  pupil offset     fwd %.1f cm, up %.1f cm", cfg.pupilForwardOffsetCm,
+                         cfg.pupilUpOffsetCm);
             ConsolePrint("  log level        %d   (1=Debug 2=Info)", cfg.logLevel);
             ConsolePrint("  tracked actors   %zu", engine.TrackedActorCount());
-            ConsolePrint("  tick calls       %llu", static_cast<unsigned long long>(engine.TickCalls()));
-            ConsolePrint("  eligible ticks   %llu", static_cast<unsigned long long>(engine.EligibleTicks()));
-            ConsolePrint("  LOD culled       %llu", static_cast<unsigned long long>(engine.CulledTicks()));
+            ConsolePrint("  tick calls       %llu",
+                         static_cast<unsigned long long>(engine.TickCalls()));
+            ConsolePrint("  eligible ticks   %llu",
+                         static_cast<unsigned long long>(engine.EligibleTicks()));
+            ConsolePrint("  LOD culled       %llu",
+                         static_cast<unsigned long long>(engine.CulledTicks()));
             ConsolePrint("  target resolves  %llu (none %llu)",
                          static_cast<unsigned long long>(engine.TargetResolutions()),
                          static_cast<unsigned long long>(engine.NoTargetResolutions()));
@@ -250,6 +267,16 @@ namespace TrueGaze::Integrations
             ConsolePrint("  mutual gaze      %llu frames",
                          static_cast<unsigned long long>(engine.MutualGazeFrames()));
 
+            // R14 E2.1: live performance measurements against the documented
+            // budget. The budget constant is shared with the EndFrame check so
+            // this readout can never disagree with the enforcement code.
+            ConsolePrint(
+                "  frame cost       last %llu us, peak %llu us (budget %llu us%s)",
+                static_cast<unsigned long long>(engine.LastFrameMicros()),
+                static_cast<unsigned long long>(engine.PeakFrameMicros()),
+                static_cast<unsigned long long>(Engine::PerformanceProfiler::BudgetMicros()),
+                Engine::PerformanceProfiler::IsWithinBudget() ? ")" : " — OVER BUDGET)");
+
             // Phase S4: HCEP intent-fusion diagnostics. Answers WHY fusion is or
             // is not active: no telemetry, low confidence, stale, or blink.
             {
@@ -261,20 +288,18 @@ namespace TrueGaze::Integrations
                 else
                 {
                     ConsolePrint("  hcep intent      seq %u conf %.2f age %llu ms%s%s",
-                                 static_cast<unsigned>(intent.sequenceId),
-                                 intent.confidence,
+                                 static_cast<unsigned>(intent.sequenceId), intent.confidence,
                                  static_cast<unsigned long long>(intent.ageMs),
                                  intent.stale ? " [STALE]" : "",
                                  intent.blinkSuppressed ? " [BLINK]" : "");
-                    ConsolePrint("  hcep head        yaw %+.1f deg pitch %+.1f deg, convergence %.2f m%s",
-                                 intent.headYawDeg,
-                                 intent.headPitchDeg,
-                                 intent.convergenceMeters,
-                                 intent.convergencePlausible ? "" : " [implausible]");
+                    ConsolePrint(
+                        "  hcep head        yaw %+.1f deg pitch %+.1f deg, convergence %.2f m%s",
+                        intent.headYawDeg, intent.headPitchDeg, intent.convergenceMeters,
+                        intent.convergencePlausible ? "" : " [implausible]");
                 }
             }
-            ConsolePrint("  visual emitters  %zu actors, %zu lights",
-                         visuals.ActiveActorCount(), visuals.AttachedLightCount());
+            ConsolePrint("  visual emitters  %zu actors, %zu lights", visuals.ActiveActorCount(),
+                         visuals.AttachedLightCount());
             ConsolePrint("  visual updates   %llu, anchors failed %llu, light creates failed %llu",
                          static_cast<unsigned long long>(visuals.UpdateCalls()),
                          static_cast<unsigned long long>(visuals.AnchorFailures()),
@@ -282,7 +307,8 @@ namespace TrueGaze::Integrations
             ConsolePrint("  beam geometry    %llu attached / %llu attempts",
                          static_cast<unsigned long long>(visuals.GeometryCreated()),
                          static_cast<unsigned long long>(visuals.GeometryAttempts()));
-            ConsolePrint("  commands         %s", ConsoleCommands::IsInstalled() ? "registered" : "NOT registered");
+            ConsolePrint("  commands         %s",
+                         ConsoleCommands::IsInstalled() ? "registered" : "NOT registered");
             return true;
         }
 
@@ -292,8 +318,8 @@ namespace TrueGaze::Integrations
 
         struct CommandDef
         {
-            const char *name; // the token typed at the console prompt
-            const char *help;
+            const char* name; // the token typed at the console prompt
+            const char* help;
 
             // The handlers are declared `noexcept` on purpose: they run inside the
             // engine's console call path and must not let an exception escape into
@@ -305,9 +331,9 @@ namespace TrueGaze::Integrations
             //
             // Written out longhand rather than via Execute_t because the spelling of
             // the type is the thing that has to be right here.
-            using Handler = bool (*)(RE::SCRIPT_PARAMETER *, RE::SCRIPT_FUNCTION::ScriptData *,
-                                     RE::TESObjectREFR *, RE::TESObjectREFR *, RE::Script *,
-                                     RE::ScriptLocals *, double &, std::uint32_t &) noexcept;
+            using Handler = bool (*)(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                                     RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*,
+                                     RE::ScriptLocals*, double&, std::uint32_t&) noexcept;
             Handler handler;
         };
 
@@ -372,9 +398,9 @@ namespace TrueGaze::Integrations
         //     rather than registering a partial set that would be confusing to use.
         struct SlotSet
         {
-            RE::SCRIPT_FUNCTION *slots[std::size(kCommands)]{};
+            RE::SCRIPT_FUNCTION* slots[std::size(kCommands)]{};
             size_t found{0};
-            const char *reason{"not probed"};
+            const char* reason{"not probed"};
 
             // Scan statistics. Reported on install so that a future in-game run is
             // self-diagnosing: if registration is refused, these numbers say whether the
@@ -399,9 +425,9 @@ namespace TrueGaze::Integrations
 
         /// Build the engine-facing help string: the readable text plus the live-command
         /// marker the engine's scan requires.
-        const char *MakeLiveHelpString(size_t a_index, const char *a_help) noexcept
+        const char* MakeLiveHelpString(size_t a_index, const char* a_help) noexcept
         {
-            auto &buffer = g_helpStrings[a_index];
+            auto& buffer = g_helpStrings[a_index];
             buffer.assign(a_help);
             buffer.push_back(' '); // keep the marker visually separate if shown
             buffer.push_back('1'); // '1' = live command
@@ -419,7 +445,7 @@ namespace TrueGaze::Integrations
         {
             SlotSet set{};
 
-            auto *first = RE::SCRIPT_FUNCTION::GetFirstConsoleCommand();
+            auto* first = RE::SCRIPT_FUNCTION::GetFirstConsoleCommand();
             if (!first)
             {
                 set.reason = "GetFirstConsoleCommand() returned null";
@@ -428,7 +454,7 @@ namespace TrueGaze::Integrations
 
             for (std::uint16_t i = 0; i < kTableCapacity && set.found < std::size(kCommands); ++i)
             {
-                auto &entry = first[i];
+                auto& entry = first[i];
                 ++set.scanned;
 
                 // A reclaimed entry must keep a readable function name: the engine's own
@@ -441,7 +467,7 @@ namespace TrueGaze::Integrations
 
                 // Classify using the marker the SDK documents, so the report reflects
                 // the engine's own view of the table rather than our guess about it.
-                const char *help = entry.helpString;
+                const char* help = entry.helpString;
                 if (help == nullptr || help[0] == '\0')
                 {
                     ++set.emptyEntries;
@@ -478,7 +504,7 @@ namespace TrueGaze::Integrations
             return;
         }
 
-        const auto &cfg = Engine::ConfigManager::GetSingleton();
+        const auto& cfg = Engine::ConfigManager::GetSingleton();
         if (!cfg.enableConsoleCommands)
         {
             logger::info("[TrueGaze] Console commands are disabled by configuration "
@@ -509,9 +535,9 @@ namespace TrueGaze::Integrations
 
         size_t i = 0;
         std::array<std::uint32_t, std::size(kCommands)> boundOpcodes{};
-        for (const auto &def : kCommands)
+        for (const auto& def : kCommands)
         {
-            auto &entry = *slots.slots[i];
+            auto& entry = *slots.slots[i];
 
             // Preserve the slot's existing opcode BEFORE clearing the entry.
             //
@@ -561,7 +587,7 @@ namespace TrueGaze::Integrations
             // one place to look. It changes only the noexcept part of the pointer type;
             // the handler stays non-throwing in fact, which is what the noexcept on its
             // declaration guarantees.
-            entry.executeFunction = reinterpret_cast<RE::SCRIPT_FUNCTION::Execute_t *>(def.handler);
+            entry.executeFunction = reinterpret_cast<RE::SCRIPT_FUNCTION::Execute_t*>(def.handler);
 
             entry.compileFunction = nullptr;
             entry.conditionFunction = nullptr;
@@ -607,7 +633,10 @@ namespace TrueGaze::Integrations
 #else // standalone build: no game, no console
 
     void ConsoleCommands::Install() noexcept {}
-    bool ConsoleCommands::IsInstalled() noexcept { return false; }
+    bool ConsoleCommands::IsInstalled() noexcept
+    {
+        return false;
+    }
 
 #endif
 

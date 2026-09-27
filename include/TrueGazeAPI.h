@@ -25,15 +25,17 @@ namespace TrueGaze::API
 #pragma pack(push, 1)
     struct ActorGazeTelemetry
     {
-        uint32_t actorFormId;
-        uint32_t targetFormId;
-        float gazePitchDeg;
-        float gazeYawDeg;
-        float mutualGazeDurationSec;
-        HcepCognitiveMode activeMode;
-        uint8_t isMutualGaze;
-        uint8_t isBlinking;
-        uint8_t lodTier;
+        uint32_t actorFormId;  ///< FormID of the observed actor (0 = invalid).
+        uint32_t targetFormId; ///< FormID of the actor's current gaze target (0 = ambient/vacant).
+        float gazePitchDeg;    ///< Actor-relative pitch deflection in degrees (positive = up).
+        float gazeYawDeg;      ///< Actor-relative yaw deflection in degrees (positive = right).
+        float mutualGazeDurationSec;  ///< Continuous seconds of mutual eye contact with the player.
+        HcepCognitiveMode activeMode; ///< Live HCEP cognitive mode (LOGIC..THINK).
+        uint8_t isMutualGaze;         ///< 1 while mutualGazeDurationSec > 0.
+        uint8_t isBlinking;           ///< 1 while the eyelid blink controller has the eyes closed.
+        uint8_t lodTier;              ///< Runtime LOD tier: 0 = Tier1 (<5 m, full kinematics),
+                                      ///< 1 = Tier2 (5-15 m, simplified). Tier3 actors are culled
+                                      ///< before ticking and never appear in live telemetry.
         uint8_t gazeRegion; ///< Classified gaze region (0..12), from HCEP-02 Enhanced Diagram.
         uint8_t padding[3]; ///< Reserved for ABI stability.
     };
@@ -46,9 +48,12 @@ namespace TrueGaze::API
     TRUEGAZE_API bool TrueGaze_IsHcepConnected() noexcept;
 
     /// @brief Fetches real-time gaze telemetry for an actor in the game world.
-    TRUEGAZE_API bool TrueGaze_GetActorGaze(uint32_t actorFormId, ActorGazeTelemetry *outTelemetry) noexcept;
+    TRUEGAZE_API bool TrueGaze_GetActorGaze(uint32_t actorFormId,
+                                            ActorGazeTelemetry* outTelemetry) noexcept;
 
-    /// @brief Overrides an actor's cognitive mode (e.g., forcing THINK mode during specific dialogue scenes).
-    TRUEGAZE_API void TrueGaze_OverrideActorMode(uint32_t actorFormId, HcepCognitiveMode mode, float durationSec) noexcept;
+    /// @brief Overrides an actor's cognitive mode (e.g., forcing THINK mode during specific
+    /// dialogue scenes).
+    TRUEGAZE_API void TrueGaze_OverrideActorMode(uint32_t actorFormId, HcepCognitiveMode mode,
+                                                 float durationSec) noexcept;
 
 } // namespace TrueGaze::API

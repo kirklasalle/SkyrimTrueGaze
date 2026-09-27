@@ -1,14 +1,14 @@
 #include "AnimationHook.hpp"
-#include "GazeEngine.hpp"
-#include "EyeAimConstraint.hpp"
 #include "ConfigManager.hpp"
+#include "EyeAimConstraint.hpp"
+#include "GazeEngine.hpp"
 
 #include <atomic>
 
 #if __has_include(<RE/Skyrim.h>)
-#include <RE/Skyrim.h>
 #include <RE/H/HighProcessData.h>
 #include <RE/S/SendHUDMessage.h>
+#include <RE/Skyrim.h>
 #endif
 
 #ifdef _WIN32
@@ -84,20 +84,19 @@ namespace TrueGaze::Engine
         /// so the frame is abandoned and the game survives; logs the fault code
         /// and the faulting address, which with the PDB localises the crash to
         /// the exact source line. Rate-limited like ReportTickFailure.
-        int ReportSehFault(unsigned int code, EXCEPTION_POINTERS *info) noexcept
+        int ReportSehFault(unsigned int code, EXCEPTION_POINTERS* info) noexcept
         {
             static std::atomic<uint64_t> s_faultReports{0};
             const auto report = s_faultReports.fetch_add(1, std::memory_order_relaxed);
             if (report < 5)
             {
-                const void *addr = info && info->ExceptionRecord
+                const void* addr = info && info->ExceptionRecord
                                        ? info->ExceptionRecord->ExceptionAddress
                                        : nullptr;
-                logger::error("[TrueGaze] SEH fault 0x{:08X} at {} (gaze frame abandoned; game continues). "
-                              "Fault #{} — address + PDB localises the line.",
-                              code,
-                              fmt::ptr(addr),
-                              report + 1);
+                logger::error(
+                    "[TrueGaze] SEH fault 0x{:08X} at {} (gaze frame abandoned; game continues). "
+                    "Fault #{} — address + PDB localises the line.",
+                    code, fmt::ptr(addr), report + 1);
             }
             return EXCEPTION_EXECUTE_HANDLER;
         }
@@ -108,19 +107,19 @@ namespace TrueGaze::Engine
         /// (no try/catch of C++ objects with destructors) — MSVC forbids mixing
         /// __try with objects needing unwinding in ONE function; splitting the
         /// frame body from the __try frame is the standard compliant shape.
-        static void RunGazeFrameBody(RE::Actor *a_actor, float a_delta)
+        static void RunGazeFrameBody(RE::Actor* a_actor, float a_delta)
         {
             s_mainThreadId.store(GetCurrentThreadId(), std::memory_order_relaxed);
 
             // PlayerCharacter::Update runs reliably once per frame on the main thread.
-            if (a_actor && ConfigManager::GetSingleton().enableTrueGaze &&
-                a_delta > 0.0f && a_delta < 0.5f)
+            if (a_actor && ConfigManager::GetSingleton().enableTrueGaze && a_delta > 0.0f &&
+                a_delta < 0.5f)
             {
                 // 1. Prepare bone constraints for this frame by restoring previously touched
                 // bones to their pristine animated baseline before composing fresh gaze.
                 EyeAimConstraint::BeginFrame();
 
-                auto *camera = RE::PlayerCamera::GetSingleton();
+                auto* camera = RE::PlayerCamera::GetSingleton();
                 const bool isThirdPerson = camera && camera->IsInThirdPerson();
 
                 static bool s_lastThirdPerson = false;
@@ -131,11 +130,14 @@ namespace TrueGaze::Engine
                     {
                         if (isThirdPerson)
                         {
-                            RE::SendHUDMessage::ShowHUDMessage("[TrueGaze] Camera: 3rd Person (Biomechanical Eye Tracking Active)");
+                            RE::SendHUDMessage::ShowHUDMessage(
+                                "[TrueGaze] Camera: 3rd Person (Biomechanical Eye Tracking "
+                                "Active)");
                         }
                         else
                         {
-                            RE::SendHUDMessage::ShowHUDMessage("[TrueGaze] Camera: 1st Person (Crosshair Aim)");
+                            RE::SendHUDMessage::ShowHUDMessage(
+                                "[TrueGaze] Camera: 1st Person (Crosshair Aim)");
                         }
                     }
                 }
@@ -152,7 +154,8 @@ namespace TrueGaze::Engine
                 }
 
                 // 2. Orchestrate gaze evaluation and bone updates for all active nearby NPCs
-                // and creatures on the main game thread, perfectly synchronized with this frame's delta.
+                // and creatures on the main game thread, perfectly synchronized with this frame's
+                // delta.
                 AnimationHook::TickAllActors(a_delta);
             }
 
@@ -179,22 +182,21 @@ namespace TrueGaze::Engine
         ///
         /// The game's own _original() update is deliberately NOT inside this
         /// frame (it stays in Hook above): Skyrim's code is not ours to swallow.
-        static void RunGazeFrameSeh(RE::Actor *a_actor, float a_delta)
+        static void RunGazeFrameSeh(RE::Actor* a_actor, float a_delta)
         {
             __try
             {
                 RunGazeFrameBody(a_actor, a_delta);
             }
-            __except (ReportSehFault(
-                GetExceptionCode(),
-                static_cast<EXCEPTION_POINTERS *>(GetExceptionInformation())))
+            __except (ReportSehFault(GetExceptionCode(),
+                                     static_cast<EXCEPTION_POINTERS*>(GetExceptionInformation())))
             {
                 // Frame abandoned. The next frame's BeginFrame() re-baselines
                 // bone state; gaze simply does not update for one frame.
             }
         }
 #else
-        static void RunGazeFrameSeh(RE::Actor *a_actor, float a_delta)
+        static void RunGazeFrameSeh(RE::Actor* a_actor, float a_delta)
         {
             try
             {
@@ -207,10 +209,9 @@ namespace TrueGaze::Engine
         }
 #endif
 
-        template <class Tag>
-        struct ActorUpdateHook
+        template <class Tag> struct ActorUpdateHook
         {
-            static void Hook(RE::Actor *a_actor, float a_delta)
+            static void Hook(RE::Actor* a_actor, float a_delta)
             {
                 // Advance the player's pristine baseline if on the main thread.
                 if constexpr (std::is_same_v<Tag, PlayerTag>)
@@ -232,8 +233,9 @@ namespace TrueGaze::Engine
                 const auto report = s_postUpdateReports.fetch_add(1, std::memory_order_relaxed);
                 if (report == 0)
                 {
-                    logger::info("[TrueGaze] Actor update hook invoked: form={:08X} delta={:.4f} thread={}",
-                                 a_actor ? a_actor->GetFormID() : 0u, a_delta, GetCurrentThreadId());
+                    logger::info(
+                        "[TrueGaze] Actor update hook invoked: form={:08X} delta={:.4f} thread={}",
+                        a_actor ? a_actor->GetFormID() : 0u, a_delta, GetCurrentThreadId());
                 }
 
                 // Everything that follows is ours. A defect in the kinematics engine must
@@ -248,9 +250,9 @@ namespace TrueGaze::Engine
                 {
                     // In Skyrim SE/AE, Actor::Update and Character::Update for NPCs are dispatched
                     // across Havok animation worker threads (where delta is 0.0f). Mutating the
-                    // NetImmerse scene graph or querying singletons on worker threads causes race conditions.
-                    // All NPC gaze updates are driven cleanly and deterministically on the main
-                    // game thread in PlayerTag via AnimationHook::TickAllActors.
+                    // NetImmerse scene graph or querying singletons on worker threads causes race
+                    // conditions. All NPC gaze updates are driven cleanly and deterministically on
+                    // the main game thread in PlayerTag via AnimationHook::TickAllActors.
                     return;
                 }
             }
@@ -260,13 +262,12 @@ namespace TrueGaze::Engine
             /// A per-actor hook that fails thousands of times a second would
             /// otherwise fill the log with identical lines and make the real
             /// problem harder to find. The first failures are the informative ones.
-            static void ReportTickFailure(const char *a_what) noexcept
+            static void ReportTickFailure(const char* a_what) noexcept
             {
                 constexpr int kMaxReports = 5;
                 if (_failuresReported < kMaxReports)
                 {
-                    logger::error("[TrueGaze] Gaze tick threw ({}). Frame skipped.{}",
-                                  a_what,
+                    logger::error("[TrueGaze] Gaze tick threw ({}). Frame skipped.{}", a_what,
                                   _failuresReported + 1 == kMaxReports
                                       ? " Further occurrences will be silenced."
                                       : "");
@@ -283,30 +284,56 @@ namespace TrueGaze::Engine
         using PlayerHook = ActorUpdateHook<PlayerTag>;
 
         template <class Hook>
-        void InstallActorUpdateHook(const REL::VariantID &vtable, const char *name)
+        void InstallActorUpdateHook(const REL::VariantID& vtable, const char* name)
         {
             REL::Relocation<std::uintptr_t> table{vtable};
             const std::size_t updateSlot = REL::Module::IsVR() ? 0xAF : 0xAD;
             Hook::_original = table.write_vfunc(updateSlot, Hook::Hook);
-            logger::info("[TrueGaze] Gaze driver installed on {}::Update (slot 0xAD / VR slot 0xAF, active: 0x{:02X}).", name, updateSlot);
+            logger::info("[TrueGaze] Gaze driver installed on {}::Update (slot 0xAD / VR slot "
+                         "0xAF, active: 0x{:02X}).",
+                         name, updateSlot);
         }
 
-        void TickActorList(RE::BSTArray<RE::ActorHandle> &list,
-                           bool allowCreatures,
-                           float deltaSeconds,
-                           GazeEngine &engine) noexcept
+        /// R14 E7.1 — per-actor SEH isolation.
+        ///
+        /// Previously one defective actor could abort TickActorList's whole
+        /// loop (the frame-level SEH guard in RunGazeFrameSeh catches the
+        /// fault, but every actor after the defective one lost its gaze update
+        /// for that frame). Wrapping each TickActor call in its own __try
+        /// frame means a fault skips exactly one actor and the loop continues.
+        ///
+        /// Same MSVC constraint as RunGazeFrameSeh: the __try frame must live
+        /// in a function that performs no C++ unwinding itself, hence this
+        /// dedicated wrapper instead of an inline __try in the loop body.
+        static void TickActorSeh(GazeEngine& engine, RE::Actor* actor, float deltaSeconds) noexcept
+        {
+            __try
+            {
+                engine.TickActor(actor, deltaSeconds);
+            }
+            __except (ReportSehFault(GetExceptionCode(),
+                                     static_cast<EXCEPTION_POINTERS*>(GetExceptionInformation())))
+            {
+                // This actor is skipped for this frame. BeginFrame() on the
+                // next frame re-baselines any bones it touched; the rest of
+                // the actor list continues untouched.
+            }
+        }
+
+        void TickActorList(RE::BSTArray<RE::ActorHandle>& list, bool allowCreatures,
+                           float deltaSeconds, GazeEngine& engine) noexcept
         {
             const auto count = list.size();
             for (uint32_t i = 0; i < count && i < list.size(); ++i)
             {
-                auto &handle = list[i];
+                auto& handle = list[i];
                 auto actorPtr = handle.get();
                 if (!actorPtr)
                 {
                     continue;
                 }
 
-                auto *actor = actorPtr.get();
+                auto* actor = actorPtr.get();
                 if (!actor || actor->IsPlayerRef())
                 {
                     continue;
@@ -322,7 +349,7 @@ namespace TrueGaze::Engine
                     continue;
                 }
 
-                engine.TickActor(actor, deltaSeconds);
+                TickActorSeh(engine, actor, deltaSeconds);
             }
         }
 
@@ -358,7 +385,7 @@ namespace TrueGaze::Engine
     void AnimationHook::TickAllActors(float deltaSeconds) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
-        auto *processLists = RE::ProcessLists::GetSingleton();
+        auto* processLists = RE::ProcessLists::GetSingleton();
         if (!processLists)
         {
             return;
@@ -367,13 +394,13 @@ namespace TrueGaze::Engine
         static std::atomic<uint32_t> s_tickReports{0};
         if (s_tickReports.fetch_add(1, std::memory_order_relaxed) == 0)
         {
-            logger::info("[TrueGaze] TickAllActors active on game thread: highActors={} middleHighActors={} delta={:.4f}",
+            logger::info("[TrueGaze] TickAllActors active on game thread: highActors={} "
+                         "middleHighActors={} delta={:.4f}",
                          processLists->highActorHandles.size(),
-                         processLists->middleHighActorHandles.size(),
-                         deltaSeconds);
+                         processLists->middleHighActorHandles.size(), deltaSeconds);
         }
 
-        auto &engine = GazeEngine::Get();
+        auto& engine = GazeEngine::Get();
         const bool creatures = ConfigManager::GetSingleton().enableCreatures;
 
         TickActorList(processLists->highActorHandles, creatures, deltaSeconds, engine);
@@ -393,7 +420,7 @@ namespace TrueGaze::Engine
     }
 
 #if __has_include(<RE/Skyrim.h>)
-    bool AnimationHook::IsActorEligibleForGaze(RE::Actor *actor) noexcept
+    bool AnimationHook::IsActorEligibleForGaze(RE::Actor* actor) noexcept
     {
         if (!actor)
         {
@@ -426,7 +453,7 @@ namespace TrueGaze::Engine
         }
 
 #if __has_include(<RE/Skyrim.h>)
-        auto *form = RE::TESForm::LookupByID(actorFormId);
+        auto* form = RE::TESForm::LookupByID(actorFormId);
         if (!form)
         {
             return false;
@@ -446,20 +473,20 @@ namespace TrueGaze::Engine
         }
 
 #if __has_include(<RE/Skyrim.h>)
-        auto *form = RE::TESForm::LookupByID(actorFormId);
+        auto* form = RE::TESForm::LookupByID(actorFormId);
         if (!form)
         {
             return 0.0f;
         }
 
-        auto *actor = form->As<RE::Actor>();
+        auto* actor = form->As<RE::Actor>();
         if (!actor)
         {
             return 0.0f;
         }
 
         // An active dialogue partner gets full attention.
-        auto *ui = RE::UI::GetSingleton();
+        auto* ui = RE::UI::GetSingleton();
         if (ui && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME))
         {
             return 1.0f;

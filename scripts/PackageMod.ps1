@@ -74,7 +74,8 @@ Write-Host "`n[4/5] Compressing companion debug symbols into $symbolsName..." -F
 if (Test-Path $releasePdb) {
     Compress-Archive -Path $releasePdb -DestinationPath $symbolsPath
     Write-Host "  OK   Companion PDB included: TrueGaze.pdb" -ForegroundColor DarkGray
-} else {
+}
+else {
     Write-Warning "PDB not found at $releasePdb; symbols archive omitted."
 }
 

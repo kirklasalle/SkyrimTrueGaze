@@ -1,6 +1,8 @@
 #include "TargetSelector.hpp"
-#include "PlayerGazeResolver.hpp"
 #include "ActorGazeRuntime.hpp"
+#include "GazeAnchors.hpp"
+#include "GazeEngine.hpp"
+#include "PlayerGazeResolver.hpp"
 #include <cmath>
 #include <cstdint>
 
@@ -24,8 +26,9 @@ namespace TrueGaze::Engine
         constexpr float kUnitsPerMeter = 70.0f;
         constexpr float kUnitsToMeters = 1.0f / kUnitsPerMeter;
 
-        /// Approximate eye height above an actor's origin, in Skyrim units (~1.25 m for standing eye level).
-        constexpr float kEyeHeightOffsetUnits = 125.0f;
+        /// Approximate eye height above an actor's origin, in Skyrim units.
+        /// R14 E7.5 — canonical value now lives in GazeAnchors.hpp.
+        constexpr float kEyeHeightOffsetUnits = TrueGaze::Anchors::kEyeHeightUnits;
 
         /// An approaching actor is worth tracking out to this range.
         /// Widened from 8m: a person 10m away is still clearly in the same room
@@ -61,9 +64,8 @@ namespace TrueGaze::Engine
         }
 
         /// Tests whether targetPos lies within the observer's natural forward visual cone.
-        bool IsInVisualCone(const RE::NiPoint3 &observerPos,
-                            float observerYawRad,
-                            const RE::NiPoint3 &targetPos,
+        bool IsInVisualCone(const RE::NiPoint3& observerPos, float observerYawRad,
+                            const RE::NiPoint3& targetPos,
                             float maxAngleDeg = kMaxVisualConeAngleDeg) noexcept
         {
             const float dx = targetPos.x - observerPos.x;
@@ -98,7 +100,7 @@ namespace TrueGaze::Engine
         }
 
         /// Distance in metres between two world positions.
-        float DistanceMeters(const RE::NiPoint3 &a, const RE::NiPoint3 &b) noexcept
+        float DistanceMeters(const RE::NiPoint3& a, const RE::NiPoint3& b) noexcept
         {
             return a.GetDistance(b) * kUnitsToMeters;
         }
@@ -107,63 +109,45 @@ namespace TrueGaze::Engine
         /// Skyrim world units per centimetre (70 units == 1 m).
         constexpr float kUnitsPerCm = kUnitsPerMeter / 100.0f;
 
-        /// Project an eye anchor onto the eyeline from a head bone's world transform.
-        ///
-        /// The head bone origin sits at the base of the skull; the eyeballs are up and
-        /// forward of it. We move along the bone's OWN world basis so the anchor tracks
-        /// seated/leaning/crouched poses and race scales. In the Skyrim skeleton the
-        /// head bone's local forward is +Y and local up is +Z; NiMatrix3 stores each
-        /// local axis as a COLUMN of world.rotate, so column 1 = forward, column 2 = up.
-        RE::NiPoint3 EyeAnchorFromHeadBone(const RE::NiAVObject *headBone) noexcept
+        /// R14 E7.5 — EyeAnchorFromHeadBone moved to GazeAnchors.hpp (shared with
+        /// GazeEngine.cpp, which previously carried a byte-identical copy).
+        RE::NiPoint3 EyeAnchorFromHeadBone(const RE::NiAVObject* headBone) noexcept
         {
-            const auto &m = headBone->world.rotate;
-            const auto &o = headBone->world.translate;
-            const float scale = headBone->world.scale > 0.0f ? headBone->world.scale : 1.0f;
-
-            // The head bone's own axes in world space: +Y = forward (toward the face),
-            // +Z = up (toward the crown). GetVectorY/Z return exactly these columns.
-            const RE::NiPoint3 forward = m.GetVectorY();
-            const RE::NiPoint3 up = m.GetVectorZ();
-
-            const float fwd = TargetSelector::s_eyeAnchor.forwardCm * kUnitsPerCm * scale;
-            const float upl = TargetSelector::s_eyeAnchor.upCm * kUnitsPerCm * scale;
-
-            return RE::NiPoint3{
-                o.x + forward.x * fwd + up.x * upl,
-                o.y + forward.y * fwd + up.y * upl,
-                o.z + forward.z * fwd + up.z * upl};
+            return TrueGaze::Anchors::EyeAnchorFromHeadBone(
+                headBone, TargetSelector::s_eyeAnchor.forwardCm, TargetSelector::s_eyeAnchor.upCm);
         }
 
         /// Retrieve the true 3D world position of an actor's EYES (eye anchor projected
         /// from the head bone transform when available). "The eyes are the target."
         /// Dynamically tracks seated postures, counter-leaning idles, crouching, and race scales.
-        RE::NiPoint3 GetActorHeadPosition(RE::Actor *actor) noexcept
+        RE::NiPoint3 GetActorHeadPosition(RE::Actor* actor) noexcept
         {
             if (!actor)
                 return RE::NiPoint3{0.0f, 0.0f, 0.0f};
-            if (auto *root = actor->Get3D())
+            if (auto* root = actor->Get3D())
             {
-                static const char *kHeadCandidates[] = {
-                    "NPC Head [Head]", "Head", "Head1", "Bip01 Head"};
-                for (const auto *name : kHeadCandidates)
+                static const char* kHeadCandidates[] = {"NPC Head [Head]", "Head", "Head1",
+                                                        "Bip01 Head"};
+                for (const auto* name : kHeadCandidates)
                 {
-                    if (auto *bone = root->GetObjectByName(RE::BSFixedString(name)))
+                    if (auto* bone = root->GetObjectByName(RE::BSFixedString(name)))
                     {
                         return EyeAnchorFromHeadBone(bone);
                     }
                 }
-                return RE::NiPoint3{root->world.translate.x, root->world.translate.y, root->world.translate.z + kEyeHeightOffsetUnits};
+                return RE::NiPoint3{root->world.translate.x, root->world.translate.y,
+                                    root->world.translate.z + kEyeHeightOffsetUnits};
             }
             const auto pos = actor->GetPosition();
             return RE::NiPoint3{pos.x, pos.y, pos.z + kEyeHeightOffsetUnits};
         }
 
         /// Retrieve the true 3D world position of an actor (using 3D node transform if available)
-        RE::NiPoint3 GetActorWorldPosition(RE::Actor *actor) noexcept
+        RE::NiPoint3 GetActorWorldPosition(RE::Actor* actor) noexcept
         {
             if (!actor)
                 return RE::NiPoint3{0.0f, 0.0f, 0.0f};
-            if (auto *root = actor->Get3D())
+            if (auto* root = actor->Get3D())
             {
                 return root->world.translate;
             }
@@ -174,7 +158,7 @@ namespace TrueGaze::Engine
     } // namespace
 
     TargetSelector::GazeTarget TargetSelector::ResolveTarget(uint32_t observerFormId,
-                                                             ActorGazeRuntime *state,
+                                                             ActorGazeRuntime* state,
                                                              float deltaSeconds) noexcept
     {
         GazeTarget target{};
@@ -185,15 +169,15 @@ namespace TrueGaze::Engine
         }
 
 #if __has_include(<RE/Skyrim.h>)
-        auto *form = RE::TESForm::LookupByID(observerFormId);
+        auto* form = RE::TESForm::LookupByID(observerFormId);
         if (!form)
             return target;
 
-        auto *observer = form->As<RE::Actor>();
+        auto* observer = form->As<RE::Actor>();
         if (!observer)
             return target;
 
-        auto *player = RE::PlayerCharacter::GetSingleton();
+        auto* player = RE::PlayerCharacter::GetSingleton();
         if (!player)
             return target;
 
@@ -231,7 +215,8 @@ namespace TrueGaze::Engine
             gazeParams.pointBlankMeters = s_crosshair.pointBlankMeters;
 
             const auto playerGaze = PlayerGazeResolver::Resolve(gazeParams);
-            const bool crosshairOnThisActor = (playerGaze.onFace && playerGaze.targetFormId == observerFormId);
+            const bool crosshairOnThisActor =
+                (playerGaze.onFace && playerGaze.targetFormId == observerFormId);
 
             if (crosshairOnThisActor)
             {
@@ -250,7 +235,8 @@ namespace TrueGaze::Engine
                 const float pDist = DistanceMeters(observerHeadPos, playerHeadPos);
                 // Verify player is alive and within natural forward visual cone
                 if (pDist <= s_crosshair.maxRangeMeters &&
-                    IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos, kMaxHoldVisualConeAngleDeg))
+                    IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos,
+                                   kMaxHoldVisualConeAngleDeg))
                 {
                     target.targetFormId = player->GetFormID();
                     target.priority = TargetPriority::CrosshairFocus;
@@ -268,7 +254,7 @@ namespace TrueGaze::Engine
             }
         }
 
-        auto *ui = RE::UI::GetSingleton();
+        auto* ui = RE::UI::GetSingleton();
 
         // When the observer is the player in 3rd person:
         // Engage TrueGaze biological eye tracking toward dialogue partner, crosshair target,
@@ -291,12 +277,12 @@ namespace TrueGaze::Engine
             // 1. Dialogue speaker
             if (ui && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME))
             {
-                auto *topicMgr = RE::MenuTopicManager::GetSingleton();
+                auto* topicMgr = RE::MenuTopicManager::GetSingleton();
                 if (topicMgr && topicMgr->speaker)
                 {
                     if (auto speakerPtr = topicMgr->speaker.get())
                     {
-                        if (auto *speakerActor = speakerPtr->As<RE::Actor>())
+                        if (auto* speakerActor = speakerPtr->As<RE::Actor>())
                         {
                             const auto sHeadPos = GetActorHeadPosition(speakerActor);
                             target.targetFormId = speakerActor->GetFormID();
@@ -320,10 +306,10 @@ namespace TrueGaze::Engine
             const auto playerGaze = PlayerGazeResolver::Resolve(gazeParams);
             if (playerGaze.targetFormId != 0 && playerGaze.targetFormId != player->GetFormID())
             {
-                auto *aimForm = RE::TESForm::LookupByID(playerGaze.targetFormId);
+                auto* aimForm = RE::TESForm::LookupByID(playerGaze.targetFormId);
                 if (aimForm)
                 {
-                    if (auto *aimActor = aimForm->As<RE::Actor>())
+                    if (auto* aimActor = aimForm->As<RE::Actor>())
                     {
                         const auto aimHeadPos = GetActorHeadPosition(aimActor);
                         target.targetFormId = aimActor->GetFormID();
@@ -343,7 +329,7 @@ namespace TrueGaze::Engine
             {
                 if (auto combatPtr = combatHandle.get())
                 {
-                    if (auto *cTarget = combatPtr.get())
+                    if (auto* cTarget = combatPtr.get())
                     {
                         if (!cTarget->IsDead() && !cTarget->IsDisabled())
                         {
@@ -364,20 +350,21 @@ namespace TrueGaze::Engine
             // 4. Conversational Candidate Scan (3rd person / free exploration)
             // When walking up to NPCs or standing near people in town/shops (e.g. Lucan, Camilla),
             // engage natural social gaze if an NPC is within conversational range and forward cone.
-            RE::Actor *closestNpc = nullptr;
+            RE::Actor* closestNpc = nullptr;
             float closestDistMeters = 4.5f;
-            if (auto *processLists = RE::ProcessLists::GetSingleton())
+            if (auto* processLists = RE::ProcessLists::GetSingleton())
             {
-                for (auto &handle : processLists->highActorHandles)
+                for (auto& handle : processLists->highActorHandles)
                 {
                     if (auto actorPtr = handle.get())
                     {
-                        auto *otherActor = actorPtr.get();
-                        if (otherActor && otherActor != player &&
-                            !otherActor->IsDead() && !otherActor->IsDisabled())
+                        auto* otherActor = actorPtr.get();
+                        if (otherActor && otherActor != player && !otherActor->IsDead() &&
+                            !otherActor->IsDisabled())
                         {
                             const auto oPos = GetActorWorldPosition(otherActor);
-                            if (IsInVisualCone(observerPos, player->GetAngleZ(), oPos, kMaxVisualConeAngleDeg))
+                            if (IsInVisualCone(observerPos, player->GetAngleZ(), oPos,
+                                               kMaxVisualConeAngleDeg))
                             {
                                 const float d = DistanceMeters(observerPos, oPos);
                                 if (d < closestDistMeters)
@@ -418,7 +405,7 @@ namespace TrueGaze::Engine
         // 1. Highest priority: the active dialogue partner with player (DialogueMenu open)
         if (ui && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME))
         {
-            auto *topicMgr = RE::MenuTopicManager::GetSingleton();
+            auto* topicMgr = RE::MenuTopicManager::GetSingleton();
             if (topicMgr && topicMgr->speaker)
             {
                 if (auto speakerPtr = topicMgr->speaker.get())
@@ -443,15 +430,16 @@ namespace TrueGaze::Engine
         {
             if (auto dlgPtr = dlgHandle.get())
             {
-                if (auto *dlgActor = dlgPtr->As<RE::Actor>())
+                if (auto* dlgActor = dlgPtr->As<RE::Actor>())
                 {
                     if (dlgActor != observer && !dlgActor->IsDead() && !dlgActor->IsDisabled())
                     {
                         const auto dPos = GetActorWorldPosition(dlgActor);
                         const float dDist = DistanceMeters(observerPos, dPos);
-                        // CRITICAL: Must be within conversational range AND inside forward visual cone!
-                        // Bethesda's dialogue target can be an actor in another room or directly behind the observer.
-                        // Forcing gaze to an actor at >75 degrees causes severe neck/head snapping.
+                        // CRITICAL: Must be within conversational range AND inside forward visual
+                        // cone! Bethesda's dialogue target can be an actor in another room or
+                        // directly behind the observer. Forcing gaze to an actor at >75 degrees
+                        // causes severe neck/head snapping.
                         //
                         // EXCEPTION — THE PLAYER (Kirk directive, September 25 2026,
                         // reconfirmed by the September 26 cart screenshot where Ralof
@@ -461,7 +449,9 @@ namespace TrueGaze::Engine
                         // player outside the body-yaw cone, so the cone check must
                         // never veto the player as dialogue partner. Range still
                         // applies — dialogue beyond 6 m is not an address.
-                        if (dDist <= 6.0f && (dlgActor == player || IsInVisualCone(observerPos, observer->GetAngleZ(), dPos, kMaxHoldVisualConeAngleDeg)))
+                        if (dDist <= 6.0f && (dlgActor == player ||
+                                              IsInVisualCone(observerPos, observer->GetAngleZ(),
+                                                             dPos, kMaxHoldVisualConeAngleDeg)))
                         {
                             const auto dHeadPos = GetActorHeadPosition(dlgActor);
                             target.targetFormId = dlgActor->GetFormID();
@@ -514,7 +504,7 @@ namespace TrueGaze::Engine
         // no engine dispatch). The previous GetHeadtrackTarget() relocation
         // path is retained below as a fallback for actors whose high process
         // data is not yet populated.
-        if (auto *high = observer->GetHighProcess())
+        if (auto* high = observer->GetHighProcess())
         {
             // PLAYER PARITY (Kirk directive, September 26 2026): "The Player
             // should be treated the same as the NPC especially when directed
@@ -525,21 +515,23 @@ namespace TrueGaze::Engine
             // outranked the slot aimed at the player, so the player-directed
             // moments never took hold and the player was ignored.
             bool playerDirected = false;
-            RE::Actor *playerDirectedActor = nullptr;
+            RE::Actor* playerDirectedActor = nullptr;
             bool anyDirected = false;
-            RE::Actor *directedActor = nullptr;
+            RE::Actor* directedActor = nullptr;
 
             for (std::uint32_t slot = 0;
                  slot < static_cast<std::uint32_t>(RE::HighProcessData::HEAD_TRACK_TYPE::kTotal);
                  ++slot)
             {
-                if (slot == static_cast<std::uint32_t>(RE::HighProcessData::HEAD_TRACK_TYPE::kDefault) ||
-                    slot == static_cast<std::uint32_t>(RE::HighProcessData::HEAD_TRACK_TYPE::kCombat))
+                if (slot == static_cast<std::uint32_t>(
+                                RE::HighProcessData::HEAD_TRACK_TYPE::kDefault) ||
+                    slot ==
+                        static_cast<std::uint32_t>(RE::HighProcessData::HEAD_TRACK_TYPE::kCombat))
                 {
                     continue; // not direction — see the slot model above
                 }
 
-                const auto &handle = high->headTrackTarget[slot];
+                const auto& handle = high->headTrackTarget[slot];
                 if (!handle)
                 {
                     continue;
@@ -547,7 +539,7 @@ namespace TrueGaze::Engine
 
                 if (auto htPtr = handle.get())
                 {
-                    if (auto *htActor = htPtr->As<RE::Actor>())
+                    if (auto* htActor = htPtr->As<RE::Actor>())
                     {
                         if (htActor != observer && !htActor->IsDead() && !htActor->IsDisabled())
                         {
@@ -621,14 +613,14 @@ namespace TrueGaze::Engine
             // relocation calls, no engine dispatch) — the safest access class.
             if (state && state->dialoguePlayerHoldSec <= 0.0f)
             {
-                const auto &voice = high->voiceState;
+                const auto& voice = high->voiceState;
                 const bool isSpeaking =
                     voice.underlying() == static_cast<std::uint32_t>(RE::VOICE_STATE::kStart) ||
                     voice.underlying() == static_cast<std::uint32_t>(RE::VOICE_STATE::kContinue);
 
                 if (isSpeaking)
                 {
-                    for (const auto &spokenHandle : high->lastSpokenToArray)
+                    for (const auto& spokenHandle : high->lastSpokenToArray)
                     {
                         if (auto spokenPtr = spokenHandle.get())
                         {
@@ -652,13 +644,13 @@ namespace TrueGaze::Engine
                 }
             }
         }
-        else if (auto *process = observer->GetActorRuntimeData().currentProcess)
+        else if (auto* process = observer->GetActorRuntimeData().currentProcess)
         {
             if (auto htHandle = process->GetHeadtrackTarget())
             {
                 if (auto htPtr = htHandle.get())
                 {
-                    if (auto *htActor = htPtr->As<RE::Actor>())
+                    if (auto* htActor = htPtr->As<RE::Actor>())
                     {
                         if (htActor != observer && !htActor->IsDead() && !htActor->IsDisabled())
                         {
@@ -694,7 +686,7 @@ namespace TrueGaze::Engine
 
         // 2. Combat target. Reached through the actor's runtime data as a handle,
         //    not a direct accessor, and validated for liveness before use.
-        RE::Actor *combatTarget = nullptr;
+        RE::Actor* combatTarget = nullptr;
         if (auto combatHandle = observer->GetActorRuntimeData().currentCombatTarget)
         {
             if (auto combatPtr = combatHandle.get())
@@ -707,7 +699,8 @@ namespace TrueGaze::Engine
         {
             const auto combatPos = GetActorWorldPosition(combatTarget);
             const float cDist = DistanceMeters(observerPos, combatPos);
-            if (cDist <= 15.0f && IsInVisualCone(observerPos, observer->GetAngleZ(), combatPos, 75.0f))
+            if (cDist <= 15.0f &&
+                IsInVisualCone(observerPos, observer->GetAngleZ(), combatPos, 75.0f))
             {
                 const auto cHeadPos = GetActorHeadPosition(combatTarget);
                 target.targetFormId = combatTarget->GetFormID();
@@ -755,7 +748,8 @@ namespace TrueGaze::Engine
             if (state->trackedTargetFormId == player->GetFormID())
             {
                 if (playerDistanceMeters <= kNearbyRangeMeters &&
-                    IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos, kMaxHoldVisualConeAngleDeg))
+                    IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos,
+                                   kMaxHoldVisualConeAngleDeg))
                 {
                     if (state->fixationHoldSec < 1.5f)
                     {
@@ -777,14 +771,14 @@ namespace TrueGaze::Engine
             }
             else
             {
-                auto *heldForm = RE::TESForm::LookupByID(state->trackedTargetFormId);
-                auto *heldActor = heldForm ? heldForm->As<RE::Actor>() : nullptr;
+                auto* heldForm = RE::TESForm::LookupByID(state->trackedTargetFormId);
+                auto* heldActor = heldForm ? heldForm->As<RE::Actor>() : nullptr;
                 if (heldActor && !heldActor->IsDead() && !heldActor->IsDisabled())
                 {
                     const auto hPos = GetActorWorldPosition(heldActor);
                     const float hDist = DistanceMeters(observerPos, hPos);
-                    if (hDist <= 5.0f &&
-                        IsInVisualCone(observerPos, observer->GetAngleZ(), hPos, kMaxHoldVisualConeAngleDeg))
+                    if (hDist <= 5.0f && IsInVisualCone(observerPos, observer->GetAngleZ(), hPos,
+                                                        kMaxHoldVisualConeAngleDeg))
                     {
                         if (state->fixationHoldSec < 1.5f)
                         {
@@ -824,7 +818,7 @@ namespace TrueGaze::Engine
         //
         // Range: 6m conversational room range for NPCs, kNearbyRangeMeters (12m) for
         // the player (the player is the most socially salient entity in the world).
-        RE::Actor *closestCandidate = nullptr;
+        RE::Actor* closestCandidate = nullptr;
         float closestCandidateDist = kNearbyRangeMeters; // player can win up to 12m
         bool closestIsPlayer = false;
 
@@ -844,8 +838,8 @@ namespace TrueGaze::Engine
         // with the player (dialogueItemTarget == player), the bias strengthens to
         // 3m: a person addressing you looks at you, full stop.
         {
-            const bool playerInCone = IsInVisualCone(observerPos, observer->GetAngleZ(),
-                                                     playerPos, kMaxHoldVisualConeAngleDeg);
+            const bool playerInCone = IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos,
+                                                     kMaxHoldVisualConeAngleDeg);
             if (playerInCone && playerDistanceMeters < closestCandidateDist)
             {
                 float d = playerDistanceMeters;
@@ -873,48 +867,89 @@ namespace TrueGaze::Engine
         }
 
         // --- Other NPCs (strict forward cone, 6m conversational range) ---
-        if (auto *processLists = RE::ProcessLists::GetSingleton())
+        //
+        // R14 E2.3 — PER-FRAME POSITION CACHE. The original loop called
+        // GetActorWorldPosition (Get3D + world translate) for every candidate,
+        // per OBSERVER, per frame. With N nearby actors each ticking, the total
+        // cost was O(N^2) scene-graph traversals per frame — the dominant crowd
+        // cost in dense cells. The cache below is built ONCE per frame by
+        // whichever observer scans first and is reused (read-only) by every
+        // subsequent observer in the same frame, tagged with the engine frame
+        // counter so a stale cache is rebuilt. Game-thread only, like
+        // everything in this module — no locks.
+        struct CachedCandidate
         {
-            for (auto &handle : processLists->highActorHandles)
+            RE::Actor* actor{nullptr};
+            RE::NiPoint3 worldPos{};
+        };
+        static RE::BSTArray<CachedCandidate> s_scanCache;
+        static uint64_t s_scanFrameTag = 0;
+
+        const uint64_t currentFrame = GazeEngine::Get().GetFrameCounter();
+        if (s_scanFrameTag != currentFrame)
+        {
+            s_scanCache.clear();
+            if (auto* processLists = RE::ProcessLists::GetSingleton())
             {
-                if (auto actorPtr = handle.get())
+                s_scanCache.reserve(processLists->highActorHandles.size());
+                for (auto& handle : processLists->highActorHandles)
                 {
-                    auto *otherActor = actorPtr.get();
-                    if (otherActor && otherActor != observer && otherActor != player &&
-                        !otherActor->IsDead() && !otherActor->IsDisabled())
+                    if (auto actorPtr = handle.get())
                     {
-                        const auto oPos = GetActorWorldPosition(otherActor);
-
-                        // STRICT VISUAL CONE: If target is behind the observer (>65 deg),
-                        // DO NOT select it! A human does not turn their head backward over their shoulder.
-                        if (!IsInVisualCone(observerPos, observer->GetAngleZ(), oPos, kMaxVisualConeAngleDeg))
+                        auto* otherActor = actorPtr.get();
+                        if (otherActor && otherActor != player && !otherActor->IsDead() &&
+                            !otherActor->IsDisabled())
                         {
-                            continue;
-                        }
-
-                        float d = DistanceMeters(observerPos, oPos);
-                        // Cap NPC candidate range at conversational distance
-                        if (d > 6.0f)
-                        {
-                            continue;
-                        }
-                        // NOTE: no player bias here — the player's 1.5m/3m salience
-                        // advantage was already applied on the player's own entry
-                        // above, so NPCs compete from their raw distance.
-                        // Hysteresis advantage for previously tracked target
-                        if (state && state->trackedTargetFormId == otherActor->GetFormID())
-                        {
-                            d -= 0.8f;
-                        }
-
-                        if (d < closestCandidateDist)
-                        {
-                            closestCandidateDist = d;
-                            closestCandidate = otherActor;
-                            closestIsPlayer = (otherActor == player); // always false here
+                            CachedCandidate entry{};
+                            entry.actor = otherActor;
+                            entry.worldPos = GetActorWorldPosition(otherActor);
+                            s_scanCache.push_back(entry);
                         }
                     }
                 }
+            }
+            s_scanFrameTag = currentFrame;
+        }
+
+        // Consume the cache: per-observer work is now only cone + distance
+        // arithmetic on pre-fetched positions — no scene-graph traversal.
+        for (const auto& candidate : s_scanCache)
+        {
+            auto* otherActor = candidate.actor;
+            if (otherActor == observer)
+            {
+                continue;
+            }
+
+            const auto& oPos = candidate.worldPos;
+
+            // STRICT VISUAL CONE: If target is behind the observer (>65 deg),
+            // DO NOT select it! A human does not turn their head backward over their shoulder.
+            if (!IsInVisualCone(observerPos, observer->GetAngleZ(), oPos, kMaxVisualConeAngleDeg))
+            {
+                continue;
+            }
+
+            float d = DistanceMeters(observerPos, oPos);
+            // Cap NPC candidate range at conversational distance
+            if (d > 6.0f)
+            {
+                continue;
+            }
+            // NOTE: no player bias here — the player's 1.5m/3m salience
+            // advantage was already applied on the player's own entry
+            // above, so NPCs compete from their raw distance.
+            // Hysteresis advantage for previously tracked target
+            if (state && state->trackedTargetFormId == otherActor->GetFormID())
+            {
+                d -= 0.8f;
+            }
+
+            if (d < closestCandidateDist)
+            {
+                closestCandidateDist = d;
+                closestCandidate = otherActor;
+                closestIsPlayer = (otherActor == player); // always false here
             }
         }
 

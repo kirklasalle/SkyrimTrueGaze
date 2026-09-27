@@ -1,15 +1,16 @@
 #include "VisualEffectsManager.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
-#include <RE/Skyrim.h>
-#include <RE/B/BSModelDB.h>
-#include <RE/B/BSEffectShaderProperty.h>
 #include <RE/B/BSEffectShaderMaterial.h>
-#include <RE/B/BSLightingShaderProperty.h>
+#include <RE/B/BSEffectShaderProperty.h>
 #include <RE/B/BSLightingShaderMaterial.h>
+#include <RE/B/BSLightingShaderProperty.h>
+#include <RE/B/BSModelDB.h>
 #include <RE/N/NiAlphaProperty.h>
+#include <RE/Skyrim.h>
 #endif
 
+#include <atomic>
 #include <cmath>
 #include <vector>
 
@@ -31,22 +32,21 @@ namespace TrueGaze::Visuals
 
         /// Name given to the attached light nodes. Prefixed so they are obvious in a
         /// scene-graph dump and cannot collide with skeleton bone names.
-        constexpr const char *kPupilLightName = "TrueGaze_PupilLight";
-        constexpr const char *kTerminusLightName = "TrueGaze_TerminusLight";
+        constexpr const char* kPupilLightName = "TrueGaze_PupilLight";
+        constexpr const char* kTerminusLightName = "TrueGaze_TerminusLight";
         // The beam path is configurable through VisualTuning::beamModelPath so an
         // extracted or original asset can be tested without a rebuild. The default
         // remains the current development candidate.
 
 #if __has_include(<RE/Skyrim.h>)
-        RE::NiPoint3 Cross(const RE::NiPoint3 &a_lhs, const RE::NiPoint3 &a_rhs) noexcept
+        RE::NiPoint3 Cross(const RE::NiPoint3& a_lhs, const RE::NiPoint3& a_rhs) noexcept
         {
             return RE::NiPoint3{a_lhs.y * a_rhs.z - a_lhs.z * a_rhs.y,
                                 a_lhs.z * a_rhs.x - a_lhs.x * a_rhs.z,
                                 a_lhs.x * a_rhs.y - a_lhs.y * a_rhs.x};
         }
 
-        RE::NiMatrix3 BeamTransform(const RE::NiPoint3 &a_forward,
-                                    float a_crossSectionRadius,
+        RE::NiMatrix3 BeamTransform(const RE::NiPoint3& a_forward, float a_crossSectionRadius,
                                     float a_beamLength) noexcept
         {
             RE::NiPoint3 forward = a_forward;
@@ -65,14 +65,11 @@ namespace TrueGaze::Visuals
             // Column 0 (Right / X) scaled to beam cross-section radius
             // Column 1 (Forward / Y) scaled to target reach length
             // Column 2 (Up / Z) scaled to beam cross-section radius
-            RE::NiPoint3 scaledRight{right.x * a_crossSectionRadius,
-                                     right.y * a_crossSectionRadius,
+            RE::NiPoint3 scaledRight{right.x * a_crossSectionRadius, right.y * a_crossSectionRadius,
                                      right.z * a_crossSectionRadius};
-            RE::NiPoint3 scaledForward{forward.x * a_beamLength,
-                                       forward.y * a_beamLength,
+            RE::NiPoint3 scaledForward{forward.x * a_beamLength, forward.y * a_beamLength,
                                        forward.z * a_beamLength};
-            RE::NiPoint3 scaledUp{up.x * a_crossSectionRadius,
-                                  up.y * a_crossSectionRadius,
+            RE::NiPoint3 scaledUp{up.x * a_crossSectionRadius, up.y * a_crossSectionRadius,
                                   up.z * a_crossSectionRadius};
 
             return RE::NiMatrix3(scaledRight, scaledForward, scaledUp);
@@ -85,8 +82,7 @@ namespace TrueGaze::Visuals
         ///
         /// Basis convention (NiMatrix3 columns): X = right, Y = forward, Z = up.
         /// The deflection is gimbal-style: yaw about up, pitch about right.
-        RE::NiPoint3 GazeDirection(const RE::NiMatrix3 &a_basis,
-                                   float a_yawRad,
+        RE::NiPoint3 GazeDirection(const RE::NiMatrix3& a_basis, float a_yawRad,
                                    float a_pitchRad) noexcept
         {
             const RE::NiPoint3 right = a_basis.GetVectorX();
@@ -98,10 +94,9 @@ namespace TrueGaze::Visuals
             const float cp = std::cos(a_pitchRad);
             const float sp = std::sin(a_pitchRad);
 
-            RE::NiPoint3 dir{
-                forward.x * cy * cp + right.x * sy * cp + up.x * sp,
-                forward.y * cy * cp + right.y * sy * cp + up.y * sp,
-                forward.z * cy * cp + right.z * sy * cp + up.z * sp};
+            RE::NiPoint3 dir{forward.x * cy * cp + right.x * sy * cp + up.x * sp,
+                             forward.y * cy * cp + right.y * sy * cp + up.y * sp,
+                             forward.z * cy * cp + right.z * sy * cp + up.z * sp};
 
             (void)dir.Unitize();
             return dir;
@@ -120,8 +115,7 @@ namespace TrueGaze::Visuals
         /// gold ghost instead of a floodlight.
         ///
         /// Returns true if any shader property was adjusted.
-        bool TintBeamGeometry(RE::NiNode *a_root,
-                              const VisualTuning &a_tuning) noexcept
+        bool TintBeamGeometry(RE::NiNode* a_root, const VisualTuning& a_tuning) noexcept
         {
             if (!a_root)
             {
@@ -139,22 +133,21 @@ namespace TrueGaze::Visuals
                 RE::NiPointer<RE::NiAVObject> obj = stack.back();
                 stack.pop_back();
 
-                if (auto *geo = obj->AsGeometry())
+                if (auto* geo = obj->AsGeometry())
                 {
-                    auto *shaderProp = geo->GetGeometryRuntimeData().shaderProperty.get();
-                    if (auto *effect = netimmerse_cast<RE::BSEffectShaderProperty *>(shaderProp))
+                    auto* shaderProp = geo->GetGeometryRuntimeData().shaderProperty.get();
+                    if (auto* effect = netimmerse_cast<RE::BSEffectShaderProperty*>(shaderProp))
                     {
-                        if (auto *material = effect->GetMaterial())
+                        if (auto* material = effect->GetMaterial())
                         {
-                            material->baseColor = RE::NiColorA(a_tuning.ColourR(),
-                                                               a_tuning.ColourG(),
-                                                               a_tuning.ColourB(),
-                                                               alpha);
+                            material->baseColor = RE::NiColorA(
+                                a_tuning.ColourR(), a_tuning.ColourG(), a_tuning.ColourB(), alpha);
                             material->baseColorScale = 1.0f;
                             adjusted = true;
                         }
                     }
-                    else if (auto *lighting = netimmerse_cast<RE::BSLightingShaderProperty *>(shaderProp))
+                    else if (auto* lighting =
+                                 netimmerse_cast<RE::BSLightingShaderProperty*>(shaderProp))
                     {
                         // Kill the white floodlight look: no emissive, no specular,
                         // alpha from the INI. The arrow keeps its shape but stops
@@ -164,7 +157,8 @@ namespace TrueGaze::Visuals
                             *lighting->emissiveColor = RE::NiColor(0.0f, 0.0f, 0.0f);
                         }
                         lighting->emissiveMult = 0.0f;
-                        if (auto *material = static_cast<RE::BSLightingShaderMaterialBase *>(lighting->GetBaseMaterial()))
+                        if (auto* material = static_cast<RE::BSLightingShaderMaterialBase*>(
+                                lighting->GetBaseMaterial()))
                         {
                             material->specularColor = RE::NiColor(0.0f, 0.0f, 0.0f);
                             material->specularColorScale = 0.0f;
@@ -174,9 +168,9 @@ namespace TrueGaze::Visuals
                     }
                 }
 
-                if (auto *node = obj->AsNode())
+                if (auto* node = obj->AsNode())
                 {
-                    for (auto &child : node->GetChildren())
+                    for (auto& child : node->GetChildren())
                     {
                         if (child)
                         {
@@ -196,7 +190,7 @@ namespace TrueGaze::Visuals
     // Lifecycle
     // ---------------------------------------------------------------------------
 
-    void VisualEffectsManager::SetTuning(const VisualTuning &a_tuning) noexcept
+    void VisualEffectsManager::SetTuning(const VisualTuning& a_tuning) noexcept
     {
         _tuning = a_tuning;
 
@@ -210,12 +204,9 @@ namespace TrueGaze::Visuals
         logger::info("[TrueGaze] Visual tuning: visuals={} rays={} mode={} length={:.1f}m "
                      "colour=#{:06X} opacity={:.2f} terminus={}",
                      _tuning.enableInGameVisuals ? "on" : "off",
-                     _tuning.gazeRaysEnabled ? "on" : "off",
-                     _tuning.rayRenderMode,
-                     _tuning.gazeRayLengthMeters,
-                     _tuning.gazeRayColour & 0x00FFFFFF,
-                     _tuning.gazeRayOpacity,
-                     _tuning.gazeRaysTerminus ? "yes" : "no");
+                     _tuning.gazeRaysEnabled ? "on" : "off", _tuning.rayRenderMode,
+                     _tuning.gazeRayLengthMeters, _tuning.gazeRayColour & 0x00FFFFFF,
+                     _tuning.gazeRayOpacity, _tuning.gazeRaysTerminus ? "yes" : "no");
     }
 
     void VisualEffectsManager::Reset() noexcept
@@ -223,7 +214,7 @@ namespace TrueGaze::Visuals
         // Dropping the map releases the NiPointers, but the light nodes are still
         // attached to the skeletons. Detach them first so the scene graph does not
         // hold dangling children.
-        for (auto &kv : _emitters)
+        for (auto& kv : _emitters)
         {
             DetachAll(kv.second);
         }
@@ -249,14 +240,10 @@ namespace TrueGaze::Visuals
     // Per-actor update
     // ---------------------------------------------------------------------------
 
-    void VisualEffectsManager::UpdateActor(RE::Actor *a_actor,
-                                           RE::NiAVObject *a_headBone,
-                                           RE::NiAVObject *a_eyeL,
-                                           RE::NiAVObject *a_eyeR,
-                                           float a_eyeYawDeg,
-                                           float a_eyePitchDeg,
-                                           uint8_t a_gazeRegion,
-                                           bool a_isPlayer,
+    void VisualEffectsManager::UpdateActor(RE::Actor* a_actor, RE::NiAVObject* a_headBone,
+                                           RE::NiAVObject* a_eyeL, RE::NiAVObject* a_eyeR,
+                                           float a_eyeYawDeg, float a_eyePitchDeg,
+                                           uint8_t a_gazeRegion, bool a_isPlayer,
                                            bool a_isHumanoid) noexcept
     {
         (void)a_gazeRegion; // reserved: developer state colour coding (phase V3)
@@ -302,7 +289,7 @@ namespace TrueGaze::Visuals
 
         // The head bone is the attachment anchor. Without it we cannot place the
         // emitter; without emitters there is nothing to withdraw.
-        RE::NiAVObject *anchor = a_headBone;
+        RE::NiAVObject* anchor = a_headBone;
         if (!_tuning.gazeRaysAttachHead || !anchor)
         {
             anchor = a_actor->Get3D();
@@ -322,9 +309,15 @@ namespace TrueGaze::Visuals
         // is what triggers attachment below.
         if (_updateCalls <= 3)
         {
-            logger::info("[TrueGaze] Visual UpdateActor entered for {:08X}: anchor={} allowRays={} allowPanel={}",
+            logger::info("[TrueGaze] Visual UpdateActor entered for {:08X}: anchor={} allowRays={} "
+                         "allowPanel={}",
                          formId, anchor ? "yes" : "null", allowRays, allowPanel);
         }
+
+        // R14 E7.3 — log once per saturation episode; a silent cap made
+        // "why does this NPC have no gaze ray?" undiagnosable. Declared at
+        // function scope so both the warn and the re-arm below see it.
+        static std::atomic<bool> s_capWarned{false};
 
         auto it = _emitters.find(formId);
         if (it == _emitters.end())
@@ -333,12 +326,21 @@ namespace TrueGaze::Visuals
             {
                 // Bound the emitter count independently of the runtime actor cap so a
                 // large cell cannot multiply the visual cost without limit.
+                if (!s_capWarned.exchange(true))
+                {
+                    logger::warn(
+                        "[TrueGaze] Visual emitter cap reached ({} actors). "
+                        "Additional actors will have no gaze visuals until the count drops.",
+                        kMaxEmitterActors);
+                }
                 return;
             }
             it = _emitters.emplace(formId, ActorEmitters{}).first;
+            // A new emitter means the cap is no longer saturated; re-arm the warn.
+            s_capWarned.store(false, std::memory_order_relaxed);
         }
 
-        ActorEmitters &emitters = it->second;
+        ActorEmitters& emitters = it->second;
         emitters.lastFrame = _frameCounter;
 
         // (Re)parent when the anchor changed - e.g. the actor's 3D was rebuilt on a
@@ -366,7 +368,7 @@ namespace TrueGaze::Visuals
         }
         else if (!allowRays && emitters.geometry)
         {
-            auto *node = emitters.parent.get() ? emitters.parent->AsNode() : nullptr;
+            auto* node = emitters.parent.get() ? emitters.parent->AsNode() : nullptr;
             if (node)
             {
                 node->DetachChild(emitters.geometry.get());
@@ -391,16 +393,12 @@ namespace TrueGaze::Visuals
 
             // Brightness folds the user's opacity and the pupil-glow multiplier so the
             // two keys compose instead of one silently winning.
-            const float scale = std::clamp(_tuning.gazeRayOpacity * _tuning.pupilGlowIntensity,
-                                           0.0f, 1.0f);
-            ApplyLightColour(emitters.pupilLight.get(),
-                             _tuning.ColourR() * scale,
-                             _tuning.ColourG() * scale,
-                             _tuning.ColourB() * scale);
-            ApplyLightColour(emitters.terminusLight.get(),
-                             _tuning.ColourR() * scale,
-                             _tuning.ColourG() * scale,
-                             _tuning.ColourB() * scale);
+            const float scale =
+                std::clamp(_tuning.gazeRayOpacity * _tuning.pupilGlowIntensity, 0.0f, 1.0f);
+            ApplyLightColour(emitters.pupilLight.get(), _tuning.ColourR() * scale,
+                             _tuning.ColourG() * scale, _tuning.ColourB() * scale);
+            ApplyLightColour(emitters.terminusLight.get(), _tuning.ColourR() * scale,
+                             _tuning.ColourG() * scale, _tuning.ColourB() * scale);
         }
         else if (emitters.pupilLight || emitters.terminusLight)
         {
@@ -441,10 +439,9 @@ namespace TrueGaze::Visuals
 
         if (emitters.terminusLight)
         {
-            const RE::NiPoint3 terminusWorld{
-                originWorld.x + dirWorld.x * _tuning.LengthUnits(),
-                originWorld.y + dirWorld.y * _tuning.LengthUnits(),
-                originWorld.z + dirWorld.z * _tuning.LengthUnits()};
+            const RE::NiPoint3 terminusWorld{originWorld.x + dirWorld.x * _tuning.LengthUnits(),
+                                             originWorld.y + dirWorld.y * _tuning.LengthUnits(),
+                                             originWorld.z + dirWorld.z * _tuning.LengthUnits()};
             emitters.terminusLight->local.translate = anchorInverse * terminusWorld;
         }
 
@@ -484,9 +481,8 @@ namespace TrueGaze::Visuals
                 // directly into the rotation matrix columns as non-uniform scale.
                 float beamThickness = _tuning.ThicknessUnits();
                 float beamLength = _tuning.LengthUnits();
-                emitters.geometry->local.rotate = BeamTransform(localDirection,
-                                                                beamThickness,
-                                                                beamLength);
+                emitters.geometry->local.rotate =
+                    BeamTransform(localDirection, beamThickness, beamLength);
                 emitters.geometry->local.scale = 1.0f;
             }
 
@@ -529,17 +525,16 @@ namespace TrueGaze::Visuals
 
 #if __has_include(<RE/Skyrim.h>)
 
-    void VisualEffectsManager::EnsureLight(ActorEmitters &a_emitters,
-                                           RE::NiAVObject *a_anchor,
+    void VisualEffectsManager::EnsureLight(ActorEmitters& a_emitters, RE::NiAVObject* a_anchor,
                                            bool a_pupil) noexcept
     {
-        auto *slot = a_pupil ? &a_emitters.pupilLight : &a_emitters.terminusLight;
+        auto* slot = a_pupil ? &a_emitters.pupilLight : &a_emitters.terminusLight;
         if (*slot)
         {
             return; // idempotent
         }
 
-        auto *node = a_anchor ? a_anchor->AsNode() : nullptr;
+        auto* node = a_anchor ? a_anchor->AsNode() : nullptr;
         if (!node)
         {
             return;
@@ -548,11 +543,10 @@ namespace TrueGaze::Visuals
         if (_lightsCreated < 4)
         {
             logger::info("[TrueGaze] EnsureLight: creating {} light (anchor node children={})",
-                         a_pupil ? "pupil" : "terminus",
-                         node->GetChildren().size());
+                         a_pupil ? "pupil" : "terminus", node->GetChildren().size());
         }
 
-        auto *light = RE::NiPointLight::Create();
+        auto* light = RE::NiPointLight::Create();
         if (!light)
         {
             ++_lightCreateFailures;
@@ -585,9 +579,9 @@ namespace TrueGaze::Visuals
         }
     }
 
-    void VisualEffectsManager::DetachLights(ActorEmitters &a_emitters) noexcept
+    void VisualEffectsManager::DetachLights(ActorEmitters& a_emitters) noexcept
     {
-        auto *node = a_emitters.parent.get() ? a_emitters.parent->AsNode() : nullptr;
+        auto* node = a_emitters.parent.get() ? a_emitters.parent->AsNode() : nullptr;
         if (!node)
         {
             return;
@@ -613,18 +607,18 @@ namespace TrueGaze::Visuals
         }
     }
 
-    void VisualEffectsManager::AttachEmitters(ActorEmitters &a_emitters,
-                                              RE::NiAVObject *a_anchor) noexcept
+    void VisualEffectsManager::AttachEmitters(ActorEmitters& a_emitters,
+                                              RE::NiAVObject* a_anchor) noexcept
     {
         a_emitters.parent.reset(a_anchor);
     }
 
-    void VisualEffectsManager::DetachAll(ActorEmitters &a_emitters) noexcept
+    void VisualEffectsManager::DetachAll(ActorEmitters& a_emitters) noexcept
     {
         DetachLights(a_emitters);
         DetachPanel(a_emitters);
 
-        auto *node = a_emitters.parent.get() ? a_emitters.parent->AsNode() : nullptr;
+        auto* node = a_emitters.parent.get() ? a_emitters.parent->AsNode() : nullptr;
         if (node && a_emitters.geometry)
         {
             node->DetachChild(a_emitters.geometry.get());
@@ -633,8 +627,8 @@ namespace TrueGaze::Visuals
         a_emitters.parent = nullptr;
     }
 
-    void VisualEffectsManager::EnsureBeamGeometry(ActorEmitters &a_emitters,
-                                                  RE::NiAVObject *a_anchor) noexcept
+    void VisualEffectsManager::EnsureBeamGeometry(ActorEmitters& a_emitters,
+                                                  RE::NiAVObject* a_anchor) noexcept
     {
         if (a_emitters.geometry || !a_anchor || !a_anchor->AsNode())
         {
@@ -645,9 +639,8 @@ namespace TrueGaze::Visuals
         // actor remains active, rather than probing the model database every update.
         // A known-missing path backs off more aggressively so a bad asset cannot add
         // a resource lookup to every actor tick.
-        const uint64_t retryFrames = a_emitters.geometryState == ActorEmitters::GeometryState::Missing
-                                         ? 300
-                                         : 30;
+        const uint64_t retryFrames =
+            a_emitters.geometryState == ActorEmitters::GeometryState::Missing ? 300 : 30;
         if (a_emitters.geometryAttempts > 0 &&
             _frameCounter - a_emitters.lastGeometryAttemptFrame < retryFrames)
         {
@@ -665,14 +658,15 @@ namespace TrueGaze::Visuals
         RE::NiPointer<RE::NiNode> model;
         RE::BSModelDB::DBTraits::ArgsType args;
         RE::BSResource::ErrorCode result = RE::BSResource::ErrorCode::kInvalidPath;
-        const char *effectivePath = _tuning.beamModelPath;
+        const char* effectivePath = _tuning.beamModelPath;
 
         try
         {
             result = RE::BSModelDB::Demand(_tuning.beamModelPath, model, args);
 
             // If the primary standalone mesh path is missing, try the secondary fallback path
-            if ((result != RE::BSResource::ErrorCode::kNone || !model) && _tuning.beamModelFallbackPath)
+            if ((result != RE::BSResource::ErrorCode::kNone || !model) &&
+                _tuning.beamModelFallbackPath)
             {
                 result = RE::BSModelDB::Demand(_tuning.beamModelFallbackPath, model, args);
                 if (result == RE::BSResource::ErrorCode::kNone && model)
@@ -681,7 +675,7 @@ namespace TrueGaze::Visuals
                 }
             }
         }
-        catch (const std::exception &e)
+        catch (const std::exception& e)
         {
             logger::error("[TrueGaze] Exception demanding beam model: {}", e.what());
             result = RE::BSResource::ErrorCode::kInvalidPath;
@@ -701,7 +695,8 @@ namespace TrueGaze::Visuals
                                            : ActorEmitters::GeometryState::Invalid;
             if (a_emitters.geometryAttempts == 1 || result != RE::BSResource::ErrorCode::kNotExist)
             {
-                logger::info("[TrueGaze] Beam geometry not found ('{}'); utilizing verified NiPointLight emitter fallback.",
+                logger::info("[TrueGaze] Beam geometry not found ('{}'); utilizing verified "
+                             "NiPointLight emitter fallback.",
                              _tuning.beamModelPath);
             }
             // Ensure verified light emitter fallback is active when geometry is absent
@@ -710,7 +705,7 @@ namespace TrueGaze::Visuals
         }
 
         auto clonedObject = model->Clone();
-        auto *clonedNode = clonedObject ? clonedObject->AsNode() : nullptr;
+        auto* clonedNode = clonedObject ? clonedObject->AsNode() : nullptr;
         if (!clonedNode)
         {
             logger::warn("[TrueGaze] Failed to clone beam model '{}'.", effectivePath);
@@ -725,33 +720,31 @@ namespace TrueGaze::Visuals
         // was loaded from (primary or fallback). The Dawnguard beam strip is
         // also non-unit (BSA asset, variable dimensions) and uses BeamTransform
         // rotation-only with uniform scale, same as the arrow.
-        a_emitters.usingFallbackMesh =
-            (effectivePath == _tuning.beamModelFallbackPath) ||
-            (std::strstr(effectivePath, "marker_arrow") != nullptr) ||
-            (std::strstr(effectivePath, "fxsoulcairnbeam") != nullptr);
+        a_emitters.usingFallbackMesh = (effectivePath == _tuning.beamModelFallbackPath) ||
+                                       (std::strstr(effectivePath, "marker_arrow") != nullptr) ||
+                                       (std::strstr(effectivePath, "fxsoulcairnbeam") != nullptr);
         ++_geometryCreated;
 
         // Recolour the freshly cloned geometry so the fallback arrow stops
         // rendering as a blinding white debug marker and the custom beam NIF
         // tracks the INI colour/opacity without a rebuild.
         const bool tinted = TintBeamGeometry(clonedNode, _tuning);
-        logger::info("[TrueGaze] Visible beam geometry attached from '{}'{} and will follow solved gaze{}",
-                     effectivePath,
-                     a_emitters.usingFallbackMesh ? " (fallback)" : "",
-                     tinted ? " (shader tinted)" : "");
+        logger::info(
+            "[TrueGaze] Visible beam geometry attached from '{}'{} and will follow solved gaze{}",
+            effectivePath, a_emitters.usingFallbackMesh ? " (fallback)" : "",
+            tinted ? " (shader tinted)" : "");
     }
 
-    void VisualEffectsManager::EnsureHcepPanel(ActorEmitters &a_emitters,
-                                               RE::NiAVObject *a_anchor) noexcept
+    void VisualEffectsManager::EnsureHcepPanel(ActorEmitters& a_emitters,
+                                               RE::NiAVObject* a_anchor) noexcept
     {
         if (a_emitters.hcepPanel || !a_anchor || !a_anchor->AsNode())
         {
             return;
         }
 
-        const uint64_t retryFrames = a_emitters.panelState == ActorEmitters::GeometryState::Missing
-                                         ? 300
-                                         : 30;
+        const uint64_t retryFrames =
+            a_emitters.panelState == ActorEmitters::GeometryState::Missing ? 300 : 30;
         if (a_emitters.panelAttempts > 0 &&
             _frameCounter - a_emitters.lastPanelAttemptFrame < retryFrames)
         {
@@ -773,7 +766,7 @@ namespace TrueGaze::Visuals
         {
             result = RE::BSModelDB::Demand(_tuning.hcepPanelModelPath, model, args);
         }
-        catch (const std::exception &e)
+        catch (const std::exception& e)
         {
             logger::error("[TrueGaze] Exception demanding HCEP panel model: {}", e.what());
             result = RE::BSResource::ErrorCode::kInvalidPath;
@@ -800,10 +793,11 @@ namespace TrueGaze::Visuals
         }
 
         auto clonedObject = model->Clone();
-        auto *clonedNode = clonedObject ? clonedObject->AsNode() : nullptr;
+        auto* clonedNode = clonedObject ? clonedObject->AsNode() : nullptr;
         if (!clonedNode)
         {
-            logger::warn("[TrueGaze] Failed to clone HCEP panel model '{}'.", _tuning.hcepPanelModelPath);
+            logger::warn("[TrueGaze] Failed to clone HCEP panel model '{}'.",
+                         _tuning.hcepPanelModelPath);
             return;
         }
 
@@ -814,8 +808,7 @@ namespace TrueGaze::Visuals
                      _tuning.hcepPanelModelPath);
     }
 
-    void VisualEffectsManager::UpdateHcepPanel(ActorEmitters &a_emitters,
-                                               RE::NiAVObject *a_anchor,
+    void VisualEffectsManager::UpdateHcepPanel(ActorEmitters& a_emitters, RE::NiAVObject* a_anchor,
                                                uint8_t a_gazeRegion) noexcept
     {
         if (!a_emitters.hcepPanel || !a_anchor)
@@ -825,13 +818,11 @@ namespace TrueGaze::Visuals
 
         try
         {
-            // Panel floats directly in front of the head at HcepPanelForwardOffsetUnits (~24.5 units)
-            // Mesh is authored in XZ plane (vertical billboard), normal facing +Y (toward viewer).
-            // Translate along head local +Y (forward), no additional rotation needed.
-            a_emitters.hcepPanel->local.translate = RE::NiPoint3{
-                0.0f,
-                _tuning.HcepPanelForwardOffsetUnits(),
-                0.0f};
+            // Panel floats directly in front of the head at HcepPanelForwardOffsetUnits (~24.5
+            // units) Mesh is authored in XZ plane (vertical billboard), normal facing +Y (toward
+            // viewer). Translate along head local +Y (forward), no additional rotation needed.
+            a_emitters.hcepPanel->local.translate =
+                RE::NiPoint3{0.0f, _tuning.HcepPanelForwardOffsetUnits(), 0.0f};
             a_emitters.hcepPanel->local.rotate = RE::NiMatrix3();
             a_emitters.hcepPanel->local.scale = _tuning.hcepPanelScale;
 
@@ -845,20 +836,21 @@ namespace TrueGaze::Visuals
             if (a_emitters.lastGazeRegion != a_gazeRegion)
             {
                 a_emitters.lastGazeRegion = a_gazeRegion;
-                auto *node = a_emitters.hcepPanel->AsNode();
+                auto* node = a_emitters.hcepPanel->AsNode();
                 if (node && !node->GetChildren().empty())
                 {
-                    auto &child = node->GetChildren().front();
+                    auto& child = node->GetChildren().front();
                     if (child)
                     {
-                        auto *geo = child->AsGeometry();
+                        auto* geo = child->AsGeometry();
                         if (geo)
                         {
-                            auto *shaderProp = geo->GetGeometryRuntimeData().shaderProperty.get();
-                            auto *effectShader = netimmerse_cast<RE::BSEffectShaderProperty *>(shaderProp);
+                            auto* shaderProp = geo->GetGeometryRuntimeData().shaderProperty.get();
+                            auto* effectShader =
+                                netimmerse_cast<RE::BSEffectShaderProperty*>(shaderProp);
                             if (effectShader)
                             {
-                                auto *material = effectShader->GetMaterial();
+                                auto* material = effectShader->GetMaterial();
                                 if (material)
                                 {
                                     float r = 1.0f, g = 1.0f, b = 1.0f;
@@ -942,9 +934,9 @@ namespace TrueGaze::Visuals
         }
     }
 
-    void VisualEffectsManager::DetachPanel(ActorEmitters &a_emitters) noexcept
+    void VisualEffectsManager::DetachPanel(ActorEmitters& a_emitters) noexcept
     {
-        auto *node = a_emitters.parent.get() ? a_emitters.parent->AsNode() : nullptr;
+        auto* node = a_emitters.parent.get() ? a_emitters.parent->AsNode() : nullptr;
         if (node && a_emitters.hcepPanel)
         {
             node->DetachChild(a_emitters.hcepPanel.get());
@@ -954,13 +946,13 @@ namespace TrueGaze::Visuals
 
 #else
 
-    void VisualEffectsManager::EnsureHcepPanel(ActorEmitters &, RE::NiAVObject *) noexcept {}
-    void VisualEffectsManager::UpdateHcepPanel(ActorEmitters &, RE::NiAVObject *, uint8_t) noexcept {}
-    void VisualEffectsManager::DetachPanel(ActorEmitters &) noexcept {}
-    void VisualEffectsManager::EnsureLight(ActorEmitters &, RE::NiAVObject *, bool) noexcept {}
-    void VisualEffectsManager::DetachLights(ActorEmitters &) noexcept {}
-    void VisualEffectsManager::AttachEmitters(ActorEmitters &, RE::NiAVObject *) noexcept {}
-    void VisualEffectsManager::DetachAll(ActorEmitters &) noexcept {}
+    void VisualEffectsManager::EnsureHcepPanel(ActorEmitters&, RE::NiAVObject*) noexcept {}
+    void VisualEffectsManager::UpdateHcepPanel(ActorEmitters&, RE::NiAVObject*, uint8_t) noexcept {}
+    void VisualEffectsManager::DetachPanel(ActorEmitters&) noexcept {}
+    void VisualEffectsManager::EnsureLight(ActorEmitters&, RE::NiAVObject*, bool) noexcept {}
+    void VisualEffectsManager::DetachLights(ActorEmitters&) noexcept {}
+    void VisualEffectsManager::AttachEmitters(ActorEmitters&, RE::NiAVObject*) noexcept {}
+    void VisualEffectsManager::DetachAll(ActorEmitters&) noexcept {}
 
 #endif // __has_include(<RE/Skyrim.h>)
 
@@ -968,21 +960,19 @@ namespace TrueGaze::Visuals
     // Geometry helpers
     // ---------------------------------------------------------------------------
 
-    void VisualEffectsManager::ResolvePupil(const RE::NiAVObject *a_headBone,
-                                            const RE::NiAVObject *a_eyeL,
-                                            const RE::NiAVObject *a_eyeR,
-                                            float a_eyeYawDeg,
-                                            float a_eyePitchDeg,
-                                            RE::NiPoint3 &a_originOut,
-                                            RE::NiPoint3 &a_dirOut) const noexcept
+    void VisualEffectsManager::ResolvePupil(const RE::NiAVObject* a_headBone,
+                                            const RE::NiAVObject* a_eyeL,
+                                            const RE::NiAVObject* a_eyeR, float a_eyeYawDeg,
+                                            float a_eyePitchDeg, RE::NiPoint3& a_originOut,
+                                            RE::NiPoint3& a_dirOut) const noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
         // Prefer a real eye bone when the rig has one (XP32/XPMSSE, some creatures).
         // Its world transform already accounts for the animation and the head turn.
-        const RE::NiAVObject *eye = a_eyeL ? a_eyeL : a_eyeR;
+        const RE::NiAVObject* eye = a_eyeL ? a_eyeL : a_eyeR;
 
-        const RE::NiMatrix3 basis = a_headBone ? a_headBone->world.rotate
-                                               : (eye ? eye->world.rotate : RE::NiMatrix3());
+        const RE::NiMatrix3 basis =
+            a_headBone ? a_headBone->world.rotate : (eye ? eye->world.rotate : RE::NiMatrix3());
 
         const float yawRad = a_eyeYawDeg * kDegToRad;
         const float pitchRad = a_eyePitchDeg * kDegToRad;
@@ -998,10 +988,10 @@ namespace TrueGaze::Visuals
             const RE::NiPoint3 up = basis.GetVectorZ();
             const float fOff = _tuning.ForwardOffsetUnits();
             const float uOff = _tuning.UpOffsetUnits();
-            a_originOut = RE::NiPoint3{
-                a_headBone->world.translate.x + forward.x * fOff + up.x * uOff,
-                a_headBone->world.translate.y + forward.y * fOff + up.y * uOff,
-                a_headBone->world.translate.z + forward.z * fOff + up.z * uOff};
+            a_originOut =
+                RE::NiPoint3{a_headBone->world.translate.x + forward.x * fOff + up.x * uOff,
+                             a_headBone->world.translate.y + forward.y * fOff + up.y * uOff,
+                             a_headBone->world.translate.z + forward.z * fOff + up.z * uOff};
         }
         else
         {
@@ -1020,8 +1010,8 @@ namespace TrueGaze::Visuals
 #endif
     }
 
-    void VisualEffectsManager::ApplyLightColour(RE::NiPointLight *a_light,
-                                                float a_r, float a_g, float a_b) noexcept
+    void VisualEffectsManager::ApplyLightColour(RE::NiPointLight* a_light, float a_r, float a_g,
+                                                float a_b) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
         if (!a_light)
@@ -1029,7 +1019,7 @@ namespace TrueGaze::Visuals
             return;
         }
 
-        auto &data = a_light->GetLightRuntimeData();
+        auto& data = a_light->GetLightRuntimeData();
         data.diffuse = RE::NiColor(a_r, a_g, a_b);
         data.ambient = RE::NiColor(0.0f, 0.0f, 0.0f);
 #else

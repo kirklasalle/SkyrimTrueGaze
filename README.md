@@ -5,11 +5,11 @@
 ### A First-Party Product of the Human Communication Eye Protocol (HCEP) Architecture
 
 [![Status](https://img.shields.io/badge/status-Production%20Release-brightgreen)](#-current-project-status)
-[![Version](https://img.shields.io/badge/version-1.0.5-blue)](#)
+[![Version](https://img.shields.io/badge/version-1.0.6-blue)](#)
 [![Platform](https://img.shields.io/badge/platform-Skyrim%20SE%20%7C%20AE%20%7C%20VR-4b5563)](#)
 [![C++](https://img.shields.io/badge/C%2B%2B-23-00599C)](#)
 [![SDK](https://img.shields.io/badge/SDK-CommonLibSSE--NG-8b5cf6)](#)
-[![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0-yellow)](LICENSE)
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** [`https://github.com/kirklasalle/SkyrimTrueGaze`](https://github.com/kirklasalle/SkyrimTrueGaze)  
@@ -21,7 +21,7 @@
 </p>
 
 > [!IMPORTANT]
-> **Production Release v1.0.5 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, organic social triangle cycling with weighted-random scanpaths), resolves eye-dominant gaze with a head engagement threshold, times Cognitive Gaze Aversion returns to dialogue onset with per-actor ±2s offsets, dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, bundles both Option 1 (Pencil-thin subtle laser rays) and Option 2 (Floating HCEP ocular diagram panel) visual systems, and packages the standalone TrueGaze Web Configurator suite and User Guide directly in the distribution archive.
+> **Production Release v1.0.6 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, organic social triangle cycling with weighted-random scanpaths), resolves eye-dominant gaze with a head engagement threshold, times Cognitive Gaze Aversion returns to dialogue onset with per-actor ±2s offsets, dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, bundles both Option 1 (Pencil-thin subtle laser rays) and Option 2 (Floating HCEP ocular diagram panel) visual systems, and packages the standalone TrueGaze Web Configurator suite and User Guide directly in the distribution archive.
 
 ---
 
@@ -29,7 +29,7 @@
 
 | | |
 | :--- | :--- |
-| **Maturity** | 🟢 **Production Release v1.0.5 + Gold Standard Scene Integration** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
+| **Maturity** | 🟢 **Production Release v1.0.6 + Gold Standard Scene Integration** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
 | **Builds & links the SDK?** | ✅ Yes — unified multi-target Release x64 DLL (`CommonLibSSE-NG`, `OpenVR`, `spdlog`, `fmt`, `/O2`) |
 | **Drives bones?** | ✅ Yes — procedural saccadic, VOR, and cervical hierarchy bone manipulation live |
 | **In-Engine Verification** | ✅ **Verified in Skyrim AE & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, eye-to-eye targeting, and telemetry confirmed |
@@ -236,7 +236,7 @@ One of the most powerful architectural enhancements is making `TrueGaze` a first
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        MODE 1: AUTONOMOUS EDGE                         │
 │  • 100% self-contained inside Skyrim SE/AE (TrueGaze.dll).             │
-│  • High-performance C++20 running at 60–144+ FPS.                      │
+│  • High-performance C++23 running at 60–144+ FPS.                      │
 │  • Controls all world NPCs, companions, and creatures.                │
 │  • Zero external apps or hardware required.                            │
 └───────────────────────────────────┬────────────────────────────────────┘
@@ -353,7 +353,7 @@ Here is the clean, modular directory structure ready to be initialized for the `
 ```
 D:\Projects\SkyrimTrueGaze/
 ├── CMakeLists.txt                    # Modern CMake build script
-├── CMakePresets.json                 # MSVC C++20 build presets (SE, AE, VR)
+├── CMakePresets.json                 # MSVC C++23 build presets (SE, AE, VR)
 ├── vcpkg.json                        # Dependency management
 ├── README.md                         # Product overview & installation guide
 ├── LICENSE                           # Dual-license / MIT integration
@@ -685,7 +685,17 @@ Contributions are welcome, particularly in the areas identified by the current r
 
 **Public science cited by this project:** the Main Sequence saccade equation (Bahill, Clark & Stark, 1975; Baloh et al., 1975), gaze aversion under cognitive load (Glenberg et al., 1998), and Social Triangle scanpaths (Argyle & Cook, 1976; Ingham et al., 1973). These are published academic findings and are not claimed as trade secrets.
 
-> ⚠️ **Licensing conflict to resolve.** `LICENSE` states "No license is granted... copying, distribution... prohibited", which is irreconcilable with publishing a public modding SDK or distributing this mod. This must be resolved before any public release. See `ROADMAP.md` Phase R0.
+> ✅ **License resolution (September 26, 2026).** The software is licensed under
+> **GPL-3.0** (matching `LICENSE`), chosen because CommonLibSSE-NG — a hard
+> build dependency — is itself GPLv3, making GPL the only self-consistent
+> option for a distributable SKSE plugin. Kirk LaSalle retains full copyright
+> (GPL does not transfer ownership, and the copyright holder may always offer
+> alternative commercial licenses later). The **HCEP theory, cognitive
+> framework, and governance documents remain proprietary trade secrets** and
+> are explicitly excluded from the GPL grant in the LICENSE notice. The old
+> biometric-compliance ambiguity is resolved by an honest BIOMETRIC DATA
+> NOTICE in `LICENSE` stating exactly what is and is not implemented. Full
+> analysis: [`docs/LICENSE_RESOLUTION.md`](docs/LICENSE_RESOLUTION.md).
 
 ---
 

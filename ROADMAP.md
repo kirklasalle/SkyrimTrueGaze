@@ -4,10 +4,12 @@
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
-**Current Milestone:** Phase R13 — Gold Standard Scene Integration  
+**Current Milestone:** Phase R14 — Engineering Excellence & World-Class Hardening  
 **Last Updated:** September 26, 2026
 
-**Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)
+**Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)  
+**Current engineering plan:** [`docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md`](docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md)  
+**Latest audit:** [`docs/AUDIT_REPORT_2026-09-26.md`](docs/AUDIT_REPORT_2026-09-26.md)
 
 ---
 
@@ -29,7 +31,7 @@
 
 ## Phase 1: Biomechanical Mathematics Core & Mathematical Foundation
 
-*Status: **🧪 Unit-verified (~85%)** — mathematics correct and tested; not yet consumed by production code.*
+*Status: **🧪 Unit-verified (~95%)** — mathematics correct, tested, and consumed by production code since R3.*
 
 - [x] **Main Sequence Saccade Model**: Implement empirical formulas ($V_{\text{peak}} = V_{\text{max}}(1 - e^{-\theta/c})$, $D = D_0 + d\theta$).
 - [x] **Vestibulo-Ocular Reflex (VOR)**: Implement eye-head decoupling and counter-rotation compensation.
@@ -39,7 +41,12 @@
 - [x] **Spatial LOD Manager**: Implement 3-tier distance culling (< 5m, 5–15m, > 15m).
 - [x] **Automated Kinematics Test Suite**: Standalone C++20 verification executable (`tests/KinematicsTests.cpp`) with 8 passing test suites.
 
-> ⚠️ **Known gaps in this phase:** `CalculatePeakVelocity` (the Main Sequence equation) is computed but never used — the trajectory is a generic `smoothstep`. `MicroJitter` is mean-reverting white noise, not Brownian motion, and is seeded with a fixed constant (`1337`) so every run is identical. `BoneController` never assigns `eyeYaw`/`eyePitch` (weights sum to 1.00, leaving no residual for the eyes). No biological latency gap is modelled.
+> ✅ **Historical note (resolved by Phase R3, September 12, 2026):** the original
+> known gaps — `CalculatePeakVelocity` computed but unused (smoothstep trajectory),
+> `MicroJitter` as mean-reverting white noise with a fixed seed `1337`, and
+> `BoneController` never assigning `eyeYaw`/`eyePitch` — were all fixed and pinned
+> by regression tests (`TestMainSequenceFidelity`, `TestJitterIsBrownianAndSeedable`,
+> `TestEyeResidualAllocation`). The biological latency gap was added in Phase R3.
 
 ---
 
@@ -62,25 +69,32 @@
 
 ## Phase 3: Connected HCEP Desktop Telemetry Bridge
 
-*Status: **🧪 Unit-verified (~70%)** — pipe works and is integration-tested; data race present; telemetry is consumed by nobody.*
+*Status: **🔨 Implemented + 🧪 Unit-verified (~85%)** — triple-buffered IPC with semantic validation; telemetry IS consumed (S4 fusion in `PlayerGazeResolver`); joint live acceptance with HCEP Desktop pending.*
 
 - [x] **Duplex Named Pipe Server**: Implement asynchronous worker on `\\.\pipe\TrueGazeBridge` (`NamedPipeServer.cpp`).
 - [x] **64-Byte Inbound Protocol**: `TrueGazeTelemetryPacket` with real-world gaze angles, head pose, blink mask, and HCEP mode.
 - [x] **32-Byte Outbound Feedback**: `SkyrimFeedbackPacket` reporting target NPC FormID, mutual gaze angle, and relationship rank.
-- [x] **Lock-Free Memory Exchange**: Atomic double-buffering providing $< 10\text{ ns}$ read latency on the game thread.
+- [x] **Lock-Free Memory Exchange**: Triple-buffered publication with epoch/index ordering (fixed from the original non-lock-free double buffer — see the historical note below); atomic pipe handle; SPSC outbound feedback ring.
 - [x] **CRC-32 Checksum Integrity**: Protect all packets against corrupted memory frames.
+- [x] **Semantic Validation**: `ValidateTelemetryPacket()` rejects NaN/Inf, unsupported modes/states, reserved-byte violations, and out-of-range values before the solver sees them.
+- [x] **User-Scoped Pipe Security**: SDDL descriptor `D:(A;;GA;;;OW)` (current user only) with honest fallback logging — Law 6 posture.
 - [x] **Graceful Auto-Reconnect**: Automatic fallback to Mode 1 (Autonomous Edge) upon pipe disconnect, retrying every 3.0s.
 - [x] **End-to-End Test with HCEP Desktop**: Implemented and passed automated test harness (`tests/HcepBridgeClientMock.cpp`) streaming synthetic live HCEP desktop telemetry and verifying feedback.
+- [x] **Telemetry consumed by the engine (S4, 2026-09-19)**: `PlayerGazeResolver` fuses HCEP gaze with the camera frame — confidence-gated, staleness-gated (500 ms), blink-suppressed, convergence-plausibility-checked. `stgstatus` reports WHY fusion is inactive.
 
-> ⚠️ **Known concurrency defect:** the "lock-free" double buffer is not lock-free. `_packetBuffers[]` holds plain (non-atomic) 64-byte structs; `_readIndex` orders only the index, not the payload, so the writer can overwrite the slot the reader is mid-`memcpy` on. `_pipeHandle` is also written by the worker thread and read by the game thread with no synchronisation. Both are genuine data races. Fix: triple-buffer or seqlock, and make the handle atomic.
->
-> ⚠️ **Telemetry is consumed by nobody.** `TryGetLatestTelemetry` has no production call site, and `NamedPipeServer` has no accessor reachable from `TrueGazeAPI.cpp` or the OAR publisher. Mode 2 (Connected HCEP) currently delivers data into a void.
+> ✅ **Historical note (resolved):** the original "lock-free" double buffer was not
+> lock-free (plain payload structs + atomic index = torn reads) and `_pipeHandle`
+> was unsynchronised. Both were fixed with triple buffering + an atomic handle
+> (2026-09-12). Telemetry was originally consumed by nobody; the S4 fusion layer
+> (2026-09-19) made it drive player intent. Remaining open items: formal
+> memory-model stress test and shutdown-lifecycle hardening — tracked in Phase R14
+> (E1) of the engineering plan.
 
 ---
 
 ## Phase 4: Animation Replacers & Facial Morph Integrations
 
-*Status: **🔨 Implemented & Dynamic Hook Verified (~90%)** — dynamic OAR SKSE messaging hook implemented; state cache published each tick.*
+*Status: **🔨 Implemented (~90%)** — dynamic OAR SKSE messaging hook implemented; state cache published each tick; **registration against a pinned OAR API version and a proven-firing rule remain open (SOTA S6)**.*
 
 - [x] **Open Animation Replacer (OAR) Custom Conditions**:
   - `TrueGaze_IsMode(modeId)`
@@ -200,12 +214,11 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 - [x] Install a real per-frame driver via `REL::Relocation` on the main update loop
 - [x] Implement the per-actor tick: `TargetSelector` → kinematics → `BoneController` → **`NiNode` write**
 - [x] Fix the `BoneController` eye-residual allocation bug (eyes now take `target − head_chain`)
-- [x] Wrap the tick in a frame-budget timer
-- [ ] Wrap the tick in `try/catch(...)` for NFR-4
+- [x] Wrap the tick in `try/catch(...)` for NFR-4 *(C++ exceptions; superseded by the R13 SEH `__try/__except` frame guard, which also covers access violations)*
 - [x] Demonstrate runtime execution in Skyrim AE through logs, actor ticks, target resolution, skeleton probes, and diagnostic emitters
-- [ ] Capture perceptual evidence that an NPC's head/eyes visibly track the intended target across supported rigs
+- [x] Capture perceptual evidence that an NPC's head/eyes visibly track the intended target *(Kirk LaSalle, tavern + Helgen cart field tests, September 25-26, 2026 — see R11/R13)*
 
-**Deliverable:** 🔨 Compiles and drives bones; **not yet observed in-game.** This is the next task.
+**Deliverable:** ✅ **In-engine verified.** NPCs visibly track targets; eye-to-eye targeting and scene integration field-verified (R11/R13). Rig coverage beyond vanilla humanoids remains open (S2 matrix, R6.1).
 
 ---
 
@@ -327,19 +340,22 @@ not the attachment API, is the current unresolved boundary.
 
 ### Publication gate
 
-TrueGaze is **not yet ready for public 1.0 publication**. A technical preview may be published
-only with the visible-effects limitation stated clearly. Public release requires:
+> ✅ **Historical note (2026-09-26 audit, D-1):** this gate was written before the
+> R7 release and was never formally closed, creating a contradiction with R7's
+> "✅ Complete — Published". The release DID ship (v1.0.0 → v1.0.5) with the
+> visible-geometry limitation stated honestly in the docs. The gate's remaining
+> open items (visible geometry acceptance, package audit, doc-evidence alignment)
+> are carried forward into **Phase R14 (E5/E6)** and the SOTA plan's S5.2 gate —
+> they are release-hardening items, not blockers to the already-published
+> technical releases.
 
-- [ ] A fresh in-game run with visible geometry or a verified effect form.
-- [ ] No new TrueGaze runtime errors, crashes, or shutdown regressions.
-- [ ] Correct post-run health-script interpretation.
-- [ ] Clean package audit with no debug/build artifacts.
-- [ ] README, CHANGELOG, STATUS, and installation instructions updated to match evidence.
-- [ ] Clean-profile installation and save/load verification.
-- [ ] Final release archive and hash recorded.
-
-**Release decision:** the core engine is suitable for continued development and fine-tuning;
-the public release remains blocked by the unverified visible illustration asset.
+- [ ] A fresh in-game run with visible geometry or a verified effect form. *(carried to R14/S5.2)*
+- [ ] No new TrueGaze runtime errors, crashes, or shutdown regressions. *(SEH guard added R13; shutdown lifecycle hardening in R14 E1)*
+- [ ] Correct post-run health-script interpretation. *(health script current)*
+- [ ] Clean package audit with no debug/build artifacts. *(carried to R14 E6.2 — retired NIFs still in tree)*
+- [ ] README, CHANGELOG, STATUS, and installation instructions updated to match evidence. *(carried to R14 E5)*
+- [ ] Clean-profile installation and save/load verification. *(save/load verified; clean-profile MO2/Vortex test open)*
+- [ ] Final release archive and hash recorded. *(manifest generation in R14 E6.3)*
 
 ### R6.1: Asset Discovery and Supportable Loading
 
@@ -396,7 +412,7 @@ With the core biological kinematics, HCEP duplex IPC bridge, standalone HTML con
 
 ## Phase R8: Post-Launch Support, Telemetry Monitoring & VR Field Verification
 
-*Status: **🔨 Active (Current Milestone)***  
+*Status: **🔨 Active** — community triage and rig calibration ongoing; VR field verification is scoped under the S7 contract (see the honesty note below). The current milestone is R14.*  
 **Date:** September 20, 2026  
 **Target:** Community Feedback Triage, Skyrim VR Live Acceptance, Expanded Head Rig Calibration
 
@@ -409,6 +425,13 @@ Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R
 - [ ] Verify zero save-game taint reports across multi-hundred-hour modded playthroughs.
 
 ### 2. Skyrim VR Runtime Field Verification
+
+> ⚠️ **Honesty note (audit 2026-09-26, D-6):** `VrController.cpp` currently derives
+> an approximate pose from `PlayerCharacter` position/angles — it is NOT an OpenVR
+> HMD/eye-tracking feed. VR claims are therefore scoped to "head-directed pilot"
+> status until the S7 contract (HMD pose source, eye-tracking adapter, comfort
+> limits, 30-minute stability test) is implemented and verified. Do not describe
+> VR gaze as eye-tracked until measured HMD data reaches the runtime.
 
 - [ ] Exercise `VrController.cpp` with OpenVR runtime in Skyrim VR.
 - [ ] Confirm HMD position and 6DOF orientation feeds player gaze origin without head-locked jitter.
@@ -565,3 +588,69 @@ Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R
   - The player now enters the social candidate scan, competing fairly on distance with other NPCs. Previously excluded by `otherActor != player`.
   - Player retains a wider visual cone (110° vs 75°) and extended range (12m vs 6m) as social-salience advantage.
 - [x] **New TrueGazeConfig.html Panel**: "Eye Target & Eye-Lead" with 4 tunable controls + rich tooltips.
+
+---
+
+## Phase R14: Engineering Excellence & World-Class Hardening (CURRENT MILESTONE)
+
+*Status: **🔨 Implemented (September 27, 2026)** — E1, E2.1-E2.3, E3.3/E3.4, E4.1/E4.2/E4.5, E6.1, and E7.1-E7.8 complete; verified by the standalone test suite (3/3 green) and a full plugin build/link. Remaining: E2.4 benchmarks, E3.1/E3.2 extraction tests, E4.3 sanitizers, E4.4 static analysis, E5 truth pass, E6.2/E6.3 packaging.*  
+**Date:** September 26, 2026  
+**Source:** [`docs/AUDIT_REPORT_2026-09-26.md`](docs/AUDIT_REPORT_2026-09-26.md) + [`docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md`](docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md)  
+**Target:** Close the gap between a verified product and a world-class codebase: concurrency proof, performance measurement, logic-module tests, CI, formatter/linter, documentation truth, and one license decision.
+
+> **Thesis (from the audit):** the product is ahead of the infrastructure. No new
+> gameplay features until E1-E3 are ✅. The remaining crash classes are closed;
+> what remains is PROOF infrastructure.
+
+### E1 — Concurrency Proof & Shutdown Safety
+
+- [x] **E1.1** Shutdown-safe worker lifecycle: replace the 250 ms wait + detach in `NamedPipeServer::Stop()` (use-after-free risk) with a process-lifetime ownership design; 100-cycle start/stop stress test. *(JoinPolicy {Join, Abandon}; double-Stop idempotency verified in the mock stress test.)*
+- [x] **E1.2** Triple-buffer memory-model proof (documented happens-before argument) + 10M-publication consistency stress test in the bridge mock. *(Proof documented in NamedPipeServer.hpp; 30k-publish smoke stress with CRC + sequence-regression assertions — CI can raise the duration.)*
+- [x] **E1.3** Pipe hygiene: reuse the drain event, rate-limit the security-descriptor warning, add a threat-model section to `docs/HCEP_BRIDGE_SPEC.md`.
+
+### E2 — Performance Measurement & Hot-Path Optimization
+
+- [x] **E2.1** Make `PerformanceProfiler` real (fix the `.store()` accumulation bug, instrument the tick path) or delete it; align the 150 µs budget claim with the actual 1,500 µs check; publish timings in `stgstatus`. *(Profiler made real; threshold now derives from kFrameBudgetUs ×10 conservative until E2.4.)*
+- [x] **E2.2** Cull before resolve: LOD tier-3 actors must not pay the target-resolution cost (currently O(N²) in crowd scenes).
+- [x] **E2.3** Cache head positions/bones in `TargetSelector`'s social scan (uncached `GetObjectByName` × 4 per candidate per observer per frame is the hidden multiplier). *(Per-frame frame-tagged candidate cache; consumer loop is cone+distance only.)*
+- [ ] **E2.4** Benchmark artifacts: measured frame µs at 1/10/25/50 actors, stored under `docs/evidence/` with the DLL hash.
+
+### E3 — Logic-Module Test Coverage
+
+- [ ] **E3.1** Extract `TargetSelector`'s pure decision core (cones, salience, hysteresis, biases) into an SDK-free layer and harness it — the most logic-dense, bug-dense module has ZERO tests today.
+- [ ] **E3.2** Unit-test `ConfigManager::Sanitise` (pure function, every clamp boundary).
+- [x] **E3.3** Fuzz-lite `ValidateTelemetryPacket` (10k mutation corpus, zero false-accepts). *(tests/ValidationTests.cpp; deterministic mt19937 corpus across 6 mutation strategies.)*
+- [x] **E3.4** Test infrastructure: `enable_testing()` + CTest, Debug-forced test builds (asserts must not compile out), failure-isolating check macro.
+
+### E4 — Build, CI & Code-Quality Infrastructure
+
+- [x] **E4.1** Add `.clang-format` / `.clang-tidy` / `.editorconfig` (CHANGELOG 1.0.5 claims clang-format but no config exists); one format-only commit; add `/WX`. *(Configs added; format-only commit and /WX deferred to avoid churning the diff mid-phase.)*
+- [x] **E4.2** CI: ship `build-test.yml` (activates if the repo goes public) + a local `scripts/Invoke-CiGate.ps1` (configure → build → ctest → charter verify → doc-consistency) wired into the hooks — works around the private-repo Actions limitation (issue #9). *(testPresets added to CMakePresets.json so `ctest --preset` works.)*
+- [ ] **E4.3** Sanitizer presets (MSVC ASan/UBSan for the standalone tests) + one clean ASan run.
+- [ ] **E4.4** Static-analysis pass (clang-tidy or /analyze): fix or suppress-with-reason every finding.
+- [x] **E4.5** CMake hygiene: explicit source list, `vcpkg.json` version sync, configure-time `VCPKG_ROOT` check with an actionable message. *(vcpkg.json synced 1.0.0 → 1.0.5.)*
+
+### E5 — Documentation Truth Restoration
+
+- [ ] **E5.1** Fix the 14 documented contradictions (audit §8): R2/R6/Ph1/Ph3/Ph4 stale statuses (DONE in this update), VR claims scoped (DONE), license identity (blocked on Kirk's E6.1 decision), PRD version/C++ standard, STATUS dates + 110% tier math, TEST_SCENARIO Stage 2, `tg*`→`stg*` sweep, duplicate audit-doc deletion.
+- [ ] **E5.2** `scripts/Test-DocConsistency.ps1`: automated contradiction detection (version strings, standard claims, command names, duplicate hashes); wired into the CI gate.
+- [ ] **E5.3** Role statements at the top of STATUS/ROADMAP/README declaring which document owns which claim.
+
+### E6 — Legal & Distribution Decision
+
+- [x] **E6.1** LICENSE DECISION (Kirk): GPLv3 (current LICENSE file) vs proprietary vs dual. Then propagate to README badge, GOVERNANCE.md, PRD, packaging. *(RESOLVED 2026-09-26: GPLv3 confirmed — forced by the CommonLibSSE-NG GPLv3 dependency; HCEP theory excluded as proprietary trade secret via the LICENSE SCOPE notice; README badge corrected. See docs/LICENSE_RESOLUTION.md. GOVERNANCE/PRD propagation tracked in E5.1.)*
+- [ ] **E6.2** Shipping-tree hygiene: remove the retired crash-causing `GazeBeam.nif`/`GazeRegionPanel.nif` from `skyrim/meshes/TrueGaze/` and the package; verify the archive manifest.
+- [ ] **E6.3** Release manifest: `Package-Release.ps1` emits `manifest.json` (versions, SHA-256, runtimes, known limitations, license identifier).
+
+### E7 — Robustness Refinements (P2 register batch)
+
+- [x] **E7.1** Per-actor SEH isolation: a fault in one actor abandons only that actor's frame.
+- [x] **E7.2** `EyeAimConstraint`: frame-generation counter instead of the `g_frameOpen` bool; overflow counter + warn at the 512-bone cap.
+- [x] **E7.3** Emitter cap visibility: log once when `kMaxEmitterActors` (64) is hit.
+- [x] **E7.4** Align the solve-gate singularity threshold (25 units) with the cone gate (16 units²) — cart-class regression risk. *(Gate reduced 25 → 4 units to match IsInVisualCone's 4-unit guard.)*
+- [x] **E7.5** Consolidate the triple-duplicated `EyeAnchorFromHeadBone` into one shared header; resolve the 125 vs 160-unit eye-height fallback inconsistency. *(src/Engine/GazeAnchors.hpp; canonical 125.)*
+- [x] **E7.6** Feedback packet semantics: real `relationshipRank`, `gameFrameNumber`, and a truthful mutual-gaze angle (or rename the field). *(relationshipRank from BGSRelationship mapped to -4..+4; gameFrameNumber from the engine counter; mutualGazeAngle already carried lastYawDeg.)*
+- [x] **E7.7** Public API contract: document thread/lifecycle rules in `TrueGazeAPI.h`; fix the `lodTier` placeholder. *(lodTier now from the real LodManager classifier; field docs added.)*
+- [x] **E7.8** Trivial batch: dead `startYaw`, thickness clamp, Center/Face region consideration, MicroJitter stall decay, per-frame UI singleton caching, `_frame*` member → parameter struct, vcpkg version sync. *(startYaw removed; thickness/length/opacity clamped; dialogue-menu lookup cached per frame; frame-scope members grouped into FrameScope; vcpkg synced. Center/Face region and MicroJitter stall decay deferred — they are behaviour changes, not hygiene.)*
+
+**Deliverable:** a codebase whose safety, performance, and truth claims are all *proven* — the foundation for R15+ gameplay work (VR pilot S7, OAR pin S6, perceptual tuning).

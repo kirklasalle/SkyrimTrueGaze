@@ -11,19 +11,19 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <chrono>
-#include <atomic>
+#include <limits>
 #include <memory>
+#include <numbers>
+#include <random>
 #include <string>
 #include <string_view>
 #include <vector>
-#include <array>
-#include <algorithm>
-#include <limits>
-#include <random>
-#include <numbers>
 
 // Logging
 //
@@ -33,15 +33,16 @@
 // lets shared translation units — notably NamedPipeServer.cpp, which is compiled
 // into both the plugin and the bridge mock — log unconditionally.
 #if __has_include(<spdlog/spdlog.h>)
-#include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/spdlog.h>
 #else
 namespace spdlog
 {
     inline void info(std::string_view) {}
     inline void error(std::string_view) {}
     inline void warn(std::string_view) {}
-}
+    inline void debug(std::string_view) {}
+} // namespace spdlog
 #endif
 
 // CommonLibSSE-NG
@@ -60,7 +61,7 @@ namespace RE
     class NiAVObject;
     class NiPoint3;
     class NiMatrix3;
-}
+} // namespace RE
 
 // Standalone builds log through spdlog so the same source lines compile and run
 // outside the game.

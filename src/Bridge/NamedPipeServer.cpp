@@ -120,23 +120,37 @@ namespace TrueGaze::Bridge
         }
         ResetEvent(_connectOverlapped.hEvent);
 
+        if (!_drainEvent)
+        {
+            _drainEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+        }
+
         _workerThread = std::thread(&NamedPipeServer::WorkerLoop, this);
     }
 
-    void NamedPipeServer::Stop() noexcept
+    void NamedPipeServer::Stop(JoinPolicy policy) noexcept
     {
         if (!_isRunning.exchange(false))
         {
-            return; // Already stopped
+            // Already stopped — but the Abandon policy must still latch, because
+            // the caller is telling us process teardown is imminent and the
+            // destructor must never run while an orphaned worker exists.
+            if (policy == JoinPolicy::Abandon)
+            {
+                _abandoned.store(true, std::memory_order_release);
+            }
+            return;
         }
 
-        // Signal the shutdown event first so that any pending asynchronous
+        // Signal the shutdown event first so any pending asynchronous
         // ConnectNamedPipe, ReadFile, or reconnect timer immediately awakens.
         if (_shutdownEvent)
         {
             SetEvent(_shutdownEvent);
         }
 
+        // Cancel any pending overlapped I/O so the worker's wait points return
+        // promptly even if a client is mid-transfer.
         if (void *raw = _pipeHandle.exchange(nullptr))
         {
             HANDLE h = static_cast<HANDLE>(raw);
@@ -148,31 +162,45 @@ namespace TrueGaze::Bridge
             }
         }
 
-        if (_workerThread.joinable())
+        if (policy == JoinPolicy::Join)
         {
-            // During game shutdown / ExitProcess, unconditional join() can deadlock
-            // on the Windows Loader Lock. Wait up to 250ms; if not done, detach cleanly.
-            HANDLE hThread = reinterpret_cast<HANDLE>(_workerThread.native_handle());
-            if (hThread && WaitForSingleObject(hThread, 250) == WAIT_OBJECT_0)
+            // NORMAL shutdown: join unconditionally. Every wait point in the
+            // worker is bounded by the shutdown event + CancelIoEx, so this
+            // returns in milliseconds. No detach, ever — a detached thread
+            // referencing `this` is the use-after-free the old design risked.
+            if (_workerThread.joinable())
             {
                 _workerThread.join();
             }
-            else
+
+            // Safe to release the handles: the worker is provably stopped.
+            if (_shutdownEvent)
             {
-                _workerThread.detach();
+                CloseHandle(_shutdownEvent);
+                _shutdownEvent = nullptr;
+            }
+            if (_connectOverlapped.hEvent)
+            {
+                CloseHandle(_connectOverlapped.hEvent);
+                _connectOverlapped.hEvent = nullptr;
+            }
+            if (_drainEvent)
+            {
+                CloseHandle(_drainEvent);
+                _drainEvent = nullptr;
             }
         }
-
-        if (_shutdownEvent)
+        else
         {
-            CloseHandle(_shutdownEvent);
-            _shutdownEvent = nullptr;
-        }
-
-        if (_connectOverlapped.hEvent)
-        {
-            CloseHandle(_connectOverlapped.hEvent);
-            _connectOverlapped.hEvent = nullptr;
+            // ABANDON (process exit / loader-lock window): the worker is left
+            // running and the event handles stay open so the orphaned worker
+            // never dereferences a closed handle. The destructor checks
+            // _abandoned and becomes a no-op — the object leaks deliberately,
+            // which at process teardown is strictly safer than destroying
+            // state the orphaned worker may still touch (the plan's E1.1
+            // rule: leak, never detach).
+            logger::debug("[TrueGaze] Bridge server abandoned at process exit "
+                          "(worker left to terminate with the process).");
         }
 
         _isConnected.store(false, std::memory_order_relaxed);
@@ -180,13 +208,18 @@ namespace TrueGaze::Bridge
 
     void NamedPipeServer::WorkerLoop() noexcept
     {
+        // Rate-limit: a failed security descriptor used to warn on EVERY
+        // reconnect cycle (every reconnectIntervalSec while idle) — log spam
+        // with no new information. One report per worker lifetime is enough
+        // (R14 E1.3 / audit B-10).
+        static std::atomic<bool> s_securityWarned{false};
         while (_isRunning.load(std::memory_order_relaxed))
         {
             UserOnlySecurityDescriptor security;
-            if (!security.IsValid())
+            if (!security.IsValid() && !s_securityWarned.exchange(true, std::memory_order_relaxed))
             {
                 logger::warn("[TrueGaze] Pipe security descriptor unavailable; "
-                             "falling back to the default DACL.");
+                             "falling back to the default DACL (reported once).");
             }
 
             HANDLE hPipe = CreateNamedPipeA(
@@ -401,8 +434,16 @@ namespace TrueGaze::Bridge
         uint32_t head = _feedbackHead.load(std::memory_order_relaxed);
         const uint32_t tail = _feedbackTail.load(std::memory_order_acquire);
 
+        // Reused drain event (R14 E1.3 / audit C-3): creating an event per call
+        // churned a kernel object every ~2 ms while a client was connected. The
+        // event lives for the server's lifetime and is single-consumer (the
+        // worker), so no synchronisation beyond ResetEvent is needed.
+        if (!_drainEvent)
+        {
+            _drainEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+        }
         OVERLAPPED writeOvl{};
-        writeOvl.hEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+        writeOvl.hEvent = _drainEvent;
 
         while (head != tail)
         {
@@ -449,10 +490,8 @@ namespace TrueGaze::Bridge
             }
         }
 
-        if (writeOvl.hEvent)
-        {
-            CloseHandle(writeOvl.hEvent);
-        }
+        // NOTE: the drain event is intentionally NOT closed here — it is a
+        // member created on Start and closed on Stop (R14 E1.3).
 
         _feedbackHead.store(head, std::memory_order_release);
     }

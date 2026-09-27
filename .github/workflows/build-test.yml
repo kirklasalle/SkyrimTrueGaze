@@ -1,0 +1,49 @@
+# R14 E4.2 — CI gate: configure (standalone preset) → build → ctest.
+# Runs on every push/PR touching code or build config. Windows-only because the
+# plugin targets MSVC and the standalone harness compiles the same sources.
+name: build-test
+
+on:
+    push:
+        branches: [main, master]
+        paths:
+            - "src/**"
+            - "tests/**"
+            - "include/**"
+            - "CMakeLists.txt"
+            - "CMakePresets.json"
+            - "vcpkg.json"
+            - ".github/workflows/build-test.yml"
+    pull_request:
+        paths:
+            - "src/**"
+            - "tests/**"
+            - "include/**"
+            - "CMakeLists.txt"
+            - "CMakePresets.json"
+            - "vcpkg.json"
+            - ".github/workflows/build-test.yml"
+
+jobs:
+    build-test:
+        runs-on: windows-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Restore vcpkg packages
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      vcpkg_installed
+                      ~/.cache/vcpkg/archives
+                  key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+
+            - name: Configure (standalone preset)
+              run: cmake --preset windows-release
+
+            - name: Build
+              run: cmake --build --preset windows-release
+
+            - name: Test (ctest)
+              run: ctest --preset windows-release --output-on-failure

@@ -141,6 +141,12 @@ This sets `bEnableTrueGaze=true`.
 
 **Important — the target is *you*, not arbitrary NPCs.** `TargetSelector` resolves, in priority order: your active dialogue partner → a combat target → **the player within 8 m**. NPCs do not currently gaze at each other. If you are looking for two NPCs to make eye contact, that is not implemented — expect NPCs to look at *you*.
 
+> ✅ **Superseded (September 25, 2026 — Phase R11):** NPC-to-NPC gaze IS now
+> implemented and in-engine verified. NPCs look directly into each other's eyes
+> (social candidate scan includes all nearby actors; the player competes fairly
+> with a salience bias). The paragraph above described the pre-R11 behaviour and
+> is retained as historical context for older builds.
+
 **Distance behaviour is deliberate:**
 
 | Distance | Tier | What runs |
@@ -247,7 +253,7 @@ The INI is read at startup, so **restart the game** after changing it.
 
 **Goal:** Verify natural biological eye contact, VOR decoupling, and Social Triangle gaze cycling in third-person camera across diverse humanoid and beast races in peaceful interior/settlement cells.
 
-### Test Cells & Candidate NPCs:
+### Test Cells & Candidate NPCs
 
 | Race Family | Test Cell | Candidate NPC | Observed Dynamics |
 | :--- | :--- | :--- | :--- |
@@ -257,7 +263,7 @@ The INI is read at startup, so **restart the game** after changing it.
 | **Beast (Khajiit)** | Whiterun Exterior Caravan | Kharjo / Ri'saad | Feline craniomandibular rig, wide pupillary axis, neck strain |
 | **Beast (Argonian)** | Riften Docks / Market | Madesi / Scouts-Many-Marshes | Extended reptilian snout morphology, horn/ridge stability |
 
-### Procedure:
+### Procedure
 
 1. **Third-Person Dialogue Check:**
    - Stand in front of Lucan Valerius or Hulda in third-person camera (`F` or mouse wheel zoom).
@@ -275,7 +281,7 @@ The INI is read at startup, so **restart the game** after changing it.
    - Verify head/neck rotation respects biological angular limits (yaw ≤ 45°, pitch ≤ 35°).
    - Confirm no skeletal distortion, FaceGen mesh tearing, or neck twist artifacts.
 
-### Pass Criteria:
+### Pass Criteria
 
 | Check | Humanoid (Nord/Elf) | Beast (Khajiit/Argonian) |
 | :--- | :--- | :--- |

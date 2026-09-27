@@ -1,0 +1,23 @@
+# TrueGaze clang-tidy configuration (R14 E4.1)
+#
+# Conservative starting set: correctness and performance checks that are safe
+# on this codebase. modernize-* passes are included but the noisy ones
+# (modernize-use-trailing-return-type) are disabled — the codebase deliberately
+# uses leading return types to match the CommonLibSSE-NG style.
+#
+# extern/ is excluded via compile_commands.json scoping in the CI gate; this
+# file only governs project sources.
+---
+Checks: >
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  -performance-unnecessary-value-param
+WarningsAsErrors: ""
+HeaderFilterRegex: 'src/.*\.hpp$'
+FormatStyle: file

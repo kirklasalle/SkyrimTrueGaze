@@ -1,3 +1,51 @@
+﻿TrueGaze - Biological NPC Gaze & Biomechanical Kinematics Engine
+Copyright (C) 2026 Kirk LaSalle. All rights reserved.
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, version 3 of the License. The full license text
+follows below.
+
+ ---------------------------------------------------------------------------
+ SCOPE OF THIS LICENSE
+ ---------------------------------------------------------------------------
+
+This GPL license covers the SOFTWARE in this repository: the C++ source,
+build system, and tooling.
+
+It does NOT cover the HCEP theory. The Human Communication Eye Protocol
+(HCEP) theory, the 5-mode cognitive-emotional classification system, the
+cognitive framework documentation, and the Permanent Active Directives are
+the proprietary and trade-secret work of Kirk LaSalle. They are described
+in documentation for context only and are NOT licensed under the GPL.
+Nothing in this repository grants any right to use, reproduce, or
+redistribute the HCEP theory or framework beyond what is embodied in the
+licensed software itself.
+
+ ---------------------------------------------------------------------------
+ BIOMETRIC DATA NOTICE (honest scope)
+ ---------------------------------------------------------------------------
+
+The optional HCEP bridge transmits real-time gaze, head-pose, blink, and
+cognitive-classification data over a LOCAL named pipe on the user's own
+machine. Protections IMPLEMENTED: user-scoped Windows security descriptor
+on the pipe; CRC-32 transport integrity; semantic validation of all
+incoming values; staleness rejection; no network transmission of any kind;
+no persistence of telemetry beyond the session log; data exists only in
+memory and is discarded on disconnect or shutdown. NOT implemented: consent
+capture, retention policy, connection audit, or any GDPR/CCPA/BIPA
+compliance program. This software is intended for single-user local use
+and makes no regulatory compliance claim. See docs/HCEP_BRIDGE_SPEC.md for
+the data-flow detail and docs/LICENSE_RESOLUTION.md for the analysis.
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ General Public License for more details.
+
+ ===========================================================================
+
+
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 

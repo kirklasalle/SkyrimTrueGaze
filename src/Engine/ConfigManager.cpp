@@ -7,8 +7,8 @@
 #include <windows.h>
 
 #include "ConfigManager.hpp"
-#include <filesystem>
 #include <cstdlib>
+#include <filesystem>
 
 namespace TrueGaze::Engine
 {
@@ -16,22 +16,24 @@ namespace TrueGaze::Engine
     namespace
     {
 
-        float ReadFloat(const char *section, const char *key, float defaultValue, const char *path) noexcept
+        float ReadFloat(const char* section, const char* key, float defaultValue,
+                        const char* path) noexcept
         {
             char buf[64]{0};
             char defStr[64]{0};
             snprintf(defStr, sizeof(defStr), "%f", defaultValue);
 
             GetPrivateProfileStringA(section, key, defStr, buf, sizeof(buf), path);
-            char *end = nullptr;
+            char* end = nullptr;
             float val = std::strtof(buf, &end);
             return (end != buf) ? val : defaultValue;
         }
 
-        bool ReadBool(const char *section, const char *key, bool defaultValue, const char *path) noexcept
+        bool ReadBool(const char* section, const char* key, bool defaultValue,
+                      const char* path) noexcept
         {
             char buf[32]{0};
-            const char *defStr = defaultValue ? "true" : "false";
+            const char* defStr = defaultValue ? "true" : "false";
 
             GetPrivateProfileStringA(section, key, defStr, buf, sizeof(buf), path);
             return (_stricmp(buf, "true") == 0 || _stricmp(buf, "1") == 0);
@@ -39,20 +41,21 @@ namespace TrueGaze::Engine
 
     } // namespace
 
-    void ConfigManager::ApplyIni(const std::string &path) noexcept
+    void ConfigManager::ApplyIni(const std::string& path) noexcept
     {
         // Read every managed value from a single INI, using the value already held in
         // memory as the default. This lets the function be called more than once to
         // *layer* files: a later call only overrides keys that the later file actually
         // contains, and leaves everything else untouched.
-        const char *p = path.c_str();
+        const char* p = path.c_str();
 
         // General
         enableTrueGaze = ReadBool("General", "bEnableTrueGaze", enableTrueGaze, p);
         enableCreatures = ReadBool("General", "bEnableCreatures", enableCreatures, p);
         {
             char targetBuf[32]{0};
-            GetPrivateProfileStringA("General", "sEngineTarget", engineTarget.c_str(), targetBuf, sizeof(targetBuf), p);
+            GetPrivateProfileStringA("General", "sEngineTarget", engineTarget.c_str(), targetBuf,
+                                     sizeof(targetBuf), p);
             engineTarget = targetBuf;
         }
 
@@ -60,8 +63,10 @@ namespace TrueGaze::Engine
         saccadeSpeedMult = ReadFloat("Kinematics", "fSaccadeSpeedMult", saccadeSpeedMult, p);
         velocitySaturation = ReadFloat("Kinematics", "fVelocitySaturation", velocitySaturation, p);
         microJitterAmp = ReadFloat("Kinematics", "fMicroJitterAmp", microJitterAmp, p);
-        microJitterIntervalMin = ReadFloat("Kinematics", "fMicroJitterIntervalMin", microJitterIntervalMin, p);
-        microJitterIntervalMax = ReadFloat("Kinematics", "fMicroJitterIntervalMax", microJitterIntervalMax, p);
+        microJitterIntervalMin =
+            ReadFloat("Kinematics", "fMicroJitterIntervalMin", microJitterIntervalMin, p);
+        microJitterIntervalMax =
+            ReadFloat("Kinematics", "fMicroJitterIntervalMax", microJitterIntervalMax, p);
         headTrackingSpeed = ReadFloat("Kinematics", "fHeadTrackingSpeed", headTrackingSpeed, p);
         eyePursuitSpeed = ReadFloat("Kinematics", "fEyePursuitSpeed", eyePursuitSpeed, p);
         maxComfortEyeAngle = ReadFloat("Kinematics", "fMaxComfortEyeAngle", maxComfortEyeAngle, p);
@@ -73,39 +78,51 @@ namespace TrueGaze::Engine
         neckPitchWeight = ReadFloat("SkeletalHierarchy", "fNeckPitchWeight", neckPitchWeight, p);
         headYawWeight = ReadFloat("SkeletalHierarchy", "fHeadYawWeight", headYawWeight, p);
         headPitchWeight = ReadFloat("SkeletalHierarchy", "fHeadPitchWeight", headPitchWeight, p);
-        headEngageThresholdDeg = ReadFloat("SkeletalHierarchy", "fHeadEngageThresholdDeg", headEngageThresholdDeg, p);
+        headEngageThresholdDeg =
+            ReadFloat("SkeletalHierarchy", "fHeadEngageThresholdDeg", headEngageThresholdDeg, p);
 
         // GazeTarget (eye anchor & eye-lead)
         eyeAnchorForwardCm = ReadFloat("GazeTarget", "fEyeAnchorForwardCm", eyeAnchorForwardCm, p);
         eyeAnchorUpCm = ReadFloat("GazeTarget", "fEyeAnchorUpCm", eyeAnchorUpCm, p);
         eyeMorphGain = ReadFloat("GazeTarget", "fEyeMorphGain", eyeMorphGain, p);
-        eyeMorphFullScaleDeg = ReadFloat("GazeTarget", "fEyeMorphFullScaleDeg", eyeMorphFullScaleDeg, p);
+        eyeMorphFullScaleDeg =
+            ReadFloat("GazeTarget", "fEyeMorphFullScaleDeg", eyeMorphFullScaleDeg, p);
 
         // CharacterProfile
-        enableCharacterProfiles = ReadBool("CharacterProfile", "bEnableCharacterProfiles", enableCharacterProfiles, p);
+        enableCharacterProfiles =
+            ReadBool("CharacterProfile", "bEnableCharacterProfiles", enableCharacterProfiles, p);
 
         // Social
         enableGazeAversion = ReadBool("Social", "bEnableGazeAversion", enableGazeAversion, p);
         enableSocialTriangle = ReadBool("Social", "bEnableSocialTriangle", enableSocialTriangle, p);
-        triangleFixationDuration = ReadFloat("Social", "fTriangleFixationDuration", triangleFixationDuration, p);
-        trianglePathRandomness = ReadFloat("Social", "fTrianglePathRandomness", trianglePathRandomness, p);
+        triangleFixationDuration =
+            ReadFloat("Social", "fTriangleFixationDuration", triangleFixationDuration, p);
+        trianglePathRandomness =
+            ReadFloat("Social", "fTrianglePathRandomness", trianglePathRandomness, p);
         mutualGazeThreshold = ReadFloat("Social", "fMutualGazeThreshold", mutualGazeThreshold, p);
         cgaHeadInvolvement = ReadFloat("Social", "fCgaHeadInvolvement", cgaHeadInvolvement, p);
-        dialogueSyncCgaReturn = ReadBool("Social", "bDialogueSyncCgaReturn", dialogueSyncCgaReturn, p);
-        cgaDialogueOffsetSec = ReadFloat("Social", "fCgaDialogueOffsetSec", cgaDialogueOffsetSec, p);
+        dialogueSyncCgaReturn =
+            ReadBool("Social", "bDialogueSyncCgaReturn", dialogueSyncCgaReturn, p);
+        cgaDialogueOffsetSec =
+            ReadFloat("Social", "fCgaDialogueOffsetSec", cgaDialogueOffsetSec, p);
 
         // Crosshair (player gaze sweet spot)
         enableCrosshairGaze = ReadBool("Crosshair", "bEnableCrosshairGaze", enableCrosshairGaze, p);
-        crosshairToleranceDeg = ReadFloat("Crosshair", "fCrosshairToleranceDeg", crosshairToleranceDeg, p);
-        crosshairMaxRangeMeters = ReadFloat("Crosshair", "fCrosshairMaxRangeMeters", crosshairMaxRangeMeters, p);
-        crosshairPointBlankMeters = ReadFloat("Crosshair", "fCrosshairPointBlankMeters", crosshairPointBlankMeters, p);
+        crosshairToleranceDeg =
+            ReadFloat("Crosshair", "fCrosshairToleranceDeg", crosshairToleranceDeg, p);
+        crosshairMaxRangeMeters =
+            ReadFloat("Crosshair", "fCrosshairMaxRangeMeters", crosshairMaxRangeMeters, p);
+        crosshairPointBlankMeters =
+            ReadFloat("Crosshair", "fCrosshairPointBlankMeters", crosshairPointBlankMeters, p);
 
         // Bridge
         connectHcepBridge = ReadBool("Bridge", "bConnectHcepBridge", connectHcepBridge, p);
         char pipeBuf[256]{0};
-        GetPrivateProfileStringA("Bridge", "sPipeName", pipeName.c_str(), pipeBuf, sizeof(pipeBuf), p);
+        GetPrivateProfileStringA("Bridge", "sPipeName", pipeName.c_str(), pipeBuf, sizeof(pipeBuf),
+                                 p);
         pipeName = pipeBuf;
-        autoReconnectIntervalSec = ReadFloat("Bridge", "fAutoReconnectIntervalSec", autoReconnectIntervalSec, p);
+        autoReconnectIntervalSec =
+            ReadFloat("Bridge", "fAutoReconnectIntervalSec", autoReconnectIntervalSec, p);
         // bLockFreeTelemetry intentionally not read: the key was removed (no-op).
 
         // LOD
@@ -129,19 +146,22 @@ namespace TrueGaze::Engine
         gazeRaysOnCreatures = ReadBool("Visuals", "bGazeRaysOnCreatures", gazeRaysOnCreatures, p);
         gazeRaysAttachHead = ReadBool("Visuals", "bGazeRaysAttachHead", gazeRaysAttachHead, p);
         gazeRaysTerminus = ReadBool("Visuals", "bGazeRaysTerminus", gazeRaysTerminus, p);
-        pupilForwardOffsetCm = ReadFloat("Visuals", "fPupilForwardOffsetCm", pupilForwardOffsetCm, p);
+        pupilForwardOffsetCm =
+            ReadFloat("Visuals", "fPupilForwardOffsetCm", pupilForwardOffsetCm, p);
         pupilUpOffsetCm = ReadFloat("Visuals", "fPupilUpOffsetCm", pupilUpOffsetCm, p);
         pupilGlowIntensity = ReadFloat("Visuals", "fPupilGlowIntensity", pupilGlowIntensity, p);
         showHcepPanel = ReadBool("Visuals", "bShowHcepPanel", showHcepPanel, p);
         hcepPanelAllActors = ReadBool("Visuals", "bHcepPanelAllActors", hcepPanelAllActors, p);
         hcepPanelScale = ReadFloat("Visuals", "fHcepPanelScale", hcepPanelScale, p);
-        hcepPanelForwardOffsetCm = ReadFloat("Visuals", "fHcepPanelForwardOffsetCm", hcepPanelForwardOffsetCm, p);
+        hcepPanelForwardOffsetCm =
+            ReadFloat("Visuals", "fHcepPanelForwardOffsetCm", hcepPanelForwardOffsetCm, p);
 
         // Console commands
-        enableConsoleCommands = ReadBool("Console", "bEnableConsoleCommands", enableConsoleCommands, p);
+        enableConsoleCommands =
+            ReadBool("Console", "bEnableConsoleCommands", enableConsoleCommands, p);
     }
 
-    void ConfigManager::Load(const std::string &customPath) noexcept
+    void ConfigManager::Load(const std::string& customPath) noexcept
     {
         // If a caller forces a specific file, honour it exactly and skip layering.
         if (!customPath.empty())
@@ -157,7 +177,8 @@ namespace TrueGaze::Engine
             else
             {
                 _loadedPath.clear();
-                logger::info("[TrueGaze] Requested INI '{}' not found; using compiled defaults.", customPath);
+                logger::info("[TrueGaze] Requested INI '{}' not found; using compiled defaults.",
+                             customPath);
                 _loaded = true;
             }
             return;
@@ -165,14 +186,12 @@ namespace TrueGaze::Engine
 
         // Single-layer load. The INI shipped in Data/SKSE/Plugins supplies the full
         // set of tuning keys.
-        const std::array<std::string, 4> baseCandidates = {
-            "Data/SKSE/Plugins/TrueGaze.ini",
-            "SKSE/Plugins/TrueGaze.ini",
-            "TrueGaze.ini",
-            "config/TrueGaze.ini"};
+        const std::array<std::string, 4> baseCandidates = {"Data/SKSE/Plugins/TrueGaze.ini",
+                                                           "SKSE/Plugins/TrueGaze.ini",
+                                                           "TrueGaze.ini", "config/TrueGaze.ini"};
 
         std::string basePath;
-        for (const auto &candidate : baseCandidates)
+        for (const auto& candidate : baseCandidates)
         {
             std::error_code ec;
             if (std::filesystem::exists(candidate, ec))
@@ -201,13 +220,11 @@ namespace TrueGaze::Engine
         _loaded = true;
         _loadedPath = basePath;
 
-        logger::info("[TrueGaze] Configuration loaded (base='{}').",
-                     basePath);
+        logger::info("[TrueGaze] Configuration loaded (base='{}').", basePath);
         logger::info("[TrueGaze]   saccadeMult={:.2f} jitter={:.2f} headSpeed={:.2f} "
                      "eyeMax={:.1f} socialTriangle={} aversion={} bridge={}",
                      saccadeSpeedMult, microJitterAmp, headTrackingSpeed, maxComfortEyeAngle,
-                     enableSocialTriangle ? "on" : "off",
-                     enableGazeAversion ? "on" : "off",
+                     enableSocialTriangle ? "on" : "off", enableGazeAversion ? "on" : "off",
                      connectHcepBridge ? "on" : "off");
     }
 
@@ -216,13 +233,14 @@ namespace TrueGaze::Engine
         // A bad INI must not be able to produce nonsense physics or a crash. Each
         // range below is the physiologically or operationally meaningful one, and
         // clamping is reported so a user can see why their value was ignored.
-        const auto clampReport = [](const char *name, float value, float lo, float hi) -> float
+        const auto clampReport = [](const char* name, float value, float lo, float hi) -> float
         {
             if (value < lo || value > hi)
             {
                 const float clamped = value < lo ? lo : hi;
-                logger::warn("[TrueGaze] {} = {:.3f} is out of range [{:.2f}, {:.2f}]; clamped to {:.3f}.",
-                             name, value, lo, hi, clamped);
+                logger::warn(
+                    "[TrueGaze] {} = {:.3f} is out of range [{:.2f}, {:.2f}]; clamped to {:.3f}.",
+                    name, value, lo, hi, clamped);
                 return clamped;
             }
             return value;
@@ -231,8 +249,10 @@ namespace TrueGaze::Engine
         saccadeSpeedMult = clampReport("fSaccadeSpeedMult", saccadeSpeedMult, 0.1f, 5.0f);
         velocitySaturation = clampReport("fVelocitySaturation", velocitySaturation, 1.0f, 90.0f);
         microJitterAmp = clampReport("fMicroJitterAmp", microJitterAmp, 0.0f, 3.0f);
-        microJitterIntervalMin = clampReport("fMicroJitterIntervalMin", microJitterIntervalMin, 0.05f, 2.0f);
-        microJitterIntervalMax = clampReport("fMicroJitterIntervalMax", microJitterIntervalMax, 0.1f, 4.0f);
+        microJitterIntervalMin =
+            clampReport("fMicroJitterIntervalMin", microJitterIntervalMin, 0.05f, 2.0f);
+        microJitterIntervalMax =
+            clampReport("fMicroJitterIntervalMax", microJitterIntervalMax, 0.1f, 4.0f);
         headTrackingSpeed = clampReport("fHeadTrackingSpeed", headTrackingSpeed, 0.5f, 40.0f);
         eyePursuitSpeed = clampReport("fEyePursuitSpeed", eyePursuitSpeed, 1.0f, 60.0f);
         maxComfortEyeAngle = clampReport("fMaxComfortEyeAngle", maxComfortEyeAngle, 5.0f, 45.0f);
@@ -242,22 +262,40 @@ namespace TrueGaze::Engine
         neckPitchWeight = clampReport("fNeckPitchWeight", neckPitchWeight, 0.0f, 1.0f);
         headYawWeight = clampReport("fHeadYawWeight", headYawWeight, 0.0f, 1.0f);
         headPitchWeight = clampReport("fHeadPitchWeight", headPitchWeight, 0.0f, 1.0f);
-        headEngageThresholdDeg = clampReport("fHeadEngageThresholdDeg", headEngageThresholdDeg, 0.0f, 45.0f);
+        headEngageThresholdDeg =
+            clampReport("fHeadEngageThresholdDeg", headEngageThresholdDeg, 0.0f, 45.0f);
         eyeAnchorForwardCm = clampReport("fEyeAnchorForwardCm", eyeAnchorForwardCm, -10.0f, 25.0f);
         eyeAnchorUpCm = clampReport("fEyeAnchorUpCm", eyeAnchorUpCm, -10.0f, 25.0f);
         eyeMorphGain = clampReport("fEyeMorphGain", eyeMorphGain, 0.5f, 4.0f);
-        eyeMorphFullScaleDeg = clampReport("fEyeMorphFullScaleDeg", eyeMorphFullScaleDeg, 5.0f, 45.0f);
+        eyeMorphFullScaleDeg =
+            clampReport("fEyeMorphFullScaleDeg", eyeMorphFullScaleDeg, 5.0f, 45.0f);
         cgaHeadInvolvement = clampReport("fCgaHeadInvolvement", cgaHeadInvolvement, 0.0f, 1.0f);
-        cgaDialogueOffsetSec = clampReport("fCgaDialogueOffsetSec", cgaDialogueOffsetSec, 0.0f, 5.0f);
-        triangleFixationDuration = clampReport("fTriangleFixationDuration", triangleFixationDuration, 0.05f, 2.0f);
-        trianglePathRandomness = clampReport("fTrianglePathRandomness", trianglePathRandomness, 0.0f, 1.0f);
+        cgaDialogueOffsetSec =
+            clampReport("fCgaDialogueOffsetSec", cgaDialogueOffsetSec, 0.0f, 5.0f);
+        triangleFixationDuration =
+            clampReport("fTriangleFixationDuration", triangleFixationDuration, 0.05f, 2.0f);
+        trianglePathRandomness =
+            clampReport("fTrianglePathRandomness", trianglePathRandomness, 0.0f, 1.0f);
         mutualGazeThreshold = clampReport("fMutualGazeThreshold", mutualGazeThreshold, 0.1f, 30.0f);
-        crosshairToleranceDeg = clampReport("fCrosshairToleranceDeg", crosshairToleranceDeg, 0.0f, 30.0f);
-        crosshairMaxRangeMeters = clampReport("fCrosshairMaxRangeMeters", crosshairMaxRangeMeters, 2.0f, 100.0f);
-        crosshairPointBlankMeters = clampReport("fCrosshairPointBlankMeters", crosshairPointBlankMeters, 0.0f, 10.0f);
-        autoReconnectIntervalSec = clampReport("fAutoReconnectIntervalSec", autoReconnectIntervalSec, 0.25f, 60.0f);
+        crosshairToleranceDeg =
+            clampReport("fCrosshairToleranceDeg", crosshairToleranceDeg, 0.0f, 30.0f);
+        crosshairMaxRangeMeters =
+            clampReport("fCrosshairMaxRangeMeters", crosshairMaxRangeMeters, 2.0f, 100.0f);
+        crosshairPointBlankMeters =
+            clampReport("fCrosshairPointBlankMeters", crosshairPointBlankMeters, 0.0f, 10.0f);
+        autoReconnectIntervalSec =
+            clampReport("fAutoReconnectIntervalSec", autoReconnectIntervalSec, 0.25f, 60.0f);
         tier1DistanceMeters = clampReport("fTier1DistanceMeters", tier1DistanceMeters, 1.0f, 50.0f);
-        tier2DistanceMeters = clampReport("fTier2DistanceMeters", tier2DistanceMeters, 2.0f, 200.0f);
+        tier2DistanceMeters =
+            clampReport("fTier2DistanceMeters", tier2DistanceMeters, 2.0f, 200.0f);
+
+        // R14 E7.8 — visual emitter geometry was previously unclamped. A zero or
+        // negative thickness produces an invisible (or degenerate) beam; an
+        // enormous one floods the emitter cap with geometry. Same for length and
+        // opacity, which feed directly into light radius and shader alpha.
+        gazeRayThicknessCm = clampReport("fGazeRayThicknessCm", gazeRayThicknessCm, 0.05f, 20.0f);
+        gazeRayLengthMeters = clampReport("fGazeRayLengthMeters", gazeRayLengthMeters, 0.5f, 50.0f);
+        gazeRayOpacity = clampReport("fGazeRayOpacity", gazeRayOpacity, 0.0f, 1.0f);
 
         // Jitter interval: max must exceed min, or the OU reversion-rate derivation
         // inverts and the drift statistics become meaningless.
@@ -278,7 +316,8 @@ namespace TrueGaze::Engine
             spine2YawWeight = 0.10f;
             neckYawWeight = 0.25f;
             headYawWeight = 0.65f;
-            logger::warn("[TrueGaze] SkeletalHierarchy yaw weights sum to zero; restored defaults.");
+            logger::warn(
+                "[TrueGaze] SkeletalHierarchy yaw weights sum to zero; restored defaults.");
         }
         else if (std::abs(yawSum - 1.0f) > 0.001f)
         {
@@ -286,16 +325,17 @@ namespace TrueGaze::Engine
             spine2YawWeight *= inv;
             neckYawWeight *= inv;
             headYawWeight *= inv;
-            logger::warn("[TrueGaze] SkeletalHierarchy yaw weights summed to {:.3f}; renormalised to 1.0.",
-                         yawSum);
+            logger::warn(
+                "[TrueGaze] SkeletalHierarchy yaw weights summed to {:.3f}; renormalised to 1.0.",
+                yawSum);
         }
 
         // Engine target must be a known value; anything else falls back to Auto so a
         // typo cannot silently disable runtime selection.
         {
-            static const char *kValidTargets[] = {"Auto", "SE", "AE", "VR"};
+            static const char* kValidTargets[] = {"Auto", "SE", "AE", "VR"};
             bool valid = false;
-            for (const char *t : kValidTargets)
+            for (const char* t : kValidTargets)
             {
                 if (_stricmp(engineTarget.c_str(), t) == 0)
                 {
@@ -306,8 +346,9 @@ namespace TrueGaze::Engine
             }
             if (!valid)
             {
-                logger::warn("[TrueGaze] sEngineTarget '{}' is not one of Auto/SE/AE/VR; using Auto.",
-                             engineTarget);
+                logger::warn(
+                    "[TrueGaze] sEngineTarget '{}' is not one of Auto/SE/AE/VR; using Auto.",
+                    engineTarget);
                 engineTarget = "Auto";
             }
         }
@@ -334,31 +375,32 @@ namespace TrueGaze::Engine
         // A beam shorter than the eye is a dot; an unbounded one reaches across
         // Whiterun. Both are configuration mistakes rather than preferences.
         rayRenderMode = std::clamp(rayRenderMode, 0, 2);
-        gazeRayLengthMeters = clampReport("fGazeRayLengthMeters", gazeRayLengthMeters, 0.5f, 100.0f);
+        gazeRayLengthMeters =
+            clampReport("fGazeRayLengthMeters", gazeRayLengthMeters, 0.5f, 100.0f);
         gazeRayOpacity = clampReport("fGazeRayOpacity", gazeRayOpacity, 0.0f, 1.0f);
         pupilGlowIntensity = clampReport("fPupilGlowIntensity", pupilGlowIntensity, 0.0f, 5.0f);
-        pupilForwardOffsetCm = clampReport("fPupilForwardOffsetCm", pupilForwardOffsetCm, 0.0f, 30.0f);
+        pupilForwardOffsetCm =
+            clampReport("fPupilForwardOffsetCm", pupilForwardOffsetCm, 0.0f, 30.0f);
         pupilUpOffsetCm = clampReport("fPupilUpOffsetCm", pupilUpOffsetCm, -30.0f, 30.0f);
         hcepPanelScale = clampReport("fHcepPanelScale", hcepPanelScale, 0.5f, 30.0f);
-        hcepPanelForwardOffsetCm = clampReport("fHcepPanelForwardOffsetCm", hcepPanelForwardOffsetCm, 5.0f, 200.0f);
+        hcepPanelForwardOffsetCm =
+            clampReport("fHcepPanelForwardOffsetCm", hcepPanelForwardOffsetCm, 5.0f, 200.0f);
 
         // Colour is stored as 0xRRGGBB. Mask off any stray high bits so the
         // per-channel extraction in the renderer is always in range.
         gazeRayColour &= 0x00FFFFFF;
     }
 
-    void ConfigManager::Save(const std::string &customPath) noexcept
+    void ConfigManager::Save(const std::string& customPath) noexcept
     {
         std::string path = customPath;
         if (path.empty())
         {
             // Prefer the standard plugin INI location when saving.
             const std::array<std::string, 3> candidates = {
-                "Data/SKSE/Plugins/TrueGaze.ini",
-                "SKSE/Plugins/TrueGaze.ini",
-                "TrueGaze.ini"};
+                "Data/SKSE/Plugins/TrueGaze.ini", "SKSE/Plugins/TrueGaze.ini", "TrueGaze.ini"};
 
-            for (const auto &candidate : candidates)
+            for (const auto& candidate : candidates)
             {
                 std::error_code ec;
                 if (std::filesystem::exists(candidate, ec))
@@ -374,16 +416,16 @@ namespace TrueGaze::Engine
             path = "Data/SKSE/Plugins/TrueGaze.ini";
         }
 
-        const char *p = path.c_str();
+        const char* p = path.c_str();
 
-        auto WriteFloat = [&](const char *sec, const char *key, float val)
+        auto WriteFloat = [&](const char* sec, const char* key, float val)
         {
             char buf[64]{0};
             snprintf(buf, sizeof(buf), "%.6f", val);
             WritePrivateProfileStringA(sec, key, buf, p);
         };
 
-        auto WriteBool = [&](const char *sec, const char *key, bool val)
+        auto WriteBool = [&](const char* sec, const char* key, bool val)
         {
             WritePrivateProfileStringA(sec, key, val ? "true" : "false", p);
         };

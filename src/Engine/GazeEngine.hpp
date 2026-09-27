@@ -1,13 +1,13 @@
 #pragma once
 
-#include "PCH.h"
-#include "GazeTuning.hpp"
 #include "ActorGazeRuntime.hpp"
 #include "AnimationHook.hpp"
 #include "Bridge/NamedPipeServer.hpp"
+#include "GazeTuning.hpp"
+#include "PCH.h"
 
-#include <unordered_map>
 #include <chrono>
+#include <unordered_map>
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/Skyrim.h>
@@ -40,14 +40,14 @@ namespace TrueGaze::Engine
     class GazeEngine
     {
     public:
-        static GazeEngine &Get() noexcept
+        static GazeEngine& Get() noexcept
         {
             static GazeEngine instance;
             return instance;
         }
 
-        GazeEngine(const GazeEngine &) = delete;
-        GazeEngine &operator=(const GazeEngine &) = delete;
+        GazeEngine(const GazeEngine&) = delete;
+        GazeEngine& operator=(const GazeEngine&) = delete;
 
         /// @brief Rebuilds the tuning snapshot from the current configuration.
         /// Called on load and whenever the INI is reloaded.
@@ -55,11 +55,15 @@ namespace TrueGaze::Engine
 
         /// @brief Installs the pipe server, if configuration enables the bridge.
         void StartBridge() noexcept;
-        void StopBridge() noexcept;
+
+        /// @brief Stops the bridge. policy=Join for graceful session teardown;
+        /// Abandon for process exit (no join, no destruction — see NamedPipeServer).
+        void StopBridge(Bridge::NamedPipeServer::JoinPolicy policy =
+                            Bridge::NamedPipeServer::JoinPolicy::Join) noexcept;
 
         /// @brief Evaluates and applies biological kinematics for one actor. Game thread only.
         /// @param deltaSeconds Real frame time, used for all integration.
-        void TickActor(RE::Actor *actor, float deltaSeconds) noexcept;
+        void TickActor(RE::Actor* actor, float deltaSeconds) noexcept;
 
         /// @brief Advances per-actor idle timers and evicts long-dormant actors.
         /// Call once per frame from the hook, after all TickActor calls.
@@ -74,31 +78,42 @@ namespace TrueGaze::Engine
         // --- Queries used by the API and OAR conditions ---------------------------
 
         /// @brief Returns the live kinematics state for an actor, or nullptr.
-        [[nodiscard]] ActorGazeRuntime *FindActor(uint32_t formId) noexcept;
+        [[nodiscard]] ActorGazeRuntime* FindActor(uint32_t formId) noexcept;
 
         /// @brief Number of actors currently tracked. Diagnostic.
         [[nodiscard]] size_t TrackedActorCount() const noexcept { return _actors.size(); }
 
         /// @brief Human-readable name of an HCEP mode id. Diagnostic.
-        [[nodiscard]] static const char *ModeName(uint8_t mode) noexcept;
+        [[nodiscard]] static const char* ModeName(uint8_t mode) noexcept;
 
         /// @brief Human-readable name of a gaze region id. Diagnostic.
-        [[nodiscard]] static const char *RegionName(uint8_t region) noexcept;
+        [[nodiscard]] static const char* RegionName(uint8_t region) noexcept;
 
-        [[nodiscard]] const Bridge::NamedPipeServer &Pipe() const noexcept { return _pipe; }
-        [[nodiscard]] Bridge::NamedPipeServer &Pipe() noexcept { return _pipe; }
+        [[nodiscard]] const Bridge::NamedPipeServer& Pipe() const noexcept { return _pipe; }
+        [[nodiscard]] Bridge::NamedPipeServer& Pipe() noexcept { return _pipe; }
 
         /// @brief Monotonically increasing frame index.
         [[nodiscard]] uint64_t GetFrameCounter() const noexcept { return _frameCounter; }
         void AdvanceFrameCounter() noexcept { ++_frameCounter; }
 
-        [[nodiscard]] const GazeTuning &Tuning() const noexcept { return _tuning; }
+        [[nodiscard]] const GazeTuning& Tuning() const noexcept { return _tuning; }
 
         [[nodiscard]] bool IsBridgeConnected() const noexcept { return _pipe.IsConnected(); }
 
         /// Per-frame timings, in microseconds. Diagnostic.
         [[nodiscard]] uint64_t LastFrameMicros() const noexcept { return _lastFrameUs; }
         [[nodiscard]] uint64_t PeakFrameMicros() const noexcept { return _peakFrameUs; }
+
+        /// Distance from the player, in metres. Zero when unavailable.
+        /// Public: the TrueGaze API derives its LOD tier from the same number
+        /// the runtime uses, so the two can never disagree (R14 E7.7).
+        [[nodiscard]] static float DistanceMetersForTier(RE::Actor* actor) noexcept;
+
+        /// Relationship rank toward the player, mapped from Skyrim's
+        /// RELATIONSHIP_LEVEL (0=Lover..8=Archnemesis) onto the feedback
+        /// packet's documented -4..+4 axis. 0 when no relationship exists.
+        /// R14 E7.6.
+        [[nodiscard]] static int16_t RelationshipRankForActor(RE::Actor* actor) noexcept;
 
         /// Runtime counters used to distinguish a missing actor hook from an
         /// eligibility/LOD/target-selection issue. These are diagnostic only.
@@ -116,9 +131,12 @@ namespace TrueGaze::Engine
         /// Phase S2 rig capability matrix. Diagnostic only.
         /// The last probed actor's visual-origin mode as a stable string, plus
         /// running counts of the two distinct rig-resolution outcomes.
-        [[nodiscard]] const char *LastRigOrigin() const noexcept { return _lastRigOrigin; }
+        [[nodiscard]] const char* LastRigOrigin() const noexcept { return _lastRigOrigin; }
         [[nodiscard]] uint64_t EyeNodeAbsentCount() const noexcept { return _eyeNodeAbsentCount; }
-        [[nodiscard]] uint64_t HeadAnchorAbsentCount() const noexcept { return _headAnchorAbsentCount; }
+        [[nodiscard]] uint64_t HeadAnchorAbsentCount() const noexcept
+        {
+            return _headAnchorAbsentCount;
+        }
 
         /// GOLD STANDARD scene-defer diagnostics. The defer contract (yield the
         /// head chain to vanilla direction during directed scenes; eyes never
@@ -127,7 +145,8 @@ namespace TrueGaze::Engine
         [[nodiscard]] uint64_t DeferFrames() const noexcept { return _deferFrames; }
 
         /// Records the outcome of one skeleton probe. Called from ApplyToSkeleton.
-        void RecordRigProbe(const char *originMode, bool headResolved, bool eyeNodeResolved) noexcept
+        void RecordRigProbe(const char* originMode, bool headResolved,
+                            bool eyeNodeResolved) noexcept
         {
             _lastRigOrigin = originMode;
             if (!headResolved)
@@ -147,22 +166,19 @@ namespace TrueGaze::Engine
         /// speedScale: the calm/combat speed multiplier decided in TickActor
         /// (0.5 calm baseline, 1.0 combat). actorInCombat: the same predicate,
         /// passed so the catch-up-saccade threshold can switch with it.
-        void ComputeDeflection(RE::Actor *actor, ActorGazeRuntime &state,
-                               float deltaSeconds, float &outYaw, float &outPitch,
-                               float speedScale, bool actorInCombat) noexcept;
-
-        /// Distance from the player, in metres. Zero when unavailable.
-        [[nodiscard]] static float DistanceMetersForTier(RE::Actor *actor) noexcept;
+        void ComputeDeflection(RE::Actor* actor, ActorGazeRuntime& state, float deltaSeconds,
+                               float& outYaw, float& outPitch, float speedScale,
+                               bool actorInCombat) noexcept;
 
         /// Apply a computed deflection to the actor's bone chain.
         ///
         /// Takes a mutable state because it records whether the skeleton probe has
         /// already been logged for this actor (see ActorGazeRuntime::bonesReported).
-        void ApplyToSkeleton(RE::Actor *actor, ActorGazeRuntime &state,
-                             float yawDeg, float pitchDeg) noexcept;
+        void ApplyToSkeleton(RE::Actor* actor, ActorGazeRuntime& state, float yawDeg,
+                             float pitchDeg) noexcept;
 
         /// Publish actor state to the OAR condition cache.
-        void PublishState(RE::Actor *actor, const ActorGazeRuntime &state) noexcept;
+        void PublishState(RE::Actor* actor, const ActorGazeRuntime& state) noexcept;
 
         std::unordered_map<uint32_t, ActorGazeRuntime> _actors;
         Engine::GazeTuning _tuning{};
@@ -172,12 +188,18 @@ namespace TrueGaze::Engine
         // consumed by the scanpath section in the same call). Not thread state —
         // purely per-invocation locals passed through members to keep the
         // ComputeDeflection signature stable.
-        float _frameFixationScale{1.0f};
-        bool _frameTriangleEnabled{true};
-        const float *_frameVertexWeights{nullptr};
-        /// Per-frame uniform roll [0,1) used to gate CGA engagement by the
-        /// character profile's aversion rate. -1 = always engage (no profile).
-        float _frameCgaRoll{-1.0f};
+        // R14 E7.8 — grouped into one struct so the frame-scope scratch state is
+        // a single named unit instead of five loose members.
+        struct FrameScope
+        {
+            float fixationScale{1.0f};
+            bool triangleEnabled{true};
+            const float* vertexWeights{nullptr};
+            /// Per-frame uniform roll [0,1) used to gate CGA engagement by the
+            /// character profile's aversion rate. -1 = always engage (no profile).
+            float cgaRoll{-1.0f};
+        };
+        FrameScope _frame{};
 
         bool _bridgeStarted{false};
 
@@ -200,7 +222,7 @@ namespace TrueGaze::Engine
         uint64_t _mutualGazeFrames{0};
 
         // Phase S2 rig capability diagnostics.
-        const char *_lastRigOrigin{"unknown"};
+        const char* _lastRigOrigin{"unknown"};
         uint64_t _eyeNodeAbsentCount{0};
         uint64_t _headAnchorAbsentCount{0};
 

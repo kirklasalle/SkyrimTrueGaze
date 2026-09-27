@@ -60,9 +60,16 @@ namespace
         // RegisterListener failure line) land in the same file.
         _logSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true);
 
-        // Clean up bridge server gracefully before Windows Loader Lock is acquired on process exit.
+        // Clean up the bridge server gracefully before Windows Loader Lock is
+        // acquired on process exit (R14 E1.1). JoinPolicy::Abandon deliberately
+        // does NOT join here: joining from atexit can deadlock on the loader
+        // lock, and the old fallback detached a worker that still referenced
+        // destroyed state — a use-after-free. Abandon instead leaves the
+        // worker and its handles alive, flags the object so the destructor is
+        // a no-op, and lets the OS reclaim everything at process exit.
         std::atexit([]()
-                    { TrueGaze::Engine::GazeEngine::Get().StopBridge(); });
+                    { TrueGaze::Engine::GazeEngine::Get().StopBridge(
+                          TrueGaze::Bridge::NamedPipeServer::JoinPolicy::Abandon); });
 #else
         char myDocs[MAX_PATH]{0};
         if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_MYDOCUMENTS, nullptr, 0, myDocs)))

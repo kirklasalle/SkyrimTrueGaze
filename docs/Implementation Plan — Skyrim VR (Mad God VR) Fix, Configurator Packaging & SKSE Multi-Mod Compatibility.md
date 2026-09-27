@@ -3,6 +3,7 @@
 ## Overview
 
 This implementation plan addresses the two critical production findings reported by Kirk:
+
 1. **Skyrim VR Crash on Start ("Mad God VR")**: Diagnosed and resolved the root causes of the crash on start when running TrueGaze with Skyrim VR and heavy modlists like "Mad God VR".
 2. **Release Packaging & Config Support**: Package the interactive Web Configurator (`TrueGazeConfig.html`), launcher (`Launch-TrueGazeConfig.cmd`), automation bridge scripts, and an easy-to-follow guide directly into the distributable mod release, while ensuring TrueGaze is completely independent and stable when launched directly from SKSE alongside hundreds of other mods.
 
@@ -27,13 +28,16 @@ Three compounding issues caused the immediate crash on start in Skyrim VR:
 
 3. **Vtable Hook Slot Mismatch (`0xAD` vs `0xAF`)**:
    - In `src/Engine/AnimationHook.cpp`, `InstallActorUpdateHook` hardcoded virtual method slot `0xAD`:
+
      ```cpp
      Hook::_original = table.write_vfunc(0xAD, Hook::Hook);
      ```
+
    - In Skyrim SE/AE, `Actor::Update` is at vtable index `0xAD`.
    - **In Skyrim VR, an extra virtual function (`AttachWeapon` at 0x82) shifts `Actor::Update` to slot `0xAF`**.
    - Overwriting slot `0xAD` in VR corrupted `PutActorOnMountQuick`, left `Actor::Update` unhooked, and caused memory corruption/crashes as soon as actors updated.
    - **Fix**: Dynamically resolve the slot at runtime:
+
      ```cpp
      const std::size_t updateSlot = REL::Module::IsVR() ? 0xAF : 0xAD;
      Hook::_original = table.write_vfunc(updateSlot, Hook::Hook);
@@ -61,6 +65,7 @@ Three compounding issues caused the immediate crash on start in Skyrim VR:
 > [!IMPORTANT]
 > **Packaging Structure for the Release:**
 > In the new distribution package (`TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip`), we propose the following layout:
+>
 > - `SKSE/Plugins/TrueGaze.dll` (Unified multi-target binary: SE + AE + VR)
 > - `SKSE/Plugins/TrueGaze.ini` (Default tuning settings with full comments and HCEP panel keys)
 > - `meshes/TrueGaze/...` (Gaze beams and HCEP floating panel meshes)
@@ -84,14 +89,19 @@ None. All technical facts have been reverse-engineered and verified against the 
 ### Component 1: Skyrim VR Multi-Targeting & Runtime Hook Fix
 
 #### [MODIFY] [CMakeLists.txt](file:///d:/Projects/SkyrimTrueGaze/CMakeLists.txt)
+
 - Change line 35 to:
+
   ```cmake
   option(BUILD_SKYRIM_VR "Target Skyrim VR" ON)
   ```
+
 - This ensures `ENABLE_SKYRIM_SE=1`, `ENABLE_SKYRIM_AE=1`, and `ENABLE_SKYRIM_VR=1` are all active, enabling `SKYRIM_CROSS_VR` and `HAS_SKYRIM_MULTI_TARGETING` in CommonLibSSE-NG.
 
 #### [MODIFY] [src/Engine/AnimationHook.cpp](file:///d:/Projects/SkyrimTrueGaze/src/Engine/AnimationHook.cpp)
+
 - In `InstallActorUpdateHook`:
+
   ```cpp
   template <class Hook>
   void InstallActorUpdateHook(const REL::VariantID &vtable, const char *name)
@@ -108,12 +118,14 @@ None. All technical facts have been reverse-engineered and verified against the 
 ### Component 2: Configurator Integration & Mod Packaging Pipeline
 
 #### [NEW] [skyrim/TrueGaze_Configurator_Guide.txt](file:///d:/Projects/SkyrimTrueGaze/skyrim/TrueGaze_Configurator_Guide.txt)
+
 - Detailed user-friendly guide covering:
   - How to configure TrueGaze via `TrueGazeConfig.html` (browser-based) or `Launch-TrueGazeConfig.cmd`.
   - How to add `Launch-TrueGazeConfig.cmd` as an executable tool in Mod Organizer 2 (MO2) and Vortex.
   - Confirmation that the configurator is optional: launching directly from the SKSE button works 100% out of the box with any modlist.
 
 #### [MODIFY] [scripts/PackageMod.ps1](file:///d:/Projects/SkyrimTrueGaze/scripts/PackageMod.ps1)
+
 - Copy `TrueGazeConfig.html`, `Launch-TrueGazeConfig.cmd`, and `scripts/TrueGazeBridgeServer.ps1` into the packaging staging folder (`skyrim/tools/TrueGazeConfig/` and root).
 - Ensure the resulting archive contains the complete mod + configurator suite.
 - Re-run packaging to generate a verified, production-ready `TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip`.
@@ -123,19 +135,25 @@ None. All technical facts have been reverse-engineered and verified against the 
 ## Verification Plan
 
 ### Automated Steps
+
 1. Verify `extern/CommonLibSSE-NG/extern/openvr` submodule checkout contains `openvr.h` and `openvr_api.lib`.
 2. Configure CMake with `BUILD_SKYRIM_VR=ON`:
+
    ```powershell
    cmake --preset windows-release
    ```
+
    Verify configure output reports: `CommonLibSSE-NG linked, SE=ON AE=ON VR=ON`.
 3. Build Release binary:
+
    ```powershell
    cmake --build --preset release
    ```
+
 4. Verify symbol relocations and exports on the built `TrueGaze.dll`.
 5. Execute `scripts/PackageMod.ps1` to produce the final release archive and verify package contents.
 
 ### Manual Verification
+
 1. Verify `TrueGaze.dll` logs in SE/AE and VR indicate correct runtime detection and vtable slot binding (`0xAD` for SE/AE, `0xAF` for VR).
 2. Extract the mod package into a clean test folder and verify the Configurator launches cleanly via `Launch-TrueGazeConfig.cmd` and `TrueGazeConfig.html`.

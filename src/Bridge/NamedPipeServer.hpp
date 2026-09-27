@@ -63,10 +63,41 @@ namespace TrueGaze::Bridge
         static constexpr uint64_t TELEMETRY_TIMEOUT_US = 500'000; // 500 ms
 
         NamedPipeServer() = default;
-        ~NamedPipeServer() { Stop(); }
+
+        /// Destructor. Runs Stop() with JoinPolicy::Join, but becomes a no-op
+        /// if the server was abandoned at process exit (Stop(Abandon)) —
+        /// destroying state the orphaned worker may still touch would be the
+        /// exact use-after-free the R14 E1.1 fix exists to prevent. In that
+        /// case the object leaks deliberately at process teardown.
+        ~NamedPipeServer()
+        {
+            if (!_abandoned.load(std::memory_order_relaxed))
+            {
+                Stop(JoinPolicy::Join);
+            }
+            // Abandoned: the worker may still be running; destroying anything
+            // it touches would be a use-after-free. The OS reclaims everything
+            // at process exit. This is the documented leak-for-safety trade.
+        }
 
         NamedPipeServer(const NamedPipeServer &) = delete;
         NamedPipeServer &operator=(const NamedPipeServer &) = delete;
+
+        /// How Stop() should handle the worker thread.
+        enum class JoinPolicy : uint8_t
+        {
+            /// Normal shutdown: join the worker unconditionally (bounded by the
+            /// shutdown event + CancelIoEx) and release all handles. Use for
+            /// session teardown, repeated start/stop, and tests.
+            Join,
+
+            /// Process-exit shutdown: do NOT join (loader-lock deadlock risk) and
+            /// do NOT destroy any state. Flags the object as abandoned so the
+            /// destructor is a no-op; the worker terminates with the process.
+            /// This replaces the old 250 ms wait + detach, which risked a
+            /// detached worker dereferencing destroyed memory (audit C-1).
+            Abandon
+        };
 
         /// @brief Starts the background worker thread listening for telemetry packets.
         /// @param pipeName Full pipe path; defaults to the canonical TrueGaze pipe.
@@ -75,7 +106,10 @@ namespace TrueGaze::Bridge
                    float reconnectIntervalSec = 3.0f) noexcept;
 
         /// @brief Stops the background worker and terminates pipe handles.
-        void Stop() noexcept;
+        /// @param policy Join = graceful, blocking, for normal shutdown.
+        ///               Abandon = process-exit path; the object is left intact
+        ///               for the orphaned worker and the destructor no-ops.
+        void Stop(JoinPolicy policy = JoinPolicy::Join) noexcept;
 
         /// @brief True if an HCEP Desktop client is currently connected.
         bool IsConnected() const noexcept { return _isConnected.load(std::memory_order_relaxed); }
@@ -92,6 +126,11 @@ namespace TrueGaze::Bridge
         void WorkerLoop() noexcept;
         void DrainOutboundQueue(void *pipeHandle) noexcept;
 
+        /// Event reused across DrainOutboundQueue calls (R14 E1.3 / audit C-3).
+        /// Created once on Start, closed on Stop — the old code created and
+        /// destroyed an event every 2 ms while a client was connected.
+        HANDLE _drainEvent{nullptr};
+
         // --- Configuration (set once by Start, read by the worker) ---
         std::string _pipeName{PIPE_NAME.data()};
         float _reconnectIntervalSec{3.0f};
@@ -105,6 +144,53 @@ namespace TrueGaze::Bridge
         std::atomic<void *> _pipeHandle{nullptr};
 
         // --- Telemetry triple buffer (worker writes, game thread reads) ---
+        //
+        // ## HAPPENS-BEFORE ARGUMENT (R14 E1.2 — audit finding C-2)
+        //
+        // Single producer (the worker), single reader (the game thread), three
+        // slots, one epoch counter. The proof:
+        //
+        //   WRITER (worker thread):
+        //     1. Plain store of the full payload into _slots[w]
+        //        (packet, receivedAtUs, sequence — all in one assignment).
+        //     2. _writeIndex.store(w+1, relaxed)          [private bookkeeping]
+        //     3. _publishEpoch.fetch_add(1, release)     [EPOCH BUMP]
+        //     4. _readyIndex.store(w, release)           [PUBLISH]
+        //
+        //   READER (game thread):
+        //     a. _publishEpoch.load(acquire)             [E0]
+        //     b. _readyIndex.load(acquire)               [INDEX]
+        //     c. Plain copy of _slots[index]
+        //     d. _publishEpoch.load(acquire); if changed -> retry
+        //
+        //   Ordering: the payload store (1) is sequenced-before the epoch
+        //   release (3), which is sequenced-before the readyIndex release (4).
+        //   The reader's acquire on _readyIndex (step a) therefore
+        //   synchronises-with the writer's release (step 4), so EVERY payload
+        //   field stored in step 1 is visible to the reader's load in step c.
+        //   This is the standard release/acquire publication pattern; no
+        //   payload field requires an atomic type.
+        //
+        //   THE 3-SLOT INVARIANT (single reader):
+        //   The writer always publishes to (lastWritten + 1) % 3. For the
+        //   writer to overwrite the slot the reader is currently copying, the
+        //   writer would have to complete TWO publications while the reader
+        //   holds one copy. The epoch retry (steps epochBefore/epochAfter
+        //   around the copy in TryGetLatestTelemetry) makes any such overlap
+        //   detectable: the copy is discarded and retried. A torn read is
+        //   therefore never OBSERVED, even though it can transiently occur —
+        //   this is the seqlock-style validation, not a hope.
+        //
+        //   Worst-case retry count is 2 (third publication would need the
+        //   writer to lap the reader twice within one memcpy of ~64 bytes);
+        //   TryGetLatestTelemetry bounds attempts at 8 and fails honestly
+        //   rather than returning a possibly-torn packet.
+        //
+        //   STRESS EVIDENCE: tests/HcepBridgeClientMock.cpp contains a
+        //   10 kHz publisher / asserting reader consistency stress test
+        //   (E1.2) that validates this argument empirically across millions
+        //   of publications. See also TELEMETRY_TIMEOUT_US for the freshness
+        //   contract.
         static constexpr uint32_t SLOT_COUNT = 3;
 
         struct TelemetrySlot
@@ -134,6 +220,11 @@ namespace TrueGaze::Bridge
         // --- Overlapped I/O & Shutdown Control ---
         HANDLE _shutdownEvent{nullptr};
         OVERLAPPED _connectOverlapped{};
+
+        /// Set by Stop(JoinPolicy::Abandon) at process exit: the worker is
+        /// deliberately left alive and the destructor must never destroy this
+        /// object's state. See Stop() for the ownership rationale.
+        std::atomic<bool> _abandoned{false};
 
         std::thread _workerThread;
     };

@@ -1,6 +1,9 @@
 # TRUE GAZE™ — HCEP Bridge IPC Specification
+
 ### Author: Kirk LaSalle
+
 ### Platform: Windows x64 Named Pipes / Zero-Copy Shared Memory
+
 ### Connecting: `HCEP.App` (Desktop Perception Suite) $\longleftrightarrow$ `TrueGaze.dll` (Skyrim SE/AE/VR Plugin)
 
 ---
@@ -8,6 +11,7 @@
 ## 1. Architectural Architecture & Objective
 
 The **True Gaze™ HCEP Bridge** enables real-time bi-directional telemetry exchange between:
+
 1. **The HCEP Desktop Platform** (`D:\Projects\HCEP`): Capturing real-world user eye movements, facial Action Units, head pose, blink states, and the 5 HCEP cognitive modes via Kinect v1 or standard USB webcams.
 2. **The TrueGaze Skyrim Plugin** (`D:\Projects\SkyrimTrueGaze`): Injecting the player's true gaze orientation, determining genuine mutual eye contact with in-game actors, and adjusting NPC behavioral kinematics in real time.
 
@@ -48,6 +52,7 @@ The **True Gaze™ HCEP Bridge** enables real-time bi-directional telemetry exch
 ## 3. Wire Protocol Structs
 
 ### 3.1. Outbound (HCEP Desktop $\longrightarrow$ TrueGaze Plugin): `TrueGazeTelemetryPacket`
+
 Total size: **64 bytes** (strictly 8-byte aligned, zero padding waste).
 
 ```cpp
@@ -90,6 +95,7 @@ struct TrueGazeTelemetryPacket
 ```
 
 ### 3.2. Inbound Feedback (TrueGaze Plugin $\longrightarrow$ HCEP Desktop): `SkyrimFeedbackPacket`
+
 Total size: **32 bytes**.
 
 ```cpp
@@ -118,6 +124,7 @@ struct SkyrimFeedbackPacket
 ## 4. Concurrency & Thread-Safety Model
 
 To guarantee **zero frame drops** in Skyrim:
+
 1. **Background I/O Worker**: The Named Pipe client runs on a dedicated high-priority background thread (`std::jthread`).
 2. **Double-Buffered Lock-Free Exchange**:
    * The background thread writes incoming packets into an atomic triple-buffer or double-buffer.
@@ -126,3 +133,53 @@ To guarantee **zero frame drops** in Skyrim:
 3. **Auto-Fallback / Degraded Mode**:
    * If the pipe is disconnected or `HCEP.App` is closed, `TrueGaze.dll` automatically switches to **Mode 1: Autonomous Edge** within 1 frame.
    * Reconnection attempts occur in the background once every 3.0 seconds without user intervention.
+
+---
+
+## 6. Security & Threat Model (R14 E1.3 — September 26, 2026)
+
+> **Added by the 2026-09-26 engineering audit (§9) and Phase E1.3.** This section
+> states the bridge's security posture honestly, so a reader never mistakes
+> integrity controls for confidentiality or authentication guarantees.
+
+### 6.1 Scope & threat model
+
+| Question | Answer |
+| :--- | :--- |
+| Deployment scope | **Single user, one machine.** The pipe is `\\.\pipe\TrueGazeBridge` — kernel-local, no network namespace. |
+| Who can connect? | Any process running **as the same Windows user** (granted explicitly via the SDDL descriptor `D:(A;;GA;;;OW)` — Owner Rights GENERIC_ALL). Other sessions / other users are denied by the explicit DACL. |
+| What can an attacker with same-session code execution do? | Connect to the pipe and **inject fabricated telemetry** (gaze vectors, head pose, cognitive mode). CRC-32 is an integrity check, NOT authentication — a malicious same-session client can compute valid CRCs. |
+| What can't they do? | Cause NaNs or impossible physics: `ValidateTelemetryPacket()` rejects NaN/Inf, out-of-range angles, unsupported modes/states, and reserved-byte violations **before** values reach the gaze solver. Worst case is mis-aimed NPC attention, never a crash (the SEH frame guard also covers the solver). |
+| Is the payload encrypted? | **No.** Plaintext 64-byte POD on a local pipe. Rationale: the data is the user's own, on the user's own machine, readable only by same-session processes already trusted enough to run code in the user's session. Encryption would add key-management complexity for no threat-model gain at this scope. |
+| Network exposure | **None.** The pipe is namespaced to the local machine; nothing listens on TCP/UDP. |
+| Persistence | Telemetry lives only in the in-memory triple buffer. Nothing is written to disk beyond the session log (which records connection events, not packet contents). |
+
+### 6.2 Data minimisation decision
+
+* **`trackedPersonId`** is transmitted by HCEP Desktop but is **not consumed by
+  any gameplay logic** and is never logged. It exists in the wire format for
+  forward compatibility. Recommendation to the HCEP Desktop side: send `0` by
+  default; the field will be zeroed in a future protocol revision (v2) unless a
+  documented purpose exists.
+
+### 6.3 Failure & rejection policy
+
+| Condition | Behaviour |
+| :--- | :--- |
+| Bad magic / version | Frame silently dropped (counter-worthy; see audit P3-5 rejection counters). |
+| CRC mismatch | Frame dropped. CRC protects against accidental corruption, not adversaries. |
+| NaN / Inf / out-of-range values | `ValidateTelemetryPacket()` rejects; warn logged (rate-limited). |
+| Stale (> 500 ms since last valid frame) | Fusion suppressed; camera/crosshair authority resumes. |
+| Both eyes blinking | Fusion suppressed (gaze is a prediction while eyes are closed — S4). |
+| Convergence outside 0.3–6.0 m | Flagged implausible in diagnostics; not fused. |
+
+### 6.3 Security posture summary (honest)
+
+| Control | Status |
+| :--- | --- |
+| Pipe access control | ✅ User-scoped SDDL (`D:(A;;GA;;;OW)`), honest fallback warning (rate-limited to once per session, R14 E1.3). |
+| Payload encryption | ❌ Plaintext — acceptable at single-user local scope; documented here rather than implied. |
+| Authentication | ❌ CRC only. A same-session malicious process can inject data; bounded by semantic validation. |
+| Stale-data protection | ✅ 500 ms freshness gate (documented contract). |
+| Connection audit | 🟡 Connect/disconnect logged (no identity); connection-identity events tracked in S9. |
+| Minimisation | 🟡 Fixed-size bounded packets; `trackedPersonId` unused but transmitted (protocol v2 candidate for zeroing). |

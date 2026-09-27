@@ -1,0 +1,181 @@
+{
+  "name": "TrueGaze - Cognitive, Emotional & Mutual Gaze Animations",
+  "priority": 1500,
+  "description": "Comprehensive Open Animation Replacer (OAR) configuration implementing all 5 HCEP Cognitive Modes and mutual gaze reactions.",
+  "author": "Kirk LaSalle",
+  "version": "1.0.0",
+  "rules": [
+    {
+      "name": "HCEP Mode 0: LOGIC - Attentive Analytical Fixation",
+      "priority": 1505,
+      "conditions": [
+        {
+          "condition": "TrueGaze_IsMode",
+          "requiredVersion": "1.0.0",
+          "arguments": [
+            {
+              "type": "Numeric",
+              "value": 0
+            }
+          ]
+        },
+        {
+          "condition": "IsTalking",
+          "negated": false
+        }
+      ]
+    },
+    {
+      "name": "HCEP Mode 1: AFFECT - Empathetic Nodding & Social Triangle Scanning",
+      "priority": 1510,
+      "conditions": [
+        {
+          "condition": "TrueGaze_IsMode",
+          "requiredVersion": "1.0.0",
+          "arguments": [
+            {
+              "type": "Numeric",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "condition": "IsTalking",
+          "negated": false
+        }
+      ]
+    },
+    {
+      "name": "HCEP Mode 2: SPIRIT - Deep Unbroken Mutual Gaze Connection",
+      "priority": 1520,
+      "conditions": [
+        {
+          "condition": "TrueGaze_IsMode",
+          "requiredVersion": "1.0.0",
+          "arguments": [
+            {
+              "type": "Numeric",
+              "value": 2
+            }
+          ]
+        },
+        {
+          "condition": "TrueGaze_IsMutualGaze",
+          "requiredVersion": "1.0.0",
+          "arguments": [
+            {
+              "type": "Numeric",
+              "value": 2.0
+            },
+            {
+              "type": "Comparison",
+              "value": ">="
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HCEP Mode 3: HEART - Warm Validation & Empathic Smile",
+      "priority": 1525,
+      "conditions": [
+        {
+          "condition": "TrueGaze_IsMode",
+          "requiredVersion": "1.0.0",
+          "arguments": [
+            {
+              "type": "Numeric",
+              "value": 3
+            }
+          ]
+        },
+        {
+          "condition": "GetRelationshipRank",
+          "arguments": [
+            {
+              "type": "Numeric",
+              "value": 2
+            },
+            {
+              "type": "Comparison",
+              "value": ">="
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HCEP Mode 4: THINK - Cognitive Gaze Aversion Chin Scratch",
+      "priority": 1530,
+      "conditions": [
+        {
+          "condition": "TrueGaze_IsMode",
+          "requiredVersion": "1.0.0",
+          "arguments": [
+            {
+              "type": "Numeric",
+              "value": 4
+            }
+          ]
+        },
+        {
+          "condition": "IsTalking",
+          "negated": false
+        }
+      ]
+    },
+    {
+      "name": "Mutual Gaze - Bashful Glance & Head Tilt",
+      "priority": 1540,
+      "conditions": [
+        {
+          "condition": "TrueGaze_IsMutualGaze",
+          "requiredVersion": "1.0.0",
+          "arguments": [
+            {
+              "type": "Numeric",
+              "value": 3.0
+            },
+            {
+              "type": "Comparison",
+              "value": ">="
+            }
+          ]
+        },
+        {
+          "condition": "GetRelationshipRank",
+          "arguments": [
+            {
+              "type": "Numeric",
+              "value": 3
+            },
+            {
+              "type": "Comparison",
+              "value": ">="
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Weapon Glance - Alert Defensive Ready Guard",
+      "priority": 1550,
+      "conditions": [
+        {
+          "condition": "TrueGaze_GetGazeRegion",
+          "requiredVersion": "1.0.0",
+          "arguments": [
+            {
+              "type": "Numeric",
+              "value": 6
+            }
+          ]
+        },
+        {
+          "condition": "IsWeaponDrawn",
+          "negated": false
+        }
+      ]
+    }
+  ]
+}

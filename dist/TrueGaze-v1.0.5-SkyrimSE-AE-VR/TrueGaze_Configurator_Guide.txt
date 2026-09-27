@@ -1,0 +1,121 @@
+================================================================================
+  TrueGaze — Biomechanical Gaze & Kinematics Engine for Skyrim SE / AE / VR
+  An HCEP Product by Kirk LaSalle
+  Configuration, Launching & Mod Compatibility Guide
+================================================================================
+
+TABLE OF CONTENTS
+1. Overview & Launching
+2. Launching from SKSE (Mod Manager / SKSE Button)
+3. Using the Interactive TrueGaze Web Configurator
+4. Adding the Configurator to Mod Organizer 2 (MO2)
+5. Adding the Configurator to Vortex
+6. Mod Compatibility & Load Order Notes
+7. Troubleshooting & Log Files
+
+--------------------------------------------------------------------------------
+1. OVERVIEW & LAUNCHING
+--------------------------------------------------------------------------------
+TrueGaze is an autonomous, high-performance native SKSE plugin (TrueGaze.dll).
+It operates entirely in-engine during gameplay without requiring any background
+scripts or configuration windows to be open while you play.
+
+Supported Runtimes:
+- Skyrim Special Edition (1.5.97)
+- Skyrim Anniversary Edition (1.6.318 through 1.6.1170+)
+- Skyrim VR (1.4.15) — including Wabbajack modlists like "Mad God VR"
+
+--------------------------------------------------------------------------------
+2. LAUNCHING FROM SKSE (MOD MANAGER / SKSE BUTTON)
+--------------------------------------------------------------------------------
+You DO NOT need to run any launcher batch file each time you play Skyrim!
+
+Once installed:
+- Simply launch Skyrim using your normal SKSE launcher:
+  - Mod Organizer 2: Select 'SKSE' from the executable dropdown and click 'Run'.
+  - Vortex: Click the 'SKSE' play icon.
+  - Manual: Run 'skse64_loader.exe' (or 'sksevr_loader.exe' for Skyrim VR).
+
+On boot, TrueGaze automatically:
+1. Detects your Skyrim runtime version (SE, AE, or VR).
+2. Reads your settings from 'Data/SKSE/Plugins/TrueGaze.ini'.
+3. Engages autonomous biological saccades, smooth pursuit, and gaze kinematics.
+
+--------------------------------------------------------------------------------
+3. USING THE INTERACTIVE TRUEGAZE WEB CONFIGURATOR
+--------------------------------------------------------------------------------
+TrueGaze ships with a visual Web Configurator that lets you adjust eye tracking
+angles, gaze ray thickness, HCEP floating diagram panels, and performance limits.
+
+There are two ways to use it:
+METHOD A: ONE-CLICK AUTOMATION (Recommended)
+Double-click 'Launch-TrueGazeConfig.cmd' located in your TrueGaze mod folder.
+- Starts a lightweight local automation bridge.
+- Automatically detects your game path, mod list, and active TrueGaze.ini.
+- Lets you edit, preview, save directly to your INI, and test launch.
+
+METHOD B: DIRECT BROWSER CONFIGURATION (Zero Setup)
+Double-click 'TrueGazeConfig.html' directly in your browser (Chrome, Edge, Firefox).
+- Click 'Open INI...' and select your 'Data/SKSE/Plugins/TrueGaze.ini'.
+- Adjust any sliders, presets, or toggles.
+- Click 'Save' or 'Export' to overwrite or download your updated INI file.
+
+--------------------------------------------------------------------------------
+4. ADDING THE CONFIGURATOR TO MOD ORGANIZER 2 (MO2)
+--------------------------------------------------------------------------------
+To easily launch the Configurator from MO2's executable menu:
+1. In MO2, click the 'Executables' button (gear icon) or select '<Edit...>'
+   from the executable drop-down.
+2. Click the '+' button and select 'Add from file...'.
+3. Navigate to your TrueGaze mod directory:
+   '.../Mod Organizer 2/mods/TrueGaze/Launch-TrueGazeConfig.cmd'
+4. Title it: 'TrueGaze Configurator'.
+5. Set 'Start in' to your TrueGaze mod folder.
+6. Click 'Apply' and 'OK'.
+Now you can launch the TrueGaze Configurator directly from MO2 anytime!
+
+--------------------------------------------------------------------------------
+5. ADDING THE CONFIGURATOR TO VORTEX
+--------------------------------------------------------------------------------
+1. In Vortex, go to the 'Dashboard' tab.
+2. Under 'Tools', click the '+' icon to add a custom tool.
+3. Target: Select 'Launch-TrueGazeConfig.cmd' in your TrueGaze mod folder.
+4. Name: 'TrueGaze Configurator'.
+5. Click 'Save'.
+
+--------------------------------------------------------------------------------
+6. MOD COMPATIBILITY & LOAD ORDER NOTES
+--------------------------------------------------------------------------------
+TrueGaze is designed for maximum compatibility with large mod lists (500+ mods):
+
+- Animation Replacers (OAR / DAR / FNIS / Nemesis / Pandora):
+  100% compatible. TrueGaze reads OAR dynamic conditions and uses non-destructive
+  bone restoration so custom skeleton animations and replacers never distort.
+
+- Camera Mods (True Directional Movement / SmoothCam / Improved Camera):
+  100% compatible. TrueGaze automatically adapts eye kinematics depending on
+  1st-person, 3rd-person, or vanity camera states.
+
+- Skyrim VR Essentials (VRIK, HIGGS, PLANCK, VR Address Library):
+  100% compatible. TrueGaze uses dynamic VR vtable redirection and VR camera
+  structures. Ensure 'VR Address Library' is installed in your mod list.
+
+- No ESP / ESL plugin limit:
+  TrueGaze is an SKSE code plugin and does not take up an ESP load order slot.
+
+--------------------------------------------------------------------------------
+7. TROUBLESHOOTING & LOG FILES
+--------------------------------------------------------------------------------
+If you experience any issues or need support:
+Check your SKSE log file located at:
+'Documents/My Games/Skyrim Special Edition/SKSE/TrueGaze.log'
+(or 'Skyrim VR/SKSE/TrueGaze.log')
+
+Every session begins with a runtime fingerprint:
+- Plugin build version and compile date
+- Detected game runtime (SE, AE, or VR)
+- Effective configuration file loaded
+- Installed vtable slot status
+
+For community support and updates, visit the Skyrim TrueGaze Nexus Mods page.
+================================================================================

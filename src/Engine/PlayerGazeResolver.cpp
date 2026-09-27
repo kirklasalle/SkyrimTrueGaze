@@ -1,12 +1,13 @@
 #include "PlayerGazeResolver.hpp"
+#include "GazeAnchors.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/Skyrim.h>
 #endif
 
-#include <cmath>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 
 namespace TrueGaze::Engine
 {
@@ -22,7 +23,10 @@ namespace TrueGaze::Engine
 
         /// Approximate eye height above an actor's origin, in Skyrim units.
         /// Used only when the head bone cannot be resolved.
-        constexpr float kEyeHeightUnits = 160.0f;
+        /// R14 E7.5 — was 160.0f, disagreeing with the canonical 125.0f used by
+        /// GazeEngine/TargetSelector for the same physical quantity. The
+        /// canonical value now lives in GazeAnchors.hpp; all modules agree.
+        constexpr float kEyeHeightUnits = TrueGaze::Anchors::kEyeHeightUnits;
 
         /// Physical radius of a human head and collar focal area, in metres.
         /// Expanded to 0.28m so crosshair gaze comfortably covers the head, hair,
@@ -59,7 +63,7 @@ namespace TrueGaze::Engine
         }
 
         /// Angle between two unit vectors, in degrees.
-        float AngleBetweenDeg(const RE::NiPoint3 &a, const RE::NiPoint3 &b) noexcept
+        float AngleBetweenDeg(const RE::NiPoint3& a, const RE::NiPoint3& b) noexcept
         {
             const float dot = std::clamp(a.Dot(b), -1.0f, 1.0f);
             return std::acos(dot) * kRadToDeg;
@@ -69,18 +73,17 @@ namespace TrueGaze::Engine
 
         /// Bone candidates for the head, mirroring GazeEngine's lists. Kept local
         /// so this module stays independent of GazeEngine internals.
-        constexpr const char *kHeadCandidates[] = {
-            "NPC Head [Head]", "Head", "Head1"};
+        constexpr const char* kHeadCandidates[] = {"NPC Head [Head]", "Head", "Head1"};
 
-        RE::NiAVObject *FindHeadBone(RE::NiAVObject *root) noexcept
+        RE::NiAVObject* FindHeadBone(RE::NiAVObject* root) noexcept
         {
             if (!root)
             {
                 return nullptr;
             }
-            for (const char *name : kHeadCandidates)
+            for (const char* name : kHeadCandidates)
             {
-                if (auto *found = root->GetObjectByName(RE::BSFixedString(name)))
+                if (auto* found = root->GetObjectByName(RE::BSFixedString(name)))
                 {
                     return found;
                 }
@@ -108,7 +111,7 @@ namespace TrueGaze::Engine
         {
             CameraFrame frame;
 
-            auto *camera = RE::Main::WorldRootCamera();
+            auto* camera = RE::Main::WorldRootCamera();
             if (!camera)
             {
                 return frame;
@@ -128,17 +131,17 @@ namespace TrueGaze::Engine
             return frame;
         }
 
-        RE::NiPoint3 FusedForward(const CameraFrame &frame) noexcept
+        RE::NiPoint3 FusedForward(const CameraFrame& frame) noexcept
         {
             // Phase S4: staleness gate. A signal older than the freshness window
             // is treated as absent, exactly like a low-confidence one.
-            const uint64_t nowMs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                                             std::chrono::steady_clock::now().time_since_epoch())
-                                                             .count());
-            const bool stale = g_hcepSignal.valid &&
-                               (nowMs - g_hcepSignal.receivedSteadyMs) > kHcepStaleMs;
-            if (!g_hcepSignal.valid || stale ||
-                g_hcepSignal.confidence < kHcepMinimumConfidence)
+            const uint64_t nowMs =
+                static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                          std::chrono::steady_clock::now().time_since_epoch())
+                                          .count());
+            const bool stale =
+                g_hcepSignal.valid && (nowMs - g_hcepSignal.receivedSteadyMs) > kHcepStaleMs;
+            if (!g_hcepSignal.valid || stale || g_hcepSignal.confidence < kHcepMinimumConfidence)
             {
                 return frame.forward;
             }
@@ -151,10 +154,10 @@ namespace TrueGaze::Engine
             }
 
             const float weight = std::clamp(g_hcepSignal.confidence, 0.0f, 1.0f);
-            RE::NiPoint3 fused{
-                frame.forward.x * (1.0f - weight) + g_hcepSignal.directionX * weight,
-                frame.forward.y * (1.0f - weight) + g_hcepSignal.directionY * weight,
-                frame.forward.z * (1.0f - weight) + g_hcepSignal.directionZ * weight};
+            RE::NiPoint3 fused{frame.forward.x * (1.0f - weight) + g_hcepSignal.directionX * weight,
+                               frame.forward.y * (1.0f - weight) + g_hcepSignal.directionY * weight,
+                               frame.forward.z * (1.0f - weight) +
+                                   g_hcepSignal.directionZ * weight};
             const float length = fused.Length();
             if (length <= 0.0001f)
             {
@@ -167,15 +170,15 @@ namespace TrueGaze::Engine
         /// The world position of an actor's face. Prefers the head bone's world
         /// transform; falls back to origin + eye height when the bone is missing
         /// (creature rigs, unloaded head parts).
-        bool GetFacePosition(RE::Actor *actor, RE::NiPoint3 &out) noexcept
+        bool GetFacePosition(RE::Actor* actor, RE::NiPoint3& out) noexcept
         {
-            auto *root = actor ? actor->Get3D() : nullptr;
+            auto* root = actor ? actor->Get3D() : nullptr;
             if (!root)
             {
                 return false;
             }
 
-            if (auto *head = FindHeadBone(root))
+            if (auto* head = FindHeadBone(root))
             {
                 out = head->world.translate;
                 return true;
@@ -190,7 +193,7 @@ namespace TrueGaze::Engine
 
     } // namespace
 
-    PlayerGazeResolver::PlayerGaze PlayerGazeResolver::Resolve(const Params &params) noexcept
+    PlayerGazeResolver::PlayerGaze PlayerGazeResolver::Resolve(const Params& params) noexcept
     {
         PlayerGaze result{};
 
@@ -198,20 +201,20 @@ namespace TrueGaze::Engine
         // 1. The game's own crosshair pick. This is the same data the HUD uses
         //    for the activation prompt, so "the crosshair is on X" is the game's
         //    own answer, not our approximation of it.
-        auto *pick = RE::CrosshairPickData::GetSingleton();
+        auto* pick = RE::CrosshairPickData::GetSingleton();
         if (!pick)
         {
             return result;
         }
 
         const auto handle = pick->GetActiveTarget();
-        auto *target = handle.get().get();
+        auto* target = handle.get().get();
         if (!target)
         {
             return result;
         }
 
-        auto *actor = target->As<RE::Actor>();
+        auto* actor = target->As<RE::Actor>();
         if (!actor || actor->IsDead())
         {
             return result;
@@ -242,17 +245,16 @@ namespace TrueGaze::Engine
         }
 
         const float distanceMetersSafe = std::max(distanceMeters, 0.05f);
-        const RE::NiPoint3 toFaceDir{
-            toFace.x / distanceUnits, toFace.y / distanceUnits, toFace.z / distanceUnits};
+        const RE::NiPoint3 toFaceDir{toFace.x / distanceUnits, toFace.y / distanceUnits,
+                                     toFace.z / distanceUnits};
 
         // 4. The sweet-spot test: angular error vs the face's angular size.
         const float faceAngleDeg = AngleBetweenDeg(FusedForward(frame), toFaceDir);
-        const float headAngularRadiusDeg =
-            AngularRadiusDeg(kHeadRadiusMeters, distanceMetersSafe);
+        const float headAngularRadiusDeg = AngularRadiusDeg(kHeadRadiusMeters, distanceMetersSafe);
 
         const bool pointBlank = distanceMeters <= params.pointBlankMeters;
-        const float toleranceDeg = params.baseToleranceDeg +
-                                   (pointBlank ? 89.0f : headAngularRadiusDeg);
+        const float toleranceDeg =
+            params.baseToleranceDeg + (pointBlank ? 89.0f : headAngularRadiusDeg);
 
         result.targetFormId = actor->GetFormID();
         result.faceAngleDeg = faceAngleDeg;
@@ -269,7 +271,7 @@ namespace TrueGaze::Engine
     }
 
     bool PlayerGazeResolver::IsPlayerLookingAtFace(uint32_t actorFormId,
-                                                   const Params &params) noexcept
+                                                   const Params& params) noexcept
     {
         if (actorFormId == 0)
         {
@@ -279,15 +281,16 @@ namespace TrueGaze::Engine
         return gaze.onFace && gaze.targetFormId == actorFormId;
     }
 
-    void PlayerGazeResolver::SetHcepTelemetry(
-        const Bridge::TrueGazeTelemetryPacket &packet) noexcept
+    void
+    PlayerGazeResolver::SetHcepTelemetry(const Bridge::TrueGazeTelemetryPacket& packet) noexcept
     {
         g_hcepSignal = {};
         g_lastIntent = {};
 
-        const uint64_t nowMs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                                         std::chrono::steady_clock::now().time_since_epoch())
-                                                         .count());
+        const uint64_t nowMs =
+            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                      std::chrono::steady_clock::now().time_since_epoch())
+                                      .count());
 
         // Record the diagnostic snapshot even on rejection, so stgstatus can answer
         // WHY fusion is inactive (invalid packet vs low confidence vs stale).
@@ -296,17 +299,17 @@ namespace TrueGaze::Engine
         g_lastIntent.headYawDeg = packet.headYaw * kRadToDeg;
         g_lastIntent.headPitchDeg = packet.headPitch * kRadToDeg;
         g_lastIntent.convergenceMeters = packet.gazeConvergence;
-        g_lastIntent.convergencePlausible =
-            packet.gazeConvergence >= kConvergenceMinMeters &&
-            packet.gazeConvergence <= kConvergenceMaxMeters;
+        g_lastIntent.convergencePlausible = packet.gazeConvergence >= kConvergenceMinMeters &&
+                                            packet.gazeConvergence <= kConvergenceMaxMeters;
 
-        if (!Bridge::ValidateTelemetryPacket(packet) || packet.gazeConfidence < kHcepMinimumConfidence)
+        if (!Bridge::ValidateTelemetryPacket(packet) ||
+            packet.gazeConfidence < kHcepMinimumConfidence)
         {
             return;
         }
 
 #if __has_include(<RE/Skyrim.h>)
-        auto *camera = RE::Main::WorldRootCamera();
+        auto* camera = RE::Main::WorldRootCamera();
         if (!camera)
         {
             return;
@@ -320,10 +323,9 @@ namespace TrueGaze::Engine
         const auto basisY = camera->world.rotate.GetVectorY();
         const auto up = camera->world.rotate.GetVectorZ();
         const RE::NiPoint3 forward{-basisY.x, -basisY.y, -basisY.z};
-        RE::NiPoint3 direction{
-            forward.x * cy * cp + right.x * sy * cp + up.x * sp,
-            forward.y * cy * cp + right.y * sy * cp + up.y * sp,
-            forward.z * cy * cp + right.z * sy * cp + up.z * sp};
+        RE::NiPoint3 direction{forward.x * cy * cp + right.x * sy * cp + up.x * sp,
+                               forward.y * cy * cp + right.y * sy * cp + up.y * sp,
+                               forward.z * cy * cp + right.z * sy * cp + up.z * sp};
         const float length = direction.Length();
         if (length <= 0.0001f)
         {
@@ -369,9 +371,10 @@ namespace TrueGaze::Engine
         IntentDiagnostic snapshot = g_lastIntent;
         if (snapshot.valid)
         {
-            const uint64_t nowMs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                                             std::chrono::steady_clock::now().time_since_epoch())
-                                                             .count());
+            const uint64_t nowMs =
+                static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                          std::chrono::steady_clock::now().time_since_epoch())
+                                          .count());
             snapshot.ageMs = nowMs - g_hcepSignal.receivedSteadyMs;
             snapshot.stale = snapshot.ageMs > kHcepStaleMs;
         }

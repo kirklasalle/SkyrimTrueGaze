@@ -6,7 +6,7 @@
 **Workspace:** `D:\Projects\SkyrimTrueGaze`  
 **Parent Ecosystem:** Kirk LaSalle's Human Communication Eye Protocol (HCEP) (`D:\Projects\HCEP`)  
 **Author & Product Owner:** Kirk LaSalle  
-**Version:** 1.0.3  
+**Version:** 1.0.6  
 **Status:** Production Release ([GitHub — kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze))  
 **Target Games:** The Elder Scrolls V: Skyrim (Special Edition 1.5.97, Anniversary Edition 1.6.318–1.6.1170+, Skyrim VR 1.4.15)
 
@@ -67,7 +67,7 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
     menu. All configuration is the INI at `Data\SKSE\Plugins\TrueGaze.ini`, edited
     through the standalone `TrueGazeConfig.html` page.
 - **Host OS:** Windows 10 / Windows 11 (x64)
-- **Compiler / Toolchain:** MSVC 19.40+ (Visual Studio 2022 / 2026), C++20 standard, CMake >= 3.23.
+- **Compiler / Toolchain:** MSVC 19.40+ (Visual Studio 2022 / 2026), C++23 standard, CMake >= 3.23.
 
 ---
 

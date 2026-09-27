@@ -1,0 +1,2524 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>TrueGaze — Configuration of the Gaze</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --bg: #070605;
+            --bg-grad: radial-gradient(circle at 50% 0%, #17130b 0%, #080706 70%, #030302 100%);
+            --panel: rgba(18, 15, 12, 0.94);
+            --panel-border: #3d311c;
+            --panel-border-bright: #786034;
+            --panel-inner: rgba(0, 0, 0, 0.45);
+            --gold: #c9a86a;
+            --gold-bright: #f4d693;
+            --gold-glow: rgba(244, 214, 147, 0.25);
+            --gold-dim: #7a633a;
+            --gold-dark: #3a2e18;
+            --silver: #aeb7bd;
+            --silver-bright: #e6edf0;
+            --silver-dim: #69747b;
+            --silver-dark: #252c31;
+            --silver-glow: rgba(190, 211, 220, 0.24);
+            --parchment: #ded3be;
+            --parchment-dim: #9c917d;
+            --parchment-dark: #696050;
+            --ink: #070605;
+            --accent: #b33927;
+            --ok: #509e5c;
+            --ok-bright: #7ee08d;
+            --ok-glow: rgba(80, 158, 92, 0.25);
+            --info: #4682b4;
+            --info-bright: #7db9e8;
+            --err: #c24636;
+            --err-bright: #f06a58;
+            --font-display: 'Cinzel', 'Trajan Pro', 'Georgia', serif;
+            --font-body: 'Segoe UI', 'Cinzel', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            background-image: var(--bg-grad);
+            background-attachment: fixed;
+            color: var(--parchment);
+            font-family: var(--font-body);
+            font-size: 14px;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 24px 16px 80px;
+            position: relative;
+        }
+
+        /* Subtle Nordic vignette */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at center, transparent 40%, rgba(0, 0, 0, 0.8) 100%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .frame {
+            max-width: 1180px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Header & Sigil                                                     */
+        /* ------------------------------------------------------------------ */
+        header {
+            text-align: center;
+            padding: 24px 0 16px;
+        }
+
+        .sigil {
+            width: 58px;
+            height: 58px;
+            margin: 0 auto 12px;
+            border: 1px solid var(--gold-dim);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle, #251d10 0%, #0d0a06 80%);
+            box-shadow: 0 0 18px rgba(201, 168, 106, 0.2), inset 0 0 10px rgba(0, 0, 0, 0.8);
+            position: relative;
+        }
+
+        .sigil::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border: 1px dashed rgba(201, 168, 106, 0.35);
+            border-radius: 50%;
+        }
+
+        .eye-icon {
+            width: 28px;
+            height: 18px;
+            border: 2px solid var(--gold-bright);
+            border-radius: 50% / 50%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .eye-pupil {
+            width: 8px;
+            height: 8px;
+            background: var(--gold-bright);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--gold);
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: 2.2rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--gold-bright);
+            text-shadow: 0 0 16px rgba(244, 214, 147, 0.4), 0 2px 4px #000;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            font-size: 0.95rem;
+            color: var(--parchment-dim);
+            letter-spacing: 0.12em;
+            font-style: italic;
+        }
+
+        .header-rule {
+            width: 240px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--gold-dim), var(--gold-bright), var(--gold-dim), transparent);
+            margin: 14px auto 0;
+            position: relative;
+        }
+
+        .header-rule::after {
+            content: '❖';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background: #0d0b07;
+            padding: 0 8px;
+            font-size: 10px;
+            color: var(--gold);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Status HUD (3 Cards)                                               */
+        /* ------------------------------------------------------------------ */
+        .hud-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 14px;
+            margin: 22px 0 16px;
+        }
+
+        .hud-card {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            padding: 14px 16px;
+            position: relative;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        /* Classic Skyrim silver: steel-edged, cool and restrained. Applied to
+           the three status cards without replacing their existing layout. */
+        .hud-card {
+            border-color: var(--silver-dim);
+            background: linear-gradient(145deg, rgba(35, 40, 43, 0.94), rgba(12, 14, 15, 0.96));
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(230, 237, 240, 0.08);
+        }
+
+        .hud-card::before {
+            content: '';
+            position: absolute;
+            inset: 4px;
+            border: 1px solid rgba(174, 183, 189, 0.16);
+            pointer-events: none;
+        }
+
+        .hud-card:hover {
+            border-color: var(--silver);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.82), 0 0 14px var(--silver-glow);
+        }
+
+        .hud-card .hud-card-title {
+            color: var(--silver-bright);
+        }
+
+        .hud-card .hud-card-footer {
+            color: var(--silver-dim);
+        }
+
+        .hud-card:hover {
+            border-color: var(--panel-border-bright);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.8);
+        }
+
+        .hud-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(120, 96, 52, 0.25);
+        }
+
+        .hud-card-title {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--gold-bright);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hud-badge {
+            font-size: 0.68rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 2px;
+            border: 1px solid var(--gold-dim);
+            color: var(--gold);
+            background: rgba(201, 168, 106, 0.08);
+        }
+
+        .hud-badge.ok {
+            border-color: var(--ok);
+            color: var(--ok-bright);
+            background: rgba(80, 158, 92, 0.12);
+        }
+
+        .hud-badge.warn {
+            border-color: var(--gold);
+            color: var(--gold-bright);
+            background: rgba(201, 168, 106, 0.15);
+        }
+
+        .hud-card-body {
+            font-size: 0.82rem;
+            color: var(--parchment-dim);
+            min-height: 42px;
+        }
+
+        .hud-highlight {
+            color: var(--parchment);
+            font-weight: 600;
+        }
+
+        .hud-card-footer {
+            margin-top: 8px;
+            font-size: 0.72rem;
+            font-family: var(--font-mono);
+            color: var(--gold-dim);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Main Action Toolbar                                                */
+        /* ------------------------------------------------------------------ */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 16px 0 12px;
+        }
+
+        button {
+            font-family: var(--font-display);
+            font-size: 0.82rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 10px 18px;
+            border: 1px solid var(--gold-dim);
+            background: linear-gradient(180deg, #221c13 0%, #120f09 100%);
+            color: var(--parchment);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        button:hover:not(:disabled) {
+            border-color: var(--gold-bright);
+            color: var(--gold-bright);
+            background: linear-gradient(180deg, #2e261a 0%, #1a150d 100%);
+            box-shadow: 0 0 12px var(--gold-glow);
+            transform: translateY(-1px);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            border-color: #332a1b;
+            color: #66563f;
+        }
+
+        button.primary-gold {
+            border-color: var(--gold);
+            background: linear-gradient(180deg, #443419 0%, #20180b 100%);
+            color: var(--gold-bright);
+            box-shadow: 0 0 14px rgba(201, 168, 106, 0.35);
+            font-weight: 600;
+        }
+
+        button.primary-gold:hover:not(:disabled) {
+            background: linear-gradient(180deg, #574320 0%, #2b200e 100%);
+            border-color: #ffe099;
+            box-shadow: 0 0 20px rgba(244, 214, 147, 0.5);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Status Bar                                                         */
+        /* ------------------------------------------------------------------ */
+        .statusbar {
+            background: var(--panel-inner);
+            border: 1px solid var(--panel-border);
+            padding: 9px 18px;
+            margin-bottom: 16px;
+            font-size: 0.82rem;
+            color: var(--parchment-dim);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .statusbar-text {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .statusbar .ok {
+            color: var(--ok-bright);
+        }
+
+        .statusbar .warn {
+            color: var(--gold-bright);
+        }
+
+        .statusbar .err {
+            color: var(--err-bright);
+        }
+
+        .statusbar .info {
+            color: var(--info-bright);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Quick Presets Bar                                                  */
+        /* ------------------------------------------------------------------ */
+        .presets-bar {
+            background: rgba(22, 18, 14, 0.8);
+            border: 1px solid var(--panel-border);
+            padding: 10px 16px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .presets-label {
+            font-family: var(--font-display);
+            font-size: 0.78rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-right: 4px;
+        }
+
+        .preset-btn {
+            padding: 6px 13px;
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            background: #17130c;
+        }
+
+        .preset-btn.active {
+            color: var(--silver-bright);
+            border-color: var(--silver);
+            background: linear-gradient(145deg, #4b555b, #20262a);
+            box-shadow: 0 0 12px var(--silver-glow), inset 0 1px 0 rgba(230, 237, 240, 0.25);
+            text-shadow: 0 1px 2px #000;
+        }
+
+        .preset-btn.active::before {
+            content: '◆ ';
+            color: var(--silver-bright);
+        }
+
+        .selected-preset {
+            margin-left: auto;
+            color: var(--silver);
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            letter-spacing: 0.04em;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Eye Dynamics Kinematics Canvas Box                                 */
+        /* ------------------------------------------------------------------ */
+        .kinematics-box {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            padding: 14px 18px;
+            margin-bottom: 22px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+        }
+
+        .sim-canvas-wrap {
+            width: 140px;
+            height: 90px;
+            background: #0a0805;
+            border: 1px solid var(--gold-dark);
+            position: relative;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.8);
+        }
+
+        #eyeCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .sim-info {
+            flex: 1;
+        }
+
+        .sim-title {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--gold-bright);
+            margin-bottom: 4px;
+        }
+
+        .sim-desc {
+            font-size: 0.78rem;
+            color: var(--parchment-dim);
+            line-height: 1.5;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Configuration Sections & Rows                                      */
+        /* ------------------------------------------------------------------ */
+        .section-panel {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            margin-bottom: 18px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+        }
+
+        .section-panel-header {
+            padding: 14px 20px;
+            background: linear-gradient(90deg, rgba(37, 29, 16, 0.7) 0%, rgba(18, 15, 12, 0.4) 100%);
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .section-panel-title {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--gold-bright);
+        }
+
+        .section-panel-tag {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--gold-dim);
+            letter-spacing: 0.1em;
+        }
+
+        .config-row {
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(61, 49, 28, 0.4);
+            display: grid;
+            grid-template-columns: 240px 320px 1fr;
+            align-items: center;
+            gap: 18px;
+            position: relative;
+            transition: background 0.15s ease;
+        }
+
+        .config-row:last-child {
+            border-bottom: none;
+        }
+
+        .config-row:hover {
+            background: rgba(201, 168, 106, 0.04);
+        }
+
+        .config-row.dirty {
+            border-left: 3px solid var(--gold);
+            background: rgba(201, 168, 106, 0.06);
+        }
+
+        .param-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .param-name {
+            font-family: var(--font-mono);
+            font-size: 0.84rem;
+            font-weight: 600;
+            color: var(--parchment);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dirty-bullet {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--gold-bright);
+            box-shadow: 0 0 6px var(--gold);
+        }
+
+        .param-ini {
+            font-size: 0.7rem;
+            color: var(--parchment-dark);
+            font-family: var(--font-mono);
+        }
+
+        .param-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 170px;
+            height: 4px;
+            background: #2a2214;
+            border: 1px solid #4a3c24;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 20px;
+            background: linear-gradient(180deg, var(--gold-bright), var(--gold-dim));
+            border: 1px solid #14110b;
+            cursor: pointer;
+            box-shadow: 0 0 6px rgba(244, 214, 147, 0.4);
+        }
+
+        input[type=range]::-moz-range-thumb {
+            width: 14px;
+            height: 20px;
+            background: linear-gradient(180deg, var(--gold-bright), var(--gold-dim));
+            border: 1px solid #14110b;
+            cursor: pointer;
+            border-radius: 0;
+        }
+
+        .slider-val {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            color: var(--gold-bright);
+            min-width: 68px;
+            text-align: right;
+        }
+
+        /* Toggle Switches */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 20px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background-color: #221c13;
+            border: 1px solid #4a3c24;
+            transition: 0.25s;
+        }
+
+        .toggle-slider::before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 2px;
+            bottom: 2px;
+            background-color: var(--gold-dim);
+            transition: 0.25s;
+        }
+
+        input:checked+.toggle-slider {
+            background-color: #3b2f19;
+            border-color: var(--gold);
+        }
+
+        input:checked+.toggle-slider::before {
+            transform: translateX(24px);
+            background-color: var(--gold-bright);
+            box-shadow: 0 0 6px var(--gold);
+        }
+
+        .toggle-label {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--gold-dim);
+            min-width: 32px;
+        }
+
+        input:checked~.toggle-label {
+            color: var(--gold-bright);
+        }
+
+        /* Text & Select Inputs */
+        input[type=text] {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            background: #14110b;
+            border: 1px solid var(--panel-border-bright);
+            color: var(--gold-bright);
+            padding: 6px 10px;
+            width: 220px;
+            outline: none;
+        }
+
+        input[type=text]:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 8px var(--gold-glow);
+        }
+
+        select {
+            font-family: inherit;
+            background: #14110b;
+            border: 1px solid var(--panel-border-bright);
+            color: var(--gold-bright);
+            padding: 6px 12px;
+            outline: none;
+        }
+
+        .param-help {
+            font-size: 0.8rem;
+            color: var(--parchment-dim);
+            font-style: italic;
+            line-height: 1.4;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .info-pill {
+            cursor: pointer;
+            padding: 2px 7px;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            border: 1px solid var(--gold-dim);
+            color: var(--gold);
+            background: rgba(201, 168, 106, 0.08);
+            border-radius: 2px;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .info-pill:hover {
+            border-color: var(--gold-bright);
+            color: var(--gold-bright);
+            background: rgba(201, 168, 106, 0.2);
+            box-shadow: 0 0 8px var(--gold-glow);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* World-Class Rich Mouse-Over Tooltip Card                           */
+        /* ------------------------------------------------------------------ */
+        #richTooltip {
+            position: fixed;
+            pointer-events: none;
+            width: 360px;
+            background: #0f0c08;
+            background-image: radial-gradient(circle at 50% 0%, #20190d 0%, #0d0a06 100%);
+            border: 1px solid var(--gold);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85), 0 0 15px rgba(201, 168, 106, 0.35);
+            padding: 16px 18px;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(6px);
+            transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+        }
+
+        #richTooltip.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .tt-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            border-bottom: 1px solid rgba(120, 96, 52, 0.35);
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .tt-name {
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: var(--gold-bright);
+            text-shadow: 0 0 6px rgba(244, 214, 147, 0.3);
+        }
+
+        .tt-section {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--gold-dim);
+            padding: 2px 6px;
+            border: 1px solid var(--gold-dim);
+            background: rgba(0, 0, 0, 0.4);
+            white-space: nowrap;
+        }
+
+        .tt-block {
+            margin-bottom: 9px;
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+
+        .tt-label {
+            font-family: var(--font-display);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .tt-desc {
+            color: var(--parchment);
+        }
+
+        .tt-impact {
+            color: #d1c7b5;
+            background: rgba(201, 168, 106, 0.06);
+            padding: 5px 8px;
+            border-left: 2px solid var(--gold-dim);
+            margin: 4px 0 6px;
+            font-size: 0.76rem;
+        }
+
+        .tt-footer {
+            border-top: 1px dashed rgba(120, 96, 52, 0.25);
+            padding-top: 8px;
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.72rem;
+            font-family: var(--font-mono);
+            color: var(--parchment-dim);
+        }
+
+        .tt-val-default {
+            color: var(--gold-bright);
+            font-weight: 600;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Engine Log Drawer / Modal                                          */
+        /* ------------------------------------------------------------------ */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(3px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-panel {
+            background: #0d0a06;
+            border: 1px solid var(--gold);
+            box-shadow: 0 0 35px rgba(201, 168, 106, 0.35);
+            width: 100%;
+            max-width: 900px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 14px 20px;
+            background: linear-gradient(90deg, #251d10 0%, #120f09 100%);
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--gold-bright);
+        }
+
+        .log-console {
+            padding: 16px;
+            background: #050403;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--parchment);
+            overflow-y: auto;
+            flex: 1;
+            max-height: 520px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            border-bottom: 1px solid var(--panel-border);
+        }
+
+        .modal-footer {
+            padding: 12px 20px;
+            background: #110e09;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Toast Notifications                                               */
+        /* ------------------------------------------------------------------ */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: #17130b;
+            border: 1px solid var(--gold);
+            color: var(--gold-bright);
+            padding: 10px 24px;
+            font-family: var(--font-display);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            opacity: 0;
+            transition: all 0.25s ease;
+            pointer-events: none;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 12px var(--gold-glow);
+            z-index: 10000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Footer                                                             */
+        /* ------------------------------------------------------------------ */
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(120, 96, 52, 0.2);
+            color: var(--gold-dim);
+            font-size: 0.76rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        footer .eye-quote {
+            margin-top: 6px;
+            font-style: italic;
+            text-transform: none;
+            letter-spacing: 0.05em;
+            color: var(--parchment-dim);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="frame">
+        <header>
+            <div class="sigil">
+                <div class="eye-icon">
+                    <div class="eye-pupil"></div>
+                </div>
+            </div>
+            <h1>TrueGaze</h1>
+            <div class="subtitle">Configuration of the Gaze — Biological NPC Eye &amp; Kinematics Engine</div>
+            <div class="header-rule"></div>
+        </header>
+
+        <!-- System Status HUD -->
+        <div class="hud-grid">
+            <div class="hud-card" id="cardInstall">
+                <div class="hud-card-header">
+                    <span class="hud-card-title">🏰 Skyrim Installation</span>
+                    <span class="hud-badge" id="badgeInstall">PROBING...</span>
+                </div>
+                <div class="hud-card-body" id="bodyInstall">
+                    Detecting Skyrim Special Edition from Windows installation...
+                </div>
+                <div class="hud-card-footer" id="footInstall">Registry / Steam Library</div>
+            </div>
+
+            <div class="hud-card" id="cardSaves">
+                <div class="hud-card-header">
+                    <span class="hud-card-title">🛡 Saves &amp; Hero</span>
+                    <span class="hud-badge" id="badgeSaves">CHECKING...</span>
+                </div>
+                <div class="hud-card-body" id="bodySaves">
+                    Scanning Documents\My Games\Skyrim Special Edition...
+                </div>
+                <div class="hud-card-footer" id="footSaves">Recent game saves</div>
+            </div>
+
+            <div class="hud-card" id="cardEngine">
+                <div class="hud-card-header">
+                    <span class="hud-card-title">👁 Engine &amp; Launch</span>
+                    <span class="hud-badge" id="badgeEngine">CHECKING...</span>
+                </div>
+                <div class="hud-card-body" id="bodyEngine">
+                    Inspecting TrueGaze.dll and SKSE loader...
+                </div>
+                <div class="hud-card-footer" id="footEngine">Data\SKSE\Plugins\TrueGaze.ini</div>
+            </div>
+        </div>
+
+        <!-- Action Toolbar -->
+        <div class="toolbar">
+            <button id="btnLaunch" class="primary-gold" data-tt-ui="ui:btnLaunch">⚔ Launch Skyrim (SKSE)</button>
+            <button id="btnScan" data-tt-ui="ui:btnScan">🔍 Scan System &amp; Saves</button>
+            <button id="btnSave" class="primary-gold" disabled data-tt-ui="ui:btnSave">💾 Save Changes</button>
+            <button id="btnLog" data-tt-ui="ui:btnLog">📜 View Engine Log</button>
+            <button id="btnDefaults" data-tt-ui="ui:btnDefaults">↺ Restore Defaults</button>
+            <button id="btnOpen" data-tt-ui="ui:btnOpen">📂 Open Manual INI</button>
+            <button id="btnExport" disabled data-tt-ui="ui:btnExport">📤 Export Copy</button>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="statusbar" id="statusbar">
+            <div class="statusbar-text" id="status">Connecting to local automation bridge...</div>
+            <div id="statusDirty" style="font-family:var(--font-mono); font-size:0.75rem;"></div>
+        </div>
+
+        <!-- Quick Presets -->
+        <div class="presets-bar">
+            <span class="presets-label">⚡ Quick Presets:</span>
+            <button class="preset-btn" id="presetVanilla" data-tt-ui="ui:presetVanilla">★ Vanilla Balanced</button>
+            <button class="preset-btn" id="presetSubtle" data-tt-ui="ui:presetSubtle">🕊 Subtle &amp; Natural</button>
+            <button class="preset-btn" id="presetIntense" data-tt-ui="ui:presetIntense">⚡ Intense &amp;
+                Responsive</button>
+            <button class="preset-btn" id="presetSocial" data-tt-ui="ui:presetSocial">🎭 Social &amp; Dialogue
+                Focus</button>
+            <button class="preset-btn" id="presetDeveloper" data-tt-ui="ui:presetDeveloper">🔧 Developer</button>
+            <span class="selected-preset" id="selectedPreset" aria-live="polite">Selected: none detected</span>
+        </div>
+
+        <!-- Real-Time Eye Dynamics & Kinematics -->
+        <div class="kinematics-box">
+            <div class="sim-canvas-wrap">
+                <canvas id="eyeCanvas" width="140" height="90"></canvas>
+            </div>
+            <div class="sim-info">
+                <div class="sim-title">Real-Time Biological Eye Dynamics &amp; Kinematics</div>
+                <div class="sim-desc">
+                    Demonstrating Main Sequence peak ballistic saccades, micro-saccadic Brownian jitter, and comfort
+                    eye-head engagement limits based on your active parameters.
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Settings Panels Container -->
+        <div id="panels"></div>
+
+        <!-- Bottom Save Action Bar -->
+        <div class="section-panel hidden" id="bottomActions">
+            <div style="padding: 14px 20px; display:flex; align-items:center; justify-content:space-between;">
+                <div style="display:flex; gap:10px;">
+                    <button id="btnSave2" class="primary-gold" disabled data-tt-ui="ui:btnSave">💾 Save Changes to
+                        Game</button>
+                    <button id="btnExport2" disabled data-tt-ui="ui:btnExport">Export Copy</button>
+                </div>
+                <span style="font-style:italic; font-size:0.78rem; color:var(--parchment-dim);">
+                    Changes marked with a dot are unsaved. Backups (.bak) are created automatically.
+                </span>
+            </div>
+        </div>
+
+        <footer>
+            A First-Party Product of the Human Communication Eye Protocol (HCEP) by Kirk LaSalle<br>
+            <span style="font-size:0.75rem; letter-spacing:0.1em; margin: 4px 0; display:inline-block;">
+                <a href="https://www.nexusmods.com/skyrimspecialedition/mods/192480" target="_blank"
+                    style="color:var(--gold); text-decoration:underline;">Nexus Mods (#192480)</a> &nbsp;·&nbsp;
+                <a href="https://github.com/kirklasalle/SkyrimTrueGaze" target="_blank"
+                    style="color:var(--gold); text-decoration:underline;">GitHub Repository</a>
+            </span><br>
+            <span class="eye-quote">"The eyes are the window to the algorithm's soul."</span>
+        </footer>
+    </div>
+
+    <!-- Floating Rich Tooltip Card -->
+    <div id="richTooltip">
+        <div class="tt-header">
+            <div class="tt-name" id="ttName">Parameter</div>
+            <div class="tt-section" id="ttSection">SECTION</div>
+        </div>
+        <div class="tt-block">
+            <div class="tt-label">❖ Function &amp; Mechanism</div>
+            <div class="tt-desc" id="ttDesc">Description</div>
+        </div>
+        <div class="tt-impact" id="ttImpactRow">
+            <span id="ttImpactLabel">In-Game Visual Impact:</span> <span id="ttImpact">In-game visual impact</span>
+        </div>
+        <div class="tt-block" id="ttContextBlock">
+            <div class="tt-label">🔬 Biomechanical Context</div>
+            <div class="tt-desc" id="ttContext">Context</div>
+        </div>
+        <div class="tt-footer" id="ttFooter">
+            <span>Recommended: <strong id="ttRec" style="color:var(--parchment);">—</strong></span>
+            <span>Shipped: <strong class="tt-val-default" id="ttDefault">—</strong></span>
+        </div>
+    </div>
+
+    <!-- Live Log Modal -->
+    <div class="modal-overlay" id="logModal">
+        <div class="modal-panel">
+            <div class="modal-header">
+                <span class="modal-title">📜 SKSE\TrueGaze.log — Live Diagnostic Stream</span>
+                <button id="btnCloseLog" style="padding:4px 10px; font-size:0.75rem;">✕ Close</button>
+            </div>
+            <div class="log-console" id="logConsole">Loading diagnostic log...</div>
+            <div class="modal-footer">
+                <span id="logMeta"
+                    style="font-size:0.75rem; color:var(--parchment-dim); font-family:var(--font-mono);"></span>
+                <button id="btnRefreshLog" style="padding:6px 14px; font-size:0.75rem;">Refresh Log</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept=".ini" class="hidden">
+    <div class="toast" id="toast"></div>
+
+    <script>
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // Schema, Defaults & Deep Biomechanical Tooltip Knowledge Base
+        // ------------------------------------------------------------------
+        const DEFAULTS = {
+            'General': {
+                bEnableTrueGaze: ['bool', true, 'Master toggle for procedural biological gaze engine'],
+                bEnableCreatures: ['bool', true, 'Enable specialized creature/predator/dragon kinematics'],
+                sEngineTarget: ['choice', 'Auto', 'Target engine version (Auto-detect: SE, AE, VR)', ['Auto', 'SE', 'AE', 'VR']]
+            },
+            'Kinematics': {
+                fSaccadeSpeedMult: ['float', 1.0, 'Multiplier for peak ballistic saccade velocity (human: 700-900 deg/s)', 0.5, 2.0, 0.1, '{v}x'],
+                fVelocitySaturation: ['float', 14.0, 'Velocity saturation constant (c parameter in Main Sequence equation)', 1, 60, 0.5, '{v}'],
+                fMicroJitterAmp: ['float', 0.35, 'Amplitude of micro-saccadic Brownian drift preventing visual freezing (degrees)', 0, 1, 0.05, '{v} deg'],
+                fMicroJitterIntervalMin: ['float', 0.2, 'Micro-jitter update minimum interval (seconds)', 0.05, 2, 0.05, '{v} s'],
+                fMicroJitterIntervalMax: ['float', 0.45, 'Micro-jitter update maximum interval (seconds)', 0.1, 4, 0.05, '{v} s'],
+                fHeadTrackingSpeed: ['float', 5.2, 'Vestibulo-Ocular Reflex (VOR) head damping tracking factor — lower = slower, more graceful', 0.5, 20, 0.1, '{v}'],
+                fEyePursuitSpeed: ['float', 12.0, 'Smooth ocular pursuit glide rate between fixation points (1/s) — lower = more languid', 1, 60, 1, '{v}'],
+                fMaxComfortEyeAngle: ['float', 35.0, 'Maximum comfortable eye angle before head engagement (degrees)', 5, 60, 1, '{v} deg'],
+                fHeadOnsetDelaySec: ['float', 0.12, 'Biological latency gap: seconds head lags initial eye saccade', 0.0, 0.4, 0.01, '{v} s']
+            },
+            'SkeletalHierarchy': {
+                fSpine2YawWeight: ['float', 0.035, 'Spine2 yaw strain weight', 0, 1, 0.005, '{v}'],
+                fNeckYawWeight: ['float', 0.07, 'Neck yaw strain weight', 0, 1, 0.005, '{v}'],
+                fNeckPitchWeight: ['float', 0.07, 'Neck pitch strain weight', 0, 1, 0.005, '{v}'],
+                fHeadYawWeight: ['float', 0.245, 'Head yaw strain weight', 0, 1, 0.005, '{v}'],
+                fHeadPitchWeight: ['float', 0.245, 'Head pitch strain weight', 0, 1, 0.005, '{v}'],
+                fHeadEngageThresholdDeg: ['float', 8.0, 'Head engagement threshold: below this angle, only eyes move (degrees)', 0, 45, 1, '{v} deg']
+            },
+            'Social': {
+                bEnableGazeAversion: ['bool', true, 'Cognitive Gaze Aversion when NPCs process thoughts (THINK mode)'],
+                bEnableSocialTriangle: ['bool', true, 'Argyle & Cook Social Triangle gaze cycling in dialogue (AFFECT)'],
+                fTriangleFixationDuration: ['float', 0.35, 'Base social triangle fixation duration (seconds)', 0.1, 2, 0.05, '{v} s'],
+                fTrianglePathRandomness: ['float', 0.6, 'Social triangle path randomness: 0 = fixed orbit, 1 = free organic wandering', 0, 1, 0.05, '{v}'],
+                fMutualGazeThreshold: ['float', 2.0, 'Continuous mutual eye contact for intimacy reactions (seconds)', 0.5, 5, 0.25, '{v} s'],
+                fCgaHeadInvolvement: ['float', 0.08, 'Head chain fraction during CGA aversion (0 = eyes-only, 1 = full head)', 0, 1, 0.01, '{v}'],
+                bDialogueSyncCgaReturn: ['bool', true, 'CGA aversion ends when dialogue begins (attention capture)'],
+                fCgaDialogueOffsetSec: ['float', 2.0, 'Per-actor random ±offset around dialogue onset for organic variation (seconds)', 0, 5, 0.25, '{v} s']
+            },
+            'Crosshair': {
+                bEnableCrosshairGaze: ['bool', true, 'When the crosshair rests on an NPC\'s face, that NPC looks back at the player\'s face (mutual gaze)'],
+                fCrosshairToleranceDeg: ['float', 4.0, 'Base angular tolerance of the face sweet spot (added to the head\'s angular size at that distance)', 0, 30, 0.5, '{v} deg'],
+                fCrosshairMaxRangeMeters: ['float', 25.0, 'Beyond this range the crosshair no longer confers social attention', 2, 100, 1, '{v} m'],
+                fCrosshairPointBlankMeters: ['float', 1.5, 'Below this range any crosshair contact counts as face contact', 0, 10, 0.25, '{v} m']
+            },
+            'Bridge': {
+                bConnectHcepBridge: ['bool', true, 'Connect to HCEP Desktop via named pipe (biometric data — see privacy note in INI)'],
+                sPipeName: ['text', '\\\\.\\pipe\\TrueGazeBridge', 'Named Pipe IPC address'],
+                fAutoReconnectIntervalSec: ['float', 3.0, 'Background worker reconnection interval (seconds)', 1, 30, 0.5, '{v} s']
+            },
+            'LOD': {
+                fTier1DistanceMeters: ['float', 5.0, 'Tier 1: full biological kinematics distance (meters)', 1, 20, 0.5, '{v} m'],
+                fTier2DistanceMeters: ['float', 15.0, 'Tier 2: head/neck kinematics, simplified eyes (meters)', 2, 50, 1, '{v} m']
+            },
+            'Debug': {
+                bDebugGazeRays: ['bool', false, 'Render in-game 3D line-of-sight visualizer rays'],
+                iLogLevel: ['int', 2, 'Logging level (0=Trace 1=Debug 2=Info 3=Warn 4=Error)', 0, 4, 1]
+            },
+            'Visuals': {
+                bEnableInGameVisuals: ['bool', false, 'Master switch for every in-game 3D visual (the "Superman laser eyes" subsystem)'],
+                bGazeRaysEnabled: ['bool', false, 'Emit a gaze beam from each actor\'s pupil along the solved gaze direction'],
+                iRayRenderMode: ['choice', '1', 'Render mode: Both (light + Dawnguard beam) / Light only (safest) / Geometry only', ['0', '1', '2']],
+                fGazeRayLengthMeters: ['float', 2.5, 'Beam reach in meters (drives light radius and terminus position)', 0.5, 50, 0.5, '{v} m'],
+                fGazeRayThicknessCm: ['float', 0.2, 'Beam cross-section diameter (cm) (~2mm hair-thin laser)', 0.05, 5.0, 0.05, '{v} cm'],
+                iGazeRayColour: ['text', '13174890', 'Beam colour as decimal 0xRRGGBB (13174890 = #C9A86A TrueGaze gold)'],
+                fGazeRayOpacity: ['float', 0.85, 'Emitter brightness, 0..1', 0, 1, 0.05, '{v}'],
+                bGazeRaysOnPlayer: ['bool', true, 'Emit beams from the player character'],
+                bGazeRaysOnNPCs: ['bool', true, 'Emit beams from humanoid NPCs'],
+                bGazeRaysOnCreatures: ['bool', true, 'Emit beams from creatures'],
+                bGazeRaysAttachHead: ['bool', true, 'Attach the emitter to the head bone (false = actor root)'],
+                bGazeRaysTerminus: ['bool', false, 'Also place a second glow where the gaze lands'],
+                fPupilForwardOffsetCm: ['float', 12.0, 'Pupil origin: offset forward from the head bone origin (cm)', 0, 30, 0.5, '{v} cm'],
+                fPupilUpOffsetCm: ['float', 6.0, 'Pupil origin: offset up from the head bone origin (cm)', -10, 15, 0.5, '{v} cm'],
+                fPupilGlowIntensity: ['float', 0.5, 'Pupil emitter brightness multiplier', 0, 3, 0.05, '{v}x'],
+                bShowHcepPanel: ['bool', false, 'Master switch for the floating HCEP 9-region diagram panel'],
+                bHcepPanelAllActors: ['bool', true, 'Show HCEP panel on Player, NPCs, and Creatures (false = Player only)'],
+                fHcepPanelScale: ['float', 5.0, 'Scale factor for the floating HCEP panel in Skyrim units (~7cm readable label)', 0.5, 30.0, 0.5, '{v}'],
+                fHcepPanelForwardOffsetCm: ['float', 35.0, 'Forward distance in front of actor head in cm (~24.5 Skyrim units)', 10.0, 100.0, 1.0, '{v} cm']
+            },
+            'Console': {
+                bEnableConsoleCommands: ['bool', false, 'Register the stg* commands in the game console (~). Vanilla only - no Papyrus, ESP or MCM. Type stgstatus to check state, stgon/stgoff for visuals.']
+            }
+        };
+
+        const SECTION_TITLES = {
+            'General': 'The Awakened Eye',
+            'Kinematics': 'Kinematics & Biological Dynamics',
+            'SkeletalHierarchy': 'Skeletal Hierarchy Strain',
+            'Social': 'Social Dynamics',
+            'Crosshair': 'Crosshair Sweet Spot',
+            'Bridge': 'HCEP Connected Mode',
+            'LOD': 'Levels of Detail',
+            'Debug': 'Diagnostics',
+            'Visuals': 'In-Game Visuals',
+            'Console': 'Console Commands'
+        };
+
+        const TOOLTIPS = {
+            'General:bEnableTrueGaze': {
+                desc: 'Master switch enabling the TrueGaze biological eye and kinematics runtime engine across all humanoid NPCs.',
+                impact: 'When enabled, replaces Bethesda\'s static vanilla headtracking with procedural saccadic eye movements, micro-jitter, and cervical spine distribution.',
+                context: 'Disabling reverts the game to vanilla animation behavior without needing to uninstall the plugin.',
+                rec: 'True (Always ON)',
+                dflt: 'true'
+            },
+            'General:bEnableCreatures': {
+                desc: 'Activates specialized predator/prey gaze kinematics for dragons, wolves, sabre cats, and quadrupeds.',
+                impact: 'Creatures track targets with species-appropriate binocular/monocular field-of-view constraints and neck articulation.',
+                context: 'Adjusts ocular divergence for prey animals (e.g. deer) and high-vergence focus for predators.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'General:sEngineTarget': {
+                desc: 'Specifies the Skyrim runtime target architecture for memory offsets and hook layouts.',
+                impact: 'Auto automatically resolves Skyrim Special Edition (1.5.97), Anniversary Edition (1.6.x - 1.7.x), or Skyrim VR.',
+                context: 'Leave on Auto unless running a heavily customized, non-standard private binary.',
+                rec: 'Auto',
+                dflt: 'Auto'
+            },
+            'Kinematics:fSaccadeSpeedMult': {
+                desc: 'Multiplier governing peak ballistic eye rotation velocity during rapid gaze redirections (saccades).',
+                impact: 'Higher values produce sharp, immediate eye snaps; lower values produce a dreamy, sluggish gaze transition.',
+                context: 'Empirical human saccades follow Bahill\'s Main Sequence, reaching peak speeds between 700°/s and 900°/s in under 50ms.',
+                rec: '1.0x (Realism) | 1.2x (Combat/Action)',
+                dflt: '1.0'
+            },
+            'Kinematics:fVelocitySaturation': {
+                desc: 'Asymptotic saturation constant (the c parameter in the Main Sequence non-linear velocity formula).',
+                impact: 'Controls how velocity scales with angular distance: prevents eye movements over large angles from exceeding natural physiological thresholds.',
+                context: 'Prevents unnatural mechanical acceleration during extreme target switching across wide angles.',
+                rec: '12.0 - 15.0',
+                dflt: '14.0'
+            },
+            'Kinematics:fMicroJitterAmp': {
+                desc: 'Maximum angular amplitude (in degrees) of involuntary physiological nystagmus and micro-saccadic Brownian drift.',
+                impact: 'Breathes life into static NPC stares. Eliminates the glassy "wax statue" look when an actor fixates on a stationary target.',
+                context: 'Human eyes continuously drift and tremble across 0.1°–0.5° to refresh retinal photoreceptors and prevent visual fading.',
+                rec: '0.25° - 0.35°',
+                dflt: '0.35 deg'
+            },
+            'Kinematics:fMicroJitterIntervalMin': {
+                desc: 'Minimum dwell time (in seconds) between randomized micro-saccadic position updates.',
+                impact: 'Sets the high-frequency limit of eye micro-motions. Lower values make eyes jitter more frequently.',
+                context: 'Human micro-saccades occur spontaneously 1 to 3 times per second during visual fixation.',
+                rec: '0.15s - 0.25s',
+                dflt: '0.20 s'
+            },
+            'Kinematics:fMicroJitterIntervalMax': {
+                desc: 'Maximum duration (in seconds) before the actor\'s gaze must execute a micro-drift adjustment.',
+                impact: 'Ensures eyes never remain completely motionless longer than this threshold.',
+                context: 'Prevents visual arrest and unnatural cognitive freezing.',
+                rec: '0.35s - 0.50s',
+                dflt: '0.45 s'
+            },
+            'Kinematics:fHeadTrackingSpeed': {
+                desc: 'Vestibulo-Ocular Reflex (VOR) head damping tracking factor.',
+                impact: 'Determines how briskly the head and neck turn to follow target displacement while the eyes maintain fixation. Lower values produce slower, more graceful head turns.',
+                context: 'In biological vision, the eyes snap first (10-30ms) while the cervical spine follows with smoothed, damped acceleration.',
+                rec: '3.5 - 5.5',
+                dflt: '5.2'
+            },
+            'Kinematics:fEyePursuitSpeed': {
+                desc: 'How fast the eyes GLIDE between fixation points during continuous tracking (social triangle scanning, moving targets). Higher = snappier, lower = more languid.',
+                impact: 'Replaces the hard one-frame repositioning that caused a visible snap between triangle fixations. An exponential glide keeps the motion continuous and graceful while staying fast enough to feel alive.',
+                context: 'The head inherits this smoothness too — its VOR target is the eye angle, so a gliding eye produces a gliding head rather than a stepped one.',
+                rec: '8.0 - 16.0',
+                dflt: '12.0'
+            },
+            'Kinematics:fMaxComfortEyeAngle': {
+                desc: 'Maximum comfortable ocular deflection angle (in degrees) before mandatory cervical neck engagement.',
+                impact: 'Prevents extreme eye-rolling into the corners of eye sockets. Forces the neck to turn when targets move beyond this boundary.',
+                context: 'Human ocular comfort field is ±30°–35°. Eye deflections past 35° cause discomfort, reflexively triggering head yaw.',
+                rec: '30.0° - 35.0°',
+                dflt: '35.0 deg'
+            },
+            'SkeletalHierarchy:fSpine2YawWeight': {
+                desc: 'Fractional rotational strain assigned to the upper thoracic vertebra (NPC Spine2 [Spn2]).',
+                impact: 'Subtly twists the upper torso when an NPC looks far over their shoulder.',
+                context: 'High-degree yaw turns engage the torso; keep low (0.05–0.15) to avoid body contortions.',
+                rec: '0.10 (10%)',
+                dflt: '0.1'
+            },
+            'SkeletalHierarchy:fNeckYawWeight': {
+                desc: 'Fractional yaw strain carried by the mid-cervical neck bones (NPC Neck [Neck]).',
+                impact: 'Distributes head turning through the neck column, preventing the head from pivoting like an unnatural swivel.',
+                context: 'Works in harmony with HeadYawWeight to create smooth anatomical bending.',
+                rec: '0.25 (25%)',
+                dflt: '0.25'
+            },
+            'SkeletalHierarchy:fNeckPitchWeight': {
+                desc: 'Fractional pitch strain assigned to the neck for looking up and down.',
+                impact: 'Bends the neck forward or backward when looking at elevated dragons or ground targets.',
+                context: 'Balances head pitch for natural chin tucking and craning.',
+                rec: '0.25 (25%)',
+                dflt: '0.25'
+            },
+            'SkeletalHierarchy:fHeadYawWeight': {
+                desc: 'Primary yaw strain assigned to the cranial head bone (NPC Head [Head]).',
+                impact: 'Carries the main directional turning of the skull relative to the neck.',
+                context: 'Represents the rotational freedom of the atlanto-axial (C1-C2) joint.',
+                rec: '0.60 - 0.70',
+                dflt: '0.65'
+            },
+            'SkeletalHierarchy:fHeadPitchWeight': {
+                desc: 'Primary pitch strain assigned to the cranial head bone.',
+                impact: 'Tilts the head up or down to align with vertical gaze targets.',
+                context: 'Governs nodding, chin elevation, and direct vertical visual line of sight.',
+                rec: '0.30 - 0.45',
+                dflt: '0.35'
+            },
+            'SkeletalHierarchy:fHeadEngageThresholdDeg': {
+                desc: 'Head engagement threshold (degrees). For gaze shifts smaller than this, ONLY the eyes move — the head stays perfectly still.',
+                impact: 'Eliminates robotic micro-head-turns during social triangle cycling at close range. The most visible contributor to natural-looking NPCs.',
+                context: 'Human heads do not visibly move for tiny 2-5° gaze shifts (e.g. glancing between someone\'s left and right eye). Only the eyes dart. Set to 0 to disable.',
+                rec: '6 - 12 deg',
+                dflt: '8.0 deg'
+            },
+            'Social:fCgaHeadInvolvement': {
+                desc: 'How much the head chain participates during Cognitive Gaze Aversion (THINK mode). 0 = pure eye movement, 1 = full head turning.',
+                impact: 'At 0.08, the head drifts subtly during aversion while eyes carry the gaze break — natural and lifelike. At 1.0, the entire neck twists grotesquely (the "Embry bug").',
+                context: 'When humans look away while thinking, the eyes dart to a peripheral region while the head barely moves. This is what makes the aversion believable.',
+                rec: '0.05 - 0.15',
+                dflt: '0.08'
+            },
+            'Social:bDialogueSyncCgaReturn': {
+                desc: 'Dialogue-Synced CGA Return. When dialogue begins, NPCs in CGA aversion snap their gaze back to the speaker\'s face.',
+                impact: 'Creates the natural "oh, they said something" attention capture moment. The timing — eyes darting back at exactly the right instant — is what makes NPCs feel truly alive.',
+                context: 'Kirk LaSalle\'s insight: timing is the sweet spot for CGA. The return-to-face must be timed with dialogue for human-like interaction.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Social:fCgaDialogueOffsetSec': {
+                desc: 'Per-actor random ±offset (seconds) around dialogue onset for CGA return timing.',
+                impact: 'Prevents all NPCs from snapping back at the exact same instant. Negative offset = anticipatory (NPC senses the speaker is about to talk). Positive = delayed (deep in thought, slow to react).',
+                context: 'Each NPC gets a unique offset randomised per CGA episode. At ±2s, some NPCs return up to 2 seconds early or late, creating organic crowd behaviour.',
+                rec: '1.0 - 3.0 s',
+                dflt: '2.0 s'
+            },
+            'Social:bEnableGazeAversion': {
+                desc: 'Cognitive Gaze Aversion (CGA) execution during thought processing and speech pauses.',
+                impact: 'NPCs periodically glance away (up/left or downward) when processing information, breaking continuous unblinking staring.',
+                context: 'Cognitive psychology shows that breaking eye contact reduces visual processing load during complex thinking.',
+                rec: 'True (Deep Realism)',
+                dflt: 'true'
+            },
+            'Social:bEnableSocialTriangle': {
+                desc: 'Argyle & Cook Social Triangle gaze cycling (Left Eye → Right Eye → Mouth).',
+                impact: 'During close conversations, the NPC shifts micro-fixations between your eyes and lips rather than locking onto a single frozen coordinate.',
+                context: 'Executes the universal human social scanning pattern identified by Argyle & Cook (1976).',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Social:fTriangleFixationDuration': {
+                desc: 'Dwell time (in seconds) spent fixating on each node of the social triangle before switching.',
+                impact: 'Controls the rhythm of gaze shifting across the conversational partner\'s face.',
+                context: 'Natural human fixations in dialogue range between 250ms and 500ms.',
+                rec: '0.30s - 0.40s',
+                dflt: '0.35 s'
+            },
+            'Social:fTrianglePathRandomness': {
+                desc: 'How randomly the NPC wanders the social triangle. 0 = classic fixed orbit (Left Eye → Right Eye → Mouth, repeating), 1 = free organic wandering.',
+                impact: 'At 0.6 the path still favours eye-to-eye transitions the way humans do, but lateral jumps, mouth-to-either-eye choices, and same-point re-fixations break every predictable loop. Eliminates the repetitive machine-traced look.',
+                context: 'Real listeners do not cycle facial features in order — they favour one eye, jump laterally, dip to the mouth, and occasionally re-fixate the same point. Landing angles also scatter per visit so no orbit can repeat.',
+                rec: '0.5 - 0.8',
+                dflt: '0.60'
+            },
+            'Social:fMutualGazeThreshold': {
+                desc: 'Continuous mutual eye contact duration (in seconds) required to trigger social, romantic, or tension reactions.',
+                impact: 'Feeds the OAR and TrueGaze API mutual gaze timers; allows custom animation mods to trigger blushing or intimidation.',
+                context: 'Eye contact held past 2 seconds universally signals heightened emotional intensity.',
+                rec: '2.0s',
+                dflt: '2.0 s'
+            },
+            'Crosshair:bEnableCrosshairGaze': {
+                desc: 'Player crosshair-driven mutual eye contact detection.',
+                impact: 'When you place your HUD crosshair on an NPC\'s face, that NPC perceives your gaze and looks directly back into your eyes.',
+                context: 'Bridges player intentionality with AI response using angular face cone calculation.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Crosshair:fCrosshairToleranceDeg': {
+                desc: 'Base angular tolerance (in degrees) added to the NPC head\'s physical bounding radius.',
+                impact: 'Makes crosshair eye contact natural and forgiving at close range without requiring pixel-perfect sniper accuracy.',
+                context: 'Calculates the target head\'s angular footprint using 2 * atan(headRadius / distance) + tolerance.',
+                rec: '3.5° - 5.0°',
+                dflt: '4.0 deg'
+            },
+            'Crosshair:fCrosshairMaxRangeMeters': {
+                desc: 'Maximum distance (in meters) where crosshair aiming confers social attention.',
+                impact: 'Beyond this distance, NPCs cannot discern whether you are looking directly at their eyes or their general area.',
+                context: 'Prevents distant NPCs across an open courtyard from reacting to your crosshair.',
+                rec: '20.0m - 25.0m',
+                dflt: '25.0 m'
+            },
+            'Crosshair:fCrosshairPointBlankMeters': {
+                desc: 'Point-blank distance threshold (in meters) where any crosshair contact counts as direct eye contact.',
+                impact: 'In very close proximity (<1.5m), aiming at the chest or face immediately engages mutual gaze.',
+                context: 'Reflects the unavoidable perceptual salience of close personal space.',
+                rec: '1.5m',
+                dflt: '1.5 m'
+            },
+            'Bridge:bConnectHcepBridge': {
+                desc: 'Enables Named Pipe IPC communication with Kirk LaSalle\'s HCEP Desktop biometric suite.',
+                impact: 'Allows real-world webcam/eye-tracker gaze vectors to directly drive your in-game player and NPC interactions.',
+                context: 'Runs locally on \\\\.\\pipe\\TrueGazeBridge. Zero network traffic; biometric data never leaves your machine.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Bridge:sPipeName': {
+                desc: 'Local Windows Named Pipe address for the HCEP IPC protocol.',
+                impact: 'Must match the pipe name configured in HCEP Desktop or your tracking client.',
+                context: 'Standard Windows IPC mechanism offering sub-millisecond transmission latency.',
+                rec: '\\\\.\\pipe\\TrueGazeBridge',
+                dflt: '\\\\.\\pipe\\TrueGazeBridge'
+            },
+            'Bridge:fAutoReconnectIntervalSec': {
+                desc: 'Time interval (in seconds) between background reconnection attempts when HCEP Desktop is not detected.',
+                impact: 'Keeps background thread CPU overhead near zero when the external tracker is offline.',
+                context: 'TrueGaze gracefully operates independently when HCEP Desktop is closed.',
+                rec: '3.0s',
+                dflt: '3.0 s'
+            },
+            'LOD:fTier1DistanceMeters': {
+                desc: 'Radius (in meters) for Tier 1 full biological ocular kinematics.',
+                impact: 'Actors within this distance receive full micro-saccades, VOR head-eye coordination, and eyelid morphs.',
+                context: 'Actors beyond Tier 1 transition to simplified head-only tracking to maximize framerates in crowded cities.',
+                rec: '5.0m - 7.0m',
+                dflt: '5.0 m'
+            },
+            'LOD:fTier2DistanceMeters': {
+                desc: 'Radius (in meters) for Tier 2 head kinematics before distance culling cutoff.',
+                impact: 'Actors between Tier 1 and Tier 2 turn their heads toward sound/players, but ocular micro-jitter is deactivated.',
+                context: 'Beyond Tier 2, actors revert to standard game engine LOD.',
+                rec: '15.0m - 20.0m',
+                dflt: '15.0 m'
+            },
+            'Debug:bDebugGazeRays': {
+                desc: 'In-game visual line-of-sight visualizer and live HUD telemetry broadcaster.',
+                impact: 'Displays real-time on-screen alerts in gold text (e.g. [TrueGaze] Eye Contact Held: Lucan Valerius) and streams 3D vectors to console (~).',
+                context: 'Essential for verifying that TrueGaze is actively tracking targets inside Skyrim without opening external logs.',
+                rec: 'True (When testing/verifying) | False (Immersion)',
+                dflt: 'false'
+            },
+            'Debug:iLogLevel': {
+                desc: 'Verbosity filter for SKSE\\TrueGaze.log output.',
+                impact: '0 = Trace (high volume, logs per-frame vectors) | 1 = Debug (kinematics & target probes) | 2 = Info (startup, hooks, tuning) | 3 = Warn | 4 = Error only.',
+                context: 'Level 1 or 2 is recommended for diagnosing mod conflicts and verifying bone resolution.',
+                rec: '1 (Debug) or 2 (Info)',
+                dflt: '2 (Info)'
+            },
+            'Visuals:bEnableInGameVisuals': {
+                desc: 'Master switch for the in-game 3D visual system — the "Superman laser eyes" developer diagnostic.',
+                impact: 'When on, TrueGaze renders its solved gaze into the world. It never alters underlying game physics, the save game, or actor transforms; it only attaches and removes visual emitters.',
+                context: 'This subsystem is developer-facing. Turn it on to see exactly where every NPC is looking, then turn it off for normal play. Requires a game restart (the INI is read at startup).',
+                rec: 'False (True only while verifying)',
+                dflt: 'false'
+            },
+            'Visuals:bGazeRaysEnabled': {
+                desc: 'Emits a gaze beam from each actor\'s pupil along the solved gaze direction.',
+                impact: 'A real point light is placed at the pupil and (optionally) at the point the gaze lands, so the direction the solver chose is visible at a glance.',
+                context: 'Vanilla humanoid skeletons have no eye bones — eyes are FaceGen morphs — so the pupil is derived geometrically from the head bone. Use the pupil-offset keys below if beams sit in front of or behind a face.',
+                rec: 'False (True only while verifying)',
+                dflt: 'false'
+            },
+            'Visuals:iRayRenderMode': {
+                desc: 'Selects how the gaze is drawn.',
+                impact: '0 = Both (light emitters plus branded beam geometry) | 1 = Light only (bare-bones; needs no art assets) | 2 = Geometry only (suppresses the lights).',
+                context: 'Mode 1 is the pure-diagnostic path: it works with zero mod assets and no lighting surprises. Modes 0 and 2 gain the branded beam mesh once those assets are installed.',
+                rec: '1 (Light only) or 0 (Both)',
+                dflt: '0 (Both)'
+            },
+            'Visuals:fGazeRayLengthMeters': {
+                desc: 'How far a gaze beam reaches, in meters.',
+                impact: 'Sets both the light\'s radius and how far the terminus glow is placed along the gaze direction. Long beams make direction obvious across a room; short beams read as a glow at the eyes only.',
+                context: 'Typical human gaze at a conversational partner lands around 2-4 m; 10 m is a useful default for reading aim and target selection in a crowd.',
+                rec: '10.0 m',
+                dflt: '10.0 m'
+            },
+            'Visuals:iGazeRayColour': {
+                desc: 'Beam colour as a decimal 0xRRGGBB value.',
+                impact: 'Colours the pupil and terminus emitters. The default 13174890 is #C9A86A, the TrueGaze gold used throughout this configurator.',
+                context: 'Because the value is a plain integer, some colour pickers read it as decimal. Convert a hex colour to decimal before entering it (e.g. #C9A86A = 13174890).',
+                rec: '13174890 (#C9A86A TrueGaze gold)',
+                dflt: '13174890'
+            },
+            'Visuals:fGazeRayOpacity': {
+                desc: 'Brightness of the gaze emitters, from 0 (invisible) to 1 (full).',
+                impact: 'Multiplied with Pupil Glow Intensity to set the final emitter colour. Lower it when beams are washing out a dark interior.',
+                context: 'Two brightness keys multiply rather than override each other, so you can set a global level here and still fine-tune the pupil separately.',
+                rec: '0.85',
+                dflt: '0.85'
+            },
+            'Visuals:bGazeRaysOnPlayer': {
+                desc: 'Emit beams from the player character.',
+                impact: 'When off, the player has no beams even though NPCs do — useful for inspecting NPC gaze without your own beam in shot.',
+                context: 'In first person the player\'s own eyes are driven by the camera, so a player beam is mainly meaningful in third person.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Visuals:bGazeRaysOnNPCs': {
+                desc: 'Emit beams from humanoid NPCs.',
+                impact: 'When off, humanoid actors are skipped while creatures still emit, so creature-specific rigs can be inspected in isolation.',
+                context: 'NPC beams are the primary way to verify the saccade, social-triangle, and crosshair mutual-gaze behaviours.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Visuals:bGazeRaysOnCreatures': {
+                desc: 'Emit beams from creatures.',
+                impact: 'When off, dragons, wolves, and other non-humanoid actors are excluded from the visual layer.',
+                context: 'Creature rigs vary widely. Creatures that expose real eye bones place their beams precisely; those that do not use the geometric head-bone fallback.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Visuals:bGazeRaysAttachHead': {
+                desc: 'Attach the emitter to the head bone rather than the actor root.',
+                impact: 'Head attachment makes the pupil glow and terminus follow the head\'s turn exactly. Root attachment is a fallback for rigs where the head bone cannot be resolved.',
+                context: 'If beams appear detached from a face, switching this off (or checking the skeleton probe line in TrueGaze.log) narrows the cause.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Visuals:bGazeRaysTerminus': {
+                desc: 'Also place a second glow where the gaze lands.',
+                impact: 'The pupil glow shows where the eyes are; the terminus glow shows where they are pointed. Together they make direction unambiguous from any camera angle.',
+                context: 'The terminus follows the same solved direction as the beam, so if it visibly misses the target the gaze solution — not the visual — is what to investigate.',
+                rec: 'True while verifying aim, then False',
+                dflt: 'false'
+            },
+            'Visuals:fPupilForwardOffsetCm': {
+                desc: 'How far forward of the head bone origin the pupil sits, in centimetres.',
+                impact: 'Places the emitter at the eye surface rather than the skull centre. Increase if beams appear to start behind the face; decrease if they float in front of it.',
+                context: 'This exists because vanilla Skyrim skeletons expose no eye bones — the eye position must be derived geometrically. Custom rigs (XP32/XPMSSE) that do have eye bones ignore this value.',
+                rec: '7.0 cm',
+                dflt: '7.0 cm'
+            },
+            'Visuals:fPupilUpOffsetCm': {
+                desc: 'How far above the head bone origin the pupil sits, in centimetres.',
+                impact: 'Fine vertical placement of the emitter. Negative values move it below the head bone origin.',
+                context: 'Tune together with the forward offset until the glow sits in the eye socket on the rigs you use most.',
+                rec: '1.5 cm',
+                dflt: '1.5 cm'
+            },
+            'Visuals:fPupilGlowIntensity': {
+                desc: 'Brightness multiplier applied to the pupil emitter only.',
+                impact: 'Lets the pupil glow be tuned independently of the global beam brightness — useful for a bright terminus with a subtle eye glow, or the reverse.',
+                context: 'Multiplies with Beam Opacity rather than replacing it.',
+                rec: '0.5x',
+                dflt: '0.5x'
+            },
+            'Visuals:fGazeRayThicknessCm': {
+                desc: 'Cross-section diameter of the visible beam geometry in centimetres.',
+                impact: 'Controls pencil-beam vs wide-beam rendering. Set to ~0.8cm for an elegant laser line; higher values create a volumetric beam.',
+                context: 'Applies to geometry render modes. Light-only fallback scales radius with beam length.',
+                rec: '0.8 cm',
+                dflt: '0.8 cm'
+            },
+            'Visuals:bShowHcepPanel': {
+                desc: 'Displays the floating 3D HCEP 9-region diagnostic diagram panel in front of actors.',
+                impact: 'Shows Kirk LaSalle\'s HCEP grid in real-time 3D world space. As the actor looks around, the active region lights up with its designated color.',
+                context: 'Uses transparent chroma-keyed panel textures with dynamic emissive highlighting. Toggleable in real time.',
+                rec: 'False (True for demonstration/diagnostics)',
+                dflt: 'false'
+            },
+            'Visuals:bHcepPanelAllActors': {
+                desc: 'When enabled, displays the HCEP diagram on Player, NPCs, and creatures. When disabled, only the Player displays the panel.',
+                impact: 'Allows isolating the diagnostic panel to the player character or inspecting the whole scene simultaneously.',
+                context: 'Each actor\'s panel independently tracks and highlights that specific actor\'s cognitive gaze region.',
+                rec: 'True',
+                dflt: 'true'
+            },
+            'Visuals:fHcepPanelScale': {
+                desc: 'Scale factor for the floating HCEP diagram panel.',
+                impact: '0.5 creates a 50cm wide HUD panel. Adjust between 0.2 (compact badge) to 1.5 (presentation banner).',
+                context: 'Scales uniformly around the actor\'s head anchor without shifting the forward position.',
+                rec: '0.5x',
+                dflt: '0.5x'
+            },
+            'Visuals:fHcepPanelForwardOffsetCm': {
+                desc: 'Forward distance in front of the actor\'s head where the panel hovers (in centimetres).',
+                impact: '35cm places the panel comfortably in front of the nose without clipping face meshes or helmet geometry.',
+                context: 'Follows head yaw, pitch, and roll in real time.',
+                rec: '35.0 cm',
+                dflt: '35.0 cm'
+            },
+            'Console:bEnableConsoleCommands': {
+                desc: 'Registers the stg* commands so the game\'s own console (~) can toggle SkyrimTrueGaze at runtime.',
+                impact: 'Adds: stg (toggle kinematics engine), stgvisuals / stgv (visuals and gaze rays), stgon / stgoff, stgmode (render mode), stgradius (terminus glow), stgverbose (logging), stgstatus (print the full state).',
+                context: 'VANILLA ONLY — no Papyrus, no ESP/ESL, no MCM, no SkyUI. Commands are registered by reclaiming console-table entries the engine already treats as dead or empty, so no working vanilla command is displaced. Off by default because it writes into engine memory and has not yet been confirmed in a running game. Requires a game restart — commands register at load.',
+                rec: 'False, then True when you want runtime toggles',
+                dflt: 'false'
+            }
+        };
+
+        // ------------------------------------------------------------------
+        // UI Element Tooltips (toolbar, presets & actions)
+        // Rendered through the same rich card as the configuration rows so the
+        // entire page shares one tooltip standard.
+        // ------------------------------------------------------------------
+        const UI_TOOLTIPS = {
+            'ui:btnLaunch': {
+                desc: 'Launches Skyrim Special Edition through skse64_loader.exe with TrueGaze.dll already deployed.',
+                impact: 'Runs the engine with your currently saved tuning. Save first — the game only reads TrueGaze.ini at startup.',
+                context: 'TrueGaze does not inject into a running game. Any edit made while Skyrim is open applies on the next launch.',
+                rec: 'Save Changes before launching'
+            },
+            'ui:btnScan': {
+                desc: 'Re-probes the Windows registry, Steam library, Documents save folder and the deployed plugin files.',
+                impact: 'Refreshes the three status cards above and reloads the live TrueGaze.ini from the game installation.',
+                context: 'Run this after installing SKSE64, the Address Library, or after deploying a new build.',
+                rec: 'Run after any install or deploy'
+            },
+            'ui:btnSave': {
+                desc: 'Writes the current tuning directly to Data\\SKSE\\Plugins\\TrueGaze.ini inside your Skyrim installation.',
+                impact: 'Commits every unsaved change on the page. The previous file is preserved automatically as a .bak backup.',
+                context: 'Values are written byte-exact in Latin-1 so the INI header and comments survive untouched.',
+                rec: 'Save before launching Skyrim'
+            },
+            'ui:btnLog': {
+                desc: 'Opens a live tail of SKSE\\TrueGaze.log — the engine diagnostic stream written while the game runs.',
+                impact: 'Shows hook installation, skeleton bone probes, target acquisition and any load failures in real time.',
+                context: 'The fastest way to confirm TrueGaze actually loaded and resolved an NPC skeleton in-game.',
+                rec: 'Check after the first load'
+            },
+            'ui:btnDefaults': {
+                desc: 'Restores every parameter on the page to the biologically calibrated values shipped with TrueGaze.',
+                impact: 'Marks all rows as unsaved so you can review the change before committing it to disk.',
+                context: 'Nothing is written until you press Save Changes — you can always abandon the reset by reloading the page.',
+                rec: 'Use to recover from heavy experimentation'
+            },
+            'ui:btnOpen': {
+                desc: 'Loads an alternate TrueGaze.ini from disk instead of the one found in the game installation.',
+                impact: 'Lets you inspect, diff or edit a backup, a shared profile, or a copy from another machine.',
+                context: 'Useful for comparing a friend\'s configuration or recovering a .bak file without touching the live install.',
+                rec: 'For backups & shared profiles'
+            },
+            'ui:btnExport': {
+                desc: 'Downloads the current configuration as a standalone TrueGaze.ini file.',
+                impact: 'Produces a portable copy you can share, archive, or drop into another Skyrim installation manually.',
+                context: 'Also used as the automatic fallback when the automation bridge is offline and direct saving is unavailable.',
+                rec: 'For sharing & manual installs'
+            },
+            'ui:presetVanilla': {
+                desc: 'Restores the balanced baseline: human eye mechanics with natural social dynamics.',
+                impact: 'Saccade multiplier 1.0x, micro-jitter 0.35 deg, head tracking 6.0, comfort eye angle 35 deg, all social behaviours on.',
+                context: 'The reference profile — every other preset is a deliberate departure from these values.',
+                rec: 'Default choice for a first playthrough'
+            },
+            'ui:presetSubtle': {
+                desc: 'Calmer, slower ocular behaviour for a relaxed and unobtrusive feel.',
+                impact: 'Gentler saccades and lower jitter, so NPCs read as daydreaming rather than alert or twitchy.',
+                context: 'Keeps every biological mechanism active while reducing its visible intensity — ideal for cinematic or roleplay saves.',
+                rec: 'Cinematic & roleplay playthroughs'
+            },
+            'ui:presetIntense': {
+                desc: 'Fast, reactive eye behaviour tuned for combat and high-alertness scenes.',
+                impact: 'Sharper saccades, higher micro-jitter and a wider comfort eye angle so NPCs snap onto threats quickly.',
+                context: 'Cognitive gaze aversion is disabled so enemies hold their stare during a fight.',
+                rec: 'Combat & action-heavy load orders'
+            },
+            'ui:presetSocial': {
+                desc: 'Heightened mutual gaze sensitivity and full Argyle & Cook social triangle cycling in dialogue.',
+                impact: 'Lowers the mutual gaze threshold to 1.5 s and widens the crosshair face sweet spot for easier eye contact.',
+                context: 'Tuned for conversation-heavy play: companions, followers and dialogue mods react to sustained eye contact sooner.',
+                rec: 'Dialogue & companion focused saves'
+            },
+            'ui:presetDeveloper': {
+                desc: 'Enables ALL developer and diagnostic features: in-game gaze beams, HCEP panel, console commands, debug logging and trace output.',
+                impact: 'Turns on every visual illustration asset, the floating HCEP region panel on all actors, debug-level logging, and the stg* console commands.',
+                context: 'Designed for developer testing and debugging sessions. Not for normal gameplay — performance may be reduced and the screen will show diagnostic overlays.',
+                rec: 'Development & QA testing only'
+            }
+        };
+
+        // ------------------------------------------------------------------
+        // State Management
+        // ------------------------------------------------------------------
+        let rawText = '';
+        let originalText = '';
+        let parsed = new Map();     // Section -> Map(Key -> String)
+        let bridgeActive = false;
+        let activeIniPath = '';
+
+        const $ = id => document.getElementById(id);
+
+        function setStatus(msg, cls = 'info') {
+            $('status').innerHTML = `<span class="${cls}">${msg}</span>`;
+        }
+
+        function toast(msg) {
+            const t = $('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            clearTimeout(t._h);
+            t._h = setTimeout(() => t.classList.remove('show'), 2600);
+        }
+
+        // ------------------------------------------------------------------
+        // INI Parser & Serializer (Preserves Latin-1 & Formatting Exactly)
+        // ------------------------------------------------------------------
+        function parseIni(text) {
+            const map = new Map();
+            let section = null;
+            for (const line of text.split(/\r?\n/)) {
+                const m = line.match(/^\s*\[([^\]]+)\]\s*$/);
+                if (m) {
+                    section = m[1];
+                    if (!map.has(section)) map.set(section, new Map());
+                    continue;
+                }
+                if (!section) continue;
+                const kv = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+                if (kv) {
+                    map.get(section).set(kv[1], kv[2]);
+                }
+            }
+            return map;
+        }
+
+        function serializeIni() {
+            let out = [];
+            let section = null;
+            for (const line of originalText.split(/\r?\n/)) {
+                const sm = line.match(/^\s*\[([^\]]+)\]\s*$/);
+                if (sm) {
+                    section = sm[1];
+                    out.push(line);
+                    continue;
+                }
+                const kv = line.match(/^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)(.*?)\s*$/);
+                if (kv && section && parsed.get(section)?.has(kv[2])) {
+                    const v = parsed.get(section).get(kv[2]);
+                    out.push(`${kv[1]}${kv[2]}${kv[3]}${v}`);
+                } else {
+                    out.push(line);
+                }
+            }
+            return out.join('\r\n');
+        }
+
+        function updateDirty() {
+            const dirty = document.querySelectorAll('.config-row.dirty').length;
+            const dirtyEl = $('statusDirty');
+            if (dirty > 0) {
+                dirtyEl.innerHTML = `<span class="warn">● ${dirty} unsaved change${dirty > 1 ? 's' : ''}</span>`;
+                $('btnSave').disabled = $('btnSave2').disabled = false;
+            } else {
+                dirtyEl.innerHTML = `<span class="ok">✓ Synchronized</span>`;
+                $('btnSave').disabled = $('btnSave2').disabled = true;
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // UI Generator & Tooltip Wiring
+        // ------------------------------------------------------------------
+        function buildUI() {
+            const container = $('panels');
+            container.innerHTML = '';
+
+            // Reapply the selected-preset chrome after the configuration panels
+            // rebuild. Preset selection is UI state, not an INI value.
+            const selected = window.trueGazeSelectedPreset;
+            document.querySelectorAll('.preset-btn').forEach(button => {
+                const isSelected = selected && button.id === `preset${selected.charAt(0).toUpperCase()}${selected.slice(1)}`;
+                button.classList.toggle('active', Boolean(isSelected));
+                button.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+            });
+            const selectedLabel = $('selectedPreset');
+            if (selectedLabel && selected) {
+                selectedLabel.textContent = `Selected: ${selected.charAt(0).toUpperCase()}${selected.slice(1)}`;
+            }
+
+            for (const [section, schema] of Object.entries(DEFAULTS)) {
+                const secVals = parsed.get(section) || new Map();
+                const panel = document.createElement('div');
+                panel.className = 'section-panel';
+
+                const title = SECTION_TITLES[section] || section;
+                panel.innerHTML = `
+                    <div class="section-panel-header">
+                        <span class="section-panel-title">${title}</span>
+                        <span class="section-panel-tag">[${section.toUpperCase()}]</span>
+                    </div>
+                    <div class="section-panel-body"></div>
+                `;
+
+                const body = panel.querySelector('.section-panel-body');
+
+                for (const [key, def] of Object.entries(schema)) {
+                    const [type, dflt, help, ...rest] = def;
+                    const val = secVals.has(key) ? secVals.get(key) : String(dflt);
+                    const tooltipKey = `${section}:${key}`;
+
+                    const row = document.createElement('div');
+                    row.className = 'config-row';
+                    row.dataset.section = section;
+                    row.dataset.key = key;
+
+                    let controlHtml = '';
+
+                    if (type === 'bool') {
+                        const isChecked = String(val).toLowerCase() === 'true';
+                        controlHtml = `
+                            <label class="toggle-switch">
+                                <input type="checkbox" data-role="input" ${isChecked ? 'checked' : ''}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="toggle-label" data-role="boolval">${isChecked ? 'ON' : 'OFF'}</span>
+                        `;
+                    } else if (type === 'float' || type === 'int') {
+                        const [min, max, step, fmt] = rest;
+                        const numVal = Number(val);
+                        let displayVal = val;
+                        if (fmt) {
+                            displayVal = fmt.replace('{v}', type === 'int' ? numVal : numVal.toFixed(step < 0.1 ? 2 : 1));
+                        }
+                        controlHtml = `
+                            <input type="range" data-role="input" min="${min}" max="${max}" step="${step}" value="${numVal}">
+                            <span class="slider-val" data-role="sliderval">${displayVal}</span>
+                        `;
+                    } else if (type === 'choice') {
+                        const [choices] = rest;
+                        controlHtml = `
+                            <select data-role="input">
+                                ${choices.map(c => `<option value="${c}" ${c === val ? 'selected' : ''}>${c}</option>`).join('')}
+                            </select>
+                        `;
+                    } else {
+                        controlHtml = `<input type="text" data-role="input" value="${val}">`;
+                    }
+
+                    row.innerHTML = `
+                        <div class="param-meta">
+                            <span class="param-name">${key}</span>
+                            <span class="param-ini">${section}:${key}</span>
+                        </div>
+                        <div class="param-control">
+                            ${controlHtml}
+                        </div>
+                        <div class="param-help">
+                            <span>${help}</span>
+                            <span class="info-pill" data-tt="${tooltipKey}">❖ INFO</span>
+                        </div>
+                    `;
+
+                    body.appendChild(row);
+
+                    // Input change handler
+                    const input = row.querySelector('[data-role=input]');
+                    input.addEventListener('input', () => {
+                        let updatedVal;
+                        if (type === 'bool') {
+                            updatedVal = input.checked ? 'true' : 'false';
+                            row.querySelector('[data-role=boolval]').textContent = input.checked ? 'ON' : 'OFF';
+                        } else if (type === 'float' || type === 'int') {
+                            updatedVal = String(input.value);
+                            const [, , step, fmt] = rest;
+                            const n = Number(input.value);
+                            row.querySelector('[data-role=sliderval]').textContent =
+                                fmt ? fmt.replace('{v}', type === 'int' ? n : n.toFixed(step < 0.1 ? 2 : 1)) : input.value;
+                        } else {
+                            updatedVal = input.value;
+                        }
+
+                        if (!parsed.has(section)) parsed.set(section, new Map());
+                        parsed.get(section).set(key, updatedVal);
+                        row.classList.add('dirty');
+                        updateDirty();
+                    });
+
+                    // Mouse-over tooltip trigger on the whole row & pill
+                    attachTooltip(row, tooltipKey);
+                }
+
+                container.appendChild(panel);
+            }
+
+            $('bottomActions').classList.remove('hidden');
+            $('btnExport').disabled = $('btnExport2').disabled = false;
+            updateDirty();
+        }
+
+        // ------------------------------------------------------------------
+        // Rich Floating Tooltip Positioning & Event Listeners
+        // ------------------------------------------------------------------
+        const tooltipEl = $('richTooltip');
+        let currentTooltipKey = null;
+
+        function attachTooltip(element, key) {
+            element.addEventListener('mouseenter', e => showTooltip(e, key));
+            element.addEventListener('mousemove', moveTooltip);
+            element.addEventListener('mouseleave', hideTooltip);
+        }
+
+        // Wires every toolbar button, preset button and action button into the
+        // same rich tooltip card used by the configuration rows.
+        function wireUiTooltips() {
+            document.querySelectorAll('[data-tt-ui]').forEach(el => {
+                const key = el.dataset.ttUi;
+                if (!UI_TOOLTIPS[key] || el.dataset.ttWired === '1') return;
+                el.dataset.ttWired = '1';
+                el.addEventListener('mouseenter', e => showTooltip(e, key));
+                el.addEventListener('mousemove', moveTooltip);
+                el.addEventListener('mouseleave', hideTooltip);
+            });
+        }
+
+        function showTooltip(e, key) {
+            const uiData = UI_TOOLTIPS[key];
+            const data = uiData || TOOLTIPS[key];
+            if (!data) return;
+
+            currentTooltipKey = key;
+
+            if (uiData) {
+                const [kind, id] = key.split(':');
+                const btn = $(id);
+                $('ttName').textContent = btn ? btn.textContent.trim() : id;
+                $('ttSection').textContent = '[INTERFACE]';
+            } else {
+                const [section, param] = key.split(':');
+                $('ttName').textContent = param;
+                $('ttSection').textContent = `[${section.toUpperCase()}]`;
+            }
+
+            $('ttImpactLabel').textContent = uiData ? 'Effect:' : 'In-Game Visual Impact:';
+            $('ttDesc').textContent = data.desc;
+            $('ttImpact').textContent = data.impact;
+            $('ttContext').textContent = data.context;
+
+            // UI actions have no shipped numeric value, so only the recommendation row is shown.
+            $('ttFooter').classList.toggle('hidden', !!uiData);
+            $('ttRec').textContent = data.rec;
+            $('ttDefault').textContent = data.dflt || '—';
+
+            tooltipEl.classList.add('visible');
+            moveTooltip(e);
+        }
+
+        function moveTooltip(e) {
+            if (!tooltipEl.classList.contains('visible')) return;
+
+            const offset = 18;
+            const ttWidth = tooltipEl.offsetWidth;
+            const ttHeight = tooltipEl.offsetHeight;
+            const winWidth = window.innerWidth;
+            const winHeight = window.innerHeight;
+
+            let x = e.clientX + offset;
+            let y = e.clientY + offset;
+
+            // Flip horizontally if overflow right
+            if (x + ttWidth > winWidth - 16) {
+                x = e.clientX - ttWidth - offset;
+            }
+            // Clamp vertically
+            if (y + ttHeight > winHeight - 16) {
+                y = winHeight - ttHeight - 16;
+            }
+            if (y < 16) y = 16;
+
+            tooltipEl.style.left = `${x}px`;
+            tooltipEl.style.top = `${y}px`;
+        }
+
+        function hideTooltip() {
+            tooltipEl.classList.remove('visible');
+            currentTooltipKey = null;
+        }
+
+        // ------------------------------------------------------------------
+        // Quick Presets
+        // ------------------------------------------------------------------
+        function applyPreset(presetName) {
+            const p = {
+                vanilla: {
+                    'Kinematics:fSaccadeSpeedMult': '1.0',
+                    'Kinematics:fMicroJitterAmp': '0.18',
+                    'Kinematics:fHeadTrackingSpeed': '3.2',
+                    'Kinematics:fEyePursuitSpeed': '10.0',
+                    'Kinematics:fMaxComfortEyeAngle': '30.0',
+                    'Kinematics:fHeadOnsetDelaySec': '0.10',
+                    'SkeletalHierarchy:fSpine2YawWeight': '0.035',
+                    'SkeletalHierarchy:fNeckYawWeight': '0.07',
+                    'SkeletalHierarchy:fNeckPitchWeight': '0.07',
+                    'SkeletalHierarchy:fHeadYawWeight': '0.245',
+                    'SkeletalHierarchy:fHeadPitchWeight': '0.245',
+                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '8.0',
+                    'Social:fCgaHeadInvolvement': '0.08',
+                    'Social:bDialogueSyncCgaReturn': 'true',
+                    'Social:fCgaDialogueOffsetSec': '2.0',
+                    'Social:bEnableGazeAversion': 'true',
+                    'Social:bEnableSocialTriangle': 'true',
+                    'Social:fTrianglePathRandomness': '0.6',
+                    'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Visuals:bEnableInGameVisuals': 'false',
+                    'Visuals:bGazeRaysEnabled': 'false',
+                    'Visuals:bShowHcepPanel': 'false',
+                    'Debug:bDebugGazeRays': 'false',
+                    'Debug:iLogLevel': '2'
+                },
+                subtle: {
+                    'Kinematics:fSaccadeSpeedMult': '0.7',
+                    'Kinematics:fMicroJitterAmp': '0.09',
+                    'Kinematics:fHeadTrackingSpeed': '2.0',
+                    'Kinematics:fEyePursuitSpeed': '8.0',
+                    'Kinematics:fMaxComfortEyeAngle': '22.0',
+                    'Kinematics:fHeadOnsetDelaySec': '0.12',
+                    'SkeletalHierarchy:fSpine2YawWeight': '0.03',
+                    'SkeletalHierarchy:fNeckYawWeight': '0.07',
+                    'SkeletalHierarchy:fNeckPitchWeight': '0.08',
+                    'SkeletalHierarchy:fHeadYawWeight': '0.25',
+                    'SkeletalHierarchy:fHeadPitchWeight': '0.25',
+                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '12.0',
+                    'Social:fCgaHeadInvolvement': '0.05',
+                    'Social:bDialogueSyncCgaReturn': 'true',
+                    'Social:fCgaDialogueOffsetSec': '2.5',
+                    'Social:bEnableGazeAversion': 'true',
+                    'Social:bEnableSocialTriangle': 'true',
+                    'Social:fTrianglePathRandomness': '0.5',
+                    'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Visuals:bEnableInGameVisuals': 'false',
+                    'Visuals:bGazeRaysEnabled': 'false',
+                    'Visuals:bShowHcepPanel': 'false',
+                    'Debug:bDebugGazeRays': 'false',
+                    'Debug:iLogLevel': '2'
+                },
+                intense: {
+                    'Kinematics:fSaccadeSpeedMult': '1.15',
+                    'Kinematics:fMicroJitterAmp': '0.28',
+                    'Kinematics:fHeadTrackingSpeed': '4.4',
+                    'Kinematics:fEyePursuitSpeed': '14.0',
+                    'Kinematics:fMaxComfortEyeAngle': '35.0',
+                    'Kinematics:fHeadOnsetDelaySec': '0.08',
+                    'SkeletalHierarchy:fSpine2YawWeight': '0.056',
+                    'SkeletalHierarchy:fNeckYawWeight': '0.105',
+                    'SkeletalHierarchy:fNeckPitchWeight': '0.105',
+                    'SkeletalHierarchy:fHeadYawWeight': '0.315',
+                    'SkeletalHierarchy:fHeadPitchWeight': '0.315',
+                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '5.0',
+                    'Social:fCgaHeadInvolvement': '0.12',
+                    'Social:bDialogueSyncCgaReturn': 'true',
+                    'Social:fCgaDialogueOffsetSec': '1.5',
+                    'Social:bEnableGazeAversion': 'true',
+                    'Social:bEnableSocialTriangle': 'true',
+                    'Social:fTrianglePathRandomness': '0.7',
+                    'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Visuals:bEnableInGameVisuals': 'false',
+                    'Visuals:bGazeRaysEnabled': 'false',
+                    'Visuals:bShowHcepPanel': 'false',
+                    'Debug:bDebugGazeRays': 'false',
+                    'Debug:iLogLevel': '2'
+                },
+                social: {
+                    'Kinematics:fSaccadeSpeedMult': '0.85',
+                    'Kinematics:fMicroJitterAmp': '0.14',
+                    'Kinematics:fHeadTrackingSpeed': '2.6',
+                    'Kinematics:fEyePursuitSpeed': '10.0',
+                    'Kinematics:fMaxComfortEyeAngle': '25.0',
+                    'Kinematics:fHeadOnsetDelaySec': '0.10',
+                    'SkeletalHierarchy:fSpine2YawWeight': '0.028',
+                    'SkeletalHierarchy:fNeckYawWeight': '0.056',
+                    'SkeletalHierarchy:fNeckPitchWeight': '0.07',
+                    'SkeletalHierarchy:fHeadYawWeight': '0.21',
+                    'SkeletalHierarchy:fHeadPitchWeight': '0.21',
+                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '10.0',
+                    'Social:fCgaHeadInvolvement': '0.06',
+                    'Social:bDialogueSyncCgaReturn': 'true',
+                    'Social:fCgaDialogueOffsetSec': '2.0',
+                    'Social:bEnableGazeAversion': 'true',
+                    'Social:bEnableSocialTriangle': 'true',
+                    'Social:fTrianglePathRandomness': '0.7',
+                    'Social:fMutualGazeThreshold': '1.5',
+                    'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Crosshair:fCrosshairToleranceDeg': '6.0',
+                    'Visuals:bEnableInGameVisuals': 'false',
+                    'Visuals:bGazeRaysEnabled': 'false',
+                    'Visuals:bShowHcepPanel': 'false',
+                    'Debug:bDebugGazeRays': 'false',
+                    'Debug:iLogLevel': '2'
+                },
+                developer: {
+                    // --- Master switches: everything ON ---
+                    'General:bEnableTrueGaze': 'true',
+                    'General:bEnableCreatures': 'true',
+                    // --- All in-game visuals ON (subtle laser beams) ---
+                    'Visuals:bEnableInGameVisuals': 'true',
+                    'Visuals:bGazeRaysEnabled': 'true',
+                    'Visuals:iRayRenderMode': '0',
+                    'Visuals:fGazeRayLengthMeters': '2.5',
+                    'Visuals:fGazeRayThicknessCm': '0.2',
+                    'Visuals:bGazeRaysOnPlayer': 'true',
+                    'Visuals:bGazeRaysOnNPCs': 'true',
+                    'Visuals:bGazeRaysOnCreatures': 'true',
+                    'Visuals:bGazeRaysAttachHead': 'true',
+                    'Visuals:bGazeRaysTerminus': 'true',
+                    'Visuals:fPupilForwardOffsetCm': '12.0',
+                    'Visuals:fPupilUpOffsetCm': '6.0',
+                    'Visuals:fPupilGlowIntensity': '0.35',
+                    // --- HCEP floating panel ON for all actors ---
+                    'Visuals:bShowHcepPanel': 'true',
+                    'Visuals:bHcepPanelAllActors': 'true',
+                    // --- Debug logging at maximum detail ---
+                    'Debug:bDebugGazeRays': 'true',
+                    'Debug:iLogLevel': '1',
+                    // --- Console commands enabled ---
+                    'Console:bEnableConsoleCommands': 'true',
+                    // --- High-Responsiveness Kinematics for Testing & Verification ---
+                    'Kinematics:fSaccadeSpeedMult': '1.5',
+                    'Kinematics:fVelocitySaturation': '18.0',
+                    'Kinematics:fMicroJitterAmp': '0.28',
+                    'Kinematics:fHeadTrackingSpeed': '5.2',
+                    'Kinematics:fEyePursuitSpeed': '12.0',
+                    'Kinematics:fMaxComfortEyeAngle': '35.0',
+                    'Kinematics:fHeadOnsetDelaySec': '0.06',
+                    // --- Skeletal Hierarchy Distribution ---
+                    'SkeletalHierarchy:fSpine2YawWeight': '0.035',
+                    'SkeletalHierarchy:fNeckYawWeight': '0.07',
+                    'SkeletalHierarchy:fNeckPitchWeight': '0.07',
+                    'SkeletalHierarchy:fHeadYawWeight': '0.245',
+                    'SkeletalHierarchy:fHeadPitchWeight': '0.245',
+                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '6.0',
+                    // --- Rapid Social Fixations for Immediate Feedback ---
+                    'Social:bEnableGazeAversion': 'true',
+                    'Social:bEnableSocialTriangle': 'true',
+                    'Social:fTriangleFixationDuration': '0.25',
+                    'Social:fTrianglePathRandomness': '0.6',
+                    'Social:fMutualGazeThreshold': '1.0',
+                    'Social:fCgaHeadInvolvement': '0.08',
+                    'Social:bDialogueSyncCgaReturn': 'true',
+                    'Social:fCgaDialogueOffsetSec': '1.0',
+                    // --- Instant Crosshair Sweet Spot ---
+                    'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Crosshair:fCrosshairToleranceDeg': '6.0'
+                }
+            }[presetName];
+
+            if (!p) return;
+
+            window.trueGazeSelectedPreset = presetName;
+
+            for (const [fullKey, val] of Object.entries(p)) {
+                const [sec, k] = fullKey.split(':');
+                if (!parsed.has(sec)) parsed.set(sec, new Map());
+                parsed.get(sec).set(k, val);
+            }
+
+            buildUI();
+            document.querySelectorAll('.preset-btn').forEach(button => {
+                const selected = button.id === `preset${presetName.charAt(0).toUpperCase()}${presetName.slice(1)}`;
+                button.classList.toggle('active', selected);
+                button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+            });
+            const selectedLabel = $('selectedPreset');
+            if (selectedLabel) {
+                selectedLabel.textContent = `Selected: ${presetName.charAt(0).toUpperCase()}${presetName.slice(1)}`;
+            }
+            document.querySelectorAll('.config-row').forEach(r => {
+                const k = `${r.dataset.section}:${r.dataset.key}`;
+                if (p[k] !== undefined) r.classList.add('dirty');
+            });
+            updateDirty();
+            toast(`Applied Preset: ${presetName.toUpperCase()}`);
+        }
+
+        $('presetVanilla').addEventListener('click', () => applyPreset('vanilla'));
+        $('presetSubtle').addEventListener('click', () => applyPreset('subtle'));
+        $('presetIntense').addEventListener('click', () => applyPreset('intense'));
+        $('presetSocial').addEventListener('click', () => applyPreset('social'));
+        $('presetDeveloper').addEventListener('click', () => applyPreset('developer'));
+
+        // ------------------------------------------------------------------
+        // Live Biological Eye Kinematics Canvas
+        // ------------------------------------------------------------------
+        const canvas = $('eyeCanvas');
+        const ctx = canvas.getContext('2d');
+        let eyeState = {
+            yaw: 0,
+            pitch: 0,
+            targetYaw: 0,
+            targetPitch: 0,
+            lastSaccade: performance.now(),
+            jitterYaw: 0,
+            jitterPitch: 0
+        };
+
+        function simLoop(time) {
+            // Read active parameters from parsed or defaults
+            const saccadeMult = Number(parsed.get('Kinematics')?.get('fSaccadeSpeedMult') || 1.0);
+            const jitterAmp = Number(parsed.get('Kinematics')?.get('fMicroJitterAmp') || 0.35);
+            const maxAngle = Number(parsed.get('Kinematics')?.get('fMaxComfortEyeAngle') || 35.0);
+
+            // Execute occasional saccade every 1.2 to 2.2 seconds
+            if (time - eyeState.lastSaccade > 1600) {
+                const range = Math.min(maxAngle, 26);
+                eyeState.targetYaw = (Math.random() - 0.5) * range * 1.5;
+                eyeState.targetPitch = (Math.random() - 0.5) * (range * 0.8);
+                eyeState.lastSaccade = time;
+            }
+
+            // Smooth convergence with ballistic velocity
+            const speed = 0.18 * saccadeMult;
+            eyeState.yaw += (eyeState.targetYaw - eyeState.yaw) * speed;
+            eyeState.pitch += (eyeState.targetPitch - eyeState.pitch) * speed;
+
+            // Brownian micro-jitter
+            eyeState.jitterYaw = (Math.random() - 0.5) * (jitterAmp * 3.5);
+            eyeState.jitterPitch = (Math.random() - 0.5) * (jitterAmp * 2.5);
+
+            // Render Eye Sphere
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Eye Sclera (White)
+            ctx.save();
+            ctx.beginPath();
+            ctx.ellipse(w / 2, h / 2, 45, 26, 0, 0, Math.PI * 2);
+            ctx.clip();
+
+            const scleraGrad = ctx.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, 48);
+            scleraGrad.addColorStop(0, '#f2ece4');
+            scleraGrad.addColorStop(0.8, '#d6cbbd');
+            scleraGrad.addColorStop(1, '#968875');
+            ctx.fillStyle = scleraGrad;
+            ctx.fillRect(0, 0, w, h);
+
+            // Iris & Pupil Position
+            const irisX = w / 2 + (eyeState.yaw + eyeState.jitterYaw) * 1.35;
+            const irisY = h / 2 + (eyeState.pitch + eyeState.jitterPitch) * 1.1;
+
+            // Iris
+            const irisGrad = ctx.createRadialGradient(irisX, irisY, 2, irisX, irisY, 17);
+            irisGrad.addColorStop(0, '#557a95');
+            irisGrad.addColorStop(0.7, '#2d4b60');
+            irisGrad.addColorStop(1, '#111e28');
+
+            ctx.beginPath();
+            ctx.arc(irisX, irisY, 17, 0, Math.PI * 2);
+            ctx.fillStyle = irisGrad;
+            ctx.fill();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#0a1017';
+            ctx.stroke();
+
+            // Pupil
+            ctx.beginPath();
+            ctx.arc(irisX, irisY, 7.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#060708';
+            ctx.fill();
+
+            // Cornea Specular Highlight
+            ctx.beginPath();
+            ctx.arc(irisX - 4, irisY - 4, 3, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.fill();
+
+            ctx.restore();
+
+            // Eyelids outline
+            ctx.beginPath();
+            ctx.ellipse(w / 2, h / 2, 45, 26, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = '#c9a86a';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            requestAnimationFrame(simLoop);
+        }
+        requestAnimationFrame(simLoop);
+
+        // ------------------------------------------------------------------
+        // Bridge API Integration (Live Scan, Direct INI Sync & Launch)
+        // ------------------------------------------------------------------
+        async function runSystemScan() {
+            setStatus('Scanning Windows installation, registry &amp; game saves...', 'info');
+            try {
+                const resp = await fetch('/api/scan');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                bridgeActive = true;
+
+                // 1. Installation Card
+                if (data.game && data.game.found) {
+                    $('badgeInstall').textContent = `v${data.game.fileVersion || '1.7.104'}`;
+                    $('badgeInstall').className = 'hud-badge ok';
+                    $('bodyInstall').innerHTML = `
+                        <span class="hud-highlight">Skyrim Special Edition</span> detected.<br>
+                        Directory: <span style="font-family:var(--font-mono); font-size:0.75rem;">${data.game.path}</span>
+                    `;
+                    $('footInstall').textContent = data.game.skseLoaderExists ? 'SKSE64 Loader Ready' : 'Standard Launcher';
+                } else {
+                    $('badgeInstall').textContent = 'NOT DETECTED';
+                    $('badgeInstall').className = 'hud-badge warn';
+                    $('bodyInstall').textContent = 'Skyrim path not found in registry. You can still open TrueGaze.ini manually.';
+                }
+
+                // 2. Saves Card
+                if (data.documents && data.documents.found) {
+                    $('badgeSaves').textContent = `${data.documents.saveCount || 0} SAVES`;
+                    $('badgeSaves').className = 'hud-badge ok';
+                    const ls = data.documents.latestSave;
+                    if (ls) {
+                        $('bodySaves').innerHTML = `
+                            Hero: <span class="hud-highlight">${ls.character || 'Player'}</span> at <span class="hud-highlight">${ls.location || 'Skyrim'}</span><br>
+                            Latest: <span style="font-family:var(--font-mono); font-size:0.75rem;">${ls.filename}</span>
+                        `;
+                        $('footSaves').textContent = `Last write: ${ls.lastWrite}`;
+                    } else {
+                        $('bodySaves').textContent = 'Save game folder found; no saves recorded yet.';
+                    }
+                } else {
+                    $('badgeSaves').textContent = 'CHECK FOLDER';
+                    $('badgeSaves').className = 'hud-badge warn';
+                }
+
+                // 3. Engine Card
+                if (data.game && data.game.dllExists) {
+                    $('badgeEngine').textContent = 'DEPLOYED';
+                    $('badgeEngine').className = 'hud-badge ok';
+                    $('bodyEngine').innerHTML = `
+                        <span class="hud-highlight">TrueGaze.dll</span> (${(data.game.dllSize / 1024).toFixed(0)} KB) active in Plugins.<br>
+                        Status: <span class="hud-highlight">${data.gameRunning ? 'Skyrim Currently Running' : 'Game Idle / Ready'}</span>
+                    `;
+                    $('footEngine').textContent = data.game.iniPath;
+                } else {
+                    $('badgeEngine').textContent = 'STANDBY';
+                    $('badgeEngine').className = 'hud-badge warn';
+                    $('bodyEngine').textContent = 'TrueGaze.dll not deployed to Data\\SKSE\\Plugins yet.';
+                }
+
+                // Auto-load INI from bridge
+                await loadIniFromBridge();
+
+            } catch (err) {
+                bridgeActive = false;
+                $('badgeInstall').textContent = 'OFFLINE';
+                $('badgeSaves').textContent = 'OFFLINE';
+                $('badgeEngine').textContent = 'OFFLINE';
+                setStatus('Automation Bridge Offline — Running in Standalone Mode. Use Open Manual INI.', 'warn');
+
+                // Fallback to built-in default schema so sliders remain fully interactive
+                fallbackToDefaults();
+            }
+        }
+
+        async function loadIniFromBridge() {
+            try {
+                const resp = await fetch('/api/ini');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const text = await resp.text();
+                acceptIniText(text, 'Data\\SKSE\\Plugins\\TrueGaze.ini');
+                setStatus('Active configuration synchronized from game installation.', 'ok');
+            } catch (e) {
+                fallbackToDefaults();
+                setStatus('Could not load INI via bridge; initialized default template.', 'warn');
+            }
+        }
+
+        function fallbackToDefaults() {
+            let template = `[General]\r\nbEnableTrueGaze=true\r\nbEnableCreatures=true\r\nsEngineTarget=Auto\r\n\r\n[Kinematics]\r\nfSaccadeSpeedMult=1.000000\r\nfVelocitySaturation=14.000000\r\nfMicroJitterAmp=0.350000\r\nfMicroJitterIntervalMin=0.200000\r\nfMicroJitterIntervalMax=0.450000\r\nfHeadTrackingSpeed=6.000000\r\nfMaxComfortEyeAngle=35.000000\r\n\r\n[SkeletalHierarchy]\r\nfSpine2YawWeight=0.100000\r\nfNeckYawWeight=0.250000\r\nfNeckPitchWeight=0.250000\r\nfHeadYawWeight=0.650000\r\nfHeadPitchWeight=0.750000\r\n\r\n[Social]\r\nbEnableGazeAversion=true\r\nbEnableSocialTriangle=true\r\nfTriangleFixationDuration=0.350000\r\nfMutualGazeThreshold=2.000000\r\n\r\n[Crosshair]\r\nbEnableCrosshairGaze=true\r\nfCrosshairToleranceDeg=4.000000\r\nfCrosshairMaxRangeMeters=25.000000\r\nfCrosshairPointBlankMeters=1.500000\r\n\r\n[Bridge]\r\nbConnectHcepBridge=true\r\nsPipeName=\\\\.\\pipe\\TrueGazeBridge\r\nfAutoReconnectIntervalSec=3.000000\r\n\r\n[LOD]\r\nfTier1DistanceMeters=5.000000\r\nfTier2DistanceMeters=15.000000\r\n\r\n[Debug]\r\nbDebugGazeRays=false\r\niLogLevel=2\r\n\r\n[Visuals]\r\nbEnableInGameVisuals=false\r\nbGazeRaysEnabled=false\r\niRayRenderMode=0\r\nfGazeRayLengthMeters=10.000000\r\niGazeRayColour=13174890\r\nfGazeRayOpacity=0.850000\r\nbGazeRaysOnPlayer=true\r\nbGazeRaysOnNPCs=true\r\nbGazeRaysOnCreatures=true\r\nbGazeRaysAttachHead=true\r\nbGazeRaysTerminus=false\r\nfPupilForwardOffsetCm=7.000000\r\nfPupilUpOffsetCm=1.500000\r\nfPupilGlowIntensity=0.500000\r\n\r\n[Console]\r\nbEnableConsoleCommands=false\r\n`;
+            acceptIniText(template, 'Shipped Defaults');
+        }
+
+        function acceptIniText(text, sourceName) {
+            rawText = text;
+            originalText = text;
+            parsed = parseIni(text);
+            activeIniPath = sourceName;
+            buildUI();
+            toast(`Config Loaded: ${sourceName}`);
+        }
+
+        async function saveChanges() {
+            const updatedText = serializeIni();
+            if (bridgeActive) {
+                setStatus('Saving configuration to disk...', 'info');
+                try {
+                    const resp = await fetch('/api/ini', {
+                        method: 'POST',
+                        body: updatedText,
+                        headers: { 'Content-Type': 'text/plain; charset=iso-8859-1' }
+                    });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    originalText = updatedText;
+                    document.querySelectorAll('.config-row.dirty').forEach(r => r.classList.remove('dirty'));
+                    updateDirty();
+                    setStatus('Changes written directly to Data\\SKSE\\Plugins\\TrueGaze.ini (Backup .bak saved).', 'ok');
+                    toast('Saved to Skyrim successfully!');
+                } catch (err) {
+                    setStatus(`Direct save failed: ${err.message}. Use Export Copy instead.`, 'err');
+                    exportCopy();
+                }
+            } else {
+                exportCopy();
+            }
+        }
+
+        async function launchSkyrim() {
+            if (!bridgeActive) {
+                toast('Automation bridge offline — launch SKSE manually');
+                return;
+            }
+            setStatus('Requesting SKSE64 launch...', 'info');
+            try {
+                const resp = await fetch('/api/launch', { method: 'POST' });
+                const res = await resp.json();
+                if (res.success) {
+                    setStatus(`Skyrim launched successfully (PID: ${res.pid}) via ${res.launched}`, 'ok');
+                    toast('Skyrim Launched!');
+                } else {
+                    setStatus(`Launch note: ${res.error || 'Check process list'}`, 'warn');
+                    toast(res.error || 'Launch notice');
+                }
+            } catch (err) {
+                setStatus(`Launch request error: ${err.message}`, 'err');
+            }
+        }
+
+        async function openLogModal() {
+            $('logModal').classList.add('active');
+            await refreshLog();
+        }
+
+        async function refreshLog() {
+            $('logConsole').textContent = 'Fetching live tail from SKSE\\TrueGaze.log...';
+            try {
+                const resp = await fetch('/api/log?lines=80');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                if (data.lines) {
+                    $('logConsole').textContent = data.lines.join('\n');
+                    $('logMeta').textContent = `Path: ${data.path} · Updated: ${data.lastWrite || 'Just now'}`;
+                    $('logConsole').scrollTop = $('logConsole').scrollHeight;
+                } else {
+                    $('logConsole').textContent = 'No log entries found.';
+                }
+            } catch (err) {
+                $('logConsole').textContent = `Error reading log via bridge: ${err.message}`;
+            }
+        }
+
+        function exportCopy() {
+            const text = serializeIni();
+            const blob = new Blob([text], { type: 'text/plain;charset=iso-8859-1' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'TrueGaze.ini';
+            a.click();
+            toast('Exported TrueGaze.ini');
+        }
+
+        function restoreDefaults() {
+            for (const [section, schema] of Object.entries(DEFAULTS)) {
+                if (!parsed.has(section)) parsed.set(section, new Map());
+                for (const [k, def] of Object.entries(schema)) {
+                    parsed.get(section).set(k, String(def[1]));
+                }
+            }
+            buildUI();
+            document.querySelectorAll('.config-row').forEach(r => r.classList.add('dirty'));
+            updateDirty();
+            toast('Restored Shipped Defaults — Remember to Save');
+        }
+
+        // ------------------------------------------------------------------
+        // Event Listeners & Bootstrapping
+        // ------------------------------------------------------------------
+        $('btnScan').addEventListener('click', runSystemScan);
+        $('btnSave').addEventListener('click', saveChanges);
+        $('btnSave2').addEventListener('click', saveChanges);
+        $('btnLaunch').addEventListener('click', launchSkyrim);
+        $('btnExport').addEventListener('click', exportCopy);
+        $('btnExport2').addEventListener('click', exportCopy);
+        $('btnDefaults').addEventListener('click', restoreDefaults);
+
+        $('btnLog').addEventListener('click', openLogModal);
+        $('btnCloseLog').addEventListener('click', () => $('logModal').classList.remove('active'));
+        $('btnRefreshLog').addEventListener('click', refreshLog);
+
+        $('btnOpen').addEventListener('click', () => $('fileInput').click());
+        $('fileInput').addEventListener('change', async e => {
+            const file = e.target.files[0];
+            if (file) {
+                const text = await file.text();
+                acceptIniText(text, file.name);
+            }
+            e.target.value = '';
+        });
+
+        window.addEventListener('beforeunload', e => {
+            if (document.querySelectorAll('.config-row.dirty').length > 0) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+
+        // Initialize on load
+        runSystemScan();
+        wireUiTooltips();
+    </script>
+</body>
+
+</html>
