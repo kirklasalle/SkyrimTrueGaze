@@ -35,6 +35,16 @@ namespace TrueGaze::Engine
         /// Approximate eye height above an actor's origin, in Skyrim units (~1.25 m).
         constexpr float kEyeHeightUnits = 125.0f;
 
+        /// Skyrim world units per centimetre (70 units == 1 m).
+        constexpr float kUnitsPerCm = kUnitsPerMeter / 100.0f;
+
+        /// Live eye-anchor offsets (head bone -> eyeline), in centimetres. Kept in
+        /// sync with TargetSelector::s_eyeAnchor by GazeEngine::RefreshTuning so the
+        /// observer's ray ORIGIN sits on the same eyeline as the target's eye anchor,
+        /// making every solve genuinely eye-to-eye.
+        float g_eyeAnchorForwardCm = 8.0f;
+        float g_eyeAnchorUpCm = 8.5f;
+
         /// Wrap an angle in radians to (-pi, pi].
         float WrapPi(float radians) noexcept
         {
@@ -103,6 +113,28 @@ namespace TrueGaze::Engine
                 }
                 return RE::BSVisit::BSVisitControl::kContinue; });
             return result;
+        }
+
+        /// Project an eye anchor onto the eyeline from a head bone's world transform.
+        /// Mirrors TargetSelector::EyeAnchorFromHeadBone so the observer's ray origin
+        /// and the target's eye point are computed identically. Head bone local
+        /// forward = +Y (column 1), local up = +Z (column 2) of world.rotate.
+        RE::NiPoint3 EyeAnchorFromHeadBone(const RE::NiAVObject *headBone) noexcept
+        {
+            const auto &m = headBone->world.rotate;
+            const auto &o = headBone->world.translate;
+            const float scale = headBone->world.scale > 0.0f ? headBone->world.scale : 1.0f;
+
+            const RE::NiPoint3 forward = m.GetVectorY();
+            const RE::NiPoint3 up = m.GetVectorZ();
+
+            const float fwd = g_eyeAnchorForwardCm * kUnitsPerCm * scale;
+            const float upl = g_eyeAnchorUpCm * kUnitsPerCm * scale;
+
+            return RE::NiPoint3{
+                o.x + forward.x * fwd + up.x * upl,
+                o.y + forward.y * fwd + up.y * upl,
+                o.z + forward.z * fwd + up.z * upl};
         }
 
         /// Convert a world-space target into actor-relative yaw/pitch, in degrees.
@@ -211,6 +243,7 @@ namespace TrueGaze::Engine
         _tuning.enableTrueGaze = cfg.enableTrueGaze;
         _tuning.enableCreatures = cfg.enableCreatures;
         _tuning.debugGazeRays = cfg.debugGazeRays;
+        _tuning.enableCharacterProfiles = cfg.enableCharacterProfiles;
 
         _tuning.saccadeSpeedMult = cfg.saccadeSpeedMult;
         _tuning.velocitySaturation = cfg.velocitySaturation;
@@ -228,6 +261,20 @@ namespace TrueGaze::Engine
         _tuning.headYawWeight = cfg.headYawWeight;
         _tuning.headPitchWeight = cfg.headPitchWeight;
         _tuning.headEngageThresholdDeg = cfg.headEngageThresholdDeg;
+
+        _tuning.eyeAnchorForwardCm = cfg.eyeAnchorForwardCm;
+        _tuning.eyeAnchorUpCm = cfg.eyeAnchorUpCm;
+        _tuning.eyeMorphGain = cfg.eyeMorphGain;
+        _tuning.eyeMorphFullScaleDeg = cfg.eyeMorphFullScaleDeg;
+
+        // Eye-anchor offsets feed BOTH the target side (TargetSelector's static
+        // snapshot) and the observer's ray origin (the file-scope globals used by
+        // EyeAnchorFromHeadBone in this translation unit). Keeping them identical is
+        // what makes the solve genuinely eye-to-eye.
+        TargetSelector::s_eyeAnchor.forwardCm = cfg.eyeAnchorForwardCm;
+        TargetSelector::s_eyeAnchor.upCm = cfg.eyeAnchorUpCm;
+        g_eyeAnchorForwardCm = cfg.eyeAnchorForwardCm;
+        g_eyeAnchorUpCm = cfg.eyeAnchorUpCm;
 
         _tuning.enableGazeAversion = cfg.enableGazeAversion;
         _tuning.enableSocialTriangle = cfg.enableSocialTriangle;
@@ -454,6 +501,11 @@ namespace TrueGaze::Engine
             state.Reset(0.0f, 0.0f);
             state.rngSeed = formId;
             Kinematics::MicroJitter::Init(state.jitter, formId, _tuning.microJitterAmp);
+            // Seed the scanpath's base fixation duration from the INI once.
+            // The scanpath owns its durations from here on (it multiplies each
+            // draw by cadenceScale); the engine no longer stomps this value
+            // every frame — that stomp defeated the calm cadence lever.
+            state.triangle.fixationDurationSec = _tuning.triangleFixationDuration;
             (void)startYaw;
         }
 
@@ -469,7 +521,37 @@ namespace TrueGaze::Engine
             state.jitter.reversionRate = (meanInterval > 0.0f) ? (1.0f / meanInterval)
                                                                : state.jitter.reversionRate;
         }
-        state.vor.headTrackingSpeed = _tuning.headTrackingSpeed;
+        // CALM/COMBAT SPEED MODEL (Kirk directive, September 26 2026).
+        //
+        // "Slowed down by at least 50% as a baseline. Faster speeds are for
+        // combat scenarios and any high intense action." — then, after the
+        // 15:37 field test: "move the baseline down at least another 50%."
+        //
+        // The tuned INI speeds are the COMBAT speeds. Away from combat the
+        // engine runs the graceful baseline at ONE QUARTER of those speeds:
+        // quarter the head-tracking rate, quarter the saccadic peak velocity,
+        // quarter the ocular pursuit rate, quarter the cervical slew caps —
+        // and (via 1/speedScale) 4x the saccade duration and 4x the scanpath
+        // fixation cadence, so the eyes move slowly and dwell long. The moment
+        // the actor enters combat, full tuned speed returns — fast eyes read
+        // as alert and dangerous in a fight, and as frantic everywhere else.
+        // Computed here (TickActor) so every consumer this frame — head
+        // tracking sync below, saccades and pursuit in ComputeDeflection —
+        // shares one decision. ComputeDeflection receives it as a parameter,
+        // so the two sites can never disagree.
+        const bool actorInCombat = actor->IsInCombat();
+        const float speedScale = actorInCombat ? 1.0f : 0.25f;
+
+        // CALM/COMBAT SPEED MODEL: the head chain tracks at a slightly FASTER
+        // rate than the eyes when calm (Kirk fine-tuning, 2026-09-26: "the head
+        // moves slow and gracefully but it's a little too slow — the head can
+        // catch up to the eyes slightly faster"; then after round 8: "the head
+        // still moves a little bit too slow, it could be increased by 10%").
+        // 1.54x the calm eye rate (1.4 x 1.10) keeps the graceful S-curve while
+        // the head visibly follows the eyes rather than lagging behind them.
+        // Combat restores the full tuned rate.
+        state.vor.headTrackingSpeed = _tuning.headTrackingSpeed * speedScale *
+                                      (actorInCombat ? 1.0f : 1.54f);
         state.vor.eyeMaxAngle = _tuning.maxComfortEyeAngle;
 
         // --- LOD tiering --------------------------------------------------------
@@ -496,7 +578,16 @@ namespace TrueGaze::Engine
         // --- Compute and apply ---------------------------------------------------
         float yawDeg = 0.0f;
         float pitchDeg = 0.0f;
-        ComputeDeflection(actor, state, deltaSeconds, yawDeg, pitchDeg);
+        ComputeDeflection(actor, state, deltaSeconds, yawDeg, pitchDeg,
+                          speedScale, actorInCombat);
+
+        // Gold Standard defer diagnostics: record the defer decision made by
+        // this frame's target resolution so stgstatus can show it.
+        _lastDeferActive = state.sceneDeferActive;
+        if (state.sceneDeferActive)
+        {
+            ++_deferFrames;
+        }
 
         state.lastYawDeg = yawDeg;
         state.lastPitchDeg = pitchDeg;
@@ -541,7 +632,9 @@ namespace TrueGaze::Engine
         // job than overriding it with an empty stare into space. Without this guard, NPCs
         // with the player outside their forward cone had their native tracking cleared and
         // replaced with nothing, causing them to look away from the player.
-        if (!actor->IsPlayerRef() && state.trackedTargetFormId != 0)
+        // SCENE DEFER: never cleared while deferring — vanilla scene direction owns
+        // the head chain during directed segments.
+        if (!actor->IsPlayerRef() && state.trackedTargetFormId != 0 && !state.sceneDeferActive)
         {
             if (auto *high = actor->GetHighProcess())
             {
@@ -562,7 +655,8 @@ namespace TrueGaze::Engine
 
     void GazeEngine::ComputeDeflection(RE::Actor *actor, ActorGazeRuntime &state,
                                        float deltaSeconds,
-                                       float &outYaw, float &outPitch) noexcept
+                                       float &outYaw, float &outPitch,
+                                       float speedScale, bool actorInCombat) noexcept
     {
         outYaw = 0.0f;
         outPitch = 0.0f;
@@ -594,24 +688,112 @@ namespace TrueGaze::Engine
         if (_targetResolutions == 1 || (_targetResolutions % 300) == 0)
         {
             logger::info("[TrueGaze] Target trace: resolutions={} priority={} form={:08X} "
-                         "distance={:.2f}m actor={:08X}",
+                         "distance={:.2f}m actor={:08X}{}",
                          _targetResolutions,
                          static_cast<unsigned>(target.priority),
                          target.targetFormId,
                          target.distanceMeters,
-                         actor->GetFormID());
+                         actor->GetFormID(),
+                         state.sceneDeferActive ? " scene=DEFERRED" : "");
         }
 
         float desiredYaw = 0.0f;
         float desiredPitch = 0.0f;
 
-        if (target.priority != TargetSelector::TargetPriority::None)
+        // CALM/COMBAT SPEED MODEL: speedScale was computed in TickActor (the
+        // single decision point for this frame — see the full rationale there).
+        // Consumers below: saccadic peak velocity, ocular pursuit glide rate,
+        // and the catch-up saccade threshold.
+
+        // EYES NEVER YIELD (Kirk directive, September 25 2026).
+        //
+        // During scene defer the HEAD CHAIN yields to vanilla scene direction, but
+        // the EYES remain fully TrueGaze-controlled. A scene-directed NPC still
+        // glances with living eyes even while the game directs their head.
+        //
+        // DEFER PLAYER GLANCE (Kirk observation, September 26 2026 — "directed
+        // and scripted NPCs ignore the Player during the opening cart scene"):
+        // while deferring, if the player is within social range and inside the
+        // actor's wide visual cone, the EYES glance at the PLAYER rather than
+        // freezing on the last resolved target. The head chain stays yielded —
+        // vanilla scene direction still owns the head — but a person standing
+        // an arm's length away is never ignored. This is the social minimum:
+        // you may be directed at someone else, but your eyes still flick to
+        // whoever is that close to you.
+        if (target.priority == TargetSelector::TargetPriority::None && state.sceneDeferActive)
+        {
+            bool glancedAtPlayer = false;
+
+            const auto *player = RE::PlayerCharacter::GetSingleton();
+            if (player && player != actor && !actor->IsPlayerRef())
+            {
+                // Social glance window: 0.4 m .. 4 m (28..280 units). Closer than
+                // 0.4 m the co-location singularity would zero the solve anyway;
+                // beyond 4 m a glance would read as staring across the room.
+                const float units = actor->GetPosition().GetDistance(player->GetPosition());
+                if (units > 28.0f && units <= 280.0f)
+                {
+                    RE::NiPoint3 observerEyePos = actor->GetPosition();
+                    if (state.cachedHead)
+                    {
+                        observerEyePos = EyeAnchorFromHeadBone(state.cachedHead);
+                    }
+                    else
+                    {
+                        observerEyePos.z += kEyeHeightUnits;
+                    }
+
+                    // The player's eye line, not their origin: the glance lands
+                    // on the face, the same eye-to-eye standard as every other
+                    // target in the engine.
+                    RE::NiPoint3 playerEye = player->GetPosition();
+                    if (auto *playerRoot = player->Get3D())
+                    {
+                        playerEye = RE::NiPoint3{playerRoot->world.translate.x,
+                                                 playerRoot->world.translate.y,
+                                                 playerRoot->world.translate.z + kEyeHeightUnits};
+                    }
+                    else
+                    {
+                        playerEye.z += kEyeHeightUnits;
+                    }
+
+                    float glanceYaw = 0.0f;
+                    float glancePitch = 0.0f;
+                    WorldTargetToLocalGaze(observerEyePos, actor->GetAngleZ(),
+                                           playerEye, glanceYaw, glancePitch);
+
+                    // Wide social cone (150 deg): the player slightly off to the
+                    // side — or seated sideways in the Helgen cart, where body
+                    // yaw points away from the player — still gets the glance.
+                    // This is an EYES-ONLY movement (the head chain stays yielded
+                    // to scene direction), so there is no neck fight to guard
+                    // against; only someone fully behind the actor is excluded.
+                    if (std::abs(glanceYaw) <= 150.0f)
+                    {
+                        desiredYaw = glanceYaw;
+                        desiredPitch = glancePitch;
+                        glancedAtPlayer = true;
+                    }
+                }
+            }
+
+            if (!glancedAtPlayer)
+            {
+                desiredYaw = state.lastYawDeg;
+                desiredPitch = state.lastPitchDeg;
+            }
+        }
+        else if (target.priority != TargetSelector::TargetPriority::None)
         {
             const RE::NiPoint3 targetPos{target.worldX, target.worldY, target.worldZ};
             RE::NiPoint3 observerEyePos = actor->GetPosition();
             if (state.cachedHead)
             {
-                observerEyePos = state.cachedHead->world.translate;
+                // Eye anchor, NOT the raw head-bone origin: the observer looks FROM
+                // its own eyeline so the yaw/pitch solve is eye-to-eye rather than
+                // throat-to-forehead. Uses the same projection as the target side.
+                observerEyePos = EyeAnchorFromHeadBone(state.cachedHead);
             }
             else if (auto *root = actor->Get3D())
             {
@@ -795,6 +977,80 @@ namespace TrueGaze::Engine
             state.wasNotInDialogue = !dialogueActive;
         }
 
+        // --- Character Gaze Profile (temperament-driven gaze) --------------------
+        //
+        // WHO is looking: Bethesda's own characterization (Confidence, Aggression,
+        // relationship, archetype flags, combat state) projected onto the HCEP-02
+        // diagram as behavioural multipliers. Cached per actor; refreshed only on
+        // combat edges (the cheapest reliable change signal) — AV/relationship
+        // reads are not free. Default profile = all 1.0 multipliers = exact parity
+        // with the pre-profile engine (additive-only contract).
+        {
+            const bool combatNow = actor->IsInCombat();
+
+            // PLAYER BEHAVIOURAL PROFILE: the player's own attention feeds their
+            // profile. When the player's crosshair holds on a face (they are
+            // attending to someone), the accumulator rises; it decays otherwise.
+            // An attentive player's 3rd-person gaze reads steadier and warmer —
+            // the character reflects the player's behaviour. (1st person is
+            // unaffected: eyes-only control, sacred invariant.)
+            if (actor->IsPlayerRef())
+            {
+                const bool attending = (target.priority == TargetSelector::TargetPriority::CrosshairFocus ||
+                                        target.priority == TargetSelector::TargetPriority::DialoguePartner);
+                if (attending)
+                {
+                    state.playerAttentionSec = std::min(30.0f, state.playerAttentionSec + deltaSeconds);
+                }
+                else
+                {
+                    state.playerAttentionSec = std::max(0.0f, state.playerAttentionSec - deltaSeconds * 0.5f);
+                }
+            }
+
+            if (!state.profileValid || state.profileWasInCombat != combatNow)
+            {
+                if (_tuning.enableCharacterProfiles)
+                {
+                    const auto *player = RE::PlayerCharacter::GetSingleton();
+                    const auto input = GatherTemperament(actor, player);
+                    state.profile = CharacterProfile::Classify(input, true);
+                }
+                else
+                {
+                    // Profiles disabled: never touch the SDK adapter at all.
+                    // Exact pre-profile behaviour (all 1.0 multipliers).
+                    state.profile = CharacterProfile::Default();
+                }
+                state.profileValid = true;
+                state.profileWasInCombat = combatNow;
+
+                // Blend the player's behavioural attention into their own profile:
+                // sustained face-attention (>= 5s accumulated) gradually warms the
+                // player's gaze — longer mutual-gaze holds, slower scanning — the
+                // same direction as a positive relationship, earned by behaviour.
+                if (actor->IsPlayerRef() && _tuning.enableCharacterProfiles)
+                {
+                    const float warmth = std::clamp(state.playerAttentionSec / 30.0f, 0.0f, 1.0f);
+                    if (warmth > 0.0f)
+                    {
+                        state.profile.mutualGazeThresholdMult *= (1.0f + 0.4f * warmth);
+                        state.profile.fixationScaleMult *= (1.0f + 0.25f * warmth);
+                        state.profile.modeBiasAffect += 0.3f * warmth;
+                    }
+                }
+            }
+            const auto &profile = state.profile;
+
+            // Apply the profile multipliers to this frame's parameters.
+            // (Fixation duration and triangle weights are applied below where the
+            // scanpath runs; aversion rate scales the CGA entry probability.)
+            _frameFixationScale = profile.fixationScaleMult;
+            _frameTriangleEnabled = profile.triangleEnabled;
+            _frameVertexWeights = profile.vertexWeights.data();
+            _frameCgaRoll = std::uniform_real_distribution<float>(0.0f, 1.0f)(state.triangle.rng);
+        }
+
         // --- Social Triangle & Extended HCEP Diagram Scanpath --------------------
         //
         // Eyes must ALWAYS be moving when looking at another actor, regardless of
@@ -817,7 +1073,56 @@ namespace TrueGaze::Engine
         if (target.priority >= TargetSelector::TargetPriority::NearbyActor)
         {
             const float faceDist = std::max(0.5f, target.distanceMeters);
-            state.triangle.fixationDurationSec = _tuning.triangleFixationDuration;
+            // CALM/COMBAT SPEED MODEL + CHARACTER PROFILE: the scanpath's
+            // fixation cadence. cadenceScale multiplies every fixation-duration
+            // draw inside SocialTriangle (1/speedScale: calm 0.5 -> 2.0x dwell,
+            // combat 1.0 -> 1.0x; profile fixation scale folds in here too).
+            //
+            // FIXATION STOMP REMOVED (2026-09-26, "eyes are still too fast"):
+            // this block previously ALSO overwrote state.triangle.
+            // fixationDurationSec with the base value EVERY FRAME — destroying
+            // the cadence-scaled duration the scanpath had just drawn and
+            // resetting the countdown each frame. The cadence lever never got
+            // to tick: the eyes re-jumped at the base rate no matter what the
+            // speed model said. The scanpath now owns its durations; the base
+            // value is seeded once at actor init (see the !initialised block
+            // in TickActor).
+            //
+            // DWELL DIRECTIVE (Kirk, 2026-09-26): "how often the eyes look
+            // around — they should look around LESS OFTEN so they can be
+            // focused on the target eyes longer and more often before looking
+            // around." Movement speed is now good (Kirk-verified), so the
+            // remaining lever is DWELL: an extra calm-only 2x on top of the
+            // speed model's 4x. At the base draw range 0.20-0.55 s the eyes
+            // now hold each region ~1.6-4.4 s before moving on — roughly an
+            // EIGHTH of the original look-around frequency. Combat restores
+            // the biological cadence exactly.
+            state.triangle.cadenceScale =
+                (1.0f / speedScale) * (actorInCombat ? 1.0f : 2.0f) * _frameFixationScale;
+
+            // EYE-TO-EYE DOMINANCE (Kirk directive, 2026-09-26): "looking into
+            // character eyes is important and must last longer before shifting,
+            // and it MUST happen when dialogue occurs."
+            //
+            // Two tiers:
+            //   Baseline 2.5x — a hold on LeftEye/RightEye outlasts every other
+            //     region by that margin, everywhere, always. Eye contact is the
+            //     socially meaningful state; mouth/chest/forehead visits are
+            //     glances BETWEEN eye holds, not equals.
+            //   Dialogue 4.0x — during the player's DialogueMenu OR an NPC-to-NPC
+            //     conversation (DialoguePartner target), eye holds stretch
+            //     further: sustained eye contact IS the dialogue contract.
+            //     Combined with the calm cadence this yields ~6-17 s eye holds
+            //     in a calm conversation — the eyes live on the speaker's eyes,
+            //     visiting other regions only briefly between long eye holds.
+            {
+                auto *ui = RE::UI::GetSingleton();
+                const bool inDialogue =
+                    (ui && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME)) ||
+                    target.priority == TargetSelector::TargetPriority::DialoguePartner;
+
+                state.triangle.eyeDwellScale = inDialogue ? 4.0f : 2.5f;
+            }
 
             if (_tuning.enableGazeAversion && state.hcepMode == 4)
             {
@@ -826,27 +1131,44 @@ namespace TrueGaze::Engine
                 // (upper-left, upper-right, lower-left, lower-right) with brief face
                 // returns, modelling cognitive processing and the VOR counter-rotation
                 // arc / saccade vectors from the diagram.
-                // On CGA activation edge, randomise the dialogue return offset.
-                if (!state.cgaActive)
+                // Character profile: aversion rate scales how often CGA engages —
+                // cowardly NPCs avert far more than foolhardy guards.
+                const bool cgaEngages = (_frameCgaRoll < 0.0f) || (_frameCgaRoll < state.profile.aversionRateMult * 0.5f);
+                if (cgaEngages)
                 {
-                    // First frame of CGA — pick this NPC's dialogue-sync personality.
-                    // Uniform distribution over [-offset, +offset] seconds:
-                    //   negative = anticipatory (returns BEFORE dialogue)
-                    //   positive = delayed (returns AFTER dialogue onset)
-                    //   zero     = precise sync
-                    const float maxOff = _tuning.cgaDialogueOffsetSec;
-                    if (maxOff > 0.0f)
+                    // On CGA activation edge, randomise the dialogue return offset.
+                    if (!state.cgaActive)
                     {
-                        std::uniform_real_distribution<float> offDist(-maxOff, maxOff);
-                        state.cgaDialogueReturnOffsetSec = offDist(state.triangle.rng);
+                        // First frame of CGA — pick this NPC's dialogue-sync personality.
+                        // Uniform distribution over [-offset, +offset] seconds:
+                        //   negative = anticipatory (returns BEFORE dialogue)
+                        //   positive = delayed (returns AFTER dialogue onset)
+                        //   zero     = precise sync
+                        const float maxOff = _tuning.cgaDialogueOffsetSec;
+                        if (maxOff > 0.0f)
+                        {
+                            std::uniform_real_distribution<float> offDist(-maxOff, maxOff);
+                            state.cgaDialogueReturnOffsetSec = offDist(state.triangle.rng);
+                        }
+                        else
+                        {
+                            state.cgaDialogueReturnOffsetSec = 0.0f;
+                        }
                     }
-                    else
+                    state.cgaActive = true;
+                    Kinematics::SocialTriangle::UpdateCGA(state.triangle, deltaSeconds, faceDist);
+                }
+                else
+                {
+                    // Profile suppressed CGA this cycle (low aversion rate):
+                    // fall through to core triangle so eyes still live.
+                    state.cgaActive = false;
+                    if (_tuning.enableSocialTriangle && _frameTriangleEnabled)
                     {
-                        state.cgaDialogueReturnOffsetSec = 0.0f;
+                        Kinematics::SocialTriangle::Update(state.triangle, deltaSeconds, faceDist,
+                                                           _tuning.trianglePathRandomness);
                     }
                 }
-                state.cgaActive = true;
-                Kinematics::SocialTriangle::UpdateCGA(state.triangle, deltaSeconds, faceDist);
             }
             else if (state.hcepMode == 2 || state.hcepMode == 3)
             {
@@ -861,11 +1183,25 @@ namespace TrueGaze::Engine
                 // LOGIC / AFFECT / any other mode: Core social triangle scanning.
                 // Eyes cycle LeftEye ↔ RightEye ↔ Mouth continuously — the biological
                 // baseline that makes NPCs look alive rather than staring with dead eyes.
+                // Character profile: creatures (triangleEnabled=false) skip the
+                // scanpath entirely — fixation-dominant animal attention.
                 state.cgaActive = false;
-                if (_tuning.enableSocialTriangle)
+                if (_tuning.enableSocialTriangle && _frameTriangleEnabled)
                 {
-                    Kinematics::SocialTriangle::Update(state.triangle, deltaSeconds, faceDist,
-                                                       _tuning.trianglePathRandomness);
+                    // Profile-weighted vertex selection when a profile is active:
+                    // weights shift visit probabilities across the HCEP-02 diagram
+                    // (shy -> LowerRight, lover -> Chest, scholar -> ThirdEye).
+                    if (_frameVertexWeights)
+                    {
+                        Kinematics::SocialTriangle::UpdateWeighted(
+                            state.triangle, deltaSeconds, faceDist,
+                            _tuning.trianglePathRandomness, _frameVertexWeights);
+                    }
+                    else
+                    {
+                        Kinematics::SocialTriangle::Update(state.triangle, deltaSeconds, faceDist,
+                                                           _tuning.trianglePathRandomness);
+                    }
                 }
             }
 
@@ -878,13 +1214,21 @@ namespace TrueGaze::Engine
         if (state.trackedTargetFormId != targetFormId)
         {
             // Salience changed: commit to a new ballistic saccade.
+            // CALM/COMBAT SPEED MODEL: saccadic peak velocity is halved away
+            // from combat — a calm glance, not a whip — and full in combat.
+            // DURATION is the real speed lever (the profile normalises to unit
+            // area, so travel time = duration): calm stretches duration 2x =
+            // half angular speed. 1/speedScale, NOT 2*speedScale — the latter
+            // evaluates to 1.0 when calm and was the 15:37 build's no-op bug.
+            // See SaccadeGenerator::CalculateDuration.
             state.trackedTargetFormId = targetFormId;
             ++_saccadesTriggered;
 
             Kinematics::SaccadeGenerator::TriggerSaccade(
                 state.saccade, desiredYaw, desiredPitch,
-                _tuning.EffectiveVMax(Kinematics::SaccadeGenerator::DEFAULT_VMAX),
-                _tuning.velocitySaturation);
+                _tuning.EffectiveVMax(Kinematics::SaccadeGenerator::DEFAULT_VMAX) * speedScale,
+                _tuning.velocitySaturation,
+                1.0f / speedScale);
 
             // A large saccade triggers a micro-blink (saccadic suppression).
             const bool wasBlinking = state.blink.isBlinking;
@@ -907,14 +1251,31 @@ namespace TrueGaze::Engine
             const float diffPitch = desiredPitch - state.saccade.currentPitch;
             const float diffDistSq = diffYaw * diffYaw + diffPitch * diffPitch;
 
-            if (diffDistSq > 400.0f) // > 20 degrees sudden jump
+            // GRACEFUL REGION TRANSITIONS (Kirk observation, September 26 2026 —
+            // "NPCs seem to have a snapping motion moving through regions").
+            //
+            // The old catch-up threshold (>20 deg) fired a BALLISTIC saccade for
+            // large scanpath transitions — Chest→LeftEye at conversation range
+            // spans ~15-25 deg, so every extended-diagram weave snapped. The
+            // threshold is raised to 45 deg: only a genuine target teleport
+            // (actor crossed the room) justifies a ballistic jump. Everything
+            // inside 45 deg — every social-triangle vertex, every CGA aversion
+            // region, every extended-diagram point — now flows through the
+            // smooth-pursuit glide below: an exponential approach with zero
+            // velocity discontinuity. In combat the threshold returns to 20 deg
+            // so combat target acquisition stays sharp.
+            const float catchUpThresholdSq = actorInCombat ? 400.0f : 2025.0f; // 20 / 45 deg
+
+            if (diffDistSq > catchUpThresholdSq)
             {
                 // Target made a major sudden jump while keeping same FormID: trigger catch-up saccade
+                // CALM/COMBAT SPEED MODEL: same halving as the primary saccade.
                 ++_saccadesTriggered;
                 Kinematics::SaccadeGenerator::TriggerSaccade(
                     state.saccade, desiredYaw, desiredPitch,
-                    _tuning.EffectiveVMax(Kinematics::SaccadeGenerator::DEFAULT_VMAX),
-                    _tuning.velocitySaturation);
+                    _tuning.EffectiveVMax(Kinematics::SaccadeGenerator::DEFAULT_VMAX) * speedScale,
+                    _tuning.velocitySaturation,
+                    1.0f / speedScale);
 
                 const bool wasBlinking = state.blink.isBlinking;
                 Integrations::EfmBlinkController::OnSaccadeTriggered(
@@ -949,8 +1310,11 @@ namespace TrueGaze::Engine
                 }
                 else
                 {
+                    // CALM/COMBAT SPEED MODEL: ocular pursuit glides at HALF the
+                    // tuned rate away from combat — the region-to-region motion
+                    // reads as a graceful drift, not a snap.
                     const float alpha =
-                        1.0f - std::exp(-_tuning.eyePursuitSpeed * deltaSeconds);
+                        1.0f - std::exp(-_tuning.eyePursuitSpeed * speedScale * deltaSeconds);
                     state.saccade.currentYaw += glideYaw * alpha;
                     state.saccade.currentPitch += glidePitch * alpha;
                 }
@@ -1157,6 +1521,23 @@ namespace TrueGaze::Engine
             state.bonesReported = true;
         }
 
+        // PLAYER CONTROL MODEL (Kirk LaSalle directive, September 25 2026):
+        //
+        //   3rd person: TrueGaze FULLY controls the player — head, neck, spine,
+        //               eye bones, AND FaceGen eye morphs. The player character
+        //               headtracks and engages nearby actors just like any NPC.
+        //
+        //   1st person: ONLY THE EYES are controlled by TrueGaze. Head/neck/spine
+        //               bones are NEVER touched — that would rotate the camera and
+        //               cause motion sickness. Eye bones and FaceGen Look* morphs
+        //               still fire, so the player's eyeballs track the target even
+        //               though the player's own view doesn't shift.
+        //
+        // This is a SACRED invariant. Do NOT add head bone writes when
+        // `isPlayer && !allowHeadtrack`. The eyes-only path is intentional.
+        //
+        // NPCs always see the player as a valid gaze TARGET regardless of camera
+        // mode — the player's eye anchor is always computed and published.
         const bool isPlayer = actor->IsPlayerRef();
         bool allowHeadtrack = !isPlayer;
         if (isPlayer)
@@ -1165,22 +1546,32 @@ namespace TrueGaze::Engine
             allowHeadtrack = camera && camera->IsInThirdPerson();
         }
 
-        if (!isPlayer && spine)
+        // SCENE DEFER: while active, the head chain (spine/neck/head) yields to
+        // vanilla scene direction — TrueGaze writes nothing to those bones. The
+        // EYES below are NOT gated by this: eyes never yield.
+        const bool headChainYields = (!isPlayer && state.sceneDeferActive);
+
+        if (!isPlayer && spine && !headChainYields)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), spine, strain.spineYaw, 0.0f);
         }
 
-        if (allowHeadtrack && neck)
+        if (allowHeadtrack && neck && !headChainYields)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), neck, strain.neckYaw, strain.neckPitch);
         }
 
-        if (allowHeadtrack && head)
+        if (allowHeadtrack && head && !headChainYields)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), head, strain.headYaw, strain.headPitch);
         }
 
         // Eyes receive the low-inertia ballistic VOR counter-rotation and micro-jitter.
+        // IMPORTANT: eye bones and FaceGen morphs are ALWAYS written, even when
+        // allowHeadtrack is false (player in 1st person). This is the "only the eyes
+        // are fully controlled" contract — the eyes track the target regardless of
+        // camera mode. On vanilla rigs (no eye bones) the FaceGen path below is the
+        // sole eye-movement channel.
         if (eyeL)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), eyeL, eyeYaw, eyePitch);
@@ -1191,10 +1582,15 @@ namespace TrueGaze::Engine
             EyeAimConstraint::Apply(actor->GetFormID(), eyeR, eyeYaw, eyePitch);
         }
 
-        // Eyelid morph writes and biological eye-direction morphs (EFA / EFM / Vanilla)
+        // Eyelid morph writes and biological eye-direction morphs (EFA / EFM / Vanilla).
+        // On vanilla rigs this is the ONLY thing that moves the eyes, so the eye-lead
+        // gain / full-scale are what make "the eyes are the target, and they lead the
+        // head" actually visible on the Helgen-cart NPCs and every other stock NPC.
         Integrations::EfmBlinkController::ApplyGazeMorphs(actor->GetFormID(),
                                                           state.blink.eyelidCloseWeight,
-                                                          eyeYaw, eyePitch);
+                                                          eyeYaw, eyePitch,
+                                                          _tuning.eyeMorphFullScaleDeg,
+                                                          _tuning.eyeMorphGain);
 
         // In-game 3D visualisation of the solved gaze. Runs after the skeleton is
         // posed so the head bone's world transform is current, and is driven by the

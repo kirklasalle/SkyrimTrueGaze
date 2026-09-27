@@ -54,6 +54,26 @@ namespace TrueGaze::Engine
         /// Set by GazeEngine::RefreshTuning from configuration; read by ResolveTarget.
         /// Game thread only, like everything else in the engine.
         static CrosshairParams s_crosshair;
+
+        /// @brief Eye-anchor parameters: where the true "eye point" sits relative to
+        /// an actor's head bone.
+        ///
+        /// The head bone (`NPC Head [Head]`) origin sits at the base of the skull /
+        /// top of the neck — roughly 5–8 cm below and behind the eyeballs. Aiming a
+        /// gaze solve at the raw head-bone position therefore lands on the throat or
+        /// nose bridge, never the eyes. These offsets lift and push the anchor onto
+        /// the eyeline so "the eyes are the target" is literally true. Applied along
+        /// the head bone's own world basis (forward = +Y, up = +Z of the bone), so
+        /// they track seated, leaning and crouched poses correctly.
+        struct EyeAnchorParams
+        {
+            float forwardCm{7.0f}; // toward the face, from the head bone origin
+            float upCm{7.5f};      // up to eyeline, from the head bone origin
+        };
+
+        /// @brief Eye-anchor parameters for the current frame. Set by
+        /// GazeEngine::RefreshTuning; read by ResolveTarget. Game thread only.
+        static EyeAnchorParams s_eyeAnchor;
     };
 
 } // namespace TrueGaze::Engine

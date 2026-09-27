@@ -48,7 +48,6 @@ TrueGaze ships with a visual Web Configurator that lets you adjust eye tracking
 angles, gaze ray thickness, HCEP floating diagram panels, and performance limits.
 
 There are two ways to use it:
-
 METHOD A: ONE-CLICK AUTOMATION (Recommended)
 Double-click 'Launch-TrueGazeConfig.cmd' located in your TrueGaze mod folder.
 - Starts a lightweight local automation bridge.

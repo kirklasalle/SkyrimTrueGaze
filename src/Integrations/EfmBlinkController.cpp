@@ -4,12 +4,18 @@
 namespace TrueGaze::Integrations
 {
 
-    void EfmBlinkController::ApplyGazeMorphs(uint32_t actorFormId, float eyelidWeight, float eyeYawDeg, float eyePitchDeg) noexcept
+    void EfmBlinkController::ApplyGazeMorphs(uint32_t actorFormId, float eyelidWeight,
+                                             float eyeYawDeg, float eyePitchDeg,
+                                             float fullScaleDeg, float gain) noexcept
     {
         if (actorFormId == 0)
             return;
 
         float clampedWeight = std::clamp(eyelidWeight, 0.0f, 1.0f);
+
+        // Guard against a degenerate full-scale that would divide by ~zero.
+        const float invFullScale = 1.0f / std::max(1.0f, fullScaleDeg);
+        const float g = std::max(0.0f, gain);
 
 #if __has_include(<RE/Skyrim.h>)
         auto *form = RE::TESForm::LookupByID(actorFormId);
@@ -36,10 +42,15 @@ namespace TrueGaze::Integrations
             faceGenData->modifierKeyFrame.SetValue(
                 static_cast<std::uint32_t>(Modifier::BlinkRight), clampedWeight);
 
-            const float lookLeft = (eyeYawDeg < -0.5f) ? std::clamp(-eyeYawDeg / 30.0f, 0.0f, 1.0f) : 0.0f;
-            const float lookRight = (eyeYawDeg > 0.5f) ? std::clamp(eyeYawDeg / 30.0f, 0.0f, 1.0f) : 0.0f;
-            const float lookDown = (eyePitchDeg < -0.5f) ? std::clamp(-eyePitchDeg / 25.0f, 0.0f, 1.0f) : 0.0f;
-            const float lookUp = (eyePitchDeg > 0.5f) ? std::clamp(eyePitchDeg / 25.0f, 0.0f, 1.0f) : 0.0f;
+            // Map solved ocular deflection to Look* morph weights. The gain and
+            // full-scale come from configuration so vanilla NPCs (no eye bones) show
+            // a clearly visible, eye-leading gaze at conversation distance, where the
+            // raw solved angle is only a few degrees. Result is clamped to [0,1] so
+            // the eyes can never over-rotate past the morph's physical extent.
+            const float lookLeft = (eyeYawDeg < -0.25f) ? std::clamp(-eyeYawDeg * invFullScale * g, 0.0f, 1.0f) : 0.0f;
+            const float lookRight = (eyeYawDeg > 0.25f) ? std::clamp(eyeYawDeg * invFullScale * g, 0.0f, 1.0f) : 0.0f;
+            const float lookDown = (eyePitchDeg < -0.25f) ? std::clamp(-eyePitchDeg * invFullScale * g, 0.0f, 1.0f) : 0.0f;
+            const float lookUp = (eyePitchDeg > 0.25f) ? std::clamp(eyePitchDeg * invFullScale * g, 0.0f, 1.0f) : 0.0f;
 
             faceGenData->modifierKeyFrame.SetValue(
                 static_cast<std::uint32_t>(Modifier::LookLeft), lookLeft);

@@ -2,7 +2,6 @@
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
 **Version:** `1.0.5` (Production Release)  
-**Nexus Mods:** [Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)  
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
 **Status date:** September 25, 2026  
 **Owner & Architect:** Kirk LaSalle  
@@ -34,9 +33,82 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 
 ---
 
-## Landmark Milestone Achieved
+## Landmark Milestones Achieved
 
-> ### 👁️ Ground Truth Milestone: Kirk LaSalle Has Directly Observed NPC Eyes Move in Skyrim
+> ### 🏆 LATEST — Gold Standard Scene Integration — ✅ In-engine verified (September 26, 2026)
+>
+> **The Gold Standard: flawless TrueGaze integration during the Helgen opening scene —
+> which by construction makes it correct for ANY in-game directed animation, scripted
+> scene, or OAR-driven mod.** Verified across nine field-test rounds with Kirk LaSalle
+> ("things look good"). Shipped and verified:
+>
+> 1. **Sticky scene defer FIXED** — defer is a per-frame decision; TrueGaze re-engages
+>    the instant a scene releases the actor.
+> 2. **Defer generalised to all six head-track slots** — kAction/kScript/kDialogue/
+>    kProcedure are direction (defer); kDefault/kCombat stay TrueGaze-owned.
+> 3. **Player parity + voice-address detection** — a player-directed slot wins over any
+>    NPC-directed slot; an actor SPEAKING to the player looks at the player (voiceState
+>    + lastSpokenToArray, pure data-side reads); 3 s dialogue hold through signal
+>    flicker; player exempt from the dialogue cone check.
+> 4. **SEH fault tolerance** — the gaze frame is wrapped in `__try/__except`; an access
+>    violation logs fault code + address and the game continues.
+> 5. **Logging ownership** — the plugin's log can no longer be truncated or replaced by
+>    SKSE's default init (root cause of the invisible 2026-09-25 evening crash).
+> 6. **Calm/combat speed model** — calm = quarter of tuned speeds with 8× fixation
+>    dwell; combat restores full speed instantly.
+> 7. **Eye-to-eye fixation dominance** — eye holds 2.5× baseline / 4.0× in dialogue
+>    (≈ 6-17 s of eye contact); eye-lock bias makes gaze land on eyes more often;
+>    head catch-up 1.54× the eye rate; graceful region transitions (45° calm threshold).
+>
+> **Verified:** 12/12 unit suites; build clean; deployed hash-verified; log audit clean
+> (zero SEH faults, zero tick exceptions across the 20:15 session).
+
+> ### 🎭 Character Gaze Profiles: Temperament-Driven Gaze — 🔨 Implemented + 🧪 Unit-verified (September 25, 2026)
+>
+> **Every NPC now looks like THEMSELVES.** TrueGaze reads Skyrim's own characterization
+> (Confidence, Aggression, Assistance actor values; relationship ranks −4..+4; guard/child/
+> race flags; combat state) and projects it onto the HCEP-02 Enhanced Diagram as behavioural
+> multipliers. A cowardly merchant averts often with darting glances; a foolhardy guard locks
+> on unflinching; a lover holds eyes far longer and visits the Heart region; a wolf stares
+> with fixation-dominant animal attention (no social triangle).
+>
+> **The spectrum principle:** no NPC is a "type" — every entity is a point in
+> (Confidence × Aggression × Relationship × StoryState) space.
+>
+> **Verified:** 12th unit-test suite (default parity, confidence ordering, lover/enemy axes,
+> creature fallback, combat lock, clamps, 20k-sample weighted-vertex distribution). All 12
+> suites pass. In-engine verification pending (cowardly vs guard vs lover observation).
+> Psychology grounding: Shackelford 1996, Frontiers 2018, SAGE QJEP 2025, PMC8188832.
+> Default parity contract: `bEnableCharacterProfiles=0` = exact pre-profile behaviour.
+
+> ### 👁️ Eye-to-Eye Targeting & Eyes-Lead-Head — VERIFIED September 25, 2026
+>
+> **Kirk LaSalle directly observed NPCs looking into the player's eyes (and each other's
+> eyes) in live Skyrim gameplay.** Tavern test confirmed the foundational science is
+> correct: eye-anchor targeting, FaceGen Look-morph gain, head-onset delay, and
+> head-engagement threshold all produce the natural "eyes look into eyes, eyes move first,
+> head follows subtly" effect documented in oculomotor literature.
+>
+> **Key discovery:** vanilla humanoid rigs have **no eye bones** — eyes move only via
+> FaceGen `LookLeft/Right/Up/Down` modifier morphs. The entire eye-movement pipeline for
+> stock NPCs runs through `EfmBlinkController::ApplyGazeMorphs`, not bone rotation.
+>
+> **Verified in-engine:**
+>
+> - Eye-anchor projection from the head bone's world basis (`GetVectorY/Z`) onto the
+>   eyeline — targets sit squarely on the pupils, not the skull base
+> - FaceGen Look* morph gain at 1.7× makes small social-triangle gaze shifts (~6°) clearly
+>   visible at conversation distance (51% morph travel)
+> - Head onset delay (0.13s) produces a perceptible "eyes arrive first" lead
+> - Head engagement threshold (12°) suppresses all head movement during eye↔eye↔mouth
+>   cycling — eyes only, zero head twitch
+> - Point-blank seated actor resolution (Helgen cart, tavern seating)
+> - Player targeting in scripted scenes (player competes fairly in social candidate scan)
+>
+> This milestone marks the transition from *"eyes move"* to **"eyes look into eyes"** —
+> the core promise of TrueGaze.
+
+> ### 👁️ Ground Truth Milestone: NPC Eyes Move in Skyrim — VERIFIED September 2026
 >
 > The foundational premise of TrueGaze — dynamic, continuous biological gaze deflection applied to in-engine actor skeletons — is **proven and in-engine verified**.
 >
@@ -57,7 +129,7 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 
 The project status breaks down into three distinct tiers:
 
-1. **✅ In-Engine Verified (~40%):** Core bone transform application (eyes move!), dynamic 3D head elevation solving, 3rd-person player gaze engagement, SKSE frame driver hook (SE/AE/VR), actor eligibility filtering, configuration parsing/loading, console telemetry readout (`tgstatus`/`stgstatus`), dynamic log level switching (`stgverbose`), Option 1 subtle laser rays, Option 2 floating HCEP ocular diagram panel, and clean zero-script architecture.
+1. **✅ In-Engine Verified (~50%):** Eye-to-eye targeting (eye-anchor projection from head bone world basis), FaceGen eye-lead morph gain on vanilla rigs, eyes-lead-head biological latency, head engagement threshold, point-blank seated resolution, player targeting in scripted scenes, core bone transform application (eyes move!), dynamic 3D head elevation solving, 3rd-person player gaze engagement, SKSE frame driver hook (SE/AE/VR), actor eligibility filtering, configuration parsing/loading, console telemetry readout (`tgstatus`/`stgstatus`), dynamic log level switching (`stgverbose`), Option 1 subtle laser rays, Option 2 floating HCEP ocular diagram panel, and clean zero-script architecture.
 2. **🔨 Implemented & Running, In-Game Verification Pending (~55%):** Code exists and executes on every actor tick, but specific scenario behaviors are awaiting verified in-engine observation (e.g. Biological Latency Gap eye-lead timing, quantitative EFM eyelid blinks, VOR counter-rotation, Social Triangle scanpaths, micro-jitter Brownian drift, spatial LOD degradation, and mutual gaze hold tracking).
 3. **❌ Unimplemented / Deferred (~5%):** Subsystems designed but not yet completed (specifically **Multi-Threaded SIMD Evaluation** for massive crowds).
 

@@ -6,6 +6,7 @@
 #include "Kinematics/MicroJitter.hpp"
 #include "Kinematics/SocialTriangle.hpp"
 #include "Integrations/EfmBlinkController.hpp"
+#include "Engine/CharacterProfile.hpp"
 
 namespace TrueGaze::Engine
 {
@@ -90,6 +91,43 @@ namespace TrueGaze::Engine
 
         /// True when the actor was NOT in dialogue last frame (edge detection).
         bool wasNotInDialogue{true};
+
+        /// SCENE DEFER (vanilla direction yield). When the game's own AI has
+        /// assigned this NPC a headtrack target via scripted scene direction
+        /// (PackageStart scenes like the Helgen cart), TrueGaze yields and lets
+        /// vanilla direct the gaze — UNLESS the player is that directed target.
+        /// Vanilla scene direction is authoritative for its own staged moments;
+        /// TrueGaze takes hold only when free-roaming or when the player is the
+        /// scene's focus.
+        bool sceneDeferActive{false};
+
+        /// DIALOGUE PLAYER HOLD (2026-09-26, "Ralof and Lokir still do not
+        /// target the main player during targeted dialogue"). The engine's
+        /// direction signal (headTrackTarget slots / dialogueItemTarget)
+        /// FLICKERS between frames mid-line — the log showed priority=4 (the
+        /// player) for one trace window, then priority=2 (a nearer NPC winning
+        /// the social scan) the next. Each dropout re-aimed the gaze away from
+        /// the player mid-sentence. While this timer counts down, the player
+        /// target is re-served at DialoguePartner priority even if the raw
+        /// direction signal drops out. Armed (3 s) whenever a direction slot
+        /// or the dialogue item resolves to the player; decays otherwise.
+        float dialoguePlayerHoldSec{0.0f};
+
+        /// CHARACTER GAZE PROFILE (temperament-driven gaze). Cached per actor;
+        /// recomputed only on refresh events (cell change, combat edge), never
+        /// per frame — the AV/relationship reads are not free.
+        CharacterProfile::GazeProfile profile{};
+        bool profileValid{false};
+        /// True when the actor was in combat when the profile was computed
+        /// (edge detection for combat-driven refresh).
+        bool profileWasInCombat{false};
+
+        /// PLAYER BEHAVIOURAL PROFILE (player actor only). Decaying accumulator
+        /// of the player's own face-attention: rises while the crosshair holds on
+        /// a face, decays otherwise. Feeds the player's own gaze profile so an
+        /// attentive player's 3rd-person gaze reads steadier and warmer — the
+        /// player's character reflects the player's behaviour.
+        float playerAttentionSec{0.0f};
 
         /// Cached resolved bones in the actor's 3D scene graph.
         /// Avoids thousands of redundant recursive traversals per frame.

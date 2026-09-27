@@ -10,6 +10,7 @@
 #include "../src/Kinematics/SocialTriangle.hpp"
 #include "../src/Engine/BoneController.hpp"
 #include "../src/Engine/LodManager.hpp"
+#include "../src/Engine/CharacterProfile.hpp"
 #include "../src/Integrations/EfmBlinkController.hpp"
 #include "../src/Bridge/TelemetryPacket.h"
 
@@ -628,6 +629,137 @@ namespace
         std::cout << "  -> HCEP semantic validation passed.\n";
     }
 
+    void TestCharacterProfile()
+    {
+        std::cout << "[TEST] Running CharacterProfile temperament verification...\n";
+        using TrueGaze::Engine::CharacterProfile;
+
+        // 1. DEFAULT PARITY: disabled profile = all-1.0 multipliers (bit-for-bit
+        //    parity with the pre-profile engine — the additive-only contract).
+        {
+            CharacterProfile::TemperamentInput in{};
+            auto p = CharacterProfile::Classify(in, /*profileEnabled=*/false);
+            assert(p.aversionRateMult == 1.0f);
+            assert(p.aversionDwellMult == 1.0f);
+            assert(p.mutualGazeThresholdMult == 1.0f);
+            assert(p.fixationScaleMult == 1.0f);
+            assert(p.triangleEnabled);
+            for (float w : p.vertexWeights)
+                assert(w == 1.0f);
+        }
+
+        // 2. CONFIDENCE ORDERING: cowardly averts more than foolhardy.
+        {
+            CharacterProfile::TemperamentInput cowardly{};
+            cowardly.confidence = 0.0f;
+            CharacterProfile::TemperamentInput foolhardy{};
+            foolhardy.confidence = 3.0f;
+
+            auto pc = CharacterProfile::Classify(cowardly, true);
+            auto pf = CharacterProfile::Classify(foolhardy, true);
+
+            assert(pc.aversionRateMult > pf.aversionRateMult);
+            assert(pc.mutualGazeThresholdMult < pf.mutualGazeThresholdMult);
+            assert(pc.fixationScaleMult < pf.fixationScaleMult); // cowardly darts quicker
+
+            // Shyness signature: cowardly raises the LowerRight aversion region.
+            assert(pc.vertexWeights[8] > 1.0f);
+            assert(pf.vertexWeights[8] == 1.0f);
+        }
+
+        // 3. RELATIONSHIP: lover holds eyes longer + Chest bias; enemy locks.
+        {
+            CharacterProfile::TemperamentInput lover{};
+            lover.relationshipRank = 4.0f;
+            CharacterProfile::TemperamentInput enemy{};
+            enemy.relationshipRank = -4.0f;
+
+            auto pl = CharacterProfile::Classify(lover, true);
+            auto pe = CharacterProfile::Classify(enemy, true);
+
+            assert(pl.mutualGazeThresholdMult > 1.0f);
+            assert(pl.vertexWeights[4] > 1.0f); // Chest (heart resonance)
+            assert(pl.modeBiasAffect > 0.0f);   // toward AFFECT/HEART
+
+            assert(pe.mutualGazeThresholdMult > 1.0f); // hostile lock also holds
+            assert(pe.modeBiasAffect < 0.0f);          // toward LOGIC
+            assert(pe.aversionRateMult < 1.0f);        // enemies don't look away
+        }
+
+        // 4. CREATURE FALLBACK: no triangle, fixation-dominant.
+        {
+            CharacterProfile::TemperamentInput wolf{};
+            wolf.isHumanoid = false;
+            auto p = CharacterProfile::Classify(wolf, true);
+            assert(!p.triangleEnabled);
+            assert(p.fixationScaleMult > 1.0f);
+            assert(p.aversionRateMult < 1.0f);
+        }
+
+        // 5. COMBAT: everyone locks.
+        {
+            CharacterProfile::TemperamentInput combatant{};
+            combatant.inCombat = true;
+            auto p = CharacterProfile::Classify(combatant, true);
+            assert(p.aversionRateMult < 1.0f);
+            assert(p.fixationScaleMult > 1.0f);
+            assert(p.modeBiasAffect < 0.0f);
+        }
+
+        // 6. CLAMPS: extreme inputs stay in sane ranges.
+        {
+            CharacterProfile::TemperamentInput extreme{};
+            extreme.confidence = 0.0f;
+            extreme.aggression = 0.0f;
+            extreme.relationshipRank = 4.0f;
+            extreme.isChild = true;
+            auto p = CharacterProfile::Classify(extreme, true);
+            assert(p.aversionRateMult >= 0.1f && p.aversionRateMult <= 3.0f);
+            assert(p.fixationScaleMult >= 0.3f && p.fixationScaleMult <= 3.0f);
+            for (float w : p.vertexWeights)
+                assert(w >= 0.1f && w <= 3.0f);
+        }
+
+        // 7. WEIGHTED VERTEX: neutral weights reproduce the organic distribution;
+        //    a heavy weight draws proportionally more visits.
+        {
+            TrueGaze::Kinematics::SocialTriangle::TriangleState st{};
+            TrueGaze::Kinematics::SocialTriangle::SeedRng(st, 12345u);
+
+            const float neutral[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+            float counts[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+            constexpr int kSamples = 20000;
+            for (int i = 0; i < kSamples; ++i)
+            {
+                auto v = TrueGaze::Kinematics::SocialTriangle::NextWeightedVertex(
+                    st, TrueGaze::Kinematics::SocialTriangle::Vertex::LeftEye, neutral);
+                counts[static_cast<int>(v)] += 1.0f;
+            }
+            // Neutral weights: every vertex reachable, none dominant.
+            for (int i = 0; i < 9; ++i)
+            {
+                assert(counts[i] > 0.0f);
+                assert(counts[i] < static_cast<float>(kSamples) * 0.25f);
+            }
+
+            // Heavy Chest weight: Chest draws the plurality.
+            const float chestHeavy[9] = {1, 1, 1, 1, 10, 1, 1, 1, 1};
+            for (auto &c : counts)
+                c = 0.0f;
+            for (int i = 0; i < kSamples; ++i)
+            {
+                auto v = TrueGaze::Kinematics::SocialTriangle::NextWeightedVertex(
+                    st, TrueGaze::Kinematics::SocialTriangle::Vertex::LeftEye, chestHeavy);
+                counts[static_cast<int>(v)] += 1.0f;
+            }
+            assert(counts[4] > counts[0]);
+            assert(counts[4] > counts[2]);
+        }
+
+        std::cout << "  -> CharacterProfile passed (parity, confidence, relationship, "
+                     "creature, combat, clamps, weighted vertices).\n";
+    }
+
 } // namespace
 
 int main()
@@ -649,7 +781,8 @@ int main()
     TestEfmBlinkController();
     TestTelemetryPackets();
     TestTelemetrySemanticValidation();
+    TestCharacterProfile();
 
-    std::cout << "\n[SUCCESS] ALL 11 BIOMECHANICAL KINEMATICS TESTS PASSED!\n";
+    std::cout << "\n[SUCCESS] ALL 12 BIOMECHANICAL KINEMATICS TESTS PASSED!\n";
     return 0;
 }

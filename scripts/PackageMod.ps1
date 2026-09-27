@@ -53,7 +53,7 @@ if (!(Test-Path $distDir)) {
 }
 
 # 4. Generate release archives
-$version = "1.0.0"
+$version = "1.0.5"
 $archiveName = "TrueGaze-v$version-SkyrimSE-AE-VR.zip"
 $archivePath = Join-Path $distDir $archiveName
 $symbolsName = "TrueGaze-v$version-Symbols.zip"

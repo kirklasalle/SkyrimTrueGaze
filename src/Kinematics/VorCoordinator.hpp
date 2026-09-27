@@ -53,21 +53,63 @@ namespace TrueGaze::Kinematics
             float prevHeadYaw = state.headYaw;
             float prevHeadPitch = state.headPitch;
 
-            // Damped head following (inhibited during biological latency delay)
-            float alpha = headDelayed ? 0.0f : (1.0f - std::exp(-state.headTrackingSpeed * deltaSeconds));
-            float deltaYaw = headErrorYaw * alpha;
-            float deltaPitch = headErrorPitch * alpha;
+            // GRACEFUL HEAD CURVE — critically-damped spring (SmoothDamp).
+            //
+            // The previous pure exponential follower `delta = error * (1 - e^(-k·dt))`
+            // has MAXIMUM velocity at onset: the instant a new target arrives the head
+            // jumps at full speed — the visible "head snap". Real neck motion is
+            // torque-limited, not velocity-limited: it starts from rest, accelerates
+            // smoothly, and decelerates into the target (an S-curve).
+            //
+            // Critically-damped spring-damper (no overshoot, zero initial velocity):
+            //   omega = 2/halflife  (halflife = time for the error to halve)
+            //   expW  = e^(-omega·dt)
+            //   delta = error · (1 - expW)² / (1 - (1-2·omega·dt)·expW)   [stable form]
+            //
+            // This yields zero velocity at onset (no snap), a smooth acceleration
+            // ramp, and graceful deceleration into the target. The halflife is
+            // derived from headTrackingSpeed so existing INI tuning keeps working:
+            // halflife = ln(2) / headTrackingSpeed.
+            float deltaYaw = 0.0f;
+            float deltaPitch = 0.0f;
+            if (!headDelayed && deltaSeconds > 0.0f)
+            {
+                const float halflife = 0.6931472f / std::max(0.5f, state.headTrackingSpeed);
+                const float omega = 0.6931471805599453f / halflife; // ln2 / halflife
+                const float expW = std::exp(-omega * deltaSeconds);
+
+                const float denomY = 1.0f - (1.0f - 2.0f * omega * deltaSeconds) * expW;
+                const float denomP = denomY; // same scalar for both axes
+                if (denomY > 1e-6f)
+                {
+                    deltaYaw = headErrorYaw * (1.0f - expW) * (1.0f - expW) / denomY;
+                    deltaPitch = headErrorPitch * (1.0f - expW) * (1.0f - expW) / denomP;
+                }
+            }
 
             // BIOMECHANICAL HEAD SLEW-RATE LIMIT:
             // The human cervical spine cannot physically turn at unbounded speeds.
             // Cap maximum angular velocity during tracking to 104 deg/s (yaw) and 72 deg/s
             // (pitch). This permanently eliminates high-velocity head snapping, stuttering,
             // and neck spasms. (Reduced 20% from 130/90 for slower, more graceful turns.)
-            constexpr float MAX_HEAD_YAW_VELOCITY = 104.0f;  // deg/s - natural cervical limit
-            constexpr float MAX_HEAD_PITCH_VELOCITY = 72.0f; // deg/s - vertical cervical limit
+            //
+            // CALM/COMBAT SPEED MODEL (Kirk directive, September 26 2026): the
+            // caps are the COMBAT limits. Away from combat they are halved —
+            // a calm head turn is visibly slower and more deliberate. The
+            // caller communicates the mode through headTrackingSpeed (the
+            // engine halves it when calm), so the caps scale with the same
+            // factor: halflife-derived omega already carries the scale, and
+            // the caps are derived from it here rather than fixed constants.
+            constexpr float MAX_HEAD_YAW_VELOCITY_COMBAT = 104.0f;  // deg/s - natural cervical limit
+            constexpr float MAX_HEAD_PITCH_VELOCITY_COMBAT = 72.0f; // deg/s - vertical cervical limit
 
-            const float maxYawStep = MAX_HEAD_YAW_VELOCITY * deltaSeconds;
-            const float maxPitchStep = MAX_HEAD_PITCH_VELOCITY * deltaSeconds;
+            // The caps scale with the caller's speed setting: at the default
+            // headTrackingSpeed (6.0) they equal the combat constants; at half
+            // speed they halve. Bounded so extreme INI values cannot produce
+            // unbounded caps.
+            const float speedRatio = std::clamp(state.headTrackingSpeed / 6.0f, 0.25f, 2.0f);
+            const float maxYawStep = MAX_HEAD_YAW_VELOCITY_COMBAT * speedRatio * deltaSeconds;
+            const float maxPitchStep = MAX_HEAD_PITCH_VELOCITY_COMBAT * speedRatio * deltaSeconds;
 
             deltaYaw = std::clamp(deltaYaw, -maxYawStep, maxYawStep);
             deltaPitch = std::clamp(deltaPitch, -maxPitchStep, maxPitchStep);

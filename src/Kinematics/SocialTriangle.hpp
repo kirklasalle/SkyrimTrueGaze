@@ -41,7 +41,23 @@ namespace TrueGaze::Kinematics
             Vertex currentVertex{Vertex::LeftEye};
             float fixationTimerSec{0.0f};
             float fixationDurationSec{0.35f}; // Typical fixation ~350ms
-            float vertexOffsetXDeg{-1.8f};    // Offset relative to face center
+
+            /// CALM/COMBAT SPEED MODEL (Kirk directive, September 26 2026):
+            /// multiplier applied to every fixation-duration draw. 1.0 =
+            /// biological cadence (combat); 2.0 = calm baseline — fixations
+            /// last twice as long, so the eyes jump between regions HALF as
+            /// often. Set by GazeEngine each tick from the frame's speed model.
+            float cadenceScale{1.0f};
+
+            /// EYE-TO-EYE DOMINANCE (Kirk directive, September 26 2026):
+            /// "looking into character eyes is important and must last longer
+            /// before shifting." Multiplier applied to fixation durations WHEN
+            /// the current vertex is an EYE (LeftEye/RightEye) — holds on the
+            /// eyes outlast every other region. GazeEngine sets 2.5 baseline
+            /// and 4.0 during dialogue (eye contact is the dialogue contract).
+            float eyeDwellScale{1.0f};
+
+            float vertexOffsetXDeg{-1.8f}; // Offset relative to face center
             float vertexOffsetYDeg{1.0f};
 
             /// RNG state for organic variability, seeded per-actor from FormID.
@@ -94,11 +110,14 @@ namespace TrueGaze::Kinematics
                 return canonical; // classic fixed orbit
             }
 
-            // Blend: at r = 1 the canonical step still leads slightly (0.45) because
-            // humans DO favour eye-to-eye transitions, but lateral moves (0.35) and
-            // same-point re-fixations (0.20) break every predictable loop.
-            const float pCanonical = (1.0f - r) + r * 0.45f;
-            const float pOther = r * 0.35f;
+            // Blend: at r = 1 the canonical step still leads strongly (0.60)
+            // because humans DO favour eye-to-eye transitions — EYE-LOCK BIAS
+            // (Kirk fine-tuning, 2026-09-26: "the priority to focus and lock
+            // onto the player/NPC/creature eyes should happen more often").
+            // Lateral moves (0.25) and same-point re-fixations (0.15) still
+            // break every predictable loop, but the eyes win more often.
+            const float pCanonical = (1.0f - r) + r * 0.60f;
+            const float pOther = r * 0.25f;
 
             const float roll = std::uniform_real_distribution<float>(0.0f, 1.0f)(state.rng);
             if (roll < pCanonical)
@@ -110,6 +129,72 @@ namespace TrueGaze::Kinematics
                 return other;
             }
             return current; // re-fixation: same feature, freshly scattered landing
+        }
+
+        /// @brief Character-profile-weighted vertex selection.
+        ///
+        /// The Character Gaze Profile projects temperament onto the HCEP-02 diagram
+        /// as per-vertex weights (1.0 = neutral). This variant multiplies each
+        /// candidate's probability by its weight, then normalises — so a shy NPC's
+        /// LowerRight aversion region draws more visits, a lover's Chest point
+        /// draws more, etc. Weights of exactly 1.0 reproduce the unweighted
+        /// distribution (parity contract).
+        ///
+        /// @param weights Per-vertex weights indexed by Vertex (0..8), all 1.0 = neutral.
+        static Vertex NextWeightedVertex(TriangleState &state, Vertex current,
+                                         const float *weights /*[9]*/) noexcept
+        {
+            if (!weights)
+            {
+                return NextTriangleVertex(state, current, 0.6f);
+            }
+
+            // Candidate set: the three core triangle vertices plus the extended
+            // diagram points reachable from the current position. Keeping the
+            // candidate set small preserves the human eye-to-eye bias while
+            // letting weights shift the balance.
+            static constexpr Vertex kCandidates[] = {
+                Vertex::LeftEye, Vertex::RightEye, Vertex::Mouth,
+                Vertex::ThirdEye, Vertex::Chest,
+                Vertex::UpperLeftAversion, Vertex::UpperRightAversion,
+                Vertex::LowerLeftAversion, Vertex::LowerRightAversion};
+            constexpr int kCount = 9;
+
+            float total = 0.0f;
+            float w[kCount];
+            for (int i = 0; i < kCount; ++i)
+            {
+                // The current vertex gets a reduced weight (re-fixation is possible
+                // but not favoured), matching the unweighted distribution's shape.
+                const float base = (kCandidates[i] == current) ? 0.20f : 1.0f;
+
+                // EYE-LOCK BIAS (Kirk fine-tuning, 2026-09-26): eye vertices are
+                // structurally favoured — 2.0x weight — so gaze locks onto the
+                // target's eyes more often than any other region, independent of
+                // the character profile's weights (which multiply on top).
+                const bool isEye = kCandidates[i] == Vertex::LeftEye ||
+                                   kCandidates[i] == Vertex::RightEye;
+                const float eyeBias = isEye ? 2.0f : 1.0f;
+
+                w[i] = base * eyeBias * std::max(0.01f, weights[i]);
+                total += w[i];
+            }
+
+            if (total <= 0.0f)
+            {
+                return NextTriangleVertex(state, current, 0.6f);
+            }
+
+            float roll = std::uniform_real_distribution<float>(0.0f, total)(state.rng);
+            for (int i = 0; i < kCount; ++i)
+            {
+                roll -= w[i];
+                if (roll <= 0.0f)
+                {
+                    return kCandidates[i];
+                }
+            }
+            return Vertex::LeftEye;
         }
 
         /// @brief Steps the core social triangle with an organic, non-repeating path.
@@ -132,13 +217,54 @@ namespace TrueGaze::Kinematics
 
                 // Random fixation duration for organic variability (200-550ms)
                 std::uniform_real_distribution<float> durDist(0.20f, 0.55f);
-                state.fixationDurationSec = durDist(state.rng);
+                state.fixationDurationSec = durDist(state.rng) * state.cadenceScale;
 
                 // Weighted-random next vertex: favours eye-to-eye transitions the way
                 // humans do, but lateral jumps and re-fixations destroy the fixed orbit.
                 state.currentVertex = NextTriangleVertex(state, state.currentVertex, pathRandomness);
 
                 ComputeVertexOffset(state, faceDistanceMeters);
+                ApplyEyeDwell(state);
+            }
+        }
+
+        /// @brief EYE-TO-EYE DOMINANCE: after a vertex lands on an eye, stretch
+        /// its fixation duration by eyeDwellScale. A hold on the eyes is the
+        /// socially meaningful state — it must outlast mouth/forehead/chest
+        /// visits by a wide margin, and dominate during dialogue.
+        static void ApplyEyeDwell(TriangleState &state) noexcept
+        {
+            if (state.currentVertex == Vertex::LeftEye ||
+                state.currentVertex == Vertex::RightEye)
+            {
+                state.fixationDurationSec *= std::max(1.0f, state.eyeDwellScale);
+            }
+        }
+
+        /// @brief Steps the core social triangle with profile-weighted vertex selection.
+        /// Identical to Update() except the next vertex is drawn from the
+        /// character-profile weights (see NextWeightedVertex). Weights of 1.0
+        /// reproduce the organic distribution.
+        static void UpdateWeighted(TriangleState &state, float deltaSeconds,
+                                   float faceDistanceMeters,
+                                   float /*pathRandomness*/,
+                                   const float *weights /*[9]*/) noexcept
+        {
+            if (deltaSeconds <= 0.0f)
+                return;
+
+            state.fixationTimerSec += deltaSeconds;
+
+            if (state.fixationTimerSec >= state.fixationDurationSec)
+            {
+                state.fixationTimerSec = 0.0f;
+
+                std::uniform_real_distribution<float> durDist(0.20f, 0.55f);
+                state.fixationDurationSec = durDist(state.rng) * state.cadenceScale;
+
+                state.currentVertex = NextWeightedVertex(state, state.currentVertex, weights);
+                ComputeVertexOffset(state, faceDistanceMeters);
+                ApplyEyeDwell(state);
             }
         }
 
@@ -159,7 +285,7 @@ namespace TrueGaze::Kinematics
 
                 // Longer fixation dwells for extended points (400-700ms)
                 std::uniform_real_distribution<float> durDist(0.30f, 0.55f);
-                state.fixationDurationSec = durDist(state.rng);
+                state.fixationDurationSec = durDist(state.rng) * state.cadenceScale;
 
                 // Determine the extended vertex based on HCEP mode
                 Vertex extendedTarget = (hcepMode == 2) ? Vertex::ThirdEye : Vertex::Chest;
@@ -175,7 +301,7 @@ namespace TrueGaze::Kinematics
                     break;
                 case Vertex::RightEye:
                     state.currentVertex = extendedTarget;
-                    state.fixationDurationSec = std::uniform_real_distribution<float>(0.40f, 0.70f)(state.rng);
+                    state.fixationDurationSec = std::uniform_real_distribution<float>(0.40f, 0.70f)(state.rng) * state.cadenceScale;
                     break;
                 case Vertex::ThirdEye:
                 case Vertex::Chest:
@@ -201,6 +327,7 @@ namespace TrueGaze::Kinematics
                 }
 
                 ComputeVertexOffset(state, faceDistanceMeters);
+                ApplyEyeDwell(state);
             }
         }
 
@@ -278,15 +405,16 @@ namespace TrueGaze::Kinematics
 
                 if (isAversionVertex)
                 {
-                    state.fixationDurationSec = std::uniform_real_distribution<float>(0.35f, 0.70f)(state.rng);
+                    state.fixationDurationSec = std::uniform_real_distribution<float>(0.35f, 0.70f)(state.rng) * state.cadenceScale;
                 }
                 else
                 {
                     // Brief face fixation before next aversion (150-350ms)
-                    state.fixationDurationSec = std::uniform_real_distribution<float>(0.15f, 0.35f)(state.rng);
+                    state.fixationDurationSec = std::uniform_real_distribution<float>(0.15f, 0.35f)(state.rng) * state.cadenceScale;
                 }
 
                 ComputeVertexOffset(state, faceDistanceMeters);
+                ApplyEyeDwell(state);
             }
         }
 
@@ -306,11 +434,15 @@ namespace TrueGaze::Kinematics
 
             // Snap to the dominant eye (face centre) and reset the fixation timer
             // so the NPC holds on the face for a normal fixation before resuming
-            // any scanpath.
+            // any scanpath. EYE-TO-EYE DOMINANCE: the return lands on an eye, so
+            // the eye dwell scale applies — during dialogue this makes the
+            // post-return eye hold the longest fixation in the cycle, which is
+            // exactly the dialogue contract.
             state.currentVertex = Vertex::RightEye;
             state.fixationTimerSec = 0.0f;
-            state.fixationDurationSec = std::uniform_real_distribution<float>(0.30f, 0.60f)(state.rng);
+            state.fixationDurationSec = std::uniform_real_distribution<float>(0.30f, 0.60f)(state.rng) * state.cadenceScale;
             ComputeVertexOffset(state, faceDistanceMeters);
+            ApplyEyeDwell(state);
 
             return wasAverting;
         }

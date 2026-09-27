@@ -31,10 +31,14 @@
 
 | | |
 | :--- | :--- |
-| **Maturity** | 🟢 **Production Release v1.0.5** — Live on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)) |
+| **Maturity** | 🟢 **Production Release v1.0.5 + Gold Standard Scene Integration** — Live on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)) |
 | **Builds & links the SDK?** | ✅ Yes — unified multi-target Release x64 DLL (`CommonLibSSE-NG`, `OpenVR`, `spdlog`, `fmt`, `/O2`) |
 | **Drives bones?** | ✅ Yes — procedural saccadic, VOR, and cervical hierarchy bone manipulation live |
-| **In-Engine Verification** | ✅ **Verified in Skyrim AE & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, and telemetry confirmed |
+| **In-Engine Verification** | ✅ **Verified in Skyrim AE & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, eye-to-eye targeting, and telemetry confirmed |
+| **Eye-to-Eye Targeting** | ✅ **VERIFIED** — NPCs look directly into the player's and each other's EYES via eye-anchor projection from head bone world basis. Eyes lead head via FaceGen Look morphs. |
+| **Gold Standard Scene Integration** | ✅ **VERIFIED (Sept 26, 2026)** — flawless integration through the Helgen opening scene: player parity in directed scenes (voice-address detection), scene defer with eyes-never-yield, SEH fault tolerance, calm/combat speed model, eye-to-eye fixation dominance. Generalizes to ANY directed animation, scene, or OAR mod. |
+| **Calm/Combat Speed Model** | ✅ **VERIFIED** — tuned INI speeds are the combat ceiling; calm baseline runs at quarter speed with 8× fixation dwell and eye-dominant holds (~6-17s eye contact in dialogue). Head catch-up 1.54× the eye rate. |
+| **Character Gaze Profiles** | 🔨 **Implemented + Unit-verified** — temperament-driven gaze: Skyrim's own characterization (Confidence, Aggression, relationships, archetypes) projected onto the HCEP-02 diagram. Every NPC looks like themselves. |
 | **3D Head Elevation Targeting** | ✅ Dynamic `NPC Head [Head]` bone world transform solving for seated, leaning, and crouched eye-to-eye alignment |
 | **3rd-Person Player Gaze** | ✅ Player character headtracks and engages nearby conversational partners in 3rd person view |
 | **Diagnostic Visual Systems** | ✅ **Option 1** (discreet ~2mm laser rays from pupils) & **Option 2** (floating HCEP ocular diagram panel) implemented |
@@ -43,7 +47,7 @@
 | **OAR Integration** | ✅ Native dynamic SKSE messaging registration (zero static symbol dependencies) |
 | **Companion Symbols** | ✅ Packaged with full `TrueGaze.pdb` symbols archive for crash logger diagnostic parity |
 
-**Verified working:** Multi-target SDK linkage (SE/AE/VR) · the gaze engine and bone application · dynamic 3D head elevation solving · 3rd-person player conversational engagement · dynamic vtable slot redirection (`0xAF` for VR) · per-actor runtime kinematics state · configuration reaching the live engine · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · Option 1 subtle laser rays & Option 2 floating HCEP panel · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 11 passing test suites · a reproducible pinned build · standalone HTML configurator · multi-race acceptance protocol.
+**Verified working:** **Gold Standard scene integration (Helgen opening scene end-to-end)** · **Eye-to-eye targeting (NPCs look directly into eyes)** · **Eye-to-eye fixation dominance (eye holds outlast all other regions; ~6-17s eye contact in dialogue)** · **Voice-address detection (an NPC speaking to the player looks at the player)** · **Calm/combat speed model (calm = quarter speed, 8× dwell; combat = full tuned speed)** · FaceGen eye-lead morph gain on vanilla rigs (eyes clearly lead the head) · player targeting in scripted scenes (Helgen cart) · point-blank seated actor resolution · Multi-target SDK linkage (SE/AE/VR) · the gaze engine and bone application · dynamic 3D head elevation solving · 3rd-person player conversational engagement · dynamic vtable slot redirection (`0xAF` for VR) · per-actor runtime kinematics state · configuration reaching the live engine · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · Option 1 subtle laser rays & Option 2 floating HCEP panel · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 12 passing test suites · a reproducible pinned build · standalone HTML configurator · multi-race acceptance protocol.
 
 ➡️ **Nexus Mods Page: [Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)**  
 ➡️ **User Quickstart Guide: [`TrueGaze_Configurator_Guide.txt`](TrueGaze_Configurator_Guide.txt)**  

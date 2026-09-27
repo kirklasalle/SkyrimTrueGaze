@@ -73,6 +73,7 @@ venv/
 !skyrim/SKSE/Plugins/TrueGaze.dll
 !dist/
 !dist/*.zip
+!dist/*.7z
 
 # ---------------------------------------------------------------------------
 # Generated one-click shortcuts.

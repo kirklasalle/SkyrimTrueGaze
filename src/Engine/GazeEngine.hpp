@@ -120,6 +120,12 @@ namespace TrueGaze::Engine
         [[nodiscard]] uint64_t EyeNodeAbsentCount() const noexcept { return _eyeNodeAbsentCount; }
         [[nodiscard]] uint64_t HeadAnchorAbsentCount() const noexcept { return _headAnchorAbsentCount; }
 
+        /// GOLD STANDARD scene-defer diagnostics. The defer contract (yield the
+        /// head chain to vanilla direction during directed scenes; eyes never
+        /// yield) is the core of flawless scene integration. These expose it.
+        [[nodiscard]] bool LastDeferActive() const noexcept { return _lastDeferActive; }
+        [[nodiscard]] uint64_t DeferFrames() const noexcept { return _deferFrames; }
+
         /// Records the outcome of one skeleton probe. Called from ApplyToSkeleton.
         void RecordRigProbe(const char *originMode, bool headResolved, bool eyeNodeResolved) noexcept
         {
@@ -138,8 +144,12 @@ namespace TrueGaze::Engine
         GazeEngine() = default;
 
         /// Compute the gaze deflection for an actor, in actor-relative degrees.
+        /// speedScale: the calm/combat speed multiplier decided in TickActor
+        /// (0.5 calm baseline, 1.0 combat). actorInCombat: the same predicate,
+        /// passed so the catch-up-saccade threshold can switch with it.
         void ComputeDeflection(RE::Actor *actor, ActorGazeRuntime &state,
-                               float deltaSeconds, float &outYaw, float &outPitch) noexcept;
+                               float deltaSeconds, float &outYaw, float &outPitch,
+                               float speedScale, bool actorInCombat) noexcept;
 
         /// Distance from the player, in metres. Zero when unavailable.
         [[nodiscard]] static float DistanceMetersForTier(RE::Actor *actor) noexcept;
@@ -157,6 +167,17 @@ namespace TrueGaze::Engine
         std::unordered_map<uint32_t, ActorGazeRuntime> _actors;
         Engine::GazeTuning _tuning{};
         Bridge::NamedPipeServer _pipe{};
+
+        // Character Gaze Profile frame-scope values (set in ComputeDeflection,
+        // consumed by the scanpath section in the same call). Not thread state —
+        // purely per-invocation locals passed through members to keep the
+        // ComputeDeflection signature stable.
+        float _frameFixationScale{1.0f};
+        bool _frameTriangleEnabled{true};
+        const float *_frameVertexWeights{nullptr};
+        /// Per-frame uniform roll [0,1) used to gate CGA engagement by the
+        /// character profile's aversion rate. -1 = always engage (no profile).
+        float _frameCgaRoll{-1.0f};
 
         bool _bridgeStarted{false};
 
@@ -182,6 +203,11 @@ namespace TrueGaze::Engine
         const char *_lastRigOrigin{"unknown"};
         uint64_t _eyeNodeAbsentCount{0};
         uint64_t _headAnchorAbsentCount{0};
+
+        // Gold Standard scene-defer diagnostics (written in TickActor after
+        // target resolution, read by stgstatus).
+        bool _lastDeferActive{false};
+        uint64_t _deferFrames{0};
 
         /// Actors unseen for longer than this are evicted to bound memory (NFR-3).
         static constexpr float ACTOR_EVICTION_SEC = 30.0f;

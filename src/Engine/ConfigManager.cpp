@@ -75,6 +75,15 @@ namespace TrueGaze::Engine
         headPitchWeight = ReadFloat("SkeletalHierarchy", "fHeadPitchWeight", headPitchWeight, p);
         headEngageThresholdDeg = ReadFloat("SkeletalHierarchy", "fHeadEngageThresholdDeg", headEngageThresholdDeg, p);
 
+        // GazeTarget (eye anchor & eye-lead)
+        eyeAnchorForwardCm = ReadFloat("GazeTarget", "fEyeAnchorForwardCm", eyeAnchorForwardCm, p);
+        eyeAnchorUpCm = ReadFloat("GazeTarget", "fEyeAnchorUpCm", eyeAnchorUpCm, p);
+        eyeMorphGain = ReadFloat("GazeTarget", "fEyeMorphGain", eyeMorphGain, p);
+        eyeMorphFullScaleDeg = ReadFloat("GazeTarget", "fEyeMorphFullScaleDeg", eyeMorphFullScaleDeg, p);
+
+        // CharacterProfile
+        enableCharacterProfiles = ReadBool("CharacterProfile", "bEnableCharacterProfiles", enableCharacterProfiles, p);
+
         // Social
         enableGazeAversion = ReadBool("Social", "bEnableGazeAversion", enableGazeAversion, p);
         enableSocialTriangle = ReadBool("Social", "bEnableSocialTriangle", enableSocialTriangle, p);
@@ -234,6 +243,10 @@ namespace TrueGaze::Engine
         headYawWeight = clampReport("fHeadYawWeight", headYawWeight, 0.0f, 1.0f);
         headPitchWeight = clampReport("fHeadPitchWeight", headPitchWeight, 0.0f, 1.0f);
         headEngageThresholdDeg = clampReport("fHeadEngageThresholdDeg", headEngageThresholdDeg, 0.0f, 45.0f);
+        eyeAnchorForwardCm = clampReport("fEyeAnchorForwardCm", eyeAnchorForwardCm, -10.0f, 25.0f);
+        eyeAnchorUpCm = clampReport("fEyeAnchorUpCm", eyeAnchorUpCm, -10.0f, 25.0f);
+        eyeMorphGain = clampReport("fEyeMorphGain", eyeMorphGain, 0.5f, 4.0f);
+        eyeMorphFullScaleDeg = clampReport("fEyeMorphFullScaleDeg", eyeMorphFullScaleDeg, 5.0f, 45.0f);
         cgaHeadInvolvement = clampReport("fCgaHeadInvolvement", cgaHeadInvolvement, 0.0f, 1.0f);
         cgaDialogueOffsetSec = clampReport("fCgaDialogueOffsetSec", cgaDialogueOffsetSec, 0.0f, 5.0f);
         triangleFixationDuration = clampReport("fTriangleFixationDuration", triangleFixationDuration, 0.05f, 2.0f);
@@ -395,6 +408,13 @@ namespace TrueGaze::Engine
         WriteFloat("SkeletalHierarchy", "fHeadYawWeight", headYawWeight);
         WriteFloat("SkeletalHierarchy", "fHeadPitchWeight", headPitchWeight);
         WriteFloat("SkeletalHierarchy", "fHeadEngageThresholdDeg", headEngageThresholdDeg);
+
+        WriteFloat("GazeTarget", "fEyeAnchorForwardCm", eyeAnchorForwardCm);
+        WriteFloat("GazeTarget", "fEyeAnchorUpCm", eyeAnchorUpCm);
+        WriteFloat("GazeTarget", "fEyeMorphGain", eyeMorphGain);
+        WriteFloat("GazeTarget", "fEyeMorphFullScaleDeg", eyeMorphFullScaleDeg);
+
+        WriteBool("CharacterProfile", "bEnableCharacterProfiles", enableCharacterProfiles);
 
         WriteBool("Social", "bEnableGazeAversion", enableGazeAversion);
         WriteBool("Social", "bEnableSocialTriangle", enableSocialTriangle);

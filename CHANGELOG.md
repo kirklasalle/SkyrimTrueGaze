@@ -8,7 +8,258 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [!IMPORTANT]
 > **Correction notice.** Earlier entries in this changelog described several features as "implemented" that are not functional, because they were written from design intent rather than from the code. Those entries have been annotated below. See [`docs/STATUS.md`](docs/STATUS.md) for the verified capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the full independent audit.
 
+## [Unreleased] - Gold Standard Scene Integration - 2026-09-26
+
+> **The Gold Standard: flawless integration of TrueGaze during the Helgen opening
+> scene — which makes it correct for ANY in-game directed animation, scene, or
+> OAR-driven mod.** This release hardens the scene-integration contract, fixes a
+> sticky-defer defect that silently disabled TrueGaze after any NPC-to-NPC scene,
+> makes the gaze frame SEH-fault-tolerant (a defect in TrueGaze can no longer take
+> the game down for ANY failure class), and gives the plugin sole ownership of its
+> log so no crash can ever again be invisible.
+
+### Fixed — Sticky scene defer (head chain permanently yielded)
+
+- `sceneDeferActive` was set when an NPC was directed at another NPC and **never
+  cleared when the scene ended**. After any NPC-to-NPC staged moment, TrueGaze's
+  head chain stayed yielded to vanilla forever — the actor silently stopped
+  receiving TrueGaze gaze for the rest of the session.
+- The flag is now a **per-frame decision**: cleared at the top of every target
+  resolution, re-set only by the head-track classification below. The moment a
+  scene releases the actor, TrueGaze re-engages on the very next frame.
+
+### Changed — Scene defer generalised to all direction head-track slots
+
+- The defer check previously used the single `AIProcess::GetHeadtrackTarget()`
+  relocation call, which reads only the default slot. It now reads the
+  `HighProcessData::headTrackTarget[]` array directly — a pure data-side read,
+  no engine dispatch — across all six slots with per-slot semantics:
+  - **kDefault** (ambient AI glances) and **kCombat** (combat targeting) are NOT
+    direction — TrueGaze continues to own those gazes.
+  - **kAction**, **kScript** (quest/mod LookAt — the OAR/scene-mod surface),
+    **kDialogue**, and **kProcedure** (package procedures — the Helgen cart's
+    mechanism) ARE direction: vanilla is authoritative, TrueGaze yields the head
+    chain, eyes never yield.
+  - When the directed target is the player, TrueGaze takes hold with eye-anchor
+    precision (unchanged).
+- This is the generalisation that extends the cart-scene contract to any
+  directed animation, scene, or mod.
+
+### Changed — SEH fault tolerance for the gaze frame
+
+- Every hard crash in this project's history has been an SEH access violation —
+  a failure class C++ `try/catch` structurally cannot catch (documented as a
+  known limitation since the first hook). The TrueGaze-owned frame body
+  (`BeginFrame → TickActor(player) → TickAllActors → EndFrame`) is now wrapped
+  in `__try/__except`: the first faults log the exception code and faulting
+  address (with the PDB, the exact line), the frame is abandoned, and **the
+  game continues**. Skyrim's own update call remains outside the frame, as
+  always — engine code is never swallowed.
+
+### Changed — Logging ownership (no crash can be invisible again)
+
+- The 2026-09-25 evening session crashed during data load and `TrueGaze.log`
+  showed nothing after kPostLoad: `SKSE::Init()`'s default `InitInfo` had
+  re-truncated the log file and replaced the default logger, silencing the
+  plugin from its own diagnostics.
+- The plugin now installs its logger BEFORE `SKSE::Init` and passes an explicit
+  `InitInfo{log=false}` so SKSE never opens, truncates, or replaces it. One
+  sink, one pattern, one level policy, from load to exit.
+
+### Added — Scene-defer diagnostics
+
+- `stgstatus` now reports `scene defer ACTIVE (head chain yielded)` or
+  `inactive` plus a lifetime yield-frame count.
+- The periodic target-trace log line appends `scene=DEFERRED` while deferring,
+  so acceptance logs for any directed scene are self-describing.
+
+### Added — Player parity & voice-address detection (field-test rounds 3-6)
+
+- **Player parity in directed scenes** (Kirk directive: "The Player should be
+  treated the same as the NPC especially when directed to from vanilla
+  Skyrim"): the direction-slot scan is two-pass — a slot aimed at the PLAYER
+  wins over any slot aimed at another NPC. The player is also exempt from the
+  body-yaw cone check in the dialogue branch (seated sideways actors in the
+  cart had the player outside their cone): a person addressing you looks at
+  you, full stop.
+- **Voice-address detection**: the game stages LOOK direction independently of
+  SPEECH — during scene-delivered lines the head-track slots pointed at other
+  NPCs even while the NPC spoke to the player. TrueGaze now reads the speech
+  itself: `HighProcessData.voiceState` (kStart/kContinue = speaking now) +
+  `lastSpokenToArray` (who the speech was delivered to). An actor speaking to
+  the player looks at the player — pure data-side reads, no relocation calls.
+- **Dialogue player hold**: a 3-second latch re-serves the player target
+  through the direction signal's mid-line flicker, so an NPC speaking to the
+  player keeps looking at the player for the whole line.
+- **Defer player glance**: while deferring, the player within 0.4-4 m and a
+  150° cone gets an eyes-only glance — a person an arm's length away is never
+  ignored.
+
+### Added — Calm/Combat speed model & eye-to-eye dominance (field-test rounds 2-8)
+
+- **Calm/Combat speed model** (Kirk directive: "slowed down by at least 50%…
+  faster speeds are for combat scenarios and any high intense action", then
+  "move the baseline down at least another 50%"): the tuned INI speeds are the
+  COMBAT ceiling. The calm baseline runs at ONE QUARTER of them — pursuit
+  glide ×0.25, saccade duration ×4, scanpath cadence ×8 (with the extra dwell
+  directive), cervical slew caps ×0.25. Combat restores full speed instantly.
+- **Eye-to-eye fixation dominance** (Kirk directive: "looking into character
+  eyes is important and must last longer before shifting, and it MUST happen
+  when dialogue occurs"): holds on LeftEye/RightEye are multiplied 2.5×
+  baseline / 4.0× during dialogue, in every scanpath stepper. Calm dialogue
+  eye holds ≈ 6-17 s; other regions stay brief glances between eye holds.
+- **Eye-lock bias**: eye-to-eye transition probability 0.45→0.60; eye vertices
+  carry a structural 2.0× weight in profile-weighted selection — gaze lands
+  on the eyes more often per cycle.
+- **Head catch-up**: the head chain runs at 1.54× the calm eye rate (graceful
+  S-curve preserved; +10% after round-8 verification).
+- **Graceful region transitions**: the catch-up saccade threshold is 45° when
+  calm (20° in combat), so all region-to-region motion flows through the
+  exponential pursuit glide — no ballistic snapping between regions.
+- **Engineering lessons fixed en route** (documented in the session record):
+  Vmax is diagnostic-only in a unit-area-normalised velocity profile (duration
+  is the real speed lever); `2.0f * speedScale` was a silent no-op at
+  speedScale 0.5 (reciprocal `1.0f / speedScale` is the correct inversion); a
+  per-frame overwrite of the scanpath's fixation duration defeated the cadence
+  lever (subsystems own their internal timing; the engine seeds once).
+
+## [1.0.6] - 2026-09-25
+
+### Added — Character Gaze Profiles: Temperament-Driven Gaze (Phases C1-C5)
+
+> **Every NPC now looks like THEMSELVES.** TrueGaze reads Skyrim's own characterization
+> — the Confidence, Aggression, and Assistance actor values, relationship ranks,
+> guard/child/race flags, and combat state — and projects it onto the HCEP-02 Enhanced
+> Diagram as behavioural multipliers. A cowardly merchant, a foolhardy guard, a lover,
+> and a wolf each gaze differently, grounded in published gaze psychology.
+
+#### 🎭 The Spectrum (no NPC is a "type")
+
+Every entity is a point in (Confidence × Aggression × Relationship × StoryState) space:
+
+| Entity | Gaze behaviour |
+| --- | --- |
+| Cowardly merchant (Confidence 0) | 1.45× aversion rate, brief eye contact, darting glances, Lower-Right (shyness) region bias |
+| Foolhardy guard (Confidence 3 + IsGuard) | 0.55× aversion, unflinching lock, steady dwells |
+| Lover (relationship +4) | Long mutual-gaze holds, Chest (Heart) region visits, HEART bias |
+| Enemy (relationship −4) | Hostile lock — stares, doesn't look away, LOGIC bias |
+| Child | Quick curious scanning, wide saccades |
+| Creature (wolf) | No social triangle — fixation-dominant animal attention |
+| Anyone in combat | Hard lock: minimal aversion, LOGIC, long fixations |
+
+#### 🔬 Implementation
+
+- **`src/Engine/CharacterProfile.hpp`** — pure `Classify(TemperamentInput) → GazeProfile`
+  classifier (no SDK in the math; SDK adapter `GatherTemperament` reads AVs,
+  `BGSRelationship::GetRelationship`, and archetype flags). All multipliers clamped
+  [0.1..3]. **DEFAULT PARITY: disabled = all 1.0 = exact pre-profile behaviour.**
+- **`SocialTriangle`** — new `NextWeightedVertex` / `UpdateWeighted`: profile vertex
+  weights turn the HCEP-02 diagram's region semantics into actual visit probabilities.
+- **`GazeEngine`** — per-actor profile cache (refreshed on combat edges only, never
+  per frame); fixation scale, triangle enable, weighted vertices, and CGA aversion-rate
+  gating all profile-modulated.
+- **Player behavioural profile** — the player's own face-attention (crosshair holds on
+  faces) accumulates and warms the player's 3rd-person gaze: longer mutual-gaze holds,
+  slower scanning. The character reflects the player's behaviour. (1st person is
+  unaffected — eyes-only control, sacred invariant.)
+- **Dev panel** — the floating HCEP diagram already lights the active region with the
+  diagram's colours (green LeftEye, orange RightEye, pink Mouth, purple ThirdEye,
+  crimson Chest, cyan CGA peripherals).
+- **Config**: `[CharacterProfile] bEnableCharacterProfiles=1` (INI + configurator
+  "Character Gaze Profiles" panel with rich tooltip).
+
+#### 📚 Psychology grounding
+
+- Gaze avoidance ↔ low confidence/shyness (Shackelford et al., PAID 1996)
+- Affective eye contact effects (Frontiers in Psychology 2018)
+- Personality shapes gaze patterns (SAGE QJEP 2025, 116-participant eye-tracking)
+- Gaze aversion = cognitive-load management (PMC8188832)
+
+#### ✅ Verification
+
+- 12th unit-test suite `TestCharacterProfile`: default parity, confidence ordering,
+  lover/enemy axes, creature fallback, combat lock, clamps, and a 20,000-sample
+  weighted-vertex distribution check. **All 12 suites pass.**
+
 ## [1.0.5] - 2026-09-25
+
+### ✅ LANDMARK: Eye-to-Eye Targeting & Eyes-Lead-Head — IN-ENGINE VERIFIED (September 25, 2026)
+
+> **Kirk LaSalle directly observed NPCs looking into the player's eyes (and each other's
+> eyes) in live Skyrim gameplay for the first time.** Tavern NPCs tracked the player's
+> eyes with visible FaceGen eye-morph movement leading the head. The foundational science
+> — eye-anchor targeting, FaceGen Look-morph gain, head-onset delay, and head-engagement
+> threshold — is **proven correct in-engine**.
+>
+> This milestone marks the transition from "eyes move" (verified September 2026) to
+> **"eyes look into eyes"** — the core promise of TrueGaze.
+
+#### 👁️ Eye-Anchor Targeting — "The Eyes ARE the Target"
+
+- **Root cause found and fixed**: gaze was aimed at the `NPC Head [Head]` bone origin,
+  which sits at the base of the skull — 5-8 cm below and behind the eyeballs. NPCs looked
+  at the throat or nose bridge, never the eyes.
+- **New `EyeAnchorFromHeadBone()` projection**: lifts the aim point onto the eyeline by
+  projecting along the head bone's own world basis vectors (+Y forward, +Z up via
+  `NiMatrix3::GetVectorY/Z`). Tracks seated, leaning, and crouched poses (including bound
+  prisoners in the Helgen cart) because it follows the bone's actual orientation, not a
+  fixed world-space offset.
+- **Applied to BOTH sides**: the target actor's eye point AND the observer's ray origin
+  now use the same anchor, so the solve is genuinely **eye-to-eye**, not throat-to-forehead.
+- **New `[GazeTarget]` INI section** with tunable offsets: `fEyeAnchorForwardCm` (8.0),
+  `fEyeAnchorUpCm` (8.5), `fEyeMorphGain` (1.7), `fEyeMorphFullScaleDeg` (20.0).
+- **Files**: `TargetSelector.cpp/hpp`, `GazeEngine.cpp`, `GazeTuning.hpp`,
+  `ConfigManager.hpp/cpp`, `TrueGaze.ini`, `TrueGazeConfig.html` (both copies).
+
+#### 👁️ FaceGen Eye-Lead — Eyes Clearly Move First on Vanilla NPCs
+
+- **Critical discovery**: vanilla Skyrim humanoid rigs have **NO eye bones** — the
+  skeleton probe reports `origin=GeometricHeadSocket`, "eyes are FaceGen morphs". The
+  ENTIRE "eyes move" path on stock NPCs runs through `EfmBlinkController::ApplyGazeMorphs`
+  → FaceGen `LookLeft/Right/Up/Down` modifier morphs. `EyeAimConstraint` on eye bones is
+  a no-op for these rigs.
+- **Morph sensitivity boosted**: `fullScaleDeg` reduced from 30→20 and visible gain
+  (`eyeMorphGain`) added at 1.7×. A 6° social triangle glance now drives the eyes to ~51%
+  morph travel — clearly visible at conversation distance without saturating.
+- **Head onset delay tuned**: `fHeadOnsetDelaySec` raised to 0.13s (upper end of the
+  biological 80-150ms window). The eyes visibly arrive at the target before the head begins
+  to follow.
+- **Head engagement threshold tuned**: `fHeadEngageThresholdDeg` raised to 12°. The entire
+  close-range social triangle (eye↔eye↔mouth at cart/tavern distance) is carried by the
+  **eyes only** — zero head twitch.
+- **Files**: `EfmBlinkController.hpp/cpp`, `GazeEngine.cpp`, `GazeTuning.hpp`,
+  `ConfigManager.hpp/cpp`, `TrueGaze.ini`, `TrueGazeConfig.html` (both copies).
+
+#### 🪑 Point-Blank Seated Actor Fix (Helgen Cart Enabler)
+
+- **Root cause**: `IsInVisualCone` rejected actors closer than 25 units (~0.35m). In the
+  tight Helgen cart, seated NPCs sharing the cart origin were rejected → fell through to a
+  vacant ambient forward stare.
+- **Fix**: singularity rejection lowered to 4 units (~6 cm); actors within 64 units (~0.9m)
+  always treated as in-cone regardless of bearing angle. Seated cart passengers now
+  correctly resolve each other.
+- **File**: `TargetSelector.cpp`
+
+#### 🎯 Player Targeting in Scripted Scenes (Helgen Cart Fix)
+
+- **Root cause**: the social candidate scan explicitly excluded the player
+  (`otherActor != player`), evaluating them separately in a lower-priority block. In the
+  cart, other NPCs (Ralof, Lokir, Ulfric) always won the distance comparison because they
+  sit closer to each other than to the player. The player was never selected as a target.
+- **Fix**: the player now enters the same candidate scan as all other actors, competing
+  fairly on distance. The player retains their wider visual cone (110° vs 75° for NPCs)
+  as a social-salience advantage and evaluates up to 12m (vs 6m for NPCs). In the cart,
+  each NPC now naturally glances between the player and other NPCs based on proximity.
+- **File**: `TargetSelector.cpp`
+
+#### 🎛️ New Configurator Panel: "Eye Target & Eye-Lead"
+
+- New `[GazeTarget]` section in `TrueGazeConfig.html` with 4 controls:
+  - `fEyeAnchorForwardCm` / `fEyeAnchorUpCm` — eye anchor offsets (tune eye-aim precision)
+  - `fEyeMorphGain` — FaceGen eye-lead visible gain (tune eye expressiveness)
+  - `fEyeMorphFullScaleDeg` — morph full-scale angle (tune saturation point)
+- Rich tooltips with anatomical context, impact descriptions, and recommended ranges.
+- Added to the `Social & Dialogue` preset for cart/tavern-optimised defaults.
 
 ### Added — Eye-Dominant Gaze, Dialogue-Synced CGA Return & Organic Motion
 

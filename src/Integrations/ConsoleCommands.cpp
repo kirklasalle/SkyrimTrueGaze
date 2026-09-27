@@ -232,6 +232,13 @@ namespace TrueGaze::Integrations
             ConsolePrint("  last target      priority %u, form %08X",
                          static_cast<unsigned>(engine.LastTargetPriority()),
                          engine.LastTargetFormId());
+            // GOLD STANDARD: scene-defer visibility. During directed scenes
+            // (Helgen cart, package procedures, scripted LookAt) the head chain
+            // yields to vanilla direction and the count of yield frames is the
+            // direct evidence the defer contract is being honoured.
+            ConsolePrint("  scene defer      %s (%llu yield frames)",
+                         engine.LastDeferActive() ? "ACTIVE (head chain yielded)" : "inactive",
+                         static_cast<unsigned long long>(engine.DeferFrames()));
             ConsolePrint("  rig origin       %s (eye-absent %llu, head-absent %llu)",
                          engine.LastRigOrigin(),
                          static_cast<unsigned long long>(engine.EyeNodeAbsentCount()),

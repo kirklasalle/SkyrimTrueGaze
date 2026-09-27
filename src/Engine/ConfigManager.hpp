@@ -63,6 +63,15 @@ namespace TrueGaze::Engine
         float headPitchWeight{0.245f};
         float headEngageThresholdDeg{8.0f}; // below this angle, only eyes move
 
+        // --- Eye anchor & eye-lead (the eyes ARE the target) ---
+        float eyeAnchorForwardCm{8.0f};    // head bone -> eyeline, toward the face
+        float eyeAnchorUpCm{8.5f};         // head bone -> eyeline, up to eye height
+        float eyeMorphGain{1.7f};          // visible gain for FaceGen Look* eye morphs
+        float eyeMorphFullScaleDeg{20.0f}; // eye deflection that maps to a full morph
+
+        // --- Character Gaze Profile (temperament-driven gaze) ---
+        bool enableCharacterProfiles{true}; // OFF = default profile (exact parity)
+
         // --- General ---
         std::string engineTarget{"Auto"}; // Auto | SE | AE | VR (validated at load)
 

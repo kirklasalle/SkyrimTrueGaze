@@ -94,9 +94,23 @@ namespace TrueGaze::Kinematics
         }
 
         /// @brief Calculates total ballistic duration based on Main Sequence linear relationship.
-        static float CalculateDuration(float amplitudeDeg) noexcept
+        ///
+        /// CALM/COMBAT SPEED MODEL (Kirk directive, September 26 2026): duration
+        /// is the REAL speed lever. The Main Sequence duration law D = D0 + d·A
+        /// sets how long the eye takes to travel amplitude A; V_max is only a
+        /// diagnostic (the profile shape normalises to unit area, so the travel
+        /// time is duration alone). Halving V_max therefore changed nothing
+        /// perceptible — the 2026-09-26 tavern test proved it. The calm
+        /// baseline instead STRETCHES the duration: a 2x duration = half the
+        /// angular velocity for the same amplitude, which is exactly "50% less
+        /// eye movement speed". Combat keeps the biological duration.
+        ///
+        /// @param durationScale 1.0 = biological (combat), 2.0 = calm baseline
+        ///                     (half speed). Clamped to [0.5, 4].
+        static float CalculateDuration(float amplitudeDeg, float durationScale = 1.0f) noexcept
         {
-            return BASE_DURATION_SEC + (DURATION_SLOPE * std::abs(amplitudeDeg));
+            const float scale = std::clamp(durationScale, 0.5f, 4.0f);
+            return (BASE_DURATION_SEC + (DURATION_SLOPE * std::abs(amplitudeDeg))) * scale;
         }
 
         /// @brief Normalised velocity profile at normalised time t.
@@ -156,8 +170,12 @@ namespace TrueGaze::Kinematics
         }
 
         /// @brief Triggers a new ballistic saccade toward a target gaze angle.
+        ///
+        /// @param durationScale 1.0 = biological duration (combat), 2.0 = calm
+        ///                      baseline (half angular speed). See CalculateDuration.
         static void TriggerSaccade(SaccadeState &state, float targetYaw, float targetPitch,
-                                   float vMax = DEFAULT_VMAX, float c = DEFAULT_C) noexcept
+                                   float vMax = DEFAULT_VMAX, float c = DEFAULT_C,
+                                   float durationScale = 1.0f) noexcept
         {
             float dy = targetYaw - state.currentYaw;
             float dp = targetPitch - state.currentPitch;
@@ -178,7 +196,7 @@ namespace TrueGaze::Kinematics
 
             state.isBallistic = true;
             state.amplitudeDeg = amplitude;
-            state.totalDurationSec = CalculateDuration(amplitude);
+            state.totalDurationSec = CalculateDuration(amplitude, durationScale);
             state.peakVelocityDegPerSec = CalculatePeakVelocity(amplitude, vMax, c);
             state.elapsedSec = 0.0f;
             state.startYaw = state.currentYaw;

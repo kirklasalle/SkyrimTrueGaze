@@ -3,10 +3,22 @@
 #include "EyeAimConstraint.hpp"
 #include "ConfigManager.hpp"
 
+#include <atomic>
+
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/Skyrim.h>
 #include <RE/H/HighProcessData.h>
 #include <RE/S/SendHUDMessage.h>
+#endif
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #endif
 
 namespace TrueGaze::Engine
@@ -67,6 +79,134 @@ namespace TrueGaze::Engine
 
         static inline std::atomic<uint32_t> s_mainThreadId{0};
 
+        /// SEH fault reporter (Gold Standard, 2026-09-26). Called from the
+        /// __except filter in RunGazeFrameSeh. Returns EXCEPTION_EXECUTE_HANDLER
+        /// so the frame is abandoned and the game survives; logs the fault code
+        /// and the faulting address, which with the PDB localises the crash to
+        /// the exact source line. Rate-limited like ReportTickFailure.
+        int ReportSehFault(unsigned int code, EXCEPTION_POINTERS *info) noexcept
+        {
+            static std::atomic<uint64_t> s_faultReports{0};
+            const auto report = s_faultReports.fetch_add(1, std::memory_order_relaxed);
+            if (report < 5)
+            {
+                const void *addr = info && info->ExceptionRecord
+                                       ? info->ExceptionRecord->ExceptionAddress
+                                       : nullptr;
+                logger::error("[TrueGaze] SEH fault 0x{:08X} at {} (gaze frame abandoned; game continues). "
+                              "Fault #{} — address + PDB localises the line.",
+                              code,
+                              fmt::ptr(addr),
+                              report + 1);
+            }
+            return EXCEPTION_EXECUTE_HANDLER;
+        }
+
+        /// The TrueGaze-owned frame body, extracted so it can be wrapped in a
+        /// structured exception handler (see RunGazeFrameSeh below). This
+        /// function must not require unwinding semantics at its own top level
+        /// (no try/catch of C++ objects with destructors) — MSVC forbids mixing
+        /// __try with objects needing unwinding in ONE function; splitting the
+        /// frame body from the __try frame is the standard compliant shape.
+        static void RunGazeFrameBody(RE::Actor *a_actor, float a_delta)
+        {
+            s_mainThreadId.store(GetCurrentThreadId(), std::memory_order_relaxed);
+
+            // PlayerCharacter::Update runs reliably once per frame on the main thread.
+            if (a_actor && ConfigManager::GetSingleton().enableTrueGaze &&
+                a_delta > 0.0f && a_delta < 0.5f)
+            {
+                // 1. Prepare bone constraints for this frame by restoring previously touched
+                // bones to their pristine animated baseline before composing fresh gaze.
+                EyeAimConstraint::BeginFrame();
+
+                auto *camera = RE::PlayerCamera::GetSingleton();
+                const bool isThirdPerson = camera && camera->IsInThirdPerson();
+
+                static bool s_lastThirdPerson = false;
+                if (isThirdPerson != s_lastThirdPerson)
+                {
+                    s_lastThirdPerson = isThirdPerson;
+                    if (ConfigManager::GetSingleton().debugGazeRays)
+                    {
+                        if (isThirdPerson)
+                        {
+                            RE::SendHUDMessage::ShowHUDMessage("[TrueGaze] Camera: 3rd Person (Biomechanical Eye Tracking Active)");
+                        }
+                        else
+                        {
+                            RE::SendHUDMessage::ShowHUDMessage("[TrueGaze] Camera: 1st Person (Crosshair Aim)");
+                        }
+                    }
+                }
+
+                if (isThirdPerson)
+                {
+                    // 3rd Person: Player eyes engage TrueGaze normally.
+                    GazeEngine::Get().TickActor(a_actor, a_delta);
+                }
+                else
+                {
+                    // 1st Person: User control and mouse crosshair direct looking.
+                    EyeAimConstraint::WithdrawActor(a_actor->GetFormID());
+                }
+
+                // 2. Orchestrate gaze evaluation and bone updates for all active nearby NPCs
+                // and creatures on the main game thread, perfectly synchronized with this frame's delta.
+                AnimationHook::TickAllActors(a_delta);
+            }
+
+            // Anchoring EndFrame here drives actor eviction, bounds memory,
+            // and records accurate frame profiling metrics.
+            GazeEngine::Get().EndFrame(a_delta);
+        }
+
+#ifdef _WIN32
+        /// SEH frame for the gaze frame body (Gold Standard, 2026-09-26).
+        ///
+        /// HISTORY: every hard crash in this project's testing history has been
+        /// an SEH access violation (hand-crafted NIFs, GatherTemperament during
+        /// load, the console-table lessons). C++ try/catch cannot catch them —
+        /// the limitation was documented honestly in the old hook body ("It
+        /// does NOT catch access violations"). The Gold Standard contract
+        /// changes that: a defect in the kinematics engine must degrade gaze,
+        /// never take the game down, for ANY failure class.
+        ///
+        /// EXCEPTION_EXECUTE_HANDLER on the first few faults: log the code +
+        /// address, skip the rest of the frame, keep the process alive. The
+        /// address, with the PDB, localises the fault to the exact line — the
+        /// 2026-09-25 crashes took hours because no such record existed.
+        ///
+        /// The game's own _original() update is deliberately NOT inside this
+        /// frame (it stays in Hook above): Skyrim's code is not ours to swallow.
+        static void RunGazeFrameSeh(RE::Actor *a_actor, float a_delta)
+        {
+            __try
+            {
+                RunGazeFrameBody(a_actor, a_delta);
+            }
+            __except (ReportSehFault(
+                GetExceptionCode(),
+                static_cast<EXCEPTION_POINTERS *>(GetExceptionInformation())))
+            {
+                // Frame abandoned. The next frame's BeginFrame() re-baselines
+                // bone state; gaze simply does not update for one frame.
+            }
+        }
+#else
+        static void RunGazeFrameSeh(RE::Actor *a_actor, float a_delta)
+        {
+            try
+            {
+                RunGazeFrameBody(a_actor, a_delta);
+            }
+            catch (...)
+            {
+                // C++-only fallback on non-Windows builds.
+            }
+        }
+#endif
+
         template <class Tag>
         struct ActorUpdateHook
         {
@@ -97,95 +237,21 @@ namespace TrueGaze::Engine
                 }
 
                 // Everything that follows is ours. A defect in the kinematics engine must
-                // degrade gaze, not take the game down with it.
-                //
-                // LIMITATION (stated honestly): this catches C++ exceptions only.
-                // It does NOT catch access violations (SEH), which are the most
-                // likely failure mode for a bad bone or null dereference. Those
-                // still terminate the process. This is a mitigation, not immunity.
-                try
+                // degrade gaze, not take the game down with it — for ANY failure class
+                // (C++ exceptions AND SEH access violations; see RunGazeFrameSeh).
+                if constexpr (std::is_same_v<Tag, PlayerTag>)
                 {
-                    if constexpr (std::is_same_v<Tag, PlayerTag>)
-                    {
-                        s_mainThreadId.store(GetCurrentThreadId(), std::memory_order_relaxed);
-
-                        // PlayerCharacter::Update runs reliably once per frame on the main thread.
-                        if (a_actor && ConfigManager::GetSingleton().enableTrueGaze &&
-                            a_delta > 0.0f && a_delta < 0.5f)
-                        {
-                            // 1. Prepare bone constraints for this frame by restoring previously touched
-                            // bones to their pristine animated baseline before composing fresh gaze.
-                            EyeAimConstraint::BeginFrame();
-
-                            auto *camera = RE::PlayerCamera::GetSingleton();
-                            const bool isThirdPerson = camera && camera->IsInThirdPerson();
-
-                            static bool s_lastThirdPerson = false;
-                            if (isThirdPerson != s_lastThirdPerson)
-                            {
-                                s_lastThirdPerson = isThirdPerson;
-                                if (ConfigManager::GetSingleton().debugGazeRays)
-                                {
-                                    if (isThirdPerson)
-                                    {
-                                        RE::SendHUDMessage::ShowHUDMessage("[TrueGaze] Camera: 3rd Person (Biomechanical Eye Tracking Active)");
-                                    }
-                                    else
-                                    {
-                                        RE::SendHUDMessage::ShowHUDMessage("[TrueGaze] Camera: 1st Person (Crosshair Aim)");
-                                    }
-                                }
-                            }
-
-                            if (isThirdPerson)
-                            {
-                                // 3rd Person: Player eyes engage TrueGaze normally.
-                                try
-                                {
-                                    GazeEngine::Get().TickActor(a_actor, a_delta);
-                                }
-                                catch (const std::exception &e)
-                                {
-                                    ReportTickFailure(e.what());
-                                }
-                                catch (...)
-                                {
-                                    ReportTickFailure("player tick exception");
-                                }
-                            }
-                            else
-                            {
-                                // 1st Person: User control and mouse crosshair direct looking.
-                                EyeAimConstraint::WithdrawActor(a_actor->GetFormID());
-                            }
-
-                            // 2. Orchestrate gaze evaluation and bone updates for all active nearby NPCs
-                            // and creatures on the main game thread, perfectly synchronized with this frame's delta.
-                            AnimationHook::TickAllActors(a_delta);
-                        }
-
-                        // Anchoring EndFrame here drives actor eviction, bounds memory,
-                        // and records accurate frame profiling metrics.
-                        GazeEngine::Get().EndFrame(a_delta);
-                        return;
-                    }
-                    else
-                    {
-                        // In Skyrim SE/AE, Actor::Update and Character::Update for NPCs are dispatched
-                        // across Havok animation worker threads (where delta is 0.0f). Mutating the
-                        // NetImmerse scene graph or querying singletons on worker threads causes race conditions.
-                        // All NPC gaze updates are driven cleanly and deterministically on the main
-                        // game thread in PlayerTag via AnimationHook::TickAllActors.
-                        return;
-                    }
+                    RunGazeFrameSeh(a_actor, a_delta);
+                    return;
                 }
-                catch (const std::exception &e)
+                else
                 {
-                    ReportTickFailure(e.what());
-                }
-                catch (...)
-                {
-                    ReportTickFailure("unknown exception");
+                    // In Skyrim SE/AE, Actor::Update and Character::Update for NPCs are dispatched
+                    // across Havok animation worker threads (where delta is 0.0f). Mutating the
+                    // NetImmerse scene graph or querying singletons on worker threads causes race conditions.
+                    // All NPC gaze updates are driven cleanly and deterministically on the main
+                    // game thread in PlayerTag via AnimationHook::TickAllActors.
+                    return;
                 }
             }
 

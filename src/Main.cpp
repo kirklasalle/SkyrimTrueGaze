@@ -25,6 +25,12 @@ namespace
 {
     std::unique_ptr<TrueGaze::Bridge::NamedPipeServer> g_pipeServer;
 
+    /// Sink shared between InitializeLogging() and the SKSE::InitInfo we pass to
+    /// SKSE::Init(). Owned here so the plugin has exactly one log file, one
+    /// pattern, and one level policy from load to exit (see the logging-ownership
+    /// note inside InitializeLogging).
+    spdlog::sink_ptr _logSink;
+
     void InitializeLogging()
     {
 #if __has_include(<SKSE/SKSE.h>)
@@ -35,14 +41,24 @@ namespace
         }
 
         *path /= "TrueGaze.log";
-        auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true);
-        auto log = std::make_shared<spdlog::logger>("global log", std::move(sink));
 
-        log->set_level(spdlog::level::info);
-        log->flush_on(spdlog::level::info);
-
-        spdlog::set_default_logger(std::move(log));
-        spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
+        // LOGGING OWNERSHIP (Gold Standard fix, 2026-09-26).
+        //
+        // History: this function built its own sink, then SKSE::Init() ran its
+        // DEFAULT InitInfo, whose API::InitLog() opened the SAME TrueGaze.log
+        // with truncate=true — wiping every line already written — and replaced
+        // the default logger (different pattern, PDB-derived level). Result: the
+        // 2026-09-25 21:06 session crashed during data load and TrueGaze.log
+        // showed nothing after kPostLoad: the crash was invisible.
+        //
+        // Fix: build only the SINK here (no default-logger swap), and pass an
+        // explicit SKSE::InitInfo into SKSE::Init() below with log=false so
+        // SKSE's own InitLog never runs — it will not open/re-truncate
+        // TrueGaze.log and will not replace the default logger. The plugin
+        // installs its logger in SKSEPluginLoad and owns the single sink from
+        // load to exit; SKSE::GetMessagingInterface()-era log calls (e.g. the
+        // RegisterListener failure line) land in the same file.
+        _logSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true);
 
         // Clean up bridge server gracefully before Windows Loader Lock is acquired on process exit.
         std::atexit([]()
@@ -118,7 +134,7 @@ namespace
 #if __has_include(<SKSE/SKSE.h>)
         // Plugin build identity. __DATE__/__TIME__ pin the exact binary that ran,
         // which is the cheapest defence against the stale-DLL class of confusion.
-        logger::info("[TrueGaze] Runtime identity: plugin v1.0.4 build {} {}",
+        logger::info("[TrueGaze] Runtime identity: plugin v1.0.5 build {} {}",
                      __DATE__, __TIME__);
 
         // Game runtime version, formatted as the human-readable dotted string the
@@ -263,9 +279,30 @@ SKSEPluginInfo(
 SKSEPluginLoad(const SKSE::LoadInterface *a_skse)
 {
     InitializeLogging();
-    logger::info("[TrueGaze] Loading True Gaze v1.0.0 (An HCEP Product by Kirk LaSalle)...");
 
-    SKSE::Init(a_skse);
+    // Build the single authoritative logger BEFORE anything can log. The sink was
+    // created in InitializeLogging (no-op without SKSE headers); here it becomes
+    // the process default so that SKSE::Init's own early log lines (e.g. the
+    // RegisterListener failure path) are captured too.
+    if (_logSink)
+    {
+        auto log = std::make_shared<spdlog::logger>("TrueGaze", _logSink);
+        log->set_level(spdlog::level::info);
+        log->flush_on(spdlog::level::info);
+        spdlog::set_default_logger(std::move(log));
+        spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
+    }
+
+    logger::info("[TrueGaze] Loading True Gaze v1.0.5 (An HCEP Product by Kirk LaSalle)...");
+
+    // Explicit InitInfo (Gold Standard fix): log=false makes API::InitLog a
+    // no-op — it will NOT open/re-truncate TrueGaze.log and will NOT replace
+    // the default logger we just installed. The plugin keeps the single sink
+    // from load to exit. See the logging-ownership note in InitializeLogging.
+    // (InitInfo has no sink member; log=false is the ownership boundary.)
+    SKSE::InitInfo initInfo{};
+    initInfo.log = false;
+    SKSE::Init(a_skse, initInfo);
 
     auto messaging = SKSE::GetMessagingInterface();
     if (!messaging || !messaging->RegisterListener(MessageHandler))

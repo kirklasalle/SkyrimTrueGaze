@@ -1151,6 +1151,15 @@
                 fHeadPitchWeight: ['float', 0.245, 'Head pitch strain weight', 0, 1, 0.005, '{v}'],
                 fHeadEngageThresholdDeg: ['float', 8.0, 'Head engagement threshold: below this angle, only eyes move (degrees)', 0, 45, 1, '{v} deg']
             },
+            'GazeTarget': {
+                fEyeAnchorForwardCm: ['float', 8.0, 'Eye anchor: forward from the head bone onto the eyeline (cm) — the eyes are the target', -10, 25, 0.5, '{v} cm'],
+                fEyeAnchorUpCm: ['float', 8.5, 'Eye anchor: up from the head bone onto the eyeline (cm)', -10, 25, 0.5, '{v} cm'],
+                fEyeMorphGain: ['float', 1.7, 'Eyes-lead visible gain for vanilla FaceGen eye morphs (1 = raw, higher = stronger)', 0.5, 4, 0.1, '{v}x'],
+                fEyeMorphFullScaleDeg: ['float', 20.0, 'Eye deflection that maps to a fully-driven Look morph (smaller = eyes travel more per degree)', 5, 45, 1, '{v} deg']
+            },
+            'CharacterProfile': {
+                bEnableCharacterProfiles: ['bool', true, 'Temperament-driven gaze: NPCs look like themselves (cowardly merchants avert, guards lock, lovers hold eyes, wolves stare)']
+            },
             'Social': {
                 bEnableGazeAversion: ['bool', true, 'Cognitive Gaze Aversion when NPCs process thoughts (THINK mode)'],
                 bEnableSocialTriangle: ['bool', true, 'Argyle & Cook Social Triangle gaze cycling in dialogue (AFFECT)'],
@@ -1210,6 +1219,8 @@
             'General': 'The Awakened Eye',
             'Kinematics': 'Kinematics & Biological Dynamics',
             'SkeletalHierarchy': 'Skeletal Hierarchy Strain',
+            'GazeTarget': 'Eye Target & Eye-Lead',
+            'CharacterProfile': 'Character Gaze Profiles',
             'Social': 'Social Dynamics',
             'Crosshair': 'Crosshair Sweet Spot',
             'Bridge': 'HCEP Connected Mode',
@@ -1338,6 +1349,41 @@
                 context: 'Human heads do not visibly move for tiny 2-5° gaze shifts (e.g. glancing between someone\'s left and right eye). Only the eyes dart. Set to 0 to disable.',
                 rec: '6 - 12 deg',
                 dflt: '8.0 deg'
+            },
+            'GazeTarget:fEyeAnchorForwardCm': {
+                desc: 'How far forward from the head bone the true "eye point" sits, in centimetres. THE EYES ARE THE TARGET.',
+                impact: 'Moves the aim point off the base of the skull and onto the eyeline, so NPCs look DIRECTLY into the eyes instead of at the throat or nose bridge.',
+                context: 'The NPC Head [Head] bone origin is at the base of the skull — a few cm below and behind the eyeballs. Applied along the head bone\'s own forward axis, so it tracks seated, leaning and crouched poses (e.g. the bound prisoners in the Helgen cart).',
+                rec: '5 - 10 cm',
+                dflt: '8.0 cm'
+            },
+            'GazeTarget:fEyeAnchorUpCm': {
+                desc: 'How far up from the head bone the true eye point sits, in centimetres.',
+                impact: 'Lifts the aim point up to eye height. Too low and NPCs stare at the mouth or chin; too high and they look at the forehead.',
+                context: 'Applied along the head bone\'s own up axis. Both offsets together place the anchor squarely on the eyeline for genuine eye-to-eye contact.',
+                rec: '6 - 9 cm',
+                dflt: '8.5 cm'
+            },
+            'GazeTarget:fEyeMorphGain': {
+                desc: 'Visible strength of the eyes on vanilla NPCs, whose eyeballs move only via FaceGen "Look" morphs (they have no eye bones).',
+                impact: 'This is what makes the eyes clearly LEAD the head. Higher = the eyes read as darting to the target first, with the head following. Result is always clamped so eyes never over-rotate.',
+                context: 'At conversation distance a gaze shift is only a few degrees, so the raw solved eye angle is tiny. The gain restores the visible, life-giving eye movement that real eyes show.',
+                rec: '1.3 - 2.0x',
+                dflt: '1.7x'
+            },
+            'GazeTarget:fEyeMorphFullScaleDeg': {
+                desc: 'The eye deflection (degrees) that corresponds to a fully-driven Look morph — i.e. the eye at the edge of its travel.',
+                impact: 'Smaller values make the eyes reach full visible deflection sooner, so small gaze shifts are more expressive. Larger values reserve full travel for large shifts.',
+                context: 'Works with the gain: gain scales the response, full-scale sets where it saturates. Together they tune how boldly vanilla eyes lead the head.',
+                rec: '18 - 28 deg',
+                dflt: '20.0 deg'
+            },
+            'CharacterProfile:bEnableCharacterProfiles': {
+                desc: 'Temperament-Driven Gaze. TrueGaze reads Skyrim\'s own characterization — the Confidence, Aggression, and Assistance actor values, relationship ranks, guard/child/race flags, and combat state — and projects it onto the HCEP-02 Enhanced Diagram.',
+                impact: 'A cowardly merchant averts often and holds eye contact briefly. A foolhardy guard locks on, unflinching. A lover holds your eyes far longer and visits the Heart region. A wolf stares — no social triangle, pure animal attention. Every NPC looks like THEMSELVES.',
+                context: 'Grounded in gaze psychology: avoidance correlates with low confidence (Shackelford 1996); affective eye contact has measurable emotional effects (Frontiers 2018); personality shapes gaze patterns (SAGE QJEP 2025). OFF = neutral profile, exact pre-profile behaviour.',
+                rec: 'True',
+                dflt: 'True'
             },
             'Social:fCgaHeadInvolvement': {
                 desc: 'How much the head chain participates during Cognitive Gaze Aversion (THINK mode). 0 = pure eye movement, 1 = full head turning.',
@@ -2086,6 +2132,10 @@
                     'SkeletalHierarchy:fHeadYawWeight': '0.21',
                     'SkeletalHierarchy:fHeadPitchWeight': '0.21',
                     'SkeletalHierarchy:fHeadEngageThresholdDeg': '10.0',
+                    'GazeTarget:fEyeAnchorForwardCm': '7.0',
+                    'GazeTarget:fEyeAnchorUpCm': '7.5',
+                    'GazeTarget:fEyeMorphGain': '1.8',
+                    'GazeTarget:fEyeMorphFullScaleDeg': '20.0',
                     'Social:fCgaHeadInvolvement': '0.06',
                     'Social:bDialogueSyncCgaReturn': 'true',
                     'Social:fCgaDialogueOffsetSec': '2.0',
