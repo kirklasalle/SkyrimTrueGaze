@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-# Package-Release.ps1 — builds the Nexus Mods release packages for TrueGaze
+# Package-Release.ps1 — builds the release packages for TrueGaze
 param(
     [string]$Version = "1.0.5"
 )

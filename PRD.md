@@ -7,7 +7,7 @@
 **Parent Ecosystem:** Kirk LaSalle's Human Communication Eye Protocol (HCEP) (`D:\Projects\HCEP`)  
 **Author & Product Owner:** Kirk LaSalle  
 **Version:** 1.0.3  
-**Status:** Production Release ([Nexus Mods #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480))  
+**Status:** Production Release ([GitHub — kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze))  
 **Target Games:** The Elder Scrolls V: Skyrim (Special Edition 1.5.97, Anniversary Edition 1.6.318–1.6.1170+, Skyrim VR 1.4.15)
 
 ---

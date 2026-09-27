@@ -117,5 +117,5 @@ Every session begins with a runtime fingerprint:
 - Effective configuration file loaded
 - Installed vtable slot status
 
-For community support and updates, visit the Skyrim TrueGaze Nexus Mods page.
+For community support and updates, visit the Skyrim TrueGaze GitHub repository.
 ================================================================================

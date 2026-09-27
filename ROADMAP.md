@@ -120,16 +120,16 @@
 
 ---
 
-## Phase 7: Public Modding SDK & Nexus Distribution Packaging
+## Phase 7: Public Modding SDK & Distribution Packaging
 
-*Status: **✅ Complete (September 20, 2026)** — packaged and published on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)) and GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)).*
+*Status: **✅ Complete (September 20, 2026)** — packaged and published on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)).*
 
 - [x] **Public C/C++ Modding API**: Published `include/TrueGazeAPI.h` and `src/Engine/TrueGazeAPI.cpp` querying live `GazeEngine` state.
-- [x] **Automated Nexus Packager**: Created `scripts/PackageMod.ps1` generating distribution archive `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` and companion symbols archive `dist/TrueGaze-v1.0.0-Symbols.zip`.
+- [x] **Automated Release Packager**: Created `scripts/PackageMod.ps1` generating distribution archive `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` and companion symbols archive `dist/TrueGaze-v1.0.0-Symbols.zip`.
 - [x] **Debug Symbols Distribution**: Shipped `TrueGaze.pdb` compiled with MSVC `/Zi` and linker `/DEBUG /OPT:REF /OPT:ICF` for community crash triage and crash-logger compatibility.
-- [x] **Nexus Mods Publication**: Live on Nexus Mods under Skyrim Special Edition (Mod #192480).
+- [x] **GitHub Publication**: Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)).
 
-> ✅ **Resolved (September 20, 2026):** All `TrueGazeAPI.cpp` query functions consume live runtime state (`g_actorGazeCache`, `IsBridgeConnected`); packager runs with `$PSScriptRoot` and includes debug symbols; published on Nexus Mods and GitHub.
+> ✅ **Resolved (September 20, 2026):** All `TrueGazeAPI.cpp` query functions consume live runtime state (`g_actorGazeCache`, `IsBridgeConnected`); packager runs with `$PSScriptRoot` and includes debug symbols; published on GitHub.
 
 ---
 
@@ -276,11 +276,11 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 | Interactive Web Configurator & Tooling | 2–3 days | ✅ **Done** (`TrueGazeConfig.html` + actual screenshot) |
 | Duplex HCEP IPC Bridge (`\\.\pipe\TrueGazeBridge`) | ~3 days | ✅ **Done** (Tested & Verified) |
 | Documentation & Publication Illustration Suite | ~2 days | ✅ **Done** (8 diagrams & banners integrated) |
-| **Phase R7: Final Public 1.0.0 Release** | ~2–3 days | ✅ **Done** ([Nexus Mods #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480) & GitHub) |
+| **Phase R7: Final Public 1.0.0 Release** | ~2–3 days | ✅ **Done** ([GitHub](https://github.com/kirklasalle/SkyrimTrueGaze)) |
 | **Phase R8: Multi-Target VR Fix ("Mad God VR")** | 1 day | ✅ **Done** (SE/AE/VR unified build, slot 0xAF hook) |
 | **Phase R9: Visual Systems Option 1 & 2 & Configurator Package** | 1–2 days | ✅ **Done** (Production release v1.0.1) |
 
-> **Post-Launch Roadmap:** With TrueGaze™ v1.0.1 published on Nexus Mods and GitHub, active development transitions to community support, telemetry observation, Skyrim VR HMD pose validation, and expanded custom rig calibration.
+> **Post-Launch Roadmap:** With TrueGaze™ v1.0.1 published on GitHub, active development transitions to community support, telemetry observation, Skyrim VR HMD pose validation, and expanded custom rig calibration.
 
 ---
 
@@ -360,10 +360,10 @@ Support and troubleshooting reference: [`docs/TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md
 
 ## Phase R7: Final Public 1.0.0 Release Gate & Launch Execution
 
-*Status: **✅ Complete (September 20, 2026)** — Production 1.0.0 Published on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)) and GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)).*  
+*Status: **✅ Complete (September 20, 2026)** — Production 1.0.0 Published on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)).*  
 **Date:** September 20, 2026  
 **Dependency:** R1–R6  
-**Target:** Public 1.0.0 Production Release on Nexus Mods & GitHub Releases  
+**Target:** Public 1.0.0 Production Release on GitHub Releases  
 
 With the core biological kinematics, HCEP duplex IPC bridge, standalone HTML configurator, and meta-controller architecture verified in-engine, the release engineering, asset policy, and ecosystem packaging were completed and published:
 
@@ -389,7 +389,7 @@ With the core biological kinematics, HCEP duplex IPC bridge, standalone HTML con
 
 - [x] Build final optimized Release DLL with `/O2` and generate companion symbols archive (`dist/TrueGaze-v1.0.0-Symbols.zip` containing `TrueGaze.pdb`).
 - [x] Package production archive: `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` with companion symbols and SHA-256 hashes.
-- [x] Authored `docs/NEXUS_MODS_PAGE.md` with complete BBCode/Markdown formatting, embedding hero banner, real configurator screenshot (`truegaze_config_03.png`), and installation instructions for Nexus Mods.
+- [x] Authored release presentation documentation with complete BBCode/Markdown formatting, embedding hero banner, real configurator screenshot (`truegaze_config_03.png`), and installation instructions.
 - [x] Verified clean uninstallation: deleting `TrueGaze.dll` leaves save files 100% untainted with zero orphan script data.
 
 ---
@@ -400,11 +400,11 @@ With the core biological kinematics, HCEP duplex IPC bridge, standalone HTML con
 **Date:** September 20, 2026  
 **Target:** Community Feedback Triage, Skyrim VR Live Acceptance, Expanded Head Rig Calibration
 
-Following the successful public release of TrueGaze™ v1.0.0 on Nexus Mods and GitHub, Phase R8 focuses on ongoing community support, runtime telemetry observation, and expanded platform verification:
+Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R8 focuses on ongoing community support, runtime telemetry observation, and expanded platform verification:
 
 ### 1. Community Feedback & Modlist Telemetry Triage
 
-- [ ] Monitor Nexus Mods comments and bug reports on [Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480).
+- [ ] Monitor community comments and bug reports on [GitHub](https://github.com/kirklasalle/SkyrimTrueGaze).
 - [ ] Triage user log submissions (`Documents\My Games\Skyrim Special Edition\SKSE\TrueGaze.log`).
 - [ ] Verify zero save-game taint reports across multi-hundred-hour modded playthroughs.
 

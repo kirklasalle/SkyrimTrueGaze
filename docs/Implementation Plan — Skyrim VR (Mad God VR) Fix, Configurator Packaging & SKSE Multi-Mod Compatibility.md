@@ -1,10 +1,10 @@
-# Implementation Plan — Skyrim VR ("Mad God VR") Fix, Nexus Mods Configurator Packaging & SKSE Multi-Mod Compatibility
+# Implementation Plan — Skyrim VR ("Mad God VR") Fix, Configurator Packaging & SKSE Multi-Mod Compatibility
 
 ## Overview
 
 This implementation plan addresses the two critical production findings reported by Kirk:
 1. **Skyrim VR Crash on Start ("Mad God VR")**: Diagnosed and resolved the root causes of the crash on start when running TrueGaze with Skyrim VR and heavy modlists like "Mad God VR".
-2. **Nexus Mods Release Packaging & Config Support**: Package the interactive Web Configurator (`TrueGazeConfig.html`), launcher (`Launch-TrueGazeConfig.cmd`), automation bridge scripts, and an easy-to-follow guide directly into the distributable mod release, while ensuring TrueGaze is completely independent and stable when launched directly from SKSE alongside hundreds of other mods.
+2. **Release Packaging & Config Support**: Package the interactive Web Configurator (`TrueGazeConfig.html`), launcher (`Launch-TrueGazeConfig.cmd`), automation bridge scripts, and an easy-to-follow guide directly into the distributable mod release, while ensuring TrueGaze is completely independent and stable when launched directly from SKSE alongside hundreds of other mods.
 
 ---
 
@@ -39,15 +39,15 @@ Three compounding issues caused the immediate crash on start in Skyrim VR:
      Hook::_original = table.write_vfunc(updateSlot, Hook::Hook);
      ```
 
-### 2. Nexus Mods Release Configurator & Multi-Mod Support
+### 2. Release Configurator & Multi-Mod Support
 
 1. **Packaging Defect**:
    - `scripts/PackageMod.ps1` only archived the `skyrim/` directory (`SKSE/Plugins/TrueGaze.dll`, `TrueGaze.ini`, meshes, textures, OAR animations).
    - It omitted `TrueGazeConfig.html`, `Launch-TrueGazeConfig.cmd`, and the PowerShell server scripts.
-   - Users downloading the mod archive from Nexus Mods into Mod Organizer 2 (MO2) or Vortex had no access to the Web Configurator.
+   - Users installing the mod archive into Mod Organizer 2 (MO2) or Vortex had no access to the Web Configurator.
 
 2. **Direct SKSE Launch Independence**:
-   - Kirk noted that while he personally launches Skyrim via the batch file, Nexus users launch directly via the SKSE button in MO2/Vortex or desktop shortcuts, often with hundreds of other mods.
+   - Kirk noted that while he personally launches Skyrim via the batch file, most users launch directly via the SKSE button in MO2/Vortex or desktop shortcuts, often with hundreds of other mods.
    - **Architecture Verification**:
      - `TrueGaze.dll` is an autonomous SKSE plugin. It does **not** require the config tool or bridge to be running during gameplay.
      - When launched from SKSE, `TrueGaze.dll` boots, reads `Data/SKSE/Plugins/TrueGaze.ini`, and runs autonomously.
@@ -59,7 +59,7 @@ Three compounding issues caused the immediate crash on start in Skyrim VR:
 ## User Review Required
 
 > [!IMPORTANT]
-> **Packaging Structure for Nexus Mods Release:**
+> **Packaging Structure for the Release:**
 > In the new distribution package (`TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip`), we propose the following layout:
 > - `SKSE/Plugins/TrueGaze.dll` (Unified multi-target binary: SE + AE + VR)
 > - `SKSE/Plugins/TrueGaze.ini` (Default tuning settings with full comments and HCEP panel keys)

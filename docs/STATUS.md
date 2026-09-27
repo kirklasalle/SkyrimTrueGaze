@@ -95,15 +95,15 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 >
 > **Verified in-engine:**
 >
-> - Eye-anchor projection from the head bone's world basis (`GetVectorY/Z`) onto the
+> + Eye-anchor projection from the head bone's world basis (`GetVectorY/Z`) onto the
 >   eyeline — targets sit squarely on the pupils, not the skull base
-> - FaceGen Look* morph gain at 1.7× makes small social-triangle gaze shifts (~6°) clearly
+> + FaceGen Look* morph gain at 1.7× makes small social-triangle gaze shifts (~6°) clearly
 >   visible at conversation distance (51% morph travel)
-> - Head onset delay (0.13s) produces a perceptible "eyes arrive first" lead
-> - Head engagement threshold (12°) suppresses all head movement during eye↔eye↔mouth
+> + Head onset delay (0.13s) produces a perceptible "eyes arrive first" lead
+> + Head engagement threshold (12°) suppresses all head movement during eye↔eye↔mouth
 >   cycling — eyes only, zero head twitch
-> - Point-blank seated actor resolution (Helgen cart, tavern seating)
-> - Player targeting in scripted scenes (player competes fairly in social candidate scan)
+> + Point-blank seated actor resolution (Helgen cart, tavern seating)
+> + Player targeting in scripted scenes (player competes fairly in social candidate scan)
 >
 > This milestone marks the transition from *"eyes move"* to **"eyes look into eyes"** —
 > the core promise of TrueGaze.
@@ -114,14 +114,14 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 >
 > In live gameplay, Kirk LaSalle confirmed:
 >
-> - The SKSE64 plugin hook on `RE::Actor::Update` executes cleanly without CTD (`0xAD` on SE/AE, `0xAF` on VR).
-> - Address Library offsets resolve accurately for the running Skyrim runtime.
-> - Skeletons probe and resolve bone nodes (`NPC L Eye [LEye]`, `NPC R Eye [REye]`, etc.) on real live rigs.
-> - Eye-residual rotational transformations (`target − head_chain`) apply to the NetImmerse scene graph.
-> - **NPC eyes visibly move and track in-game across focused dialogue and exploration.**
-> - Dynamic 3D Head-Height Elevation solves `NPC Head [Head]` bone transforms to account for seated, leaning, or crouched postures (eliminating horizontal chest aiming).
-> - 3rd-person player character naturally engages nearby conversational partners with biomechanical headtracking.
-> - Console commands (`stgstatus`, `stgverbose`, `stgpreset`, `stgreload`) return telemetry cleanly and switch logging dynamically.
+> + The SKSE64 plugin hook on `RE::Actor::Update` executes cleanly without CTD (`0xAD` on SE/AE, `0xAF` on VR).
+> + Address Library offsets resolve accurately for the running Skyrim runtime.
+> + Skeletons probe and resolve bone nodes (`NPC L Eye [LEye]`, `NPC R Eye [REye]`, etc.) on real live rigs.
+> + Eye-residual rotational transformations (`target − head_chain`) apply to the NetImmerse scene graph.
+> + **NPC eyes visibly move and track in-game across focused dialogue and exploration.**
+> + Dynamic 3D Head-Height Elevation solves `NPC Head [Head]` bone transforms to account for seated, leaning, or crouched postures (eliminating horizontal chest aiming).
+> + 3rd-person player character naturally engages nearby conversational partners with biomechanical headtracking.
+> + Console commands (`stgstatus`, `stgverbose`, `stgpreset`, `stgreload`) return telemetry cleanly and switch logging dynamically.
 
 ---
 
@@ -247,13 +247,13 @@ The project status breaks down into three distinct tiers:
 ## Detailed Field Audit Insights (Kirk LaSalle Session)
 
 1. **Gaze Kinematics in Action:**
-   - Eyes were observed actively tracking across town exploration and focused dialogue.
-   - Movements were non-static and organic.
+   + Eyes were observed actively tracking across town exploration and focused dialogue.
+   + Movements were non-static and organic.
 2. **Blinking & Expression Morphs:**
-   - Blinking was observed during saccadic eye movement. Deeper quantitative telemetry has now been added to `tgstatus` (`saccades/blinks` counter) to verify exact trigger counts.
+   + Blinking was observed during saccadic eye movement. Deeper quantitative telemetry has now been added to `tgstatus` (`saccades/blinks` counter) to verify exact trigger counts.
 3. **Diagnostic Telemetry:**
-   - Console command `tgstatus` executed cleanly, returning all engine metrics.
-   - In-game developer 3D visuals (`tgvisuals`) did not appear; per Kirk's direction, visual mesh troubleshooting is deferred to a later milestone while primary biological kinematics remain the active focus.
+   + Console command `tgstatus` executed cleanly, returning all engine metrics.
+   + In-game developer 3D visuals (`tgvisuals`) did not appear; per Kirk's direction, visual mesh troubleshooting is deferred to a later milestone while primary biological kinematics remain the active focus.
 
 ---
 
@@ -261,50 +261,50 @@ The project status breaks down into three distinct tiers:
 
 ### Phase 1: Implement Biological Latency Gap ✅ **COMPLETED**
 
-- [x] Add `headOnsetDelayTimerSec` to `VorState` in `VorCoordinator.hpp`.
-- [x] Add `float headOnsetDelaySec{0.12f};` to `GazeTuning.hpp`, `ConfigManager.hpp/.cpp`, and `TrueGaze.ini`.
-- [x] Update `GazeEngine.cpp` to hold cervical tracking advancement during the delay window while the ocular residual snaps instantly.
-- [x] Add unit test in `KinematicsTests.cpp` verifying head freeze and eye snap during the delay window, followed by VOR counter-rotation. All 11 unit tests pass.
++ [x] Add `headOnsetDelayTimerSec` to `VorState` in `VorCoordinator.hpp`.
++ [x] Add `float headOnsetDelaySec{0.12f};` to `GazeTuning.hpp`, `ConfigManager.hpp/.cpp`, and `TrueGaze.ini`.
++ [x] Update `GazeEngine.cpp` to hold cervical tracking advancement during the delay window while the ocular residual snaps instantly.
++ [x] Add unit test in `KinematicsTests.cpp` verifying head freeze and eye snap during the delay window, followed by VOR counter-rotation. All 11 unit tests pass.
 
 ### Phase 2: Diagnostic HUD & Console Telemetry Readout ✅ **COMPLETED**
 
-- [x] Enhanced `tgstatus` in `ConsoleCommands.cpp` to output:
-  - `bio latency`: Configured head onset delay (`fHeadOnsetDelaySec`).
-  - `saccades/blinks`: Running counts of ballistic saccades and triggered suppression blinks.
-  - `mutual gaze`: Running frames of active mutual eye contact.
-- [x] Rebuilt Release binary and repackaged mod archives (`TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` and `TrueGaze-v1.0.0-Symbols.zip`).
++ [x] Enhanced `tgstatus` in `ConsoleCommands.cpp` to output:
+  + `bio latency`: Configured head onset delay (`fHeadOnsetDelaySec`).
+  + `saccades/blinks`: Running counts of ballistic saccades and triggered suppression blinks.
+  + `mutual gaze`: Running frames of active mutual eye contact.
++ [x] Rebuilt Release binary and repackaged mod archives (`TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` and `TrueGaze-v1.0.0-Symbols.zip`).
 
 ### Phase 3: Diagnostic 3D Visuals — Option 1 & Option 2 ✅ **COMPLETED**
 
-- [x] **Option 1 (Superman Laser Eyes)**: Scaled beam geometry down to 8mm pencil-thin rays, offset to pupil socket origins, scaled dynamically to target distance, and decoupled from head to follow ocular line of sight.
-- [x] **Option 2 (HCEP Floating Diagram Panel)**: Authored `GazeRegionPanel.nif`, converted `hcep-02_enhanced-diagram_keyed-01.jfif` to transparent DDS DXT5 (`GazeRegionPanel.dds`), anchored 35cm in front of actor eyes, and integrated real-time emissive region glow.
-- [x] Added `[Visuals]` INI configuration: `bShowHcepPanel`, `bHcepPanelAllActors`, `fHcepPanelScale`, `fHcepPanelForwardOffsetCm`.
++ [x] **Option 1 (Superman Laser Eyes)**: Scaled beam geometry down to 8mm pencil-thin rays, offset to pupil socket origins, scaled dynamically to target distance, and decoupled from head to follow ocular line of sight.
++ [x] **Option 2 (HCEP Floating Diagram Panel)**: Authored `GazeRegionPanel.nif`, converted `hcep-02_enhanced-diagram_keyed-01.jfif` to transparent DDS DXT5 (`GazeRegionPanel.dds`), anchored 35cm in front of actor eyes, and integrated real-time emissive region glow.
++ [x] Added `[Visuals]` INI configuration: `bShowHcepPanel`, `bHcepPanelAllActors`, `fHcepPanelScale`, `fHcepPanelForwardOffsetCm`.
 
 ### Phase 4: Skyrim VR Multi-Targeting & Startup Crash Fix ✅ **COMPLETED**
 
-- [x] Diagnosed and fixed Skyrim VR 1.4.15 startup crash ("Mad God VR" 500+ mods).
-- [x] Initialized `openvr` submodule and enabled `BUILD_SKYRIM_VR=ON` in `CMakeLists.txt` for CommonLibSSE-NG VR address library CSV resolution.
-- [x] Dynamically routed `Actor::Update` vtable hook slot (`0xAF` on VR, `0xAD` on SE/AE) via `REL::Module::IsVR()`.
-- [x] Updated `Test-TrueGazeHealth.ps1` to detect dynamic slot `0xAF` exception boundary; 15/15 checks pass.
++ [x] Diagnosed and fixed Skyrim VR 1.4.15 startup crash ("Mad God VR" 500+ mods).
++ [x] Initialized `openvr` submodule and enabled `BUILD_SKYRIM_VR=ON` in `CMakeLists.txt` for CommonLibSSE-NG VR address library CSV resolution.
++ [x] Dynamically routed `Actor::Update` vtable hook slot (`0xAF` on VR, `0xAD` on SE/AE) via `REL::Module::IsVR()`.
++ [x] Updated `Test-TrueGazeHealth.ps1` to detect dynamic slot `0xAF` exception boundary; 15/15 checks pass.
 
 ### Phase 5: Standalone Configurator Suite & Release Packaging ✅ **COMPLETED**
 
-- [x] Bundled `TrueGazeConfig.html`, `Launch-TrueGazeConfig.cmd`, and `tools/TrueGazeConfig/` automation bridge into release package.
-- [x] Authored `TrueGaze_Configurator_Guide.txt` with complete MO2/Vortex setup and SKSE direct launch instructions.
-- [x] Produced unified multi-target distribution `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip`.
++ [x] Bundled `TrueGazeConfig.html`, `Launch-TrueGazeConfig.cmd`, and `tools/TrueGazeConfig/` automation bridge into release package.
++ [x] Authored `TrueGaze_Configurator_Guide.txt` with complete MO2/Vortex setup and SKSE direct launch instructions.
++ [x] Produced unified multi-target distribution `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip`.
 
 ### Phase 6: In-Engine Field Verification Pass (Active)
 
-- [ ] Run in-game test session with Kirk LaSalle verifying:
-  - Eye snap vs. head lag (Biological Latency Gap observed in gameplay).
-  - Console `tgstatus` readout showing active `saccades/blinks` and `bio latency`.
-  - Option 1 (laser rays) and Option 2 (floating HCEP diagram panel) in 3rd person.
-  - Mutual gaze detection frames accumulating when looking directly into an NPC's eyes.
++ [ ] Run in-game test session with Kirk LaSalle verifying:
+  + Eye snap vs. head lag (Biological Latency Gap observed in gameplay).
+  + Console `tgstatus` readout showing active `saccades/blinks` and `bio latency`.
+  + Option 1 (laser rays) and Option 2 (floating HCEP diagram panel) in 3rd person.
+  + Mutual gaze detection frames accumulating when looking directly into an NPC's eyes.
 
 ### Phase 7: Multi-Threaded SIMD Evaluation (Planned)
 
-- [ ] Design and implement actor evaluation batching across background worker threads.
-- [ ] Profile frame time in dense crowds (20+ NPCs) to guarantee < 0.15 ms total frame time.
++ [ ] Design and implement actor evaluation batching across background worker threads.
++ [ ] Profile frame time in dense crowds (20+ NPCs) to guarantee < 0.15 ms total frame time.
 
 ---
 

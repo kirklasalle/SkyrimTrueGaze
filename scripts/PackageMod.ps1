@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Packages TrueGaze into a release-ready archive for Nexus Mods, MO2, and Vortex.
+    Packages TrueGaze into a release-ready archive for mod managers (MO2, Vortex).
 .DESCRIPTION
     Builds the latest Release x64 binary, verifies all assets (OAR, SKSE),
     and creates a clean distributable zip archive in the dist/ folder.
@@ -100,5 +100,5 @@ if (Test-Path $symbolsPath) {
 }
 
 Write-Host ""
-Write-Host "Ready for publication on Nexus Mods and GitHub Releases!" -ForegroundColor Green
+Write-Host "Ready for publication on GitHub Releases!" -ForegroundColor Green
 

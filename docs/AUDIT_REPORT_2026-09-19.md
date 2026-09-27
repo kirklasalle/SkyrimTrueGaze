@@ -186,7 +186,7 @@ Create one current source-of-truth status document and make older audits explici
 
 ### P2-10 — License, SDK, and distribution posture need a deliberate decision
 
-`LICENSE` is proprietary and prohibits copying/distribution while the project describes a public modding SDK and packaging for Nexus. That may be intentional, but it is commercially and operationally ambiguous. State whether the release is private evaluation, licensed distribution, or public mod distribution with a separate SDK license. Remove “public SDK” language until a grant exists, or publish a scoped SDK license.
+`LICENSE` is proprietary and prohibits copying/distribution while the project describes a public modding SDK and packaging for public distribution. That may be intentional, but it is commercially and operationally ambiguous. State whether the release is private evaluation, licensed distribution, or public mod distribution with a separate SDK license. Remove “public SDK” language until a grant exists, or publish a scoped SDK license.
 
 ### P2-11 — CI coverage is incomplete even if GitHub Actions is unavailable
 

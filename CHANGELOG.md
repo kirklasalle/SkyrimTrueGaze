@@ -485,13 +485,13 @@ Every entity is a point in (Confidence × Aggression × Relationship × StorySta
 
 ## [1.0.0] - 2026-09-20
 
-### Public Production Release on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480))
+### Public Production Release on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze))
 
 - **Public Distribution Packaging:** Packaged production archive `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` (SHA-256: `41AB39649F3B78F505F6BA4D972460365CC4EFAA0352C61297CB66F60991410F`) and companion debug symbols `dist/TrueGaze-v1.0.0-Symbols.zip` (`TrueGaze.pdb`, SHA-256: `5021AB863EF30539F0A0DE4FC87A9C88C090AEB55B16FF3BC4FF74F28D10EA28`).
 - **Diagnostic Visuals Policy:** Shipped `TrueGaze.ini` defaults `bEnableInGameVisuals = false` for pristine, organic eye contact without developer diagnostic laser beams. When toggled (`tgvisuals`), `VisualEffectsManager` probes standalone mesh `meshes\TrueGaze\GazeBeam.nif`, falls back to Dawnguard `fxsoulcairnbeam.nif`, and seamlessly defaults to the verified `NiPointLight` emitter fallback (`TrueGaze_PupilLight`, `TrueGaze_TerminusLight`).
 - **Open Animation Replacer (OAR) Dynamic Messaging Hook:** Dynamic SKSE messaging registration (`OarConditions::OnSkseMessage`, `RegisterWithOar`) with zero static compile dependencies. Evaluates `TrueGaze_IsMode`, `TrueGaze_IsMutualGaze`, and `TrueGaze_GetGazeRegion` against live per-actor state cache in real time.
 - **Broad Multi-Race & Dialogue Field Acceptance:** Documented Stage 6 test protocol in `docs/TEST_SCENARIO.md` across Humanoid (Nord/Imperial in Whiterun/Riverwood), Elven (Bosmer/Dunmer), and Beast races (Khajiit/Argonian) for third-person dialogue camera, VOR counter-rotation, and Social Triangle cycling.
-- **Nexus Mods Presentation:** Authored `docs/NEXUS_MODS_PAGE.md` with complete BBCode/Markdown formatting, live configurator screengrabs, hero banner, and release documentation.
+- **Release Presentation:** Authored release presentation documentation with complete BBCode/Markdown formatting, live configurator screengrabs, hero banner, and release documentation.
 
 ### Changed — Skyrim AE Runtime Verification and SOTA Roadmap (2026-09-19)
 
@@ -595,7 +595,7 @@ back to watch them.
 ### Added — Complete Prerequisite Installer (2026-09-18)
 
 Installing TrueGaze on a fresh machine previously required assembling the
-toolchain by hand, and `TrueGaze.cmd prereqs` covered only the two Nexus mod
+toolchain by hand, and `TrueGaze.cmd prereqs` covered only the two community mod
 files — not the build system itself. This adds a single entry point for the
 whole machine.
 
@@ -758,7 +758,7 @@ entire page**.
 
 ### Added — Independent Audit & Honest Status Reporting
 
-- **`docs/AUDIT_REPORT_2026-09-11.md`** — Full independent audit: complete documentation review, complete source review, binary forensics on the shipped `TrueGaze.dll`, distribution-archive inspection, and competitive market research (Nexus Mods landscape, UE5/MetaHuman gaze ecosystem, commercial eye-tracking, academic saccade literature).
+- **`docs/AUDIT_REPORT_2026-09-11.md`** — Full independent audit: complete documentation review, complete source review, binary forensics on the shipped `TrueGaze.dll`, distribution-archive inspection, and competitive market research (modding ecosystem landscape, UE5/MetaHuman gaze ecosystem, commercial eye-tracking, academic saccade literature).
 - **`docs/STATUS.md`** — Verified capability matrix using a mandatory four-state vocabulary (📐 Designed / 🔨 Implemented / 🧪 Unit-verified / ✅ In-engine verified). Replaces binary "complete/incomplete" reporting, which had overstated progress.
 - **Governance policy** — "Reporting and Verification Policy" now prohibits describing a feature as complete before it is ✅ In-engine verified, and prohibits log messages reporting success for operations not performed.
 
@@ -828,14 +828,14 @@ Confirmed correct by direct inspection during the audit:
   - `PerformanceProfiler.hpp` microsecond execution timer ensuring frame budget $< 0.15\text{ ms}$.
 - **Public Modding SDK**:
   - `include/TrueGazeAPI.h` and `src/Engine/TrueGazeAPI.cpp` exporting public C/C++ API (`TrueGaze_GetActorGaze`, `TrueGaze_GetVersion`, `TrueGaze_IsHcepConnected`, `TrueGaze_OverrideActorMode`).
-- **Automated Nexus Packager**: Created `scripts/PackageMod.ps1` and compiled distribution package `dist/TrueGaze-v1.0.0-rc1-SkyrimSE-AE-VR.zip`.
+- **Automated Release Packager**: Created `scripts/PackageMod.ps1` and compiled distribution package `dist/TrueGaze-v1.0.0-rc1-SkyrimSE-AE-VR.zip`.
 - **Pure C++20 Kinematics Test Suite**: Standalone automated test harness (`tests/KinematicsTests.cpp`) validating 8 core components.
 - **Product Requirements Document (`PRD.md`)**: Comprehensive technical document specifying product vision, personas, functional/non-functional requirements, wire protocols, and acceptance criteria.
-- **Detailed Development Roadmap (`ROADMAP.md`)**: Strategic multi-phase roadmap spanning kinematics core through Nexus release and cross-engine expansion.
+- **Detailed Development Roadmap (`ROADMAP.md`)**: Strategic multi-phase roadmap spanning kinematics core through public release and cross-engine expansion.
 
 ### Changed
 
-- **Project Directory Refactoring**: Transitioned repository root from `D:\Projects\TrueGaze` to `D:\Projects\SkyrimTrueGaze` across all documentation, architecture guides, headers, build presets, and `.nexus` handover records.
+- **Project Directory Refactoring**: Transitioned repository root from `D:\Projects\TrueGaze` to `D:\Projects\SkyrimTrueGaze` across all documentation, architecture guides, headers, build presets, and handover records.
 - **Precompiled Header & Compiler Warning Hardening**: Added `[[maybe_unused]]` attributes and MSVC C4189 warning suppression in kinematics coordinators. Wrapped external logging headers with fallback macros for standalone compilation.
 
 ---

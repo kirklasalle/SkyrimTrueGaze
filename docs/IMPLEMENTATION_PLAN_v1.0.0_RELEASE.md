@@ -61,7 +61,7 @@ This plan executes the remaining critical path items to achieve the official Pub
 
 ---
 
-### 4. Public Distribution Packaging & Nexus Artifacts
+### 4. Public Distribution Packaging & Release Artifacts
 
 #### [MODIFY] [PackageMod.ps1](file:///d:/Projects/SkyrimTrueGaze/scripts/PackageMod.ps1)
 - Update release version to `1.0.0` (final release).
@@ -69,8 +69,8 @@ This plan executes the remaining critical path items to achieve the official Pub
 - Package `dist/TrueGaze-v1.0.0-Symbols.zip` containing `TrueGaze.pdb`.
 - Calculate SHA-256 hashes for both files and output to console.
 
-#### [MODIFY] [NEXUS_MODS_PAGE.md](file:///d:/Projects/SkyrimTrueGaze/docs/NEXUS_MODS_PAGE.md)
-- Enrich presentation page with complete feature breakdown, diagnostic visuals policy documentation, OAR dynamic condition guide, multi-race field acceptance notes, and archive SHA-256 hashes.
+#### [MODIFY] [Release presentation documentation](file:///d:/Projects/SkyrimTrueGaze/docs/)
+- Enrich the release presentation with complete feature breakdown, diagnostic visuals policy documentation, OAR dynamic condition guide, multi-race field acceptance notes, and archive SHA-256 hashes.
 
 ---
 

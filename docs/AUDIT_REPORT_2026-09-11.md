@@ -34,11 +34,11 @@
 
 | Phase | Method | Scope |
 | :--- | :--- | :--- |
-| Documentation review | Full read | 11 documents: `README.md`, `PRD.md`, `ROADMAP.md`, `CHANGELOG.md`, `TRUEGAZE_ARCHITECTURE.md`, `docs/*` (4 files), `Permanent_Active_Directives.txt`, `.nexus`, `LICENSE` |
+| Documentation review | Full read | 11 documents: `README.md`, `PRD.md`, `ROADMAP.md`, `CHANGELOG.md`, `TRUEGAZE_ARCHITECTURE.md`, `docs/*` (4 files), `Permanent_Active_Directives.txt`, handover baton, `LICENSE` |
 | Source review | Full read | 18 source files across `src/Kinematics`, `src/Engine`, `src/Integrations`, `src/Bridge`, plus `tests/` |
 | Asset review | Full read | `skyrim/SKSE/Plugins/TrueGaze.ini`, OAR `config.json`, `TrueGazeConfig.html` *(MCM `config.json`, translations and Papyrus scripts were reviewed at the time but have since been removed — see the note at the top of this document)* |
 | Build forensics | Binary inspection | `TrueGaze.dll` PE header/export string scan, `CMakeCache.txt` inspection, `.obj` inventory, distribution `.zip` entry listing |
-| Market research | Web research | Nexus Mods landscape, UE5/MetaHuman gaze ecosystem, commercial eye-tracking (Tobii, Eyeware Beam), academic saccade-modelling literature, creator-platform tooling |
+| Market research | Web research | Modding ecosystem landscape, UE5/MetaHuman gaze ecosystem, commercial eye-tracking (Tobii, Eyeware Beam), academic saccade-modelling literature, creator-platform tooling |
 
 **Verification note:** Every claim in this report marked **[VERIFIED]** was independently confirmed by direct inspection of the artifact during this audit. Claims marked **[CLAIMED]** come from project documentation and could not be substantiated. This distinction is the single most important lens for reading this report.
 
@@ -963,9 +963,9 @@ Each pillar exists somewhere. **The integration is genuinely novel.**
 | Product | Platform | What it does | Scientific depth | Gap vs. TrueGaze |
 | :--- | :--- | :--- | :--- | :--- |
 | **PC Head Tracking and Voice Type SE** | Skyrim SE (SKSE) | Player-character head/eye tracking to nearby actors; voice-type selection | **None** — priority heuristics only | No NPC→player gaze, no saccades, no VOR, no cognition. Known to *break* NPC eye tracking when enabled ([Reddit r/skyrimmods](https://www.reddit.com/r/skyrimmods/comments/wno92l/npcs_eyes_tracking_broken_with_pc_head_tracking/)) |
-| **Player Headtracking** (Nexus #23600) | Skyrim LE/SE | Player head turns automatically toward NPCs | None | Player-only; no eye nodes |
+| **Player Headtracking** (community mod #23600) | Skyrim LE/SE | Player head turns automatically toward NPCs | None | Player-only; no eye nodes |
 | **Skyrim SE Head Tracking** (itsloopyo) | Skyrim SE | Webcam head tracking → player head, *no VR headset* | None | Player-only; head only; **no eye tracking** |
-| **Reduced NPC Head Tracking** (Nexus #58361) | Skyrim SE | *Reduces* NPC head tracking | None | Reaction to the problem, not a solution |
+| **Reduced NPC Head Tracking** (community mod #58361) | Skyrim SE | *Reduces* NPC head tracking | None | Reaction to the problem, not a solution |
 | **EFM / Expressive Facial Animation** | Skyrim SE | Facial morph rigs & expressions | None | **Complementary** — a dependency candidate, not a competitor |
 | **Open Animation Replacer (OAR)** | Skyrim SE | Conditional animation replacement | None | **Complementary** — TrueGaze's stated integration target |
 | **ZenBlink** (Fab, UE5) | Unreal Engine 5 | Procedural blinking, pupil response, random/targeted eye/head/neck movement | **Low** — procedural, not modelled | Closest commercial analogue. No cognition, no VOR, no external tracker, no saccade dynamics |
@@ -978,8 +978,8 @@ Each pillar exists somewhere. **The integration is genuinely novel.**
 
 | Product | Type | Purpose | Relevance |
 | :--- | :--- | :--- | :--- |
-| **Tobii** (Eye Tracker 5, Nexus) | Dedicated HW | Gaze-driven aiming/UI | Assistive input, not NPC behaviour |
-| **Tobii Nexus** | Software SDK | Webcam→gaze for integration | **Best candidate bridge partner.** Has an SDK; would be an excellent alternative HCEP source |
+| **Tobii** (Eye Tracker 5) | Dedicated HW | Gaze-driven aiming/UI | Assistive input, not NPC behaviour |
+| **Tobii eye-tracking SDK** | Software SDK | Webcam→gaze for integration | **Best candidate bridge partner.** Has an SDK; would be an excellent alternative HCEP source |
 | **Eyeware Beam** | Software | Webcam/phone→eye tracking | Same — viable telemetry source |
 | **FaceTrackNoIR** | Open source | Webcam→head pose for games | Head only; older |
 | **GazePlay** | Open source | Gaze-driven games for accessibility | Different domain; validates the tech, not a competitor |
@@ -1174,7 +1174,7 @@ An adaptive LOD that responds to *measured* cost, not just distance, is far more
 Replace `[x] Completed` with `[x] Designed / [ ] Implemented / [ ] Verified in-game`. This prevents the exact over-claiming this audit found.
 
 **E-2 — Ship a "dead-eye fix" minimal viable feature first.**
-Don't wait for the full 5-mode cognition system. **Head + eye tracking with saccades and jitter** alone would be a compelling, independently-publishable Nexus mod. The cognitive modes become the v2 headline.
+Don't wait for the full 5-mode cognition system. **Head + eye tracking with saccades and jitter** alone would be a compelling, independently-publishable mod. The cognitive modes become the v2 headline.
 
 **E-3 — Publish the OAR conditions as their own distribution.**
 `TrueGaze_IsMode`, `TrueGaze_IsMutualGaze`, `TrueGaze_GetGazeRegion` are independently valuable to animators **even if the kinematics are minimal.** This seeds ecosystem adoption before the engine is complete.
@@ -1330,7 +1330,7 @@ The single most damaging pattern in this repository is **`#if __has_include(<RE/
 | **Implementation** | 🔴 ~30%. The engine is inert. |
 | **Documentation** | 🟡 Good quality, materially over-claiming status. |
 | **Distance to a shippable 1.0** | 🟡 ~4–6 focused weeks. |
-| **Distance to a compelling Nexus release** | 🟢 **~2 weeks** (Phase 1 + Phase 2 = "eyes that move"). |
+| **Distance to a compelling public release** | 🟢 **~2 weeks** (Phase 1 + Phase 2 = "eyes that move"). |
 
 The 2-week figure is the important one. You are **much closer to something publishable than the gap between claim and reality suggests** — because the hard parts (the science, the design, the ecosystem strategy) are genuinely finished. What remains is engineering labour, and it is well-scoped in §8.
 

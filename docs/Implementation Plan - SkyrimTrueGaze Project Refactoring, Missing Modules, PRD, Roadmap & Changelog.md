@@ -44,9 +44,9 @@ Update all path references in documentation, headers, and metadata to `D:\Projec
 
 - Update plugin path reference to `D:\Projects\SkyrimTrueGaze`.
 
-#### [MODIFY] [.nexus](file:///d:/Projects/SkyrimTrueGaze/.nexus)
+#### [REMOVED] Handover baton file
 
-- Update `Project Root` and documentation links to `D:\Projects\SkyrimTrueGaze`.
+- The legacy `.nexus` handover baton file has been removed from the repository.
 
 #### [MODIFY] [TelemetryPacket.h](file:///d:/Projects/SkyrimTrueGaze/src/Bridge/TelemetryPacket.h)
 
@@ -161,7 +161,7 @@ Ensure all expected mod runtime assets and configuration files are present for d
   - Phase 4: Animation Integration (OAR Native Conditions & EFM Blinking).
   - ~~Phase 5: In-Game MCM Configuration & Player Customization.~~ **Superseded — MCM removed 2026-09-14; configuration is vanilla-UI (INI + `TrueGazeConfig.html`).**
   - Phase 6: Skyrim VR Support & Performance Tuning (60-144 FPS).
-  - Phase 7: Community Release, Documentation & Nexus Distribution.
+  - Phase 7: Community Release, Documentation & Distribution.
   - Phase 8: Cross-Engine Expansion (Unreal Engine 5 & Unity HCEP Ecosystem).
 
 #### [NEW] [CHANGELOG.md](file:///d:/Projects/SkyrimTrueGaze/CHANGELOG.md)

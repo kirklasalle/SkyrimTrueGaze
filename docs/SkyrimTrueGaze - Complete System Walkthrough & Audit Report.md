@@ -41,7 +41,7 @@
 
 | Category / Requirement | Implementation Detail | Audit Status |
 | :--- | :--- | :--- |
-| **Directory Rename** | Refactored all references from `D:\Projects\TrueGaze` to `D:\Projects\SkyrimTrueGaze` across README, documentation, build presets, and `.nexus`. | **100% Verified** |
+| **Directory Rename** | Refactored all references from `D:\Projects\TrueGaze` to `D:\Projects\SkyrimTrueGaze` across README, documentation, build presets, and handover records. | **100% Verified** |
 | **Immutable Directives** | [Permanent_Active_Directives.txt](file:///d:/Projects/SkyrimTrueGaze/Permanent_Active_Directives.txt) preserved completely untouched. | **100% Compliant** |
 | **Biomechanical Saccades** | Main Sequence velocity equation ($V_{\text{peak}} = V_{\text{max}}(1 - e^{-\theta/c})$) and duration scaling implemented in [SaccadeGenerator.hpp](file:///d:/Projects/SkyrimTrueGaze/src/Kinematics/SaccadeGenerator.hpp). | **Passed Test Suite** |
 | **VOR Decoupling** | Eye leads target in 20-30ms; head follows with inertial damping; eye counter-rotates in [VorCoordinator.hpp](file:///d:/Projects/SkyrimTrueGaze/src/Kinematics/VorCoordinator.hpp). | **Passed Test Suite** |

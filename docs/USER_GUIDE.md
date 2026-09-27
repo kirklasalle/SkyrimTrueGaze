@@ -3,7 +3,7 @@
 **Product:** TrueGaze - Biological NPC Gaze and Biomechanical Kinematics Engine  
 **Audience:** Skyrim SE/AE/VR players, mod testers, and development partners  
 **Status date:** September 23, 2026  
-**Current release line:** 1.0.3 Production Release ([Nexus Mods #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480))  
+**Current release line:** 1.0.3 Production Release ([GitHub — kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze))  
 
 > TrueGaze is an active production runtime engine. The plugin loads natively through SKSE across Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). It drives biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, Argyle & Cook social triangle cycling), dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, and offers two optional in-engine 3D visual diagnostics: Option 1 (discreet ~2mm hair-thin laser rays originating from pupils tracking line of sight) and Option 2 (head-anchored HCEP floating diagram panel with real-time region highlight).
 

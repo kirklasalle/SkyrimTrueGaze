@@ -21,7 +21,7 @@ The audit comprised:
 4. **Concurrency & IPC Security Audit**: Concurrency guarantees of the Named Pipe server (`\\.\pipe\TrueGazeBridge`), lock-free triple buffering, race condition hazards, thread lifecycle/shutdown mechanics, and Windows security descriptors.
 5. **Documentation & Governance Alignment**: Cross-verification of `PRD.md`, `ROADMAP.md`, `README.md`, `STATUS.md`, `docs/ARCHITECTURE.md`, `CHANGELOG.md`, and compliance with Kirk LaSalle's **Permanent Active Directives (The 10 Laws)**.
 6. **Artifacts & Web Configurator**: Security and functionality of `TrueGazeConfig.html`, Chromium sandbox flags, pre-flight diagnostics (`Test-TrueGazeHealth.ps1`), and deployment automation (`Deploy-TrueGaze.ps1`).
-7. **Web Research & State-of-the-Art Analysis**: Nexus Mods competitive landscape, SKSE community standards, Open Animation Replacer (OAR) API specifications, and FaceFX/FaceGen morph structures.
+7. **Web Research & State-of-the-Art Analysis**: Modding ecosystem competitive landscape, SKSE community standards, Open Animation Replacer (OAR) API specifications, and FaceFX/FaceGen morph structures.
 
 ---
 
@@ -339,7 +339,7 @@ Below are the findings ranked by severity: **[CRITICAL]** (Crash to Desktop / Pr
 
 ## 5. Web Research Audit & Market Landscape
 
-### 5.1 The Nexus Mods Competitive Ecosystem
+### 5.1 The Modding Ecosystem Competitive Landscape
 A deep search across the Skyrim modding ecosystem reveals:
 1. **True Directional Movement (TDM) by Ersh:**
    - Dominates third-person movement and modern combat.

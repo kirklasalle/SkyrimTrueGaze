@@ -4,7 +4,6 @@
 
 ### A First-Party Product of the Human Communication Eye Protocol (HCEP) Architecture
 
-[![Nexus Mods](https://img.shields.io/badge/Nexus_Mods-Mod_192480-1a9fff?logo=nexusmods)](https://www.nexusmods.com/skyrimspecialedition/mods/192480)
 [![Status](https://img.shields.io/badge/status-Production%20Release-brightgreen)](#-current-project-status)
 [![Version](https://img.shields.io/badge/version-1.0.5-blue)](#)
 [![Platform](https://img.shields.io/badge/platform-Skyrim%20SE%20%7C%20AE%20%7C%20VR-4b5563)](#)
@@ -13,7 +12,6 @@
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 
 **Architect & Product Owner:** Kirk LaSalle  
-**Nexus Mods:** [`https://www.nexusmods.com/skyrimspecialedition/mods/192480`](https://www.nexusmods.com/skyrimspecialedition/mods/192480)  
 **Repository:** [`https://github.com/kirklasalle/SkyrimTrueGaze`](https://github.com/kirklasalle/SkyrimTrueGaze)  
 **Native Binary:** `TrueGaze.dll` (SKSE64 / CommonLibSSE-NG Multi-Target SE/AE/VR)  
 **Target Platform:** The Elder Scrolls V: Skyrim (SE 1.5.97, AE 1.6.640+, AE 1.6.1170+, Skyrim VR 1.4.15) & Modern Creation Engine
@@ -31,7 +29,7 @@
 
 | | |
 | :--- | :--- |
-| **Maturity** | 🟢 **Production Release v1.0.5 + Gold Standard Scene Integration** — Live on Nexus Mods ([Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)) |
+| **Maturity** | 🟢 **Production Release v1.0.5 + Gold Standard Scene Integration** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
 | **Builds & links the SDK?** | ✅ Yes — unified multi-target Release x64 DLL (`CommonLibSSE-NG`, `OpenVR`, `spdlog`, `fmt`, `/O2`) |
 | **Drives bones?** | ✅ Yes — procedural saccadic, VOR, and cervical hierarchy bone manipulation live |
 | **In-Engine Verification** | ✅ **Verified in Skyrim AE & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, eye-to-eye targeting, and telemetry confirmed |
@@ -49,7 +47,6 @@
 
 **Verified working:** **Gold Standard scene integration (Helgen opening scene end-to-end)** · **Eye-to-eye targeting (NPCs look directly into eyes)** · **Eye-to-eye fixation dominance (eye holds outlast all other regions; ~6-17s eye contact in dialogue)** · **Voice-address detection (an NPC speaking to the player looks at the player)** · **Calm/combat speed model (calm = quarter speed, 8× dwell; combat = full tuned speed)** · FaceGen eye-lead morph gain on vanilla rigs (eyes clearly lead the head) · player targeting in scripted scenes (Helgen cart) · point-blank seated actor resolution · Multi-target SDK linkage (SE/AE/VR) · the gaze engine and bone application · dynamic 3D head elevation solving · 3rd-person player conversational engagement · dynamic vtable slot redirection (`0xAF` for VR) · per-actor runtime kinematics state · configuration reaching the live engine · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · Option 1 subtle laser rays & Option 2 floating HCEP panel · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 12 passing test suites · a reproducible pinned build · standalone HTML configurator · multi-race acceptance protocol.
 
-➡️ **Nexus Mods Page: [Mod #192480](https://www.nexusmods.com/skyrimspecialedition/mods/192480)**  
 ➡️ **User Quickstart Guide: [`TrueGaze_Configurator_Guide.txt`](TrueGaze_Configurator_Guide.txt)**  
 ➡️ **Full capability matrix: [`docs/STATUS.md`](docs/STATUS.md)**  
 ➡️ **Roadmap & milestones: [`ROADMAP.md`](ROADMAP.md)**  

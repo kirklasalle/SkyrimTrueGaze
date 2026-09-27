@@ -1,8 +1,8 @@
-# Walkthrough — Skyrim VR ("Mad God VR") Fix & Nexus Mods Configurator Packaging
+# Walkthrough — Skyrim VR ("Mad God VR") Fix & Configurator Packaging
 
 ## Executive Summary
 
-We resolved the startup crash in Skyrim VR ("Mad God VR") and packaged the complete TrueGaze Configurator suite directly into the Nexus Mods release. TrueGaze is now a unified multi-target binary supporting Skyrim SE (1.5.97), Skyrim AE (1.6.318–1.6.1170+), and Skyrim VR (1.4.15).
+We resolved the startup crash in Skyrim VR ("Mad God VR") and packaged the complete TrueGaze Configurator suite directly into the release. TrueGaze is now a unified multi-target binary supporting Skyrim SE (1.5.97), Skyrim AE (1.6.318–1.6.1170+), and Skyrim VR (1.4.15).
 
 ---
 
@@ -27,7 +27,7 @@ We resolved the startup crash in Skyrim VR ("Mad God VR") and packaged the compl
 * **Heavy Modlist Compatibility**: Tested and architected for massive load orders (500+ mods, like "Mad God VR"). Skeletons are safe because `EyeAimConstraint` creates a non-destructive baseline snapshot and restores bones every frame before applying procedural gaze, preventing conflicts with OAR, FNIS, Nemesis, or MCO.
 * **Passive Bridge**: The named pipe bridge operates on an asynchronous background thread. If the external desktop or web configurator is not connected, it remains completely passive with 0% CPU impact.
 
-### 3. Nexus Mods Release Package Complete Suite
+### 3. Release Package Complete Suite
 * **Bundled Web Configurator**: `TrueGazeConfig.html` and `Launch-TrueGazeConfig.cmd` are now included directly in the root of the distribution archive.
 * **Universal Mod Manager Support**: Enhanced `Launch-TrueGazeConfig.cmd` and `TrueGazeBridgeServer.ps1` to detect installation directories inside Mod Organizer 2 (`<MO2>/mods/TrueGaze`), Vortex, or manual game directories.
 * **Quickstart Guide**: Added [`skyrim/TrueGaze_Configurator_Guide.txt`](file:///d:/Projects/SkyrimTrueGaze/skyrim/TrueGaze_Configurator_Guide.txt) with step-by-step instructions for:
