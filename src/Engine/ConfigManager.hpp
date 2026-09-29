@@ -1,7 +1,7 @@
 #pragma once
 
-#include <string>
 #include <cstdint>
+#include <string>
 
 namespace TrueGaze::Engine
 {
@@ -10,7 +10,7 @@ namespace TrueGaze::Engine
     class ConfigManager
     {
     public:
-        static ConfigManager &GetSingleton() noexcept
+        static ConfigManager& GetSingleton() noexcept
         {
             static ConfigManager instance;
             return instance;
@@ -18,10 +18,10 @@ namespace TrueGaze::Engine
 
         /// @brief Loads configuration values from TrueGaze.ini.
         /// Safe to call more than once; each call re-reads the file.
-        void Load(const std::string &iniPath = "") noexcept;
+        void Load(const std::string& iniPath = "") noexcept;
 
         /// @brief Saves current configuration values to TrueGaze.ini.
-        void Save(const std::string &iniPath = "") noexcept;
+        void Save(const std::string& iniPath = "") noexcept;
 
         /// @brief True once Load() has completed, whether or not an INI was found.
         [[nodiscard]] bool IsLoaded() const noexcept { return _loaded; }
@@ -29,7 +29,7 @@ namespace TrueGaze::Engine
         /// @brief Absolute path of the INI that actually drove the last Load(), or
         /// empty when compiled defaults were used. Phase S1 evidence baseline: lets a
         /// log reader confirm which configuration governed a session.
-        [[nodiscard]] const std::string &LoadedPath() const noexcept { return _loadedPath; }
+        [[nodiscard]] const std::string& LoadedPath() const noexcept { return _loadedPath; }
 
         /// @brief Clamps every value into its supported range, reporting any change.
         /// Called automatically at the end of Load().
@@ -38,7 +38,7 @@ namespace TrueGaze::Engine
         /// @brief Applies every managed key from a single INI on top of the current
         /// in-memory state, using the existing value as each key's default. Enables
         /// Single-pass INI load from Data/SKSE/Plugins/TrueGaze.ini. Does not clamp.
-        void ApplyIni(const std::string &iniPath) noexcept;
+        void ApplyIni(const std::string& iniPath) noexcept;
 
         // --- General Settings ---
         bool enableTrueGaze{true};
@@ -71,6 +71,68 @@ namespace TrueGaze::Engine
 
         // --- Character Gaze Profile (temperament-driven gaze) ---
         bool enableCharacterProfiles{true}; // OFF = default profile (exact parity)
+
+        // --- R15: Category Gaze Profiles ([Profiles] section) ---
+        //
+        // Per-category multiplier bundles layered onto the temperament profile
+        // (see src/Engine/CharacterProfile.hpp, CategoryProfileBundle). The
+        // compiled defaults mirror DefaultBundleFor() exactly; an absent key in
+        // the INI keeps the compiled default. bEnableCategoryProfiles=false
+        // disables the whole category layer = exact pre-R15 behaviour.
+        //
+        // Exposed high-signal multipliers per category (Kirk-approved restraint,
+        // 2026-09-27): aversion rate, fixation scale, mutual-gaze threshold, and
+        // path randomness where the stereotype calls for it.
+        bool enableCategoryProfiles{true};
+
+        // Guard: steady, unflinching authority attention.
+        float guardAversionMult{0.6f};
+        float guardFixationMult{1.25f};
+
+        // Child: quick, curious scanning; little sustained lock.
+        float childFixationMult{0.6f};
+        float childAversionMult{1.3f};
+        float childPathRandomnessMult{1.4f};
+
+        // Vampire: intense, unblinking predatory lock.
+        float vampireAversionMult{0.2f};
+        float vampireFixationMult{1.5f};
+
+        // Werewolf: feral, restless — brief hard locks, frequent shifts.
+        float werewolfFixationMult{0.7f};
+        float werewolfPathRandomnessMult{1.5f};
+
+        // Khajiit: feline darting — quick curious glances, playful scanning.
+        float khajiitFixationMult{0.8f};
+        float khajiitPathRandomnessMult{1.3f};
+
+        // Argonian: reptilian stillness — long steady holds, slow deliberate shifts.
+        float argonianFixationMult{1.3f};
+        float argonianAversionMult{0.7f};
+
+        // Elf: Aldmeri poise — measured, composed, slightly aloof.
+        float elfFixationMult{1.15f};
+        float elfAversionMult{0.8f};
+
+        // Orc: direct, confrontational, little aversion.
+        float orcAversionMult{0.5f};
+        float orcFixationMult{1.2f};
+
+        // Creature classes.
+        float predatorFixationMult{1.4f};
+        float predatorAversionMult{0.3f};
+        float preyFixationMult{0.6f};
+        float preyAversionMult{1.6f};
+        float dragonFixationMult{1.8f};
+        float dragonAversionMult{0.15f};
+
+        // Other: undead / daedra / constructs.
+        float undeadFixationMult{1.6f};
+        float undeadAversionMult{0.4f};
+        float daedraAversionMult{0.25f};
+        float daedraFixationMult{1.4f};
+        float constructFixationMult{2.0f};
+        float constructAversionMult{0.1f};
 
         // --- General ---
         std::string engineTarget{"Auto"}; // Auto | SE | AE | VR (validated at load)
@@ -114,9 +176,9 @@ namespace TrueGaze::Engine
         // These keys drive src/Visuals. The whole subsystem is off by default and
         // developer-oriented: nothing here may affect the kinematics engine, the save game,
         // or a shipped build's appearance unless explicitly enabled.
-        bool enableInGameVisuals{false};  // master switch for every in-game visual
-        bool gazeRaysEnabled{false};      // laser-eye beams from the pupil
-        int rayRenderMode{0};             // 0=Both(branded), 1=LightOnly(bare-bones), 2=GeometryOnly(branded)
+        bool enableInGameVisuals{false}; // master switch for every in-game visual
+        bool gazeRaysEnabled{false};     // laser-eye beams from the pupil
+        int rayRenderMode{0}; // 0=Both(branded), 1=LightOnly(bare-bones), 2=GeometryOnly(branded)
         float gazeRayLengthMeters{10.0f}; // beam length; drives the light radius
         float gazeRayThicknessCm{0.8f};   // beam cross-section diameter; ~8mm pencil beam
         int gazeRayColour{0xC9A86A};      // 0xRRGGBB TrueGaze gold (alpha is separate)
@@ -131,9 +193,9 @@ namespace TrueGaze::Engine
         float pupilGlowIntensity{0.5f};    // pupil emitter brightness multiplier
 
         // --- HCEP Floating Diagram Panel ---
-        bool showHcepPanel{false};             // master switch for the HCEP diagram panel
-        bool hcepPanelAllActors{true};         // true = Player + NPCs + Creatures; false = Player only
-        float hcepPanelScale{0.5f};            // panel scale factor
+        bool showHcepPanel{false};     // master switch for the HCEP diagram panel
+        bool hcepPanelAllActors{true}; // true = Player + NPCs + Creatures; false = Player only
+        float hcepPanelScale{0.5f};    // panel scale factor
         float hcepPanelForwardOffsetCm{35.0f}; // distance in front of head bone (cm)
 
         // --- Console commands (~) ---

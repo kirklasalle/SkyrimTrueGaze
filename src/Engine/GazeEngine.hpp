@@ -115,6 +115,13 @@ namespace TrueGaze::Engine
         /// R14 E7.6.
         [[nodiscard]] static int16_t RelationshipRankForActor(RE::Actor* actor) noexcept;
 
+        /// R15: resolve the INI-configured multiplier bundle for a gaze
+        /// category. When category profiles are disabled (or the category is
+        /// neutral), returns an all-neutral bundle = exact pre-R15 parity.
+        /// Single source: ConfigManager is the only bundle authority.
+        [[nodiscard]] static CharacterProfile::CategoryProfileBundle
+        CategoryBundleFor(CharacterProfile::GazeCategory category) noexcept;
+
         /// Runtime counters used to distinguish a missing actor hook from an
         /// eligibility/LOD/target-selection issue. These are diagnostic only.
         [[nodiscard]] uint64_t TickCalls() const noexcept { return _tickCalls; }

@@ -92,6 +92,50 @@ namespace TrueGaze::Engine
         enableCharacterProfiles =
             ReadBool("CharacterProfile", "bEnableCharacterProfiles", enableCharacterProfiles, p);
 
+        // R15: Category Gaze Profiles ([Profiles]). Absent keys keep the compiled
+        // defaults (which mirror CharacterProfile::DefaultBundleFor exactly).
+        enableCategoryProfiles =
+            ReadBool("Profiles", "bEnableCategoryProfiles", enableCategoryProfiles, p);
+        guardAversionMult = ReadFloat("Profiles", "fGuardAversionMult", guardAversionMult, p);
+        guardFixationMult = ReadFloat("Profiles", "fGuardFixationMult", guardFixationMult, p);
+        childFixationMult = ReadFloat("Profiles", "fChildFixationMult", childFixationMult, p);
+        childAversionMult = ReadFloat("Profiles", "fChildAversionMult", childAversionMult, p);
+        childPathRandomnessMult =
+            ReadFloat("Profiles", "fChildPathRandomnessMult", childPathRandomnessMult, p);
+        vampireAversionMult = ReadFloat("Profiles", "fVampireAversionMult", vampireAversionMult, p);
+        vampireFixationMult = ReadFloat("Profiles", "fVampireFixationMult", vampireFixationMult, p);
+        werewolfFixationMult =
+            ReadFloat("Profiles", "fWerewolfFixationMult", werewolfFixationMult, p);
+        werewolfPathRandomnessMult =
+            ReadFloat("Profiles", "fWerewolfPathRandomnessMult", werewolfPathRandomnessMult, p);
+        khajiitFixationMult = ReadFloat("Profiles", "fKhajiitFixationMult", khajiitFixationMult, p);
+        khajiitPathRandomnessMult =
+            ReadFloat("Profiles", "fKhajiitPathRandomnessMult", khajiitPathRandomnessMult, p);
+        argonianFixationMult =
+            ReadFloat("Profiles", "fArgonianFixationMult", argonianFixationMult, p);
+        argonianAversionMult =
+            ReadFloat("Profiles", "fArgonianAversionMult", argonianAversionMult, p);
+        elfFixationMult = ReadFloat("Profiles", "fElfFixationMult", elfFixationMult, p);
+        elfAversionMult = ReadFloat("Profiles", "fElfAversionMult", elfAversionMult, p);
+        orcAversionMult = ReadFloat("Profiles", "fOrcAversionMult", orcAversionMult, p);
+        orcFixationMult = ReadFloat("Profiles", "fOrcFixationMult", orcFixationMult, p);
+        predatorFixationMult =
+            ReadFloat("Profiles", "fPredatorFixationMult", predatorFixationMult, p);
+        predatorAversionMult =
+            ReadFloat("Profiles", "fPredatorAversionMult", predatorAversionMult, p);
+        preyFixationMult = ReadFloat("Profiles", "fPreyFixationMult", preyFixationMult, p);
+        preyAversionMult = ReadFloat("Profiles", "fPreyAversionMult", preyAversionMult, p);
+        dragonFixationMult = ReadFloat("Profiles", "fDragonFixationMult", dragonFixationMult, p);
+        dragonAversionMult = ReadFloat("Profiles", "fDragonAversionMult", dragonAversionMult, p);
+        undeadFixationMult = ReadFloat("Profiles", "fUndeadFixationMult", undeadFixationMult, p);
+        undeadAversionMult = ReadFloat("Profiles", "fUndeadAversionMult", undeadAversionMult, p);
+        daedraAversionMult = ReadFloat("Profiles", "fDaedraAversionMult", daedraAversionMult, p);
+        daedraFixationMult = ReadFloat("Profiles", "fDaedraFixationMult", daedraFixationMult, p);
+        constructFixationMult =
+            ReadFloat("Profiles", "fConstructFixationMult", constructFixationMult, p);
+        constructAversionMult =
+            ReadFloat("Profiles", "fConstructAversionMult", constructAversionMult, p);
+
         // Social
         enableGazeAversion = ReadBool("Social", "bEnableGazeAversion", enableGazeAversion, p);
         enableSocialTriangle = ReadBool("Social", "bEnableSocialTriangle", enableSocialTriangle, p);
@@ -269,6 +313,49 @@ namespace TrueGaze::Engine
         eyeMorphGain = clampReport("fEyeMorphGain", eyeMorphGain, 0.5f, 4.0f);
         eyeMorphFullScaleDeg =
             clampReport("fEyeMorphFullScaleDeg", eyeMorphFullScaleDeg, 5.0f, 45.0f);
+
+        // R15: category profile multipliers — same clamp range as the profile
+        // clamps in CharacterProfile::ClampProfile, so an INI value can never
+        // push a bundle past what Classify would clamp anyway.
+        guardAversionMult = clampReport("fGuardAversionMult", guardAversionMult, 0.1f, 3.0f);
+        guardFixationMult = clampReport("fGuardFixationMult", guardFixationMult, 0.1f, 3.0f);
+        childFixationMult = clampReport("fChildFixationMult", childFixationMult, 0.1f, 3.0f);
+        childAversionMult = clampReport("fChildAversionMult", childAversionMult, 0.1f, 3.0f);
+        childPathRandomnessMult =
+            clampReport("fChildPathRandomnessMult", childPathRandomnessMult, 0.0f, 2.0f);
+        vampireAversionMult = clampReport("fVampireAversionMult", vampireAversionMult, 0.1f, 3.0f);
+        vampireFixationMult = clampReport("fVampireFixationMult", vampireFixationMult, 0.1f, 3.0f);
+        werewolfFixationMult =
+            clampReport("fWerewolfFixationMult", werewolfFixationMult, 0.1f, 3.0f);
+        werewolfPathRandomnessMult =
+            clampReport("fWerewolfPathRandomnessMult", werewolfPathRandomnessMult, 0.0f, 2.0f);
+        khajiitFixationMult = clampReport("fKhajiitFixationMult", khajiitFixationMult, 0.1f, 3.0f);
+        khajiitPathRandomnessMult =
+            clampReport("fKhajiitPathRandomnessMult", khajiitPathRandomnessMult, 0.0f, 2.0f);
+        argonianFixationMult =
+            clampReport("fArgonianFixationMult", argonianFixationMult, 0.1f, 3.0f);
+        argonianAversionMult =
+            clampReport("fArgonianAversionMult", argonianAversionMult, 0.1f, 3.0f);
+        elfFixationMult = clampReport("fElfFixationMult", elfFixationMult, 0.1f, 3.0f);
+        elfAversionMult = clampReport("fElfAversionMult", elfAversionMult, 0.1f, 3.0f);
+        orcAversionMult = clampReport("fOrcAversionMult", orcAversionMult, 0.1f, 3.0f);
+        orcFixationMult = clampReport("fOrcFixationMult", orcFixationMult, 0.1f, 3.0f);
+        predatorFixationMult =
+            clampReport("fPredatorFixationMult", predatorFixationMult, 0.1f, 3.0f);
+        predatorAversionMult =
+            clampReport("fPredatorAversionMult", predatorAversionMult, 0.1f, 3.0f);
+        preyFixationMult = clampReport("fPreyFixationMult", preyFixationMult, 0.1f, 3.0f);
+        preyAversionMult = clampReport("fPreyAversionMult", preyAversionMult, 0.1f, 3.0f);
+        dragonFixationMult = clampReport("fDragonFixationMult", dragonFixationMult, 0.1f, 3.0f);
+        dragonAversionMult = clampReport("fDragonAversionMult", dragonAversionMult, 0.1f, 3.0f);
+        undeadFixationMult = clampReport("fUndeadFixationMult", undeadFixationMult, 0.1f, 3.0f);
+        undeadAversionMult = clampReport("fUndeadAversionMult", undeadAversionMult, 0.1f, 3.0f);
+        daedraAversionMult = clampReport("fDaedraAversionMult", daedraAversionMult, 0.1f, 3.0f);
+        daedraFixationMult = clampReport("fDaedraFixationMult", daedraFixationMult, 0.1f, 3.0f);
+        constructFixationMult =
+            clampReport("fConstructFixationMult", constructFixationMult, 0.1f, 3.0f);
+        constructAversionMult =
+            clampReport("fConstructAversionMult", constructAversionMult, 0.1f, 3.0f);
         cgaHeadInvolvement = clampReport("fCgaHeadInvolvement", cgaHeadInvolvement, 0.0f, 1.0f);
         cgaDialogueOffsetSec =
             clampReport("fCgaDialogueOffsetSec", cgaDialogueOffsetSec, 0.0f, 5.0f);
@@ -457,6 +544,38 @@ namespace TrueGaze::Engine
         WriteFloat("GazeTarget", "fEyeMorphFullScaleDeg", eyeMorphFullScaleDeg);
 
         WriteBool("CharacterProfile", "bEnableCharacterProfiles", enableCharacterProfiles);
+
+        // R15: Category Gaze Profiles.
+        WriteBool("Profiles", "bEnableCategoryProfiles", enableCategoryProfiles);
+        WriteFloat("Profiles", "fGuardAversionMult", guardAversionMult);
+        WriteFloat("Profiles", "fGuardFixationMult", guardFixationMult);
+        WriteFloat("Profiles", "fChildFixationMult", childFixationMult);
+        WriteFloat("Profiles", "fChildAversionMult", childAversionMult);
+        WriteFloat("Profiles", "fChildPathRandomnessMult", childPathRandomnessMult);
+        WriteFloat("Profiles", "fVampireAversionMult", vampireAversionMult);
+        WriteFloat("Profiles", "fVampireFixationMult", vampireFixationMult);
+        WriteFloat("Profiles", "fWerewolfFixationMult", werewolfFixationMult);
+        WriteFloat("Profiles", "fWerewolfPathRandomnessMult", werewolfPathRandomnessMult);
+        WriteFloat("Profiles", "fKhajiitFixationMult", khajiitFixationMult);
+        WriteFloat("Profiles", "fKhajiitPathRandomnessMult", khajiitPathRandomnessMult);
+        WriteFloat("Profiles", "fArgonianFixationMult", argonianFixationMult);
+        WriteFloat("Profiles", "fArgonianAversionMult", argonianAversionMult);
+        WriteFloat("Profiles", "fElfFixationMult", elfFixationMult);
+        WriteFloat("Profiles", "fElfAversionMult", elfAversionMult);
+        WriteFloat("Profiles", "fOrcAversionMult", orcAversionMult);
+        WriteFloat("Profiles", "fOrcFixationMult", orcFixationMult);
+        WriteFloat("Profiles", "fPredatorFixationMult", predatorFixationMult);
+        WriteFloat("Profiles", "fPredatorAversionMult", predatorAversionMult);
+        WriteFloat("Profiles", "fPreyFixationMult", preyFixationMult);
+        WriteFloat("Profiles", "fPreyAversionMult", preyAversionMult);
+        WriteFloat("Profiles", "fDragonFixationMult", dragonFixationMult);
+        WriteFloat("Profiles", "fDragonAversionMult", dragonAversionMult);
+        WriteFloat("Profiles", "fUndeadFixationMult", undeadFixationMult);
+        WriteFloat("Profiles", "fUndeadAversionMult", undeadAversionMult);
+        WriteFloat("Profiles", "fDaedraAversionMult", daedraAversionMult);
+        WriteFloat("Profiles", "fDaedraFixationMult", daedraFixationMult);
+        WriteFloat("Profiles", "fConstructFixationMult", constructFixationMult);
+        WriteFloat("Profiles", "fConstructAversionMult", constructAversionMult);
 
         WriteBool("Social", "bEnableGazeAversion", enableGazeAversion);
         WriteBool("Social", "bEnableSocialTriangle", enableSocialTriangle);

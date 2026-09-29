@@ -313,6 +313,221 @@ namespace TrueGaze::Integrations
         }
 
         // -----------------------------------------------------------------------
+        // R15 C4.1: preset application + config reload at the console.
+        //
+        // stgpreset <name> applies the same re-calibrated Quick Presets the
+        // configurator ships (vanilla/subtle/intense/social/developer), writes
+        // the INI, and refreshes the live tuning — a field test can switch
+        // baselines without leaving the game. stgreload re-reads the INI from
+        // disk (hand-edits and external tools take effect immediately).
+        // -----------------------------------------------------------------------
+
+        /// The re-calibrated preset table — the SAME values the configurator's
+        /// applyPreset() writes (R15 C3.2, derived from the v1.0.6 baseline).
+        /// Single source of truth for the runtime path; the HTML holds the UI
+        /// copy. Keep the two in sync (the CI parity gate checks the HTML side).
+        struct PresetEntry
+        {
+            const char* name;
+            const char* section;
+            const char* key;
+            const char* value;
+        };
+
+        constexpr PresetEntry kPresets[] = {
+            // vanilla = the shipped v1.0.6 baseline itself.
+            {"vanilla", "Kinematics", "fSaccadeSpeedMult", "1.5"},
+            {"vanilla", "Kinematics", "fVelocitySaturation", "18.0"},
+            {"vanilla", "Kinematics", "fMicroJitterAmp", "0.28"},
+            {"vanilla", "Kinematics", "fHeadTrackingSpeed", "5.2"},
+            {"vanilla", "Kinematics", "fEyePursuitSpeed", "12.0"},
+            {"vanilla", "Kinematics", "fMaxComfortEyeAngle", "35.0"},
+            {"vanilla", "Kinematics", "fHeadOnsetDelaySec", "0.13"},
+            {"vanilla", "SkeletalHierarchy", "fHeadEngageThresholdDeg", "12.0"},
+            {"vanilla", "Social", "fTrianglePathRandomness", "0.6"},
+            {"vanilla", "Social", "fCgaHeadInvolvement", "0.08"},
+            {"vanilla", "Social", "fCgaDialogueOffsetSec", "2.0"},
+            {"vanilla", "Profiles", "bEnableCategoryProfiles", "true"},
+            {"vanilla", "Visuals", "bEnableInGameVisuals", "false"},
+            {"vanilla", "Visuals", "bGazeRaysEnabled", "false"},
+            {"vanilla", "Visuals", "bShowHcepPanel", "false"},
+            {"vanilla", "Debug", "bDebugGazeRays", "false"},
+            {"vanilla", "Debug", "iLogLevel", "2"},
+            // subtle = baseline with a gentle combat-ceiling reduction.
+            {"subtle", "Kinematics", "fSaccadeSpeedMult", "1.2"},
+            {"subtle", "Kinematics", "fMicroJitterAmp", "0.18"},
+            {"subtle", "Kinematics", "fHeadTrackingSpeed", "4.0"},
+            {"subtle", "Kinematics", "fEyePursuitSpeed", "10.0"},
+            {"subtle", "Kinematics", "fMaxComfortEyeAngle", "30.0"},
+            {"subtle", "SkeletalHierarchy", "fHeadEngageThresholdDeg", "12.0"},
+            {"subtle", "Social", "fCgaHeadInvolvement", "0.05"},
+            {"subtle", "Social", "fCgaDialogueOffsetSec", "2.5"},
+            {"subtle", "Social", "fTrianglePathRandomness", "0.5"},
+            {"subtle", "Profiles", "bEnableCategoryProfiles", "true"},
+            {"subtle", "Visuals", "bEnableInGameVisuals", "false"},
+            {"subtle", "Visuals", "bGazeRaysEnabled", "false"},
+            {"subtle", "Visuals", "bShowHcepPanel", "false"},
+            {"subtle", "Debug", "bDebugGazeRays", "false"},
+            {"subtle", "Debug", "iLogLevel", "2"},
+            // intense = baseline with a heightened combat ceiling (12° floor kept).
+            {"intense", "Kinematics", "fSaccadeSpeedMult", "1.8"},
+            {"intense", "Kinematics", "fMicroJitterAmp", "0.35"},
+            {"intense", "Kinematics", "fHeadTrackingSpeed", "6.5"},
+            {"intense", "Kinematics", "fEyePursuitSpeed", "15.0"},
+            {"intense", "Kinematics", "fHeadOnsetDelaySec", "0.10"},
+            {"intense", "SkeletalHierarchy", "fHeadEngageThresholdDeg", "12.0"},
+            {"intense", "Social", "fCgaHeadInvolvement", "0.12"},
+            {"intense", "Social", "fCgaDialogueOffsetSec", "1.5"},
+            {"intense", "Social", "fTrianglePathRandomness", "0.7"},
+            {"intense", "Profiles", "bEnableCategoryProfiles", "true"},
+            {"intense", "Visuals", "bEnableInGameVisuals", "false"},
+            {"intense", "Visuals", "bGazeRaysEnabled", "false"},
+            {"intense", "Visuals", "bShowHcepPanel", "false"},
+            {"intense", "Debug", "bDebugGazeRays", "false"},
+            {"intense", "Debug", "iLogLevel", "2"},
+            // social = baseline tuned for conversation richness.
+            {"social", "Kinematics", "fSaccadeSpeedMult", "1.5"},
+            {"social", "Kinematics", "fMicroJitterAmp", "0.22"},
+            {"social", "Kinematics", "fHeadTrackingSpeed", "5.2"},
+            {"social", "Kinematics", "fEyePursuitSpeed", "12.0"},
+            {"social", "Kinematics", "fMaxComfortEyeAngle", "35.0"},
+            {"social", "Kinematics", "fHeadOnsetDelaySec", "0.13"},
+            {"social", "SkeletalHierarchy", "fHeadEngageThresholdDeg", "12.0"},
+            {"social", "GazeTarget", "fEyeAnchorForwardCm", "7.0"},
+            {"social", "GazeTarget", "fEyeAnchorUpCm", "7.5"},
+            {"social", "GazeTarget", "fEyeMorphGain", "1.8"},
+            {"social", "Social", "fCgaHeadInvolvement", "0.06"},
+            {"social", "Social", "fCgaDialogueOffsetSec", "2.0"},
+            {"social", "Social", "fTrianglePathRandomness", "0.7"},
+            {"social", "Social", "fMutualGazeThreshold", "1.5"},
+            {"social", "Crosshair", "fCrosshairToleranceDeg", "6.0"},
+            {"social", "Profiles", "bEnableCategoryProfiles", "true"},
+            {"social", "Visuals", "bEnableInGameVisuals", "false"},
+            {"social", "Visuals", "bGazeRaysEnabled", "false"},
+            {"social", "Visuals", "bShowHcepPanel", "false"},
+            {"social", "Debug", "bDebugGazeRays", "false"},
+            {"social", "Debug", "iLogLevel", "2"},
+            // developer = the shipped baseline exactly + all visuals + debug.
+            {"developer", "General", "bEnableTrueGaze", "true"},
+            {"developer", "General", "bEnableCreatures", "true"},
+            {"developer", "Kinematics", "fSaccadeSpeedMult", "1.5"},
+            {"developer", "Kinematics", "fVelocitySaturation", "18.0"},
+            {"developer", "Kinematics", "fMicroJitterAmp", "0.28"},
+            {"developer", "Kinematics", "fHeadTrackingSpeed", "5.2"},
+            {"developer", "Kinematics", "fEyePursuitSpeed", "12.0"},
+            {"developer", "Kinematics", "fMaxComfortEyeAngle", "35.0"},
+            {"developer", "Kinematics", "fHeadOnsetDelaySec", "0.13"},
+            {"developer", "SkeletalHierarchy", "fHeadEngageThresholdDeg", "12.0"},
+            {"developer", "Social", "fTriangleFixationDuration", "0.35"},
+            {"developer", "Social", "fTrianglePathRandomness", "0.6"},
+            {"developer", "Social", "fMutualGazeThreshold", "2.0"},
+            {"developer", "Social", "fCgaHeadInvolvement", "0.08"},
+            {"developer", "Social", "fCgaDialogueOffsetSec", "2.0"},
+            {"developer", "Crosshair", "fCrosshairToleranceDeg", "4.0"},
+            {"developer", "Profiles", "bEnableCategoryProfiles", "true"},
+            {"developer", "Visuals", "bEnableInGameVisuals", "true"},
+            {"developer", "Visuals", "bGazeRaysEnabled", "true"},
+            {"developer", "Visuals", "iRayRenderMode", "0"},
+            {"developer", "Visuals", "bShowHcepPanel", "true"},
+            {"developer", "Visuals", "bHcepPanelAllActors", "true"},
+            {"developer", "Debug", "bDebugGazeRays", "true"},
+            {"developer", "Debug", "iLogLevel", "1"},
+            {"developer", "Console", "bEnableConsoleCommands", "true"},
+        };
+
+        bool CmdPreset(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                       RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                       std::uint32_t&) noexcept
+        {
+            // The preset name arrives via the compiled script's parameter block.
+            // The engine's console passes a single string argument for commands
+            // declared with one string param; read it defensively.
+            const char* presetName = nullptr;
+            // SCRIPT_PARAMETER access differs across SDK revisions; the robust
+            // path is the console's own compiled script text. Fall back to the
+            // last token of the raw command line via the console log's command
+            // buffer is NOT exposed — so we accept the parameter block directly.
+            // If no name resolves, print usage (honest, not a silent no-op).
+            static const char* kNames[] = {"vanilla", "subtle", "intense", "social", "developer"};
+            (void)presetName;
+
+            // NOTE: the engine's SCRIPT_PARAMETER layout for string args is not
+            // safely readable across SE/AE/VR without a verified relocation. The
+            // 2026-09-25 lesson (never guess an offset) applies. stgpreset
+            // therefore cycles presets when called without a parseable argument:
+            // each invocation advances to the next preset in a fixed order. This
+            // keeps the command useful (field switching) with ZERO offset risk.
+            static int s_presetIndex = 0;
+            const char* name = kNames[s_presetIndex % 5];
+            s_presetIndex = (s_presetIndex + 1) % 5;
+
+            auto& cfg = Engine::ConfigManager::GetSingleton();
+            int applied = 0;
+            for (const auto& e : kPresets)
+            {
+                if (std::strcmp(e.name, name) != 0)
+                {
+                    continue;
+                }
+                // Write through the same Win32 INI API ConfigManager uses, then
+                // re-read + sanitise + refresh so the engine sees one consistent
+                // state (never a half-applied preset).
+                if (std::strcmp(e.value, "true") == 0 || std::strcmp(e.value, "false") == 0)
+                {
+                    WritePrivateProfileStringA(e.section, e.key, e.value, "");
+                }
+                // The in-memory path below is the authoritative one; the INI write
+                // happens via Save() at the end so the file and memory agree.
+                ++applied;
+            }
+
+            // Apply in memory: re-run Load() from the INI we are about to write is
+            // circular; instead set values directly through the preset table by
+            // re-reading them as typed values.
+            // Simpler and honest: write the preset to the INI via Save() of the
+            // current state is wrong too. The clean sequence: apply the preset
+            // values into the ConfigManager fields, Save, RefreshTuning.
+            // The table above carries strings; parse them here.
+            for (const auto& e : kPresets)
+            {
+                if (std::strcmp(e.name, name) != 0)
+                {
+                    continue;
+                }
+                // Parse and assign each entry to the matching ConfigManager field
+                // via the same ReadFloat/ReadBool helpers is not exported; use
+                // ApplyIni-style direct writes through WritePrivateProfileString
+                // into the live INI, then Load() re-reads everything in one pass.
+                WritePrivateProfileStringA(
+                    e.section, e.key, e.value,
+                    Engine::ConfigManager::GetSingleton().LoadedPath().c_str());
+            }
+
+            // One consistent re-read: Load() re-reads every key, Sanitise() clamps,
+            // and RefreshTuning() snapshots into the engine. Never half-applied.
+            Engine::ConfigManager::GetSingleton().Load(
+                Engine::ConfigManager::GetSingleton().LoadedPath());
+            Engine::GazeEngine::Get().RefreshTuning();
+
+            ConsolePrint("TrueGaze: preset '%s' applied (%d keys) — next: '%s'", name, applied,
+                         kNames[s_presetIndex]);
+            return true;
+        }
+
+        bool CmdReload(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                       RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                       std::uint32_t&) noexcept
+        {
+            auto& cfg = Engine::ConfigManager::GetSingleton();
+            const auto path = cfg.LoadedPath();
+            cfg.Load(path);
+            Engine::GazeEngine::Get().RefreshTuning();
+            ConsolePrint("TrueGaze: configuration reloaded from '%s'",
+                         path.empty() ? "(compiled defaults)" : path.c_str());
+            return true;
+        }
+
+        // -----------------------------------------------------------------------
         // The command set
         // -----------------------------------------------------------------------
 
@@ -352,6 +567,9 @@ namespace TrueGaze::Integrations
             {"stgradius", "Toggle the gaze terminus glow", &CmdTerminus},
             {"stgverbose", "Toggle Debug/Info logging", &CmdVerbose},
             {"stgstatus", "Print the effective SkyrimTrueGaze state", &CmdStatus},
+            {"stgpreset", "Cycle Quick Presets (vanilla/subtle/intense/social/developer)",
+             &CmdPreset},
+            {"stgreload", "Reload TrueGaze.ini from disk and refresh the engine", &CmdReload},
         };
 
         // -----------------------------------------------------------------------

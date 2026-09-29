@@ -1,23 +1,23 @@
-#include <iostream>
 #include <cassert>
 #include <cmath>
-#include <vector>
+#include <iostream>
 #include <limits>
+#include <vector>
 
-#include "../src/Kinematics/SaccadeGenerator.hpp"
-#include "../src/Kinematics/VorCoordinator.hpp"
-#include "../src/Kinematics/MicroJitter.hpp"
-#include "../src/Kinematics/SocialTriangle.hpp"
-#include "../src/Engine/BoneController.hpp"
-#include "../src/Engine/LodManager.hpp"
-#include "../src/Engine/CharacterProfile.hpp"
-#include "../src/Integrations/EfmBlinkController.hpp"
 #include "../src/Bridge/TelemetryPacket.h"
+#include "../src/Engine/BoneController.hpp"
+#include "../src/Engine/CharacterProfile.hpp"
+#include "../src/Engine/LodManager.hpp"
+#include "../src/Integrations/EfmBlinkController.hpp"
+#include "../src/Kinematics/MicroJitter.hpp"
+#include "../src/Kinematics/SaccadeGenerator.hpp"
+#include "../src/Kinematics/SocialTriangle.hpp"
+#include "../src/Kinematics/VorCoordinator.hpp"
 
 namespace
 {
 
-    uint32_t ComputeCrc32(const uint8_t *data, size_t length) noexcept
+    uint32_t ComputeCrc32(const uint8_t* data, size_t length) noexcept
     {
         uint32_t crc = 0xFFFFFFFF;
         for (size_t i = 0; i < length; ++i)
@@ -126,7 +126,8 @@ namespace
         // Eye must counter-rotate (VOR) as head catches up
         assert(latencyState.eyeLocalYaw < 25.0f);
 
-        std::cout << "  -> VorCoordinator passed (including cervical clamping & biological latency gap).\n";
+        std::cout << "  -> VorCoordinator passed (including cervical clamping & biological latency "
+                     "gap).\n";
     }
 
     // Superseded by TestJitterIsBrownianAndSeedable, which asserts the correct
@@ -194,8 +195,8 @@ namespace
             using V = TrueGaze::Kinematics::SocialTriangle::Vertex;
             V v = V::LeftEye;
             int canonicalSteps = 0;
-            const V seq[] = {V::LeftEye, V::RightEye, V::Mouth, V::LeftEye,
-                             V::RightEye, V::Mouth, V::LeftEye, V::RightEye};
+            const V seq[] = {V::LeftEye,  V::RightEye, V::Mouth,   V::LeftEye,
+                             V::RightEye, V::Mouth,    V::LeftEye, V::RightEye};
             // The classic orbit would visit L,R,M,L,R,M,L,R — count matches.
             for (int i = 0; i < 8; ++i)
             {
@@ -247,8 +248,11 @@ namespace
         std::cout << "[TEST] Running BoneController hierarchy strain verification...\n";
 
         // Use explicit old-style weights to verify the math is still correct.
-        const TrueGaze::Engine::BoneController::StrainWeights legacyWeights{
-            .spineYaw = 0.10f, .neckYaw = 0.25f, .neckPitch = 0.25f, .headYaw = 0.65f, .headPitch = 0.75f};
+        const TrueGaze::Engine::BoneController::StrainWeights legacyWeights{.spineYaw = 0.10f,
+                                                                            .neckYaw = 0.25f,
+                                                                            .neckPitch = 0.25f,
+                                                                            .headYaw = 0.65f,
+                                                                            .headPitch = 0.75f};
         auto strain = TrueGaze::Engine::BoneController::CalculateHierarchyStrain(
             40.0f, 20.0f, 35.0f, 25.0f, legacyWeights);
         // Spine2: 10% of 40 = 4.0
@@ -275,8 +279,8 @@ namespace
         assert(std::abs(strainSmall.eyeYaw - 5.0f) < 0.01f); // eyes carry entire yaw
 
         // CGA eye-dominant strain: head gets minimal fraction.
-        auto cgaStrain = TrueGaze::Engine::BoneController::CalculateCgaStrain(
-            18.0f, 15.0f, 35.0f, 25.0f, 0.08f);
+        auto cgaStrain =
+            TrueGaze::Engine::BoneController::CalculateCgaStrain(18.0f, 15.0f, 35.0f, 25.0f, 0.08f);
         assert(std::abs(cgaStrain.HeadChainYaw()) < 2.0f); // tiny head contribution
         assert(std::abs(cgaStrain.eyeYaw) > 15.0f);        // eyes carry most of the aversion
 
@@ -295,8 +299,11 @@ namespace
 
         // Small deflection with legacy weights (sum=1.0): head chain covers all, residual ~0.
         {
-            const TrueGaze::Engine::BoneController::StrainWeights legacyW{
-                .spineYaw = 0.10f, .neckYaw = 0.25f, .neckPitch = 0.25f, .headYaw = 0.65f, .headPitch = 0.75f};
+            const TrueGaze::Engine::BoneController::StrainWeights legacyW{.spineYaw = 0.10f,
+                                                                          .neckYaw = 0.25f,
+                                                                          .neckPitch = 0.25f,
+                                                                          .headYaw = 0.65f,
+                                                                          .headPitch = 0.75f};
             auto strain = TrueGaze::Engine::BoneController::CalculateHierarchyStrain(
                 5.0f, 0.0f, 35.0f, 25.0f, legacyW);
             const float chain = strain.HeadChainYaw();
@@ -322,7 +329,8 @@ namespace
 
             // The eyes carry the difference, clamped to the ocular range.
             assert(std::abs(strain.eyeYaw) > 1.0f);
-            assert(std::abs(strain.eyeYaw) <= TrueGaze::Engine::BoneController::EYE_YAW_LIMIT + 0.01f);
+            assert(std::abs(strain.eyeYaw) <=
+                   TrueGaze::Engine::BoneController::EYE_YAW_LIMIT + 0.01f);
 
             // Reconstructing the deflection must land on the target.
             const float reconstructed = chainYaw + strain.eyeYaw;
@@ -449,7 +457,8 @@ namespace
         // 5. Duration must follow D0 + d*A.
         {
             assert(std::abs(SG::CalculateDuration(0.0f) - SG::BASE_DURATION_SEC) < 1e-5f);
-            assert(std::abs(SG::CalculateDuration(20.0f) - (SG::BASE_DURATION_SEC + SG::DURATION_SLOPE * 20.0f)) < 1e-5f);
+            assert(std::abs(SG::CalculateDuration(20.0f) -
+                            (SG::BASE_DURATION_SEC + SG::DURATION_SLOPE * 20.0f)) < 1e-5f);
             assert(SG::CalculateDuration(40.0f) > SG::CalculateDuration(20.0f));
         }
 
@@ -558,9 +567,12 @@ namespace
     {
         std::cout << "[TEST] Running LodManager verification...\n";
 
-        assert(TrueGaze::Engine::LodManager::GetLodTier(2.0f) == TrueGaze::Engine::LodManager::LodTier::Tier1_DialogueRange);
-        assert(TrueGaze::Engine::LodManager::GetLodTier(10.0f) == TrueGaze::Engine::LodManager::LodTier::Tier2_Proximity);
-        assert(TrueGaze::Engine::LodManager::GetLodTier(25.0f) == TrueGaze::Engine::LodManager::LodTier::Tier3_Culled);
+        assert(TrueGaze::Engine::LodManager::GetLodTier(2.0f) ==
+               TrueGaze::Engine::LodManager::LodTier::Tier1_DialogueRange);
+        assert(TrueGaze::Engine::LodManager::GetLodTier(10.0f) ==
+               TrueGaze::Engine::LodManager::LodTier::Tier2_Proximity);
+        assert(TrueGaze::Engine::LodManager::GetLodTier(25.0f) ==
+               TrueGaze::Engine::LodManager::LodTier::Tier3_Culled);
 
         std::cout << "  -> LodManager passed.\n";
     }
@@ -589,8 +601,10 @@ namespace
     {
         std::cout << "[TEST] Running TelemetryPacket layout and CRC32 verification...\n";
 
-        static_assert(sizeof(TrueGaze::Bridge::TrueGazeTelemetryPacket) == 64, "Packet size mismatch");
-        static_assert(sizeof(TrueGaze::Bridge::SkyrimFeedbackPacket) == 32, "Feedback packet size mismatch");
+        static_assert(sizeof(TrueGaze::Bridge::TrueGazeTelemetryPacket) == 64,
+                      "Packet size mismatch");
+        static_assert(sizeof(TrueGaze::Bridge::SkyrimFeedbackPacket) == 32,
+                      "Feedback packet size mismatch");
 
         TrueGaze::Bridge::TrueGazeTelemetryPacket packet{};
         packet.magic = 0x48434550; // "HCEP"
@@ -602,9 +616,8 @@ namespace
         packet.gazeConfidence = 0.98f;
         packet.hcepMode = 1; // AFFECT
 
-        uint32_t crc = ComputeCrc32(
-            reinterpret_cast<const uint8_t *>(&packet),
-            sizeof(packet) - sizeof(uint32_t));
+        uint32_t crc = ComputeCrc32(reinterpret_cast<const uint8_t*>(&packet),
+                                    sizeof(packet) - sizeof(uint32_t));
         packet.crc32 = crc;
         assert(packet.crc32 != 0);
 
@@ -744,7 +757,7 @@ namespace
 
             // Heavy Chest weight: Chest draws the plurality.
             const float chestHeavy[9] = {1, 1, 1, 1, 10, 1, 1, 1, 1};
-            for (auto &c : counts)
+            for (auto& c : counts)
                 c = 0.0f;
             for (int i = 0; i < kSamples; ++i)
             {
@@ -758,6 +771,168 @@ namespace
 
         std::cout << "  -> CharacterProfile passed (parity, confidence, relationship, "
                      "creature, combat, clamps, weighted vertices).\n";
+    }
+
+    void TestCategoryProfiles()
+    {
+        std::cout << "[TEST] Running R15 Category Gaze Profiles verification...\n";
+        using TrueGaze::Engine::CharacterProfile;
+        using C = CharacterProfile::GazeCategory;
+        using Bundle = CharacterProfile::CategoryProfileBundle;
+
+        // 1. NEUTRAL BUNDLE PARITY: a default bundle changes nothing vs no bundle.
+        {
+            CharacterProfile::TemperamentInput in{};
+            in.confidence = 1.0f; // non-neutral temperament so a change would show
+            auto withNone = CharacterProfile::Classify(in, true);
+            auto withNeutral = CharacterProfile::Classify(in, true, Bundle{});
+            assert(withNone.aversionRateMult == withNeutral.aversionRateMult);
+            assert(withNone.fixationScaleMult == withNeutral.fixationScaleMult);
+            assert(withNone.modeBiasAffect == withNeutral.modeBiasAffect);
+            assert(withNone.triangleEnabled == withNeutral.triangleEnabled);
+        }
+
+        // 2. STEREOTYPE SANITY: each category's compiled default bundle expresses
+        //    its intended behavioural direction.
+        {
+            // Guard: steady lock — less aversion, longer fixation.
+            auto guard = CharacterProfile::DefaultBundleFor(C::Guard);
+            assert(guard.aversionRateMult < 1.0f);
+            assert(guard.fixationScaleMult > 1.0f);
+
+            // Child: quick curious scanning.
+            auto child = CharacterProfile::DefaultBundleFor(C::Child);
+            assert(child.fixationScaleMult < 1.0f);
+            assert(child.aversionRateMult > 1.0f);
+
+            // Vampire: intense unblinking lock.
+            auto vampire = CharacterProfile::DefaultBundleFor(C::Vampire);
+            assert(vampire.aversionRateMult < 0.5f);
+            assert(vampire.fixationScaleMult > 1.0f);
+
+            // Khajiit: feline darting.
+            auto khajiit = CharacterProfile::DefaultBundleFor(C::Khajiit);
+            assert(khajiit.fixationScaleMult < 1.0f);
+            assert(khajiit.pathRandomnessMult > 1.0f);
+
+            // Argonian: reptilian stillness.
+            auto argonian = CharacterProfile::DefaultBundleFor(C::Argonian);
+            assert(argonian.fixationScaleMult > 1.0f);
+            assert(argonian.aversionRateMult < 1.0f);
+
+            // Predator: triangle forced off, fixation-dominant.
+            auto predator = CharacterProfile::DefaultBundleFor(C::Creature_Predator);
+            assert(predator.triangleMode == 0);
+            assert(predator.fixationScaleMult > 1.0f);
+            assert(predator.aversionRateMult < 1.0f);
+
+            // Prey: skittish.
+            auto prey = CharacterProfile::DefaultBundleFor(C::Creature_Prey);
+            assert(prey.triangleMode == 0);
+            assert(prey.aversionRateMult > 1.0f);
+
+            // Dragon: ancient imperious unblinking.
+            auto dragon = CharacterProfile::DefaultBundleFor(C::Creature_Dragon);
+            assert(dragon.triangleMode == 0);
+            assert(dragon.fixationScaleMult > 1.5f);
+            assert(dragon.aversionRateMult < 0.3f);
+
+            // Construct: mechanical fixation, no social softness.
+            auto construct = CharacterProfile::DefaultBundleFor(C::Construct);
+            assert(construct.triangleMode == 0);
+            assert(construct.fixationScaleMult > 1.5f);
+            assert(construct.aversionRateMult < 0.3f);
+
+            // Neutral categories: all-neutral bundles (temperament carries all).
+            for (auto c : {C::Player, C::HumanoidNPC, C::OtherHumanoid, C::OtherCreature})
+            {
+                auto neutral = CharacterProfile::DefaultBundleFor(c);
+                assert(neutral.aversionRateMult == 1.0f);
+                assert(neutral.fixationScaleMult == 1.0f);
+                assert(neutral.triangleMode == -1);
+            }
+        }
+
+        // 3. BUNDLE APPLICATION ORDER: the category bundle layers ON TOP of the
+        //    temperament axes (multiplicative), and clamps still bound everything.
+        {
+            CharacterProfile::TemperamentInput guardInput{};
+            guardInput.confidence = 3.0f; // foolhardy temperament
+            guardInput.category = C::Guard;
+
+            auto temperamentOnly = CharacterProfile::Classify(guardInput, true, Bundle{});
+            auto withBundle = CharacterProfile::Classify(
+                guardInput, true, CharacterProfile::DefaultBundleFor(C::Guard));
+
+            // Guard bundle further reduces aversion below the temperament result.
+            assert(withBundle.aversionRateMult < temperamentOnly.aversionRateMult);
+            assert(withBundle.fixationScaleMult > temperamentOnly.fixationScaleMult);
+
+            // Clamps hold under stacking.
+            assert(withBundle.aversionRateMult >= 0.1f);
+            assert(withBundle.fixationScaleMult <= 3.0f);
+        }
+
+        // 4. CREATURE CATEGORY SPLIT: predator vs prey vs other-creature now
+        //    differ (pre-R15 they shared one branch).
+        {
+            CharacterProfile::TemperamentInput predatorInput{};
+            predatorInput.isHumanoid = false;
+            predatorInput.category = C::Creature_Predator;
+            CharacterProfile::TemperamentInput preyInput{};
+            preyInput.isHumanoid = false;
+            preyInput.category = C::Creature_Prey;
+
+            auto predator = CharacterProfile::Classify(
+                predatorInput, true, CharacterProfile::DefaultBundleFor(C::Creature_Predator));
+            auto prey = CharacterProfile::Classify(
+                preyInput, true, CharacterProfile::DefaultBundleFor(C::Creature_Prey));
+
+            assert(predator.fixationScaleMult > prey.fixationScaleMult); // stalk vs skitter
+            assert(predator.aversionRateMult < prey.aversionRateMult);
+            assert(!predator.triangleEnabled && !prey.triangleEnabled);
+        }
+
+        // 5. PLAYER PLAY-STYLE BIAS: stealth-leaning = more aversion, shorter
+        //    fixation; heavy-combat-leaning = the reverse; 0 = parity.
+        {
+            CharacterProfile::TemperamentInput stealthy{};
+            stealthy.category = C::Player;
+            stealthy.playStyleBias = 1.0f;
+            CharacterProfile::TemperamentInput heavy{};
+            heavy.category = C::Player;
+            heavy.playStyleBias = -1.0f;
+            CharacterProfile::TemperamentInput neutralPlayer{};
+            neutralPlayer.category = C::Player;
+            neutralPlayer.playStyleBias = 0.0f;
+
+            auto ps = CharacterProfile::Classify(stealthy, true);
+            auto ph = CharacterProfile::Classify(heavy, true);
+            auto pn = CharacterProfile::Classify(neutralPlayer, true);
+
+            assert(ps.aversionRateMult > pn.aversionRateMult); // wary
+            assert(ps.fixationScaleMult < pn.fixationScaleMult);
+            assert(ph.aversionRateMult < pn.aversionRateMult); // steady
+            assert(ph.fixationScaleMult > pn.fixationScaleMult);
+        }
+
+        // 6. BUNDLE CLAMPS: an extreme custom bundle cannot escape the profile
+        //    clamp ranges.
+        {
+            Bundle extreme{};
+            extreme.aversionRateMult = 100.0f;
+            extreme.fixationScaleMult = 100.0f;
+            extreme.modeBiasAffect = 10.0f;
+
+            CharacterProfile::TemperamentInput in{};
+            auto p = CharacterProfile::Classify(in, true, extreme);
+            assert(p.aversionRateMult <= 3.0f);
+            assert(p.fixationScaleMult <= 3.0f);
+            assert(p.modeBiasAffect <= 1.0f);
+        }
+
+        std::cout << "  -> CategoryProfiles passed (neutral parity, stereotypes, "
+                     "application order, creature split, play-style bias, clamps).\n";
     }
 
 } // namespace
@@ -782,7 +957,8 @@ int main()
     TestTelemetryPackets();
     TestTelemetrySemanticValidation();
     TestCharacterProfile();
+    TestCategoryProfiles();
 
-    std::cout << "\n[SUCCESS] ALL 12 BIOMECHANICAL KINEMATICS TESTS PASSED!\n";
+    std::cout << "\n[SUCCESS] ALL 13 BIOMECHANICAL KINEMATICS TESTS PASSED!\n";
     return 0;
 }

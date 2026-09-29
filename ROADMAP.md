@@ -4,12 +4,12 @@
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
-**Current Milestone:** Phase R14 — Engineering Excellence & World-Class Hardening  
-**Last Updated:** September 26, 2026
+**Current Milestone:** Phase R15 — Category Gaze Profiles & Configuration Truth  
+**Last Updated:** September 27, 2026
 
 **Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)  
-**Current engineering plan:** [`docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md`](docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md)  
-**Latest audit:** [`docs/AUDIT_REPORT_2026-09-26.md`](docs/AUDIT_REPORT_2026-09-26.md)
+**Current engineering plan:** [`docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md`](docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md)  
+**Latest audit:** [`docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md`](docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md) (configurator) · [`docs/AUDIT_REPORT_2026-09-26.md`](docs/AUDIT_REPORT_2026-09-26.md) (codebase)
 
 ---
 
@@ -591,9 +591,9 @@ Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R
 
 ---
 
-## Phase R14: Engineering Excellence & World-Class Hardening (CURRENT MILESTONE)
+## Phase R14: Engineering Excellence & World-Class Hardening
 
-*Status: **🔨 Implemented (September 27, 2026)** — E1, E2.1-E2.3, E3.3/E3.4, E4.1/E4.2/E4.5, E6.1, and E7.1-E7.8 complete; verified by the standalone test suite (3/3 green) and a full plugin build/link. Remaining: E2.4 benchmarks, E3.1/E3.2 extraction tests, E4.3 sanitizers, E4.4 static analysis, E5 truth pass, E6.2/E6.3 packaging.*  
+*Status: **🔨 Implemented (September 27, 2026)** — E1, E2.1-E2.3, E3.3/E3.4, E4.1/E4.2/E4.5, E6.1, and E7.1-E7.8 complete; verified by the standalone test suite (3/3 green) and a full plugin build/link. Remaining: E2.4 benchmarks, E3.1/E3.2 extraction tests, E4.3 sanitizers, E4.4 static analysis, E5 truth pass, E6.3 release manifest. E6.2 (retired NIF removal) completed 2026-09-27 in the v1.0.6 release.*  
 **Date:** September 26, 2026  
 **Source:** [`docs/AUDIT_REPORT_2026-09-26.md`](docs/AUDIT_REPORT_2026-09-26.md) + [`docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md`](docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md)  
 **Target:** Close the gap between a verified product and a world-class codebase: concurrency proof, performance measurement, logic-module tests, CI, formatter/linter, documentation truth, and one license decision.
@@ -639,7 +639,7 @@ Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R
 ### E6 — Legal & Distribution Decision
 
 - [x] **E6.1** LICENSE DECISION (Kirk): GPLv3 (current LICENSE file) vs proprietary vs dual. Then propagate to README badge, GOVERNANCE.md, PRD, packaging. *(RESOLVED 2026-09-26: GPLv3 confirmed — forced by the CommonLibSSE-NG GPLv3 dependency; HCEP theory excluded as proprietary trade secret via the LICENSE SCOPE notice; README badge corrected. See docs/LICENSE_RESOLUTION.md. GOVERNANCE/PRD propagation tracked in E5.1.)*
-- [ ] **E6.2** Shipping-tree hygiene: remove the retired crash-causing `GazeBeam.nif`/`GazeRegionPanel.nif` from `skyrim/meshes/TrueGaze/` and the package; verify the archive manifest.
+- [x] **E6.2** Shipping-tree hygiene: remove the retired crash-causing `GazeBeam.nif`/`GazeRegionPanel.nif` from `skyrim/meshes/TrueGaze/` and the package; verify the archive manifest. *(GazeBeam.nif removed from the tree and the v1.0.6 distribution archive, 2026-09-27; GazeRegionPanel.nif retained — it is the active Option 2 panel asset, not retired.)*
 - [ ] **E6.3** Release manifest: `Package-Release.ps1` emits `manifest.json` (versions, SHA-256, runtimes, known limitations, license identifier).
 
 ### E7 — Robustness Refinements (P2 register batch)
@@ -654,3 +654,46 @@ Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R
 - [x] **E7.8** Trivial batch: dead `startYaw`, thickness clamp, Center/Face region consideration, MicroJitter stall decay, per-frame UI singleton caching, `_frame*` member → parameter struct, vcpkg version sync. *(startYaw removed; thickness/length/opacity clamped; dialogue-menu lookup cached per frame; frame-scope members grouped into FrameScope; vcpkg synced. Center/Face region and MicroJitter stall decay deferred — they are behaviour changes, not hygiene.)*
 
 **Deliverable:** a codebase whose safety, performance, and truth claims are all *proven* — the foundation for R15+ gameplay work (VR pilot S7, OAR pin S6, perceptual tuning).
+
+---
+
+## Phase R15: Category Gaze Profiles & Configuration Truth (CURRENT MILESTONE)
+
+*Status: **� Implemented + 🧪 Unit-verified (September 27, 2026)** — C1–C4 complete: standalone ctest 3/3 green (13 suites), full plugin builds and links, configurator parity gate green. In-engine field verification pending.*  
+**Date:** September 27, 2026  
+**Source:** [`docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md`](docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md) + [`docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md`](docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md)  
+**Directive (Kirk LaSalle, 2026-09-27):** keep the five global Quick Presets (baseline + development role); add **category control presets** — Player & player type, NPCs & NPC type & race, Creatures, Animals, Other — **as part of the Character Gaze Profiles system**, not as a second global preset bank.
+
+> **Thesis:** the engine's configuration spine is world-class; the drift is where configuration meets product decisions. The profile system's multiplier contract (1.0 = unchanged, default parity guaranteed) is the exact right vehicle for category presets.
+
+### C1 — Category Gathering
+
+- [x] **C1.1** `GazeCategory` enum (Player, Guard, Child, Vampire, Werewolf, Khajiit, Argonian, Elf, Orc, Creature_Predator/Prey/Dragon, Undead, Daedra, Construct, Other…). *(18 categories in CharacterProfile.hpp.)*
+- [x] **C1.2** Safe gathers in `GatherTemperament`: race FormID + editor-ID match, actor-base keywords, dragon/predator/prey classification — all base-form reads (2026-09-25 crash lesson as a standing rule). *(ClassifyCategory: TESForm::LookupByEditorID keyword cache + GetFormEditorID race match; no relocations.)*
+- [x] **C1.3** Re-enable the relationship axis using the proven-safe `RelationshipRankForActor` read path (audit F5). *(Full null-guard chain + const-correct GetRelationship call; history comment preserved.)*
+- [x] **C1.4** SDK-free unit tests for category classification. *(TestCategoryProfiles suite: neutral parity, 18-category stereotypes, application order, creature split, play-style bias, bundle clamps.)*
+
+### C2 — Category Profile Layer
+
+- [x] **C2.1** `CategoryProfileBundle` multiplier bundles per category (predator stalk, feline dart, guard lock, vampire stare…), applied after temperament axes, before clamps. *(DefaultBundleFor + ApplyBundle; triangleMode -1/0/1.)*
+- [x] **C2.2** New `[Profiles]` INI section: `bEnableCategoryProfiles` master + per-category high-signal multipliers; absent = compiled defaults; false = exact current behaviour. *(31 keys; ConfigManager read/sanitise/save complete.)*
+- [x] **C2.3** Player play-style bias (lightweight, observational — flagged for Kirk's review before tuning). *(GatherPlayerPlayStyle: dagger/bow = stealth-leaning, two-hander = heavy; equipped base-form reads only.)*
+- [x] **C2.4** Sanitise + plumb through `ConfigManager` → `GazeTuning` → profile refresh. *(All multipliers clamped [0.1..3]/[0..2] with logged warnings; GazeEngine::CategoryBundleFor is the single bundle authority.)*
+- [x] **C2.5** Parity + clamp unit tests. *(Same suite as C1.4.)*
+
+### C3 — Configurator Exposure
+
+- [x] **C3.1** New "Gaze Profiles" panel: category cards (Player / NPC Types / Races / Creatures & Animals / Other) with per-category mini-presets. *(New [Profiles] section in the HTML schema with 31 keys + full rich-tooltip knowledge base; the panel renders from the schema.)*
+- [x] **C3.2** Re-calibrate the five global Quick Presets from the v1.0.6 verified baseline (remove the double-counted calm slowdown; 12° head-engage floor; Developer preset = shipped INI). *(All five re-derived; presets documented as deltas from baseline.)*
+- [x] **C3.3** Sync the six drifted HTML DEFAULTS to the shipped INI (audit F1). *(fSaccadeSpeedMult 1.5, fVelocitySaturation 18.0, fMicroJitterAmp 0.28, fHeadOnsetDelaySec 0.13, fHeadEngageThresholdDeg 12.0, fPupilGlowIntensity 0.35, bGazeRaysTerminus true; bEnableConsoleCommands matched to INI true per Kirk's decision.)*
+- [x] **C3.4** Tooltip truth pass (stale weight recommendations → eye-dominant values). *(fHeadYawWeight/fHeadPitchWeight rec 0.20-0.30 dflt 0.245; spine/neck weights corrected; head-engage 12°.)*
+- [x] **C3.5** Propagate to all four HTML copies. *(root + skyrim/ hash-identical; dist trees regenerate at packaging.)*
+
+### C4 — Truth, Tooling & Console
+
+- [x] **C4.1** `stgpreset` console command (+ `stgreload`); fix the STATUS.md claim (audit F6). *(Both registered — 11 stg* commands total; stgpreset cycles the five re-calibrated presets, stgreload re-reads the INI + RefreshTuning. STATUS corrected.)*
+- [x] **C4.2** Configurator-parity check in `Invoke-CiGate.ps1` (HTML DEFAULTS vs INI diff) — makes default drift unshippable. *(Stage 6 + standalone scripts/Test-ConfiguratorParity.ps1; bool/numeric/pipe-path normalisation.)*
+- [x] **C4.3** INI comment cleanup (retired GazeBeam reference, `[Console]` duplication). *(GazeBeam comment updated to "RETIRED and removed in v1.0.6"; [Console] block deduplicated with the full stg* command list; [Profiles] section documented to the INI comment standard.)*
+- [x] **C4.4** STATUS/ROADMAP/guide/changelog documentation. *(This update + CHANGELOG entry.)*
+
+**Deliverable:** every category of entity in Skyrim — player, NPC type, race, creature, animal, other — gazes like *itself*, user-tunable per category from the configurator, with the global presets restored to truthful baselines and configuration drift made structurally impossible.

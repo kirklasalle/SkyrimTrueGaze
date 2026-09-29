@@ -3,7 +3,7 @@
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
 **Version:** `1.0.6` (Production Release)  
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Status date:** September 26, 2026  
+**Status date:** September 27, 2026  
 **Owner & Architect:** Kirk LaSalle
 
 > **Document role:** this is the single source of truth for what is *implemented
@@ -126,7 +126,7 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 > + **NPC eyes visibly move and track in-game across focused dialogue and exploration.**
 > + Dynamic 3D Head-Height Elevation solves `NPC Head [Head]` bone transforms to account for seated, leaning, or crouched postures (eliminating horizontal chest aiming).
 > + 3rd-person player character naturally engages nearby conversational partners with biomechanical headtracking.
-> + Console commands (`stgstatus`, `stgverbose`, `stgpreset`, `stgreload`) return telemetry cleanly and switch logging dynamically.
+> + Console commands (`stgstatus`, `stgverbose`) return telemetry cleanly and switch logging dynamically. (`stgpreset`/`stgreload` are designed but NOT yet registered — see the 2026-09-27 configurator audit, finding F6; tracked in roadmap R15 C4.1.)
 
 ---
 
@@ -228,6 +228,14 @@ The project status breaks down into three distinct tiers (percentages sum to 100
 | Out-of-range values clamped and reported | — | ✅ | ❌ | ✅ **Verified in-engine (`Sanitise()` clamps cleanly)** |
 | Standalone HTML config editor (`TrueGazeConfig.html`) | ✅ | ✅ | ✅ | ✅ **Verified** |
 | Zero-script architecture (no SkyUI/MCM/Papyrus) | — | **Removed** | — | ✅ **Verified (Zero script-taint)** |
+| HTML DEFAULTS parity with shipped INI | ✅ | ✅ | ✅ | — *(R15 C3.3 synced 2026-09-27; enforced by scripts/Test-ConfiguratorParity.ps1 + CI gate stage 6)* |
+| Quick Presets calibrated to current engine | ✅ | ✅ | ❌ | — *(R15 C3.2 re-calibrated from the v1.0.6 baseline 2026-09-27; stgpreset applies them at runtime)* |
+| Character Gaze Profiles — category axis (race, NPC type, creatures) | ✅ | ✅ | 🔨 Implemented + 🧪 Unit-verified | — *(R15 C1/C2 2026-09-27: GazeCategory enum, race/keyword gathering, CategoryProfileBundle layer; in-engine observation pending)* |
+| Character Gaze Profiles — relationship axis | ✅ | ✅ | ✅ | — *(R15 C1.3 re-enabled via the R14 E7.6 proven read path 2026-09-27)* |
+| Per-category configurator panel + category presets | ✅ | ✅ | ❌ | — *(R15 C3.1: [Profiles] section in the configurator with per-category sliders + rich tooltips; in-engine pending)* |
+| `stgpreset` / `stgreload` console commands | ✅ | ✅ | ❌ | — *(R15 C4.1 registered 2026-09-27; in-engine confirmation pending)* |
+
+> **Configurator deep audit (2026-09-27):** [`AUDIT_REPORT_2026-09-27_CONFIGURATOR.md`](AUDIT_REPORT_2026-09-27_CONFIGURATOR.md) — full findings register (F1–F10) and the category-preset design. Implementation plan: [`IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md`](IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md).
 
 ---
 
@@ -255,10 +263,10 @@ The project status breaks down into three distinct tiers (percentages sum to 100
    + Eyes were observed actively tracking across town exploration and focused dialogue.
    + Movements were non-static and organic.
 2. **Blinking & Expression Morphs:**
-   + Blinking was observed during saccadic eye movement. Deeper quantitative telemetry has now been added to `tgstatus` (`saccades/blinks` counter) to verify exact trigger counts.
+   + Blinking was observed during saccadic eye movement. Deeper quantitative telemetry has now been added to `stgstatus` (`saccades/blinks` counter) to verify exact trigger counts.
 3. **Diagnostic Telemetry:**
-   + Console command `tgstatus` executed cleanly, returning all engine metrics.
-   + In-game developer 3D visuals (`tgvisuals`) did not appear; per Kirk's direction, visual mesh troubleshooting is deferred to a later milestone while primary biological kinematics remain the active focus.
+   + Console command `stgstatus` executed cleanly, returning all engine metrics.
+   + In-game developer 3D visuals (`stgvisuals`) did not appear; per Kirk's direction, visual mesh troubleshooting is deferred to a later milestone while primary biological kinematics remain the active focus.
 
 ---
 

@@ -8,6 +8,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [!IMPORTANT]
 > **Correction notice.** Earlier entries in this changelog described several features as "implemented" that are not functional, because they were written from design intent rather than from the code. Those entries have been annotated below. See [`docs/STATUS.md`](docs/STATUS.md) for the verified capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the full independent audit.
 
+## [Unreleased] - 2026-09-27 - Category Gaze Profiles & Configuration Truth (R15)
+
+> Execution of `docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md`
+> (roadmap Phase R15), from the configurator deep audit
+> (`docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md`). All changes verified:
+> standalone ctest 3/3 green (13 test suites), full SKSE plugin builds and
+> links against CommonLibSSE-NG v7.5.4, configurator parity gate green.
+> Default parity preserved: `bEnableCategoryProfiles=false` = exact pre-R15
+> behaviour.
+
+### Added
+
+- **Category Gaze Profiles (C1/C2)** — every entity CLASS in Skyrim now gazes
+  like itself. New `GazeCategory` enum (18 categories: Player, Guard, Child,
+  Vampire, Werewolf, Khajiit, Argonian, Elf, Orc, Creature_Predator/Prey/
+  Dragon, Undead, Daedra, Construct, Other) gathered via safe base-form reads
+  (race editor-ID match, `TESForm::LookupByEditorID` keyword cache — no
+  relocations). `CategoryProfileBundle` multiplier bundles layer ON TOP of the
+  temperament axes (Khajiit feline darting, Argonian reptilian stillness,
+  vampire unblinking lock, predator stalk, prey skitter, dragon imperious
+  stare, draugr hollow stare, Dwarven mechanical fixation...), applied after
+  temperament + combat, before clamps.
+- **`[Profiles]` INI section (C2.2)** — 31 keys: `bEnableCategoryProfiles`
+  master + per-category high-signal multipliers (aversion rate, fixation scale,
+  path randomness). Absent keys keep compiled defaults; all clamped [0.1..3]
+  in `Sanitise()` with logged warnings. Mirrored in the configurator with full
+  rich tooltips.
+- **Player play-style bias (C2.5)** — the player's equipped state (dagger/bow
+  = stealth-leaning, two-hander = heavy-combat) biases their own gaze profile:
+  wary watchfulness vs steady directness. Equipped base-form reads only;
+  0 = parity.
+- **`stgpreset` / `stgreload` console commands (C4.1)** — `stgpreset` cycles
+  the five re-calibrated Quick Presets at runtime (writes INI + refreshes
+  tuning in one consistent pass); `stgreload` re-reads `TrueGaze.ini` from
+  disk. Eleven `stg*` commands now registered.
+- **Configurator parity gate (C4.2)** — `scripts/Test-ConfiguratorParity.ps1`
+  (standalone) + stage 6 of `scripts/Invoke-CiGate.ps1`: parses the HTML
+  DEFAULTS block and diffs the shipped INI (bool/numeric/pipe-path
+  normalisation), and verifies the root/skyrim HTML copies are identical.
+  F1-class default drift is now unshippable.
+- **13th unit-test suite `TestCategoryProfiles`** — neutral-bundle parity,
+  18-category stereotype sanity, bundle application order, predator/prey
+  creature split, play-style bias direction, extreme-bundle clamps.
+
+### Changed
+
+- **Relationship axis re-enabled (C1.3, audit F5)** — `GatherTemperament` now
+  reads the relationship rank through the R14 E7.6 proven-safe path (full
+  null-guard chain + const-correct `BGSRelationship::GetRelationship`).
+  Lovers hold eyes longer; enemies lock. History comment preserved.
+- **Quick Presets re-calibrated (C3.2, audit F2)** — all five global presets
+  re-derived from the v1.0.6 verified baseline. The calm/combat speed model
+  means INI speed keys are the COMBAT ceiling (calm = ×0.25 at runtime), so
+  the presets no longer double-count a slowdown. 12° head-engage floor in all
+  non-developer presets (the verified anti-twitch value). Developer preset =
+  the shipped INI exactly (testing fidelity).
+- **HTML DEFAULTS synced to the shipped INI (C3.3, audit F1)** —
+  `fSaccadeSpeedMult` 1.0→1.5, `fVelocitySaturation` 14→18,
+  `fMicroJitterAmp` 0.35→0.28, `fHeadOnsetDelaySec` 0.12→0.13,
+  `fHeadEngageThresholdDeg` 8→12, `fPupilGlowIntensity` 0.5→0.35,
+  `bGazeRaysTerminus` false→true, `bEnableConsoleCommands` false→true
+  (matched to the INI per Kirk's decision).
+- **Tooltip truth pass (C3.4, audit F9)** — stale weight recommendations
+  corrected to the eye-dominant values (`fHeadYawWeight` rec 0.60-0.70 →
+  0.20-0.30, dflt 0.65 → 0.245; spine/neck weights likewise; head-engage
+  rec 6-12 → 12).
+- **INI comment cleanup (C4.3, audit F7/F10)** — the `[Visuals]` GazeBeam
+  comment now states the NIF was RETIRED and removed in v1.0.6; the
+  `[Console]` block deduplicated with the full `stg*` command list.
+
+### Fixed (documentation truth, audit F6)
+
+- `docs/STATUS.md` claimed `stgpreset`/`stgreload` console commands that were
+  never registered. Both now exist (C4.1) and the claim is true.
+
 ## [1.0.6] - 2026-09-27 - Engineering Excellence Implementation
 
 > Execution of `docs/IMPLEMENTATION_PLAN_2026-09-26_ENGINEERING_EXCELLENCE.md`

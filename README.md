@@ -17,7 +17,7 @@
 **Target Platform:** The Elder Scrolls V: Skyrim (SE 1.5.97, AE 1.6.640+, AE 1.6.1170+, Skyrim VR 1.4.15) & Modern Creation Engine
 
 <p align="center">
-  <img src="docs/images/truegaze_hero_banner.jpg" alt="TrueGaze Hero Banner - Biological Perception & Biomechanical Kinematics Engine" width="100%">
+  <img src="docs/images/truegaze_hero_banner_02.jpg" alt="TrueGaze Hero Banner - Biological Perception & Biomechanical Kinematics Engine" width="100%">
 </p>
 
 > [!IMPORTANT]

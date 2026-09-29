@@ -95,6 +95,14 @@ namespace TrueGaze::Engine
         // multipliers) = exact parity with the pre-profile engine.
         bool enableCharacterProfiles{true};
 
+        // --- R15: Category Gaze Profiles ---
+        // Master switch for the category layer. OFF = the temperament axes carry
+        // the whole profile = exact pre-R15 behaviour. The per-category bundle
+        // is resolved from ConfigManager at refresh time (see
+        // GazeEngine::CategoryBundleFor) rather than copied field-by-field here,
+        // so the tuning snapshot stays small and the bundle source stays single.
+        bool enableCategoryProfiles{true};
+
         /// Peak saccadic velocity after the user's speed multiplier is applied.
         [[nodiscard]] constexpr float EffectiveVMax(float baseVMax) const noexcept
         {

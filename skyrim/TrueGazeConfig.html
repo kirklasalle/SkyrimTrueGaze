@@ -1131,15 +1131,15 @@
                 sEngineTarget: ['choice', 'Auto', 'Target engine version (Auto-detect: SE, AE, VR)', ['Auto', 'SE', 'AE', 'VR']]
             },
             'Kinematics': {
-                fSaccadeSpeedMult: ['float', 1.0, 'Multiplier for peak ballistic saccade velocity (human: 700-900 deg/s)', 0.5, 2.0, 0.1, '{v}x'],
-                fVelocitySaturation: ['float', 14.0, 'Velocity saturation constant (c parameter in Main Sequence equation)', 1, 60, 0.5, '{v}'],
-                fMicroJitterAmp: ['float', 0.35, 'Amplitude of micro-saccadic Brownian drift preventing visual freezing (degrees)', 0, 1, 0.05, '{v} deg'],
+                fSaccadeSpeedMult: ['float', 1.5, 'Multiplier for peak ballistic saccade velocity (human: 700-900 deg/s). The COMBAT ceiling — calm behaviour runs at quarter speed at runtime', 0.5, 2.0, 0.1, '{v}x'],
+                fVelocitySaturation: ['float', 18.0, 'Velocity saturation constant (c parameter in Main Sequence equation)', 1, 60, 0.5, '{v}'],
+                fMicroJitterAmp: ['float', 0.28, 'Amplitude of micro-saccadic Brownian drift preventing visual freezing (degrees)', 0, 1, 0.05, '{v} deg'],
                 fMicroJitterIntervalMin: ['float', 0.2, 'Micro-jitter update minimum interval (seconds)', 0.05, 2, 0.05, '{v} s'],
                 fMicroJitterIntervalMax: ['float', 0.45, 'Micro-jitter update maximum interval (seconds)', 0.1, 4, 0.05, '{v} s'],
                 fHeadTrackingSpeed: ['float', 5.2, 'Vestibulo-Ocular Reflex (VOR) head damping tracking factor — lower = slower, more graceful', 0.5, 20, 0.1, '{v}'],
                 fEyePursuitSpeed: ['float', 12.0, 'Smooth ocular pursuit glide rate between fixation points (1/s) — lower = more languid', 1, 60, 1, '{v}'],
                 fMaxComfortEyeAngle: ['float', 35.0, 'Maximum comfortable eye angle before head engagement (degrees)', 5, 60, 1, '{v} deg'],
-                fHeadOnsetDelaySec: ['float', 0.12, 'Biological latency gap: seconds head lags initial eye saccade', 0.0, 0.4, 0.01, '{v} s']
+                fHeadOnsetDelaySec: ['float', 0.13, 'Biological latency gap: seconds head lags initial eye saccade (upper end of the 80-150ms window — the eyes clearly ARRIVE first)', 0.0, 0.4, 0.01, '{v} s']
             },
             'SkeletalHierarchy': {
                 fSpine2YawWeight: ['float', 0.035, 'Spine2 yaw strain weight', 0, 1, 0.005, '{v}'],
@@ -1147,7 +1147,7 @@
                 fNeckPitchWeight: ['float', 0.07, 'Neck pitch strain weight', 0, 1, 0.005, '{v}'],
                 fHeadYawWeight: ['float', 0.245, 'Head yaw strain weight', 0, 1, 0.005, '{v}'],
                 fHeadPitchWeight: ['float', 0.245, 'Head pitch strain weight', 0, 1, 0.005, '{v}'],
-                fHeadEngageThresholdDeg: ['float', 8.0, 'Head engagement threshold: below this angle, only eyes move (degrees)', 0, 45, 1, '{v} deg']
+                fHeadEngageThresholdDeg: ['float', 12.0, 'Head engagement threshold: below this angle, only eyes move (the verified Gold Standard anti-twitch value)', 0, 45, 1, '{v} deg']
             },
             'GazeTarget': {
                 fEyeAnchorForwardCm: ['float', 8.0, 'Eye anchor: forward from the head bone onto the eyeline (cm) — the eyes are the target', -10, 25, 0.5, '{v} cm'],
@@ -1157,6 +1157,38 @@
             },
             'CharacterProfile': {
                 bEnableCharacterProfiles: ['bool', true, 'Temperament-driven gaze: NPCs look like themselves (cowardly merchants avert, guards lock, lovers hold eyes, wolves stare)']
+            },
+            'Profiles': {
+                bEnableCategoryProfiles: ['bool', true, 'Category Gaze Profiles: every entity class (races, NPC types, creatures, undead, constructs) gazes like ITSELF. OFF = temperament-only (exact pre-R15 behaviour)'],
+                fGuardAversionMult: ['float', 0.6, 'Guards: aversion rate multiplier — steady, unflinching authority attention', 0.1, 3, 0.05, '{v}x'],
+                fGuardFixationMult: ['float', 1.25, 'Guards: fixation duration multiplier', 0.1, 3, 0.05, '{v}x'],
+                fChildFixationMult: ['float', 0.6, 'Children: fixation multiplier — quick, curious scanning', 0.1, 3, 0.05, '{v}x'],
+                fChildAversionMult: ['float', 1.3, 'Children: aversion rate multiplier', 0.1, 3, 0.05, '{v}x'],
+                fChildPathRandomnessMult: ['float', 1.4, 'Children: scanpath randomness multiplier — wide curious saccades', 0, 2, 0.05, '{v}x'],
+                fVampireAversionMult: ['float', 0.2, 'Vampires: aversion rate — intense, unblinking predatory lock', 0.1, 3, 0.05, '{v}x'],
+                fVampireFixationMult: ['float', 1.5, 'Vampires: fixation duration multiplier', 0.1, 3, 0.05, '{v}x'],
+                fWerewolfFixationMult: ['float', 0.7, 'Werewolves: fixation multiplier — feral, restless, brief hard locks', 0.1, 3, 0.05, '{v}x'],
+                fWerewolfPathRandomnessMult: ['float', 1.5, 'Werewolves: scanpath randomness — frequent shifts', 0, 2, 0.05, '{v}x'],
+                fKhajiitFixationMult: ['float', 0.8, 'Khajiit: fixation multiplier — feline darting, quick curious glances', 0.1, 3, 0.05, '{v}x'],
+                fKhajiitPathRandomnessMult: ['float', 1.3, 'Khajiit: scanpath randomness — playful scanning', 0, 2, 0.05, '{v}x'],
+                fArgonianFixationMult: ['float', 1.3, 'Argonians: fixation multiplier — reptilian stillness, long steady holds', 0.1, 3, 0.05, '{v}x'],
+                fArgonianAversionMult: ['float', 0.7, 'Argonians: aversion rate — slow deliberate shifts', 0.1, 3, 0.05, '{v}x'],
+                fElfFixationMult: ['float', 1.15, 'Elves: fixation multiplier — Aldmeri poise, measured and composed', 0.1, 3, 0.05, '{v}x'],
+                fElfAversionMult: ['float', 0.8, 'Elves: aversion rate — slightly aloof', 0.1, 3, 0.05, '{v}x'],
+                fOrcAversionMult: ['float', 0.5, 'Orcs: aversion rate — direct, confrontational', 0.1, 3, 0.05, '{v}x'],
+                fOrcFixationMult: ['float', 1.2, 'Orcs: fixation duration multiplier', 0.1, 3, 0.05, '{v}x'],
+                fPredatorFixationMult: ['float', 1.4, 'Predators (wolves, sabre cats): fixation — stalking attention, no social triangle', 0.1, 3, 0.05, '{v}x'],
+                fPredatorAversionMult: ['float', 0.3, 'Predators: aversion rate — they hold a stare', 0.1, 3, 0.05, '{v}x'],
+                fPreyFixationMult: ['float', 0.6, 'Prey animals (deer, elk): fixation — skittish wary glances', 0.1, 3, 0.05, '{v}x'],
+                fPreyAversionMult: ['float', 1.6, 'Prey animals: aversion rate — frequent wary glances', 0.1, 3, 0.05, '{v}x'],
+                fDragonFixationMult: ['float', 1.8, 'Dragons: fixation — ancient, imperious, unblinking', 0.1, 3, 0.05, '{v}x'],
+                fDragonAversionMult: ['float', 0.15, 'Dragons: aversion rate', 0.1, 3, 0.05, '{v}x'],
+                fUndeadFixationMult: ['float', 1.6, 'Undead (draugr, skeletons): fixation — hollow, unfocused, long vacant stares', 0.1, 3, 0.05, '{v}x'],
+                fUndeadAversionMult: ['float', 0.4, 'Undead: aversion rate — no social warmth', 0.1, 3, 0.05, '{v}x'],
+                fDaedraAversionMult: ['float', 0.25, 'Daedra: aversion rate — otherworldly menace, hard lock', 0.1, 3, 0.05, '{v}x'],
+                fDaedraFixationMult: ['float', 1.4, 'Daedra: fixation duration — cold appraisal', 0.1, 3, 0.05, '{v}x'],
+                fConstructFixationMult: ['float', 2.0, 'Dwarven constructs: fixation — mechanical, unbroken', 0.1, 3, 0.05, '{v}x'],
+                fConstructAversionMult: ['float', 0.1, 'Dwarven constructs: aversion rate — zero social softness', 0.1, 3, 0.05, '{v}x']
             },
             'Social': {
                 bEnableGazeAversion: ['bool', true, 'Cognitive Gaze Aversion when NPCs process thoughts (THINK mode)'],
@@ -1199,17 +1231,17 @@
                 bGazeRaysOnNPCs: ['bool', true, 'Emit beams from humanoid NPCs'],
                 bGazeRaysOnCreatures: ['bool', true, 'Emit beams from creatures'],
                 bGazeRaysAttachHead: ['bool', true, 'Attach the emitter to the head bone (false = actor root)'],
-                bGazeRaysTerminus: ['bool', false, 'Also place a second glow where the gaze lands'],
+                bGazeRaysTerminus: ['bool', true, 'Also place a second glow where the gaze lands'],
                 fPupilForwardOffsetCm: ['float', 12.0, 'Pupil origin: offset forward from the head bone origin (cm)', 0, 30, 0.5, '{v} cm'],
                 fPupilUpOffsetCm: ['float', 6.0, 'Pupil origin: offset up from the head bone origin (cm)', -10, 15, 0.5, '{v} cm'],
-                fPupilGlowIntensity: ['float', 0.5, 'Pupil emitter brightness multiplier', 0, 3, 0.05, '{v}x'],
+                fPupilGlowIntensity: ['float', 0.35, 'Pupil emitter brightness multiplier', 0, 3, 0.05, '{v}x'],
                 bShowHcepPanel: ['bool', false, 'Master switch for the floating HCEP 9-region diagram panel'],
                 bHcepPanelAllActors: ['bool', true, 'Show HCEP panel on Player, NPCs, and Creatures (false = Player only)'],
                 fHcepPanelScale: ['float', 5.0, 'Scale factor for the floating HCEP panel in Skyrim units (~7cm readable label)', 0.5, 30.0, 0.5, '{v}'],
                 fHcepPanelForwardOffsetCm: ['float', 35.0, 'Forward distance in front of actor head in cm (~24.5 Skyrim units)', 10.0, 100.0, 1.0, '{v} cm']
             },
             'Console': {
-                bEnableConsoleCommands: ['bool', false, 'Register the stg* commands in the game console (~). Vanilla only - no Papyrus, ESP or MCM. Type stgstatus to check state, stgon/stgoff for visuals.']
+                bEnableConsoleCommands: ['bool', true, 'Register the stg* commands in the game console (~). Vanilla only - no Papyrus, ESP or MCM. Type stgstatus to check state, stgon/stgoff for visuals.']
             }
         };
 
@@ -1219,6 +1251,7 @@
             'SkeletalHierarchy': 'Skeletal Hierarchy Strain',
             'GazeTarget': 'Eye Target & Eye-Lead',
             'CharacterProfile': 'Character Gaze Profiles',
+            'Profiles': 'Category Gaze Profiles (Races, Types & Creatures)',
             'Social': 'Social Dynamics',
             'Crosshair': 'Crosshair Sweet Spot',
             'Bridge': 'HCEP Connected Mode',
@@ -1309,44 +1342,44 @@
             'SkeletalHierarchy:fSpine2YawWeight': {
                 desc: 'Fractional rotational strain assigned to the upper thoracic vertebra (NPC Spine2 [Spn2]).',
                 impact: 'Subtly twists the upper torso when an NPC looks far over their shoulder.',
-                context: 'High-degree yaw turns engage the torso; keep low (0.05–0.15) to avoid body contortions.',
-                rec: '0.10 (10%)',
-                dflt: '0.1'
+                context: 'High-degree yaw turns engage the torso; keep low to avoid body contortions. EYE-DOMINANT tuning: 0.035 (3.5%) — the verified Gold Standard distribution.',
+                rec: '0.03 - 0.05',
+                dflt: '0.035'
             },
             'SkeletalHierarchy:fNeckYawWeight': {
                 desc: 'Fractional yaw strain carried by the mid-cervical neck bones (NPC Neck [Neck]).',
                 impact: 'Distributes head turning through the neck column, preventing the head from pivoting like an unnatural swivel.',
-                context: 'Works in harmony with HeadYawWeight to create smooth anatomical bending.',
-                rec: '0.25 (25%)',
-                dflt: '0.25'
+                context: 'Works in harmony with HeadYawWeight to create smooth anatomical bending. EYE-DOMINANT tuning: 0.07 (7%) — the verified Gold Standard distribution.',
+                rec: '0.05 - 0.10',
+                dflt: '0.07'
             },
             'SkeletalHierarchy:fNeckPitchWeight': {
                 desc: 'Fractional pitch strain assigned to the neck for looking up and down.',
                 impact: 'Bends the neck forward or backward when looking at elevated dragons or ground targets.',
-                context: 'Balances head pitch for natural chin tucking and craning.',
-                rec: '0.25 (25%)',
-                dflt: '0.25'
+                context: 'Balances head pitch for natural chin tucking and craning. EYE-DOMINANT tuning: 0.07 (7%).',
+                rec: '0.05 - 0.10',
+                dflt: '0.07'
             },
             'SkeletalHierarchy:fHeadYawWeight': {
                 desc: 'Primary yaw strain assigned to the cranial head bone (NPC Head [Head]).',
-                impact: 'Carries the main directional turning of the skull relative to the neck.',
-                context: 'Represents the rotational freedom of the atlanto-axial (C1-C2) joint.',
-                rec: '0.60 - 0.70',
-                dflt: '0.65'
+                impact: 'Carries the main directional turning of the skull relative to the neck. EYE-DOMINANT tuning: the head carries a MINORITY share so the eyes receive the residual and visibly lead.',
+                context: 'Represents the rotational freedom of the atlanto-axial (C1-C2) joint. The v1.0.5+ eye-dominant tuning reduced this from 0.65 to 0.245 — the verified Gold Standard distribution.',
+                rec: '0.20 - 0.30',
+                dflt: '0.245'
             },
             'SkeletalHierarchy:fHeadPitchWeight': {
                 desc: 'Primary pitch strain assigned to the cranial head bone.',
-                impact: 'Tilts the head up or down to align with vertical gaze targets.',
+                impact: 'Tilts the head up or down to align with vertical gaze targets. EYE-DOMINANT tuning: reduced from 0.55 to 0.245 so the eyes carry the pitch residual.',
                 context: 'Governs nodding, chin elevation, and direct vertical visual line of sight.',
-                rec: '0.30 - 0.45',
-                dflt: '0.35'
+                rec: '0.20 - 0.30',
+                dflt: '0.245'
             },
             'SkeletalHierarchy:fHeadEngageThresholdDeg': {
                 desc: 'Head engagement threshold (degrees). For gaze shifts smaller than this, ONLY the eyes move — the head stays perfectly still.',
                 impact: 'Eliminates robotic micro-head-turns during social triangle cycling at close range. The most visible contributor to natural-looking NPCs.',
-                context: 'Human heads do not visibly move for tiny 2-5° gaze shifts (e.g. glancing between someone\'s left and right eye). Only the eyes dart. Set to 0 to disable.',
-                rec: '6 - 12 deg',
-                dflt: '8.0 deg'
+                context: 'Human heads do not visibly move for tiny 2-5° gaze shifts (e.g. glancing between someone\'s left and right eye). Only the eyes dart. Set to 0 to disable. 12° covers the entire close-range social triangle — the verified Gold Standard value.',
+                rec: '12 deg',
+                dflt: '12.0 deg'
             },
             'GazeTarget:fEyeAnchorForwardCm': {
                 desc: 'How far forward from the head bone the true "eye point" sits, in centimetres. THE EYES ARE THE TARGET.',
@@ -1382,6 +1415,216 @@
                 context: 'Grounded in gaze psychology: avoidance correlates with low confidence (Shackelford 1996); affective eye contact has measurable emotional effects (Frontiers 2018); personality shapes gaze patterns (SAGE QJEP 2025). OFF = neutral profile, exact pre-profile behaviour.',
                 rec: 'True',
                 dflt: 'True'
+            },
+            'Profiles:bEnableCategoryProfiles': {
+                desc: 'CATEGORY GAZE PROFILES (R15). Every entity CLASS in Skyrim now gazes like itself: Khajiit scan with feline darting, Argonians hold reptilian stillness, vampires lock unblinking, wolves stalk fixation-dominant, deer glance skittishly, draugr stare hollow, Dwarven spheres fixate mechanically.',
+                impact: 'Layers a per-category multiplier bundle ON TOP of the temperament profile. A Nord guard still reads as a guard; a Khajiit coward still reads as cowardly — the category colours the temperament rather than replacing it.',
+                context: 'OFF = temperament-only = exact pre-R15 behaviour. The per-category multipliers below override the compiled stereotype defaults; each category\'s keys only affect actors of that category.',
+                rec: 'True',
+                dflt: 'True'
+            },
+            'Profiles:fGuardAversionMult': {
+                desc: 'Guards: how often gaze breaks away. Authority reads as steady, unflinching attention.',
+                impact: 'Lower = the guard holds your eyes longer without looking away. Higher = more restless patrol-glancing.',
+                context: 'Composes with the temperament axes: a cowardly guard still averts more than a foolhardy one.',
+                rec: '0.4 - 0.8',
+                dflt: '0.6'
+            },
+            'Profiles:fGuardFixationMult': {
+                desc: 'Guards: fixation duration multiplier.',
+                impact: 'Higher = longer steady holds on each gaze region.',
+                context: 'The steady-lock half of the authority stereotype.',
+                rec: '1.1 - 1.4',
+                dflt: '1.25'
+            },
+            'Profiles:fChildFixationMult': {
+                desc: 'Children: fixation duration. Quick, curious scanning with little sustained lock.',
+                impact: 'Lower = quicker, more curious glances.',
+                context: 'Children scan faces differently from adults — wide, fast, exploratory.',
+                rec: '0.5 - 0.8',
+                dflt: '0.6'
+            },
+            'Profiles:fChildAversionMult': {
+                desc: 'Children: aversion rate. Curious glances break and return quickly.',
+                impact: 'Higher = more frequent gaze shifts — the restless curiosity of a child.',
+                context: 'Composes with path randomness for the full curious-scanning effect.',
+                rec: '1.1 - 1.5',
+                dflt: '1.3'
+            },
+            'Profiles:fChildPathRandomnessMult': {
+                desc: 'Children: scanpath randomness. Wide, unpredictable saccades.',
+                impact: 'Higher = the gaze wanders more freely between regions.',
+                context: 'Clamped 0-2 after scaling.',
+                rec: '1.2 - 1.6',
+                dflt: '1.4'
+            },
+            'Profiles:fVampireAversionMult': {
+                desc: 'Vampires: aversion rate. The intense, unblinking predatory lock.',
+                impact: 'Very low = almost never looks away — the stare that makes the skin crawl.',
+                context: 'The vampire stereotype: predatory patience disguised as nobility.',
+                rec: '0.1 - 0.3',
+                dflt: '0.2'
+            },
+            'Profiles:fVampireFixationMult': {
+                desc: 'Vampires: fixation duration.',
+                impact: 'Higher = longer unbroken holds.',
+                context: 'Pairs with low aversion for the full predatory-lock effect.',
+                rec: '1.3 - 1.7',
+                dflt: '1.5'
+            },
+            'Profiles:fWerewolfFixationMult': {
+                desc: 'Werewolves: fixation duration. Feral and restless — brief hard locks.',
+                impact: 'Lower = shorter, sharper locks before the gaze snaps elsewhere.',
+                context: 'The beast stereotype: attention that never settles.',
+                rec: '0.5 - 0.9',
+                dflt: '0.7'
+            },
+            'Profiles:fWerewolfPathRandomnessMult': {
+                desc: 'Werewolves: scanpath randomness. Frequent, unpredictable shifts.',
+                impact: 'Higher = more erratic gaze movement.',
+                context: 'Clamped 0-2 after scaling.',
+                rec: '1.3 - 1.7',
+                dflt: '1.5'
+            },
+            'Profiles:fKhajiitFixationMult': {
+                desc: 'Khajiit: fixation duration. Feline darting — quick curious glances.',
+                impact: 'Lower = quicker, more playful glances.',
+                context: 'Feline attention: intense but brief, always tracking motion.',
+                rec: '0.6 - 1.0',
+                dflt: '0.8'
+            },
+            'Profiles:fKhajiitPathRandomnessMult': {
+                desc: 'Khajiit: scanpath randomness. Playful, wandering scanning.',
+                impact: 'Higher = the gaze roams more freely between regions.',
+                context: 'Clamped 0-2 after scaling.',
+                rec: '1.1 - 1.5',
+                dflt: '1.3'
+            },
+            'Profiles:fArgonianFixationMult': {
+                desc: 'Argonians: fixation duration. Reptilian stillness — long steady holds.',
+                impact: 'Higher = longer, more deliberate holds.',
+                context: 'The lizard stereotype: economy of motion, patient observation.',
+                rec: '1.1 - 1.5',
+                dflt: '1.3'
+            },
+            'Profiles:fArgonianAversionMult': {
+                desc: 'Argonians: aversion rate. Slow, deliberate shifts.',
+                impact: 'Lower = shifts gaze less often.',
+                context: 'Pairs with long fixations for the full stillness effect.',
+                rec: '0.5 - 0.9',
+                dflt: '0.7'
+            },
+            'Profiles:fElfFixationMult': {
+                desc: 'Elves: fixation duration. Aldmeri poise — measured and composed.',
+                impact: 'Higher = longer, more deliberate holds.',
+                context: 'The aloof-nobility stereotype: attention as a courtesy, not a need.',
+                rec: '1.0 - 1.3',
+                dflt: '1.15'
+            },
+            'Profiles:fElfAversionMult': {
+                desc: 'Elves: aversion rate. Slightly aloof.',
+                impact: 'Lower = breaks gaze less often.',
+                context: 'Composes with the poise fixation for the composed-attention effect.',
+                rec: '0.6 - 1.0',
+                dflt: '0.8'
+            },
+            'Profiles:fOrcAversionMult': {
+                desc: 'Orcs: aversion rate. Direct, confrontational — holds the stare.',
+                impact: 'Lower = almost never looks away first.',
+                context: 'Stronghold culture: sustained eye contact as social dominance.',
+                rec: '0.3 - 0.7',
+                dflt: '0.5'
+            },
+            'Profiles:fOrcFixationMult': {
+                desc: 'Orcs: fixation duration.',
+                impact: 'Higher = longer direct holds.',
+                context: 'Pairs with low aversion for the confrontational lock.',
+                rec: '1.0 - 1.4',
+                dflt: '1.2'
+            },
+            'Profiles:fPredatorFixationMult': {
+                desc: 'Predators (wolves, sabre cats, bears): fixation duration. Stalking attention.',
+                impact: 'Higher = longer unbroken tracking holds. No social triangle — pure target attention.',
+                context: 'A stalking predator fixes on its target; it does not scan eyes and mouth.',
+                rec: '1.2 - 1.6',
+                dflt: '1.4'
+            },
+            'Profiles:fPredatorAversionMult': {
+                desc: 'Predators: aversion rate. They hold a stare.',
+                impact: 'Lower = the predator almost never breaks its gaze.',
+                context: 'Predatory attention is fixation-dominant by design.',
+                rec: '0.2 - 0.4',
+                dflt: '0.3'
+            },
+            'Profiles:fPreyFixationMult': {
+                desc: 'Prey animals (deer, elk, rabbits): fixation duration. Skittish wary glances.',
+                impact: 'Lower = shorter glances — check and look away, check and look away.',
+                context: 'Prey attention is threat-detection: frequent brief checks, never a stare.',
+                rec: '0.4 - 0.8',
+                dflt: '0.6'
+            },
+            'Profiles:fPreyAversionMult': {
+                desc: 'Prey animals: aversion rate. Frequent wary glances.',
+                impact: 'Higher = the animal checks its surroundings more often.',
+                context: 'Pairs with short fixations for the full skittish effect.',
+                rec: '1.3 - 1.9',
+                dflt: '1.6'
+            },
+            'Profiles:fDragonFixationMult': {
+                desc: 'Dragons: fixation duration. Ancient, imperious, unblinking.',
+                impact: 'Higher = longer contemptuous holds.',
+                context: 'A dragon regards mortals the way a cat regards a mouse.',
+                rec: '1.5 - 2.0',
+                dflt: '1.8'
+            },
+            'Profiles:fDragonAversionMult': {
+                desc: 'Dragons: aversion rate.',
+                impact: 'Very low = almost never breaks its gaze.',
+                context: 'Imperious attention: mortals are not worth looking away from.',
+                rec: '0.1 - 0.2',
+                dflt: '0.15'
+            },
+            'Profiles:fUndeadFixationMult': {
+                desc: 'Undead (draugr, skeletons, ghosts): fixation duration. Hollow, unfocused, long vacant stares.',
+                impact: 'Higher = longer vacant holds.',
+                context: 'The undead stereotype: attention without warmth, gaze without intent.',
+                rec: '1.4 - 1.8',
+                dflt: '1.6'
+            },
+            'Profiles:fUndeadAversionMult': {
+                desc: 'Undead: aversion rate. No social warmth.',
+                impact: 'Lower = holds its vacant stare longer.',
+                context: 'No social signalling — the stare is a state, not a message.',
+                rec: '0.3 - 0.5',
+                dflt: '0.4'
+            },
+            'Profiles:fDaedraAversionMult': {
+                desc: 'Daedra: aversion rate. Otherworldly menace — the hard lock.',
+                impact: 'Very low = an unblinking, appraising stare.',
+                context: 'Daedric attention reads as cold appraisal from beyond Nirn.',
+                rec: '0.15 - 0.35',
+                dflt: '0.25'
+            },
+            'Profiles:fDaedraFixationMult': {
+                desc: 'Daedra: fixation duration. Cold appraisal.',
+                impact: 'Higher = longer measuring holds.',
+                context: 'Pairs with low aversion for the full menace effect.',
+                rec: '1.2 - 1.6',
+                dflt: '1.4'
+            },
+            'Profiles:fConstructFixationMult': {
+                desc: 'Dwarven constructs (spheres, centurions, spiders): fixation duration. Mechanical, unbroken.',
+                impact: 'Very high = a machine\'s unbroken target lock.',
+                context: 'A construct does not social-scan; it acquires and holds.',
+                rec: '1.7 - 2.3',
+                dflt: '2.0'
+            },
+            'Profiles:fConstructAversionMult': {
+                desc: 'Dwarven constructs: aversion rate. Zero social softness.',
+                impact: 'Very low = the lock almost never breaks.',
+                context: 'Mechanical attention: no aversion, no warmth, no triangle.',
+                rec: '0.1 - 0.2',
+                dflt: '0.1'
             },
             'Social:fCgaHeadInvolvement': {
                 desc: 'How much the head chain participates during Cognitive Gaze Aversion (THINK mode). 0 = pure eye movement, 1 = full head turning.',
@@ -2035,23 +2278,34 @@
         }
 
         // ------------------------------------------------------------------
-        // Quick Presets
+        // Quick Presets — R15 C3.2 RE-CALIBRATED (2026-09-27).
+        //
+        // All five presets are now derived from the v1.0.6 VERIFIED BASELINE
+        // (the shipped TrueGaze.ini values). Semantics change from the
+        // pre-Gold-Standard era: every speed key is the COMBAT CEILING — the
+        // calm/combat speed model runs calm behaviour at quarter speed at
+        // runtime, so presets must NOT double-count a slowdown on top.
+        // The 12° head-engage threshold (the verified anti-twitch value) is
+        // the floor for all non-developer presets. The Developer preset IS
+        // the shipped baseline exactly (testing fidelity).
         // ------------------------------------------------------------------
         function applyPreset(presetName) {
             const p = {
+                // VANILLA BALANCED = the shipped v1.0.6 baseline itself.
                 vanilla: {
-                    'Kinematics:fSaccadeSpeedMult': '1.0',
-                    'Kinematics:fMicroJitterAmp': '0.18',
-                    'Kinematics:fHeadTrackingSpeed': '3.2',
-                    'Kinematics:fEyePursuitSpeed': '10.0',
-                    'Kinematics:fMaxComfortEyeAngle': '30.0',
-                    'Kinematics:fHeadOnsetDelaySec': '0.10',
+                    'Kinematics:fSaccadeSpeedMult': '1.5',
+                    'Kinematics:fVelocitySaturation': '18.0',
+                    'Kinematics:fMicroJitterAmp': '0.28',
+                    'Kinematics:fHeadTrackingSpeed': '5.2',
+                    'Kinematics:fEyePursuitSpeed': '12.0',
+                    'Kinematics:fMaxComfortEyeAngle': '35.0',
+                    'Kinematics:fHeadOnsetDelaySec': '0.13',
                     'SkeletalHierarchy:fSpine2YawWeight': '0.035',
                     'SkeletalHierarchy:fNeckYawWeight': '0.07',
                     'SkeletalHierarchy:fNeckPitchWeight': '0.07',
                     'SkeletalHierarchy:fHeadYawWeight': '0.245',
                     'SkeletalHierarchy:fHeadPitchWeight': '0.245',
-                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '8.0',
+                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '12.0',
                     'Social:fCgaHeadInvolvement': '0.08',
                     'Social:bDialogueSyncCgaReturn': 'true',
                     'Social:fCgaDialogueOffsetSec': '2.0',
@@ -2059,24 +2313,27 @@
                     'Social:bEnableSocialTriangle': 'true',
                     'Social:fTrianglePathRandomness': '0.6',
                     'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Profiles:bEnableCategoryProfiles': 'true',
                     'Visuals:bEnableInGameVisuals': 'false',
                     'Visuals:bGazeRaysEnabled': 'false',
                     'Visuals:bShowHcepPanel': 'false',
                     'Debug:bDebugGazeRays': 'false',
                     'Debug:iLogLevel': '2'
                 },
+                // SUBTLE = baseline with a GENTLE combat-ceiling reduction.
+                // (Calm already runs at quarter speed; this only softens combat.)
                 subtle: {
-                    'Kinematics:fSaccadeSpeedMult': '0.7',
-                    'Kinematics:fMicroJitterAmp': '0.09',
-                    'Kinematics:fHeadTrackingSpeed': '2.0',
-                    'Kinematics:fEyePursuitSpeed': '8.0',
-                    'Kinematics:fMaxComfortEyeAngle': '22.0',
-                    'Kinematics:fHeadOnsetDelaySec': '0.12',
-                    'SkeletalHierarchy:fSpine2YawWeight': '0.03',
+                    'Kinematics:fSaccadeSpeedMult': '1.2',
+                    'Kinematics:fMicroJitterAmp': '0.18',
+                    'Kinematics:fHeadTrackingSpeed': '4.0',
+                    'Kinematics:fEyePursuitSpeed': '10.0',
+                    'Kinematics:fMaxComfortEyeAngle': '30.0',
+                    'Kinematics:fHeadOnsetDelaySec': '0.13',
+                    'SkeletalHierarchy:fSpine2YawWeight': '0.035',
                     'SkeletalHierarchy:fNeckYawWeight': '0.07',
-                    'SkeletalHierarchy:fNeckPitchWeight': '0.08',
-                    'SkeletalHierarchy:fHeadYawWeight': '0.25',
-                    'SkeletalHierarchy:fHeadPitchWeight': '0.25',
+                    'SkeletalHierarchy:fNeckPitchWeight': '0.07',
+                    'SkeletalHierarchy:fHeadYawWeight': '0.245',
+                    'SkeletalHierarchy:fHeadPitchWeight': '0.245',
                     'SkeletalHierarchy:fHeadEngageThresholdDeg': '12.0',
                     'Social:fCgaHeadInvolvement': '0.05',
                     'Social:bDialogueSyncCgaReturn': 'true',
@@ -2085,25 +2342,28 @@
                     'Social:bEnableSocialTriangle': 'true',
                     'Social:fTrianglePathRandomness': '0.5',
                     'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Profiles:bEnableCategoryProfiles': 'true',
                     'Visuals:bEnableInGameVisuals': 'false',
                     'Visuals:bGazeRaysEnabled': 'false',
                     'Visuals:bShowHcepPanel': 'false',
                     'Debug:bDebugGazeRays': 'false',
                     'Debug:iLogLevel': '2'
                 },
+                // INTENSE = baseline with a heightened combat ceiling.
+                // (12° head-engage floor preserved — no head-twitch regression.)
                 intense: {
-                    'Kinematics:fSaccadeSpeedMult': '1.15',
-                    'Kinematics:fMicroJitterAmp': '0.28',
-                    'Kinematics:fHeadTrackingSpeed': '4.4',
-                    'Kinematics:fEyePursuitSpeed': '14.0',
+                    'Kinematics:fSaccadeSpeedMult': '1.8',
+                    'Kinematics:fMicroJitterAmp': '0.35',
+                    'Kinematics:fHeadTrackingSpeed': '6.5',
+                    'Kinematics:fEyePursuitSpeed': '15.0',
                     'Kinematics:fMaxComfortEyeAngle': '35.0',
-                    'Kinematics:fHeadOnsetDelaySec': '0.08',
-                    'SkeletalHierarchy:fSpine2YawWeight': '0.056',
-                    'SkeletalHierarchy:fNeckYawWeight': '0.105',
-                    'SkeletalHierarchy:fNeckPitchWeight': '0.105',
-                    'SkeletalHierarchy:fHeadYawWeight': '0.315',
-                    'SkeletalHierarchy:fHeadPitchWeight': '0.315',
-                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '5.0',
+                    'Kinematics:fHeadOnsetDelaySec': '0.10',
+                    'SkeletalHierarchy:fSpine2YawWeight': '0.035',
+                    'SkeletalHierarchy:fNeckYawWeight': '0.07',
+                    'SkeletalHierarchy:fNeckPitchWeight': '0.07',
+                    'SkeletalHierarchy:fHeadYawWeight': '0.245',
+                    'SkeletalHierarchy:fHeadPitchWeight': '0.245',
+                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '12.0',
                     'Social:fCgaHeadInvolvement': '0.12',
                     'Social:bDialogueSyncCgaReturn': 'true',
                     'Social:fCgaDialogueOffsetSec': '1.5',
@@ -2111,25 +2371,27 @@
                     'Social:bEnableSocialTriangle': 'true',
                     'Social:fTrianglePathRandomness': '0.7',
                     'Crosshair:bEnableCrosshairGaze': 'true',
+                    'Profiles:bEnableCategoryProfiles': 'true',
                     'Visuals:bEnableInGameVisuals': 'false',
                     'Visuals:bGazeRaysEnabled': 'false',
                     'Visuals:bShowHcepPanel': 'false',
                     'Debug:bDebugGazeRays': 'false',
                     'Debug:iLogLevel': '2'
                 },
+                // SOCIAL & DIALOGUE = baseline tuned for conversation richness.
                 social: {
-                    'Kinematics:fSaccadeSpeedMult': '0.85',
-                    'Kinematics:fMicroJitterAmp': '0.14',
-                    'Kinematics:fHeadTrackingSpeed': '2.6',
-                    'Kinematics:fEyePursuitSpeed': '10.0',
-                    'Kinematics:fMaxComfortEyeAngle': '25.0',
-                    'Kinematics:fHeadOnsetDelaySec': '0.10',
-                    'SkeletalHierarchy:fSpine2YawWeight': '0.028',
-                    'SkeletalHierarchy:fNeckYawWeight': '0.056',
+                    'Kinematics:fSaccadeSpeedMult': '1.5',
+                    'Kinematics:fMicroJitterAmp': '0.22',
+                    'Kinematics:fHeadTrackingSpeed': '5.2',
+                    'Kinematics:fEyePursuitSpeed': '12.0',
+                    'Kinematics:fMaxComfortEyeAngle': '35.0',
+                    'Kinematics:fHeadOnsetDelaySec': '0.13',
+                    'SkeletalHierarchy:fSpine2YawWeight': '0.035',
+                    'SkeletalHierarchy:fNeckYawWeight': '0.07',
                     'SkeletalHierarchy:fNeckPitchWeight': '0.07',
-                    'SkeletalHierarchy:fHeadYawWeight': '0.21',
-                    'SkeletalHierarchy:fHeadPitchWeight': '0.21',
-                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '10.0',
+                    'SkeletalHierarchy:fHeadYawWeight': '0.245',
+                    'SkeletalHierarchy:fHeadPitchWeight': '0.245',
+                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '12.0',
                     'GazeTarget:fEyeAnchorForwardCm': '7.0',
                     'GazeTarget:fEyeAnchorUpCm': '7.5',
                     'GazeTarget:fEyeMorphGain': '1.8',
@@ -2143,6 +2405,7 @@
                     'Social:fMutualGazeThreshold': '1.5',
                     'Crosshair:bEnableCrosshairGaze': 'true',
                     'Crosshair:fCrosshairToleranceDeg': '6.0',
+                    'Profiles:bEnableCategoryProfiles': 'true',
                     'Visuals:bEnableInGameVisuals': 'false',
                     'Visuals:bGazeRaysEnabled': 'false',
                     'Visuals:bShowHcepPanel': 'false',
@@ -2175,33 +2438,40 @@
                     'Debug:iLogLevel': '1',
                     // --- Console commands enabled ---
                     'Console:bEnableConsoleCommands': 'true',
-                    // --- High-Responsiveness Kinematics for Testing & Verification ---
+                    // --- R15 C3.2: kinematics = the SHIPPED v1.0.6 BASELINE exactly.
+                    //     The developer preset is the testing baseline: it must
+                    //     match the shipped INI so a field test exercises the same
+                    //     engine a user gets. (fHeadOnsetDelaySec 0.13 and
+                    //     fHeadEngageThresholdDeg 12.0 were the stale pre-Gold-
+                    //     Standard values; corrected 2026-09-27.) ---
                     'Kinematics:fSaccadeSpeedMult': '1.5',
                     'Kinematics:fVelocitySaturation': '18.0',
                     'Kinematics:fMicroJitterAmp': '0.28',
                     'Kinematics:fHeadTrackingSpeed': '5.2',
                     'Kinematics:fEyePursuitSpeed': '12.0',
                     'Kinematics:fMaxComfortEyeAngle': '35.0',
-                    'Kinematics:fHeadOnsetDelaySec': '0.06',
-                    // --- Skeletal Hierarchy Distribution ---
+                    'Kinematics:fHeadOnsetDelaySec': '0.13',
+                    // --- Skeletal Hierarchy Distribution (shipped baseline) ---
                     'SkeletalHierarchy:fSpine2YawWeight': '0.035',
                     'SkeletalHierarchy:fNeckYawWeight': '0.07',
                     'SkeletalHierarchy:fNeckPitchWeight': '0.07',
                     'SkeletalHierarchy:fHeadYawWeight': '0.245',
                     'SkeletalHierarchy:fHeadPitchWeight': '0.245',
-                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '6.0',
-                    // --- Rapid Social Fixations for Immediate Feedback ---
+                    'SkeletalHierarchy:fHeadEngageThresholdDeg': '12.0',
+                    // --- Social (shipped baseline) ---
                     'Social:bEnableGazeAversion': 'true',
                     'Social:bEnableSocialTriangle': 'true',
-                    'Social:fTriangleFixationDuration': '0.25',
+                    'Social:fTriangleFixationDuration': '0.35',
                     'Social:fTrianglePathRandomness': '0.6',
-                    'Social:fMutualGazeThreshold': '1.0',
+                    'Social:fMutualGazeThreshold': '2.0',
                     'Social:fCgaHeadInvolvement': '0.08',
                     'Social:bDialogueSyncCgaReturn': 'true',
-                    'Social:fCgaDialogueOffsetSec': '1.0',
-                    // --- Instant Crosshair Sweet Spot ---
+                    'Social:fCgaDialogueOffsetSec': '2.0',
+                    // --- Crosshair (shipped baseline) ---
                     'Crosshair:bEnableCrosshairGaze': 'true',
-                    'Crosshair:fCrosshairToleranceDeg': '6.0'
+                    'Crosshair:fCrosshairToleranceDeg': '4.0',
+                    // --- Category profiles ON (full population differentiation) ---
+                    'Profiles:bEnableCategoryProfiles': 'true'
                 }
             }[presetName];
 

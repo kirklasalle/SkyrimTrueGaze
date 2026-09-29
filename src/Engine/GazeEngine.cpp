@@ -244,6 +244,7 @@ namespace TrueGaze::Engine
         _tuning.enableCreatures = cfg.enableCreatures;
         _tuning.debugGazeRays = cfg.debugGazeRays;
         _tuning.enableCharacterProfiles = cfg.enableCharacterProfiles;
+        _tuning.enableCategoryProfiles = cfg.enableCategoryProfiles;
 
         _tuning.saccadeSpeedMult = cfg.saccadeSpeedMult;
         _tuning.velocitySaturation = cfg.velocitySaturation;
@@ -1025,7 +1026,11 @@ namespace TrueGaze::Engine
                 {
                     const auto* player = RE::PlayerCharacter::GetSingleton();
                     const auto input = GatherTemperament(actor, player);
-                    state.profile = CharacterProfile::Classify(input, true);
+                    // R15: resolve the category bundle from the live config and
+                    // pass it into Classify. bEnableCategoryProfiles=false yields
+                    // an all-neutral bundle = exact pre-R15 parity.
+                    const auto bundle = CategoryBundleFor(input.category);
+                    state.profile = CharacterProfile::Classify(input, true, bundle);
                 }
                 else
                 {
@@ -1717,6 +1722,92 @@ namespace TrueGaze::Engine
         (void)actor;
         return 0;
 #endif
+    }
+
+    CharacterProfile::CategoryProfileBundle
+    GazeEngine::CategoryBundleFor(CharacterProfile::GazeCategory category) noexcept
+    {
+        // R15: single bundle authority. Compiled defaults come from
+        // DefaultBundleFor (the stereotype); the INI [Profiles] section overrides
+        // the exposed high-signal fields. Category profiles disabled = neutral.
+        if (!ConfigManager::GetSingleton().enableCategoryProfiles)
+        {
+            return {};
+        }
+
+        auto b = CharacterProfile::DefaultBundleFor(category);
+        const auto& cfg = ConfigManager::GetSingleton();
+
+        using C = CharacterProfile::GazeCategory;
+        switch (category)
+        {
+        case C::Guard:
+            b.aversionRateMult = cfg.guardAversionMult;
+            b.fixationScaleMult = cfg.guardFixationMult;
+            break;
+        case C::Child:
+            b.fixationScaleMult = cfg.childFixationMult;
+            b.aversionRateMult = cfg.childAversionMult;
+            b.pathRandomnessMult = cfg.childPathRandomnessMult;
+            break;
+        case C::Vampire:
+            b.aversionRateMult = cfg.vampireAversionMult;
+            b.fixationScaleMult = cfg.vampireFixationMult;
+            break;
+        case C::Werewolf:
+            b.fixationScaleMult = cfg.werewolfFixationMult;
+            b.pathRandomnessMult = cfg.werewolfPathRandomnessMult;
+            break;
+        case C::Khajiit:
+            b.fixationScaleMult = cfg.khajiitFixationMult;
+            b.pathRandomnessMult = cfg.khajiitPathRandomnessMult;
+            break;
+        case C::Argonian:
+            b.fixationScaleMult = cfg.argonianFixationMult;
+            b.aversionRateMult = cfg.argonianAversionMult;
+            break;
+        case C::Elf:
+            b.fixationScaleMult = cfg.elfFixationMult;
+            b.aversionRateMult = cfg.elfAversionMult;
+            break;
+        case C::Orc:
+            b.aversionRateMult = cfg.orcAversionMult;
+            b.fixationScaleMult = cfg.orcFixationMult;
+            break;
+        case C::Creature_Predator:
+            b.fixationScaleMult = cfg.predatorFixationMult;
+            b.aversionRateMult = cfg.predatorAversionMult;
+            break;
+        case C::Creature_Prey:
+            b.fixationScaleMult = cfg.preyFixationMult;
+            b.aversionRateMult = cfg.preyAversionMult;
+            break;
+        case C::Creature_Dragon:
+            b.fixationScaleMult = cfg.dragonFixationMult;
+            b.aversionRateMult = cfg.dragonAversionMult;
+            break;
+        case C::Undead:
+            b.fixationScaleMult = cfg.undeadFixationMult;
+            b.aversionRateMult = cfg.undeadAversionMult;
+            break;
+        case C::Daedra:
+            b.aversionRateMult = cfg.daedraAversionMult;
+            b.fixationScaleMult = cfg.daedraFixationMult;
+            break;
+        case C::Construct:
+            b.fixationScaleMult = cfg.constructFixationMult;
+            b.aversionRateMult = cfg.constructAversionMult;
+            break;
+        case C::Player:
+        case C::HumanoidNPC:
+        case C::OtherHumanoid:
+        case C::OtherCreature:
+        default:
+            // Neutral categories: the temperament axes carry the whole profile.
+            break;
+        }
+
+        return b;
     }
 
     float GazeEngine::DistanceMetersForTier(RE::Actor* actor) noexcept
