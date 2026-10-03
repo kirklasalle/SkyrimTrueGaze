@@ -626,6 +626,42 @@ namespace TrueGaze::Visuals
             }
         }
 
+        // --- Phase 2 A7: Ray–Panel Physical Hit Detection & Accuracy Tracking ---
+        namespace G = TrueGaze::Visuals::Geometry;
+        const float panelScaleUnits =
+            (_tuning.hcepPanelScale > 0.1f ? _tuning.hcepPanelScale : 25.0f);
+        constexpr float kDiagramAspect = 2760.0f / 1504.0f; // w:h = 1.835
+        const float halfW = panelScaleUnits * kDiagramAspect * 0.5f;
+        const float halfH = panelScaleUnits * 0.5f;
+
+        const auto hitResult = G::IntersectGazeWithPanel(
+            /*rayOriginRelEyeMid=*/{0.0f, 0.0f, 0.0f},
+            /*rayDir=*/G::Vec3{localDir.x, localDir.y, localDir.z},
+            /*panelForwardOffsetUnits=*/_tuning.HcepPanelForwardOffsetUnits(),
+            /*halfWidthUnits=*/halfW,
+            /*halfHeightUnits=*/halfH);
+
+        emitters.lastHitRegion = hitResult.hitRegion;
+        if (hitResult.hit)
+        {
+            _accuracyStats.totalEvaluations++;
+            if (hitResult.hitRegion == a_gazeRegion)
+            {
+                _accuracyStats.agreements++;
+                emitters.lastAgreement = true;
+            }
+            else
+            {
+                _accuracyStats.mismatches++;
+                emitters.lastAgreement = false;
+            }
+        }
+        else
+        {
+            _accuracyStats.panelMisses++;
+            emitters.lastAgreement = false;
+        }
+
         // --- HCEP Floating Diagram Panel ---------------------------------------
         if (allowPanel)
         {
@@ -636,7 +672,6 @@ namespace TrueGaze::Visuals
         {
             DetachPanel(emitters);
         }
-
 
         emitters.lastGazeRegion = a_gazeRegion;
 

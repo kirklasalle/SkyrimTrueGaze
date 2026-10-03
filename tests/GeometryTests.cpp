@@ -190,6 +190,68 @@ namespace
         assert(ClassifyGazeRegion(6.0f, -4.5f) == R(GazeRegion::Mouth));
         std::cout << "  -> passed.\n";
     }
+
+    void TestRayPanelHitDetection()
+    {
+        std::cout << "[TEST] Ray-panel hit detection (Phase 2 A7)...\n";
+        const float dist = 49.0f; // 70cm = 49 units
+        const G::Vec3 origin{0.0f, 0.0f, 0.0f}; // cyclopean eye
+        const auto R = [](GazeRegion g) { return static_cast<uint8_t>(g); };
+
+        // 1. Straight-ahead gaze -> hits centre, LeftEye default
+        {
+            const G::Vec3 dir{0.0f, 1.0f, 0.0f};
+            const G::PanelHitResult res = G::IntersectGazeWithPanel(origin, dir, dist);
+            assert(res.hit);
+            assert(Near(res.hitX, 0.0f, 1e-4f));
+            assert(Near(res.hitZ, 0.0f, 1e-4f));
+            assert(res.hitRegion == R(GazeRegion::LeftEye));
+        }
+
+        // 2. Rightward gaze (yaw +5 deg) -> hits RightEye
+        {
+            constexpr float kDegToRad = 3.14159265358979323846f / 180.0f;
+            const float y = 5.0f * kDegToRad;
+            const G::Vec3 dir = G::Normalized({std::sin(y), std::cos(y), 0.0f});
+            const G::PanelHitResult res = G::IntersectGazeWithPanel(origin, dir, dist);
+            assert(res.hit);
+            assert(res.hitX > 0.0f);
+            assert(Near(res.hitYawDeg, 5.0f, 1e-3f));
+            assert(res.hitRegion == R(GazeRegion::RightEye));
+        }
+
+        // 3. Forehead gaze (pitch +6 deg) -> hits Forehead
+        {
+            constexpr float kDegToRad = 3.14159265358979323846f / 180.0f;
+            const float p = 6.0f * kDegToRad;
+            const G::Vec3 dir = G::Normalized({0.0f, std::cos(p), std::sin(p)});
+            const G::PanelHitResult res = G::IntersectGazeWithPanel(origin, dir, dist);
+            assert(res.hit);
+            assert(res.hitZ > 0.0f);
+            assert(Near(res.hitPitchDeg, 6.0f, 1e-3f));
+            assert(res.hitRegion == R(GazeRegion::Forehead));
+        }
+
+        // 4. Backward or parallel ray -> no hit
+        {
+            const G::Vec3 backDir{0.0f, -1.0f, 0.0f};
+            const G::PanelHitResult res = G::IntersectGazeWithPanel(origin, backDir, dist);
+            assert(!res.hit);
+            assert(res.hitRegion == 0xFF);
+        }
+
+        // 5. Bounded quad test -> wide gaze out of bounds
+        {
+            constexpr float kDegToRad = 3.14159265358979323846f / 180.0f;
+            const float y = 45.0f * kDegToRad;
+            const G::Vec3 dir = G::Normalized({std::sin(y), std::cos(y), 0.0f});
+            const G::PanelHitResult res = G::IntersectGazeWithPanel(origin, dir, dist, /*halfWidth=*/10.0f, /*halfHeight=*/10.0f);
+            assert(!res.hit);
+            assert(res.hitRegion == 0xFF);
+        }
+
+        std::cout << "  -> passed.\n";
+    }
 } // namespace
 
 int main()
@@ -200,6 +262,7 @@ int main()
     TestRayPlane();
     TestPanelProjectionRoundTrip();
     TestClassifierParity();
+    TestRayPanelHitDetection();
     std::cout << "[GeometryTests] All tests passed.\n";
     return 0;
 }

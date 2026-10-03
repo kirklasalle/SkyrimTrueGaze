@@ -718,9 +718,9 @@ Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R
 
 ### A7 — Ray-Panel Hit Detection (Phase 2)
 
-- [ ] **A7.1 — Hit Detector Implementation**: Implement `IntersectRayQuad` and `HitDetectHcepPanel` in `GazeGeometry.hpp` to physically compute where left, right, and cyclopean gaze rays pierce the floating HCEP quad.
-- [ ] **A7.2 — UV to Gaze Region Mapping**: Map panel hit UV coordinates to the 13 discrete `GazeRegion` IDs per `docs/Region Map Specification — HCEP-02 Gaze Regions.md`.
-- [ ] **A7.3 — Three-Way Agreement Telemetry**: Compare intended region (`SocialTriangle::Vertex`), classified region (`ClassifyGazeRegion`), and physical hit region (`HitRegion`). Log frame-level agreement metrics.
+- [x] **A7.1 — Hit Detector Implementation**: Implement `IntersectGazeWithPanel` in `GazeGeometry.hpp` to physically compute where left, right, and cyclopean gaze rays pierce the floating HCEP quad.
+- [x] **A7.2 — UV to Gaze Region Mapping**: Map panel hit coordinates and angles to the 13 discrete `GazeRegion` IDs per `docs/Region Map Specification — HCEP-02 Gaze Regions.md`.
+- [x] **A7.3 — Three-Way Agreement Telemetry**: Compare intended region (`SocialTriangle::Vertex`), classified region (`ClassifyGazeRegion`), and physical hit region (`HitRegion`). Log and report accuracy metrics in `stgstatus` / auto-status log.
 - [ ] **A7.4 — Panel Visual Feedback**: Illuminate hit coordinate on panel surface (dynamic reticle or border glow) to provide immediate in-engine visual confirmation of gaze accuracy.
 
 ### A8–A9 — Trace Telemetry & Automated Verification (Phase 3)

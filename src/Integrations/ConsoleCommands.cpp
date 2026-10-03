@@ -301,6 +301,15 @@ namespace TrueGaze::Integrations
             logger::info("[TrueGaze]   beam geometry     {} attached / {} attempts",
                          static_cast<unsigned long long>(visuals.GeometryCreated()),
                          static_cast<unsigned long long>(visuals.GeometryAttempts()));
+            const auto& acc = visuals.GetAccuracyStats();
+            if (acc.totalEvaluations > 0)
+            {
+                const double pct =
+                    (static_cast<double>(acc.agreements) / acc.totalEvaluations) * 100.0;
+                logger::info(
+                    "[TrueGaze]   gaze accuracy     {:.1f}% ({}/{} hits, {} mismatches, {} misses)",
+                    pct, acc.agreements, acc.totalEvaluations, acc.mismatches, acc.panelMisses);
+            }
             logger::info("[TrueGaze]   commands          {}",
                          ConsoleCommands::IsInstalled() ? "registered" : "NOT registered");
             logger::info("[TrueGaze] === END AUTO STATUS ===");
@@ -376,6 +385,23 @@ namespace TrueGaze::Integrations
                 static_cast<unsigned long long>(engine.PeakFrameMicros()),
                 static_cast<unsigned long long>(Engine::PerformanceProfiler::BudgetMicros()),
                 Engine::PerformanceProfiler::IsWithinBudget() ? ")" : " — OVER BUDGET)");
+
+            // Phase R16 A7: Gaze accuracy & ray-panel hit agreement
+            {
+                const auto& acc = visuals.GetAccuracyStats();
+                if (acc.totalEvaluations > 0)
+                {
+                    const double pct =
+                        (static_cast<double>(acc.agreements) / acc.totalEvaluations) * 100.0;
+                    ConsolePrint(
+                        "  gaze accuracy    %.1f%% (%llu/%llu hits, %llu mismatches, %llu misses)",
+                        pct,
+                        static_cast<unsigned long long>(acc.agreements),
+                        static_cast<unsigned long long>(acc.totalEvaluations),
+                        static_cast<unsigned long long>(acc.mismatches),
+                        static_cast<unsigned long long>(acc.panelMisses));
+                }
+            }
 
             // Phase S4: HCEP intent-fusion diagnostics. Answers WHY fusion is or
             // is not active: no telemetry, low confidence, stale, or blink.

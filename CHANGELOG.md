@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HCEP Floating Diagram Panel (`GazeRegionPanel.nif`)** — The 3D chroma-keyed HCEP-02 cognitive gaze diagram floats in front of actors with dynamic active-region highlighting (Third-eye, Left/Right eye, Mouth, Chest, Far Upper/Lower regions), verified live in running Skyrim tavern sessions (`ScreenShot164.png`, `ScreenShot177.png`).
 - **Universal Actor Coverage** — `bHcepPanelAllActors=true` enabled across compile-time defaults and INI so the floating diagram panel is active across the Player and all NPCs.
 - **Adjusted Panel Forward Offset** — Increased `fHcepPanelForwardOffsetCm` from 35.0 cm to 70.0 cm (~49 Skyrim units) to position the panel cleanly in front of NPC faces and prevent clipping into the skull or neck during dialogue, gestures, or leaning.
+- **Ray–Panel Physical Hit Detection & Accuracy Tracking (Phase 2 A7)** — Implemented `IntersectGazeWithPanel` in `GazeGeometry.hpp` and integrated real-time ray-panel hit detection into `VisualEffectsManager.cpp`. Measures physical intersection coordinates on the floating HCEP diagram panel, extracts equivalent gaze angles, and tracks three-way agreement between intended, classified, and ray-hit regions. Live accuracy metrics are printed by `stgstatus` and captured in session logs.
 - **Interactive Eye Kinematics Simulator** — Added live canvas-based eye kinematics simulation to `TrueGazeConfig.html` and synced identically to `skyrim/TrueGazeConfig.html`.
 
 ### Fixed

@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include "../Engine/GazeRegion.hpp"
 
 namespace TrueGaze::Visuals::Geometry
 {
@@ -204,6 +205,65 @@ namespace TrueGaze::Visuals::Geometry
         constexpr float kRadToDeg = 180.0f / 3.14159265358979323846f;
         outYawDeg = std::atan2(pt.x, distance) * kRadToDeg;
         outPitchDeg = std::atan2(pt.z, std::sqrt(pt.x * pt.x + distance * distance)) * kRadToDeg;
+    }
+
+    // -----------------------------------------------------------------------
+    // Ray–panel hit detection (Phase 2)
+    // -----------------------------------------------------------------------
+    struct PanelHitResult
+    {
+        bool hit{false};
+        float t{0.0f};          // ray parameter (units)
+        float hitX{0.0f};       // panel-relative X (right, units)
+        float hitZ{0.0f};       // panel-relative Z (up, units)
+        float hitYawDeg{0.0f};  // equivalent gaze yaw at hit point
+        float hitPitchDeg{0.0f};// equivalent gaze pitch at hit point
+        uint8_t hitRegion{0xFF};// region ID from ClassifyGazeRegion, or 0xFF
+    };
+
+    /// Calculate where a gaze ray (origin O, direction D relative to cyclopean eye)
+    /// hits the floating HCEP panel at forward distance `panelForwardOffsetUnits`.
+    /// Also checks quad bounds if halfWidth/halfHeight > 0.
+    [[nodiscard]] inline PanelHitResult IntersectGazeWithPanel(
+        const Vec3& rayOriginRelEyeMid,
+        const Vec3& rayDir,
+        float panelForwardOffsetUnits,
+        float halfWidthUnits = 0.0f,
+        float halfHeightUnits = 0.0f) noexcept
+    {
+        PanelHitResult res{};
+        if (rayDir.y <= 1e-4f || panelForwardOffsetUnits <= 0.0f)
+        {
+            return res;
+        }
+
+        const float t = (panelForwardOffsetUnits - rayOriginRelEyeMid.y) / rayDir.y;
+        if (t <= 0.0f)
+        {
+            return res;
+        }
+
+        res.t = t;
+        res.hitX = rayOriginRelEyeMid.x + rayDir.x * t;
+        res.hitZ = rayOriginRelEyeMid.z + rayDir.z * t;
+
+        if (halfWidthUnits > 0.0f && std::abs(res.hitX) > halfWidthUnits)
+        {
+            res.hit = false;
+            res.hitRegion = 0xFF;
+            return res;
+        }
+        if (halfHeightUnits > 0.0f && std::abs(res.hitZ) > halfHeightUnits)
+        {
+            res.hit = false;
+            res.hitRegion = 0xFF;
+            return res;
+        }
+
+        res.hit = true;
+        PanelToAngles({res.hitX, res.hitZ}, panelForwardOffsetUnits, res.hitYawDeg, res.hitPitchDeg);
+        res.hitRegion = TrueGaze::Engine::ClassifyGazeRegion(res.hitYawDeg, res.hitPitchDeg);
+        return res;
     }
 
 } // namespace TrueGaze::Visuals::Geometry

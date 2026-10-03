@@ -89,6 +89,16 @@ namespace TrueGaze::Visuals
         [[nodiscard]] uint64_t GeometryAttempts() const noexcept { return _geometryAttempts; }
         [[nodiscard]] uint64_t GeometryCreated() const noexcept { return _geometryCreated; }
 
+        struct GazeAccuracyStats
+        {
+            uint64_t totalEvaluations{0};
+            uint64_t agreements{0};     // classified == hit
+            uint64_t mismatches{0};     // classified != hit
+            uint64_t panelMisses{0};    // ray missed panel quad
+        };
+
+        [[nodiscard]] const GazeAccuracyStats& GetAccuracyStats() const noexcept { return _accuracyStats; }
+
     private:
         VisualEffectsManager() = default;
 
@@ -126,6 +136,8 @@ namespace TrueGaze::Visuals
             uint64_t lastPanelAttemptFrame{0};
 
             uint8_t lastGazeRegion{0xFF};
+            uint8_t lastHitRegion{0xFF};
+            bool lastAgreement{true};
 
             /// Anchor-local midpoint between the two pupils (cyclopean eye),
             /// refreshed every UpdateActor. The HCEP panel is centred on this
@@ -179,6 +191,8 @@ namespace TrueGaze::Visuals
         uint64_t _geometryCreated{0};
 
         static constexpr size_t kMaxEmitterActors = 64;
+
+        GazeAccuracyStats _accuracyStats{};
     };
 
 } // namespace TrueGaze::Visuals
