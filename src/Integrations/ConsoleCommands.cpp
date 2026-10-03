@@ -849,6 +849,11 @@ namespace TrueGaze::Integrations
             return true;
         }
 
+        // Forward declaration for kCommands table binding
+        bool CmdHelp(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                     RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*,
+                     RE::ScriptLocals*, double&, std::uint32_t&) noexcept;
+
         // -----------------------------------------------------------------------
         // The command set
         // -----------------------------------------------------------------------
@@ -881,6 +886,7 @@ namespace TrueGaze::Integrations
         /// Deliberately small and focused: toggles, plus a status read-out.
         constexpr CommandDef kCommands[] = {
             {"stg", "Toggle the SkyrimTrueGaze kinematics engine on/off", &CmdMaster},
+            {"stghelp", "Print all available TrueGaze console commands and descriptions", &CmdHelp},
             {"stgvisuals", "Toggle all in-game visuals (gaze rays + HCEP panel)", &CmdVisuals},
             {"stgv", "Toggle the gaze-ray emitters (laser eyes)", &CmdRays},
             {"stgpanel", "Toggle the floating HCEP gaze region diagram panel", &CmdPanel},
@@ -901,6 +907,19 @@ namespace TrueGaze::Integrations
             {"stgcaloff", "Stop calibration override and restore normal gaze", &CmdCalOff},
             {"stgcalaxes", "Verify head bone local axes convention (X=Right, Y=Fwd, Z=Up)", &CmdCalAxes},
         };
+
+        bool CmdHelp(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                     RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*,
+                     RE::ScriptLocals*, double&, std::uint32_t&) noexcept
+        {
+            ConsolePrint("=== SkyrimTrueGaze Console Commands (%zu total) ===", std::size(kCommands));
+            for (const auto& cmd : kCommands)
+            {
+                ConsolePrint("  %-14s %s", cmd.name, cmd.help);
+            }
+            ConsolePrint("==================================================");
+            return true;
+        }
 
         // -----------------------------------------------------------------------
         // Finding a slot to reclaim
@@ -1162,7 +1181,7 @@ namespace TrueGaze::Integrations
         // opcode each command now answers to. If a command still fails, the opcode is
         // the first thing to compare against the engine's own dispatch table.
         logger::info("[TrueGaze] Registered {} console command(s) by reclaiming {} dead/empty "
-                     "console-table entries. Type 'stgstatus' at the console (~).",
+                     "console-table entries. Type 'stghelp' or 'stgstatus' at the console (~).",
                      std::size(kCommands), slots.found);
         logger::info("[TrueGaze] Bound opcodes: {}",
                      [&]

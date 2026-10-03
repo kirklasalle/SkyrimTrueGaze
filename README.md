@@ -553,6 +553,7 @@ no Papyrus, ESP, MCM or SkyUI. Set `bEnableConsoleCommands=true` under `[Console
 
 | Command | Does |
 | :--- | :--- |
+| `stghelp` | Print all available TrueGaze console commands and descriptions |
 | `stgstatus` | Print the full effective state — start here |
 | `stg` | Toggle the gaze kinematics engine on/off |
 | `stgvisuals` | Toggle all in-game visuals (gaze rays + HCEP panel) |
@@ -560,10 +561,16 @@ no Papyrus, ESP, MCM or SkyUI. Set `bEnableConsoleCommands=true` under `[Console
 | `stgpanel` | Toggle the floating HCEP gaze region diagram panel |
 | `stgon` / `stgoff` | Turn every visual on / off |
 | `stgmode` | Cycle render mode: Both → Light only → Geometry only |
-| `stgradius` | Toggle the gaze terminus glow |
+| `stgradius` | Toggle the gaze terminus glow / panel reticle |
 | `stgverbose` | Toggle Debug/Info logging |
 | `stgpreset` | Cycle Quick Presets (vanilla/subtle/intense/social/developer) |
 | `stgreload` | Reload TrueGaze.ini from disk and refresh the engine |
+| `stgtrace` / `off` | Start / stop structured JSONL trace logging (`TrueGaze_GazeTrace.jsonl`) |
+| `stgtraceflush` | Immediately flush buffered trace telemetry to disk |
+| `stgcal` | Step through 11 canonical calibration region angles on targeted/all actors |
+| `stgcalsweep` | Automated 22-second calibration sweep across all 11 regions |
+| `stgcaloff` | Disengage calibration overrides and restore autonomous gaze |
+| `stgcalaxes` | Verify head bone coordinate basis (X=Right, Y=Forward, Z=Up) |
 
 Changes apply immediately **and persist** to the INI. This is the *runtime* control
 surface; `TrueGaze.ini` and this page remain the *authoring* surface.
