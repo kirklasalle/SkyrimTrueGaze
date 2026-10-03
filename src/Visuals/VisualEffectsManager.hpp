@@ -99,6 +99,17 @@ namespace TrueGaze::Visuals
 
         [[nodiscard]] const GazeAccuracyStats& GetAccuracyStats() const noexcept { return _accuracyStats; }
 
+        struct GazeHitInfo
+        {
+            bool hit{false};
+            uint8_t hitRegion{0xFF};
+            float hitX{0.0f};
+            float hitZ{0.0f};
+            bool agreement{false};
+        };
+
+        [[nodiscard]] GazeHitInfo GetActorHitInfo(uint32_t a_formId) const noexcept;
+
     private:
         VisualEffectsManager() = default;
 
@@ -137,6 +148,9 @@ namespace TrueGaze::Visuals
 
             uint8_t lastGazeRegion{0xFF};
             uint8_t lastHitRegion{0xFF};
+            float lastHitX{0.0f};
+            float lastHitZ{0.0f};
+            bool lastHitSuccess{false};
             bool lastAgreement{true};
 
             /// Anchor-local midpoint between the two pupils (cyclopean eye),

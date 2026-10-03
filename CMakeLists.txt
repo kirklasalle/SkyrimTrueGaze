@@ -113,6 +113,18 @@ if(TRUEGAZE_STANDALONE)
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
         add_test(NAME GeometryTests COMMAND GeometryTests)
 
+        # Structured JSONL Trace Logger tests (SDK-free).
+        add_executable(TraceTests
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/TraceTests.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/TraceLogger.cpp"
+        )
+        target_include_directories(TraceTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+        target_link_libraries(TraceTests PRIVATE TrueGazeKinematics)
+        truegaze_force_asserts(TraceTests)
+        set_target_properties(TraceTests PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+        add_test(NAME TraceTests COMMAND TraceTests)
+
         # The bridge mock exercises NamedPipeServer directly, so it needs the
         # implementation and the precompiled header the server expects.
         add_executable(HcepBridgeClientMock
@@ -189,6 +201,7 @@ set(TRUEGAZE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/GazeEngine.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/PlayerGazeResolver.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/TargetSelector.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/TraceLogger.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/TrueGazeAPI.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/VrController.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/ConsoleCommands.cpp"

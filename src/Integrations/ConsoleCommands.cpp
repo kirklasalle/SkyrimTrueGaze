@@ -4,6 +4,7 @@
 #include "Engine/GazeEngine.hpp"
 #include "Engine/PerformanceProfiler.hpp"
 #include "Engine/PlayerGazeResolver.hpp"
+#include "Engine/TraceLogger.hpp"
 #include "Visuals/VisualEffectsManager.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
@@ -310,6 +311,11 @@ namespace TrueGaze::Integrations
                     "[TrueGaze]   gaze accuracy     {:.1f}% ({}/{} hits, {} mismatches, {} misses)",
                     pct, acc.agreements, acc.totalEvaluations, acc.mismatches, acc.panelMisses);
             }
+            const auto& trace = Engine::TraceLogger::Get();
+            logger::info("[TrueGaze]   trace logging     {} ({} events, {:.1f} KB)",
+                         trace.IsActive() ? "ACTIVE" : "OFF",
+                         static_cast<unsigned long long>(trace.TotalEvents()),
+                         static_cast<double>(trace.TotalBytesWritten()) / 1024.0);
             logger::info("[TrueGaze]   commands          {}",
                          ConsoleCommands::IsInstalled() ? "registered" : "NOT registered");
             logger::info("[TrueGaze] === END AUTO STATUS ===");
@@ -433,6 +439,11 @@ namespace TrueGaze::Integrations
             ConsolePrint("  beam geometry    %llu attached / %llu attempts",
                          static_cast<unsigned long long>(visuals.GeometryCreated()),
                          static_cast<unsigned long long>(visuals.GeometryAttempts()));
+            const auto& trace = Engine::TraceLogger::Get();
+            ConsolePrint("  trace logging    %s (%llu events, %.1f KB)",
+                         trace.IsActive() ? "ACTIVE" : "OFF",
+                         static_cast<unsigned long long>(trace.TotalEvents()),
+                         static_cast<double>(trace.TotalBytesWritten()) / 1024.0);
             ConsolePrint("  commands         %s",
                          ConsoleCommands::IsInstalled() ? "registered" : "NOT registered");
         }
@@ -651,6 +662,97 @@ namespace TrueGaze::Integrations
             return true;
         }
 
+        bool CmdTrace(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                      RE::TESObjectREFR* a_thisObj, RE::TESObjectREFR*, RE::Script*,
+                      RE::ScriptLocals*, double&, std::uint32_t&) noexcept
+        {
+            auto& logger = Engine::TraceLogger::Get();
+            if (!logger.IsActive())
+            {
+                std::vector<uint32_t> actorFilters;
+                if (a_thisObj && a_thisObj->GetFormType() == RE::FormType::ActorCharacter)
+                {
+                    actorFilters.push_back(a_thisObj->GetFormID());
+                }
+                const auto& cfg = Engine::ConfigManager::GetSingleton();
+                logger.SetConfig(cfg.traceGazeTick, cfg.traceSaccades, cfg.traceRegionChanges,
+                                 cfg.traceCGA, cfg.traceBlinks, cfg.traceHitMismatches,
+                                 cfg.traceBufferSize, cfg.traceMaxFileSizeMB);
+                logger.StartTracing({}, actorFilters);
+                if (actorFilters.empty())
+                {
+                    ConsolePrint("TrueGaze: Trace started -> %s (ALL actors)",
+                                 logger.GetLogFilePath().string().c_str());
+                }
+                else
+                {
+                    ConsolePrint("TrueGaze: Trace started -> %s (Actor 0x%08X)",
+                                 logger.GetLogFilePath().string().c_str(), actorFilters[0]);
+                }
+            }
+            else
+            {
+                const auto dur = logger.DurationSeconds();
+                const auto evs = logger.TotalEvents();
+                const auto bytes = logger.TotalBytesWritten();
+                const auto pending = logger.PendingBufferSize();
+                const auto& filters = logger.GetActorFilters();
+                ConsolePrint("TrueGaze Trace: ACTIVE");
+                ConsolePrint("  Duration:    %.1f sec", dur);
+                ConsolePrint("  Events:      %llu", static_cast<unsigned long long>(evs));
+                ConsolePrint("  File size:   %.1f KB / 100 MB limit",
+                             static_cast<double>(bytes) / 1024.0);
+                if (filters.empty())
+                {
+                    ConsolePrint("  Actors:      ALL (%zu active)",
+                                 Engine::GazeEngine::Get().TrackedActorCount());
+                }
+                else
+                {
+                    ConsolePrint("  Actors:      Filtered (%zu target(s))", filters.size());
+                }
+                ConsolePrint("  Buffer:      %zu / 256 events pending flush", pending);
+                logger.Flush();
+            }
+            return true;
+        }
+
+        bool CmdTraceOff(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                         RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*,
+                         double&, std::uint32_t&) noexcept
+        {
+            auto& logger = Engine::TraceLogger::Get();
+            if (!logger.IsActive())
+            {
+                ConsolePrint("TrueGaze: Trace is not active.");
+                return true;
+            }
+            const auto evs = logger.TotalEvents();
+            const auto bytes = logger.TotalBytesWritten();
+            const auto path = logger.GetLogFilePath().string();
+            logger.StopTracing();
+            ConsolePrint("TrueGaze: Trace stopped. %llu events written (%.2f MB) to %s",
+                         static_cast<unsigned long long>(evs),
+                         static_cast<double>(bytes) / (1024.0 * 1024.0), path.c_str());
+            return true;
+        }
+
+        bool CmdTraceFlush(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                           RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*,
+                           double&, std::uint32_t&) noexcept
+        {
+            auto& logger = Engine::TraceLogger::Get();
+            if (!logger.IsActive())
+            {
+                ConsolePrint("TrueGaze: Trace is not active.");
+                return true;
+            }
+            logger.Flush();
+            ConsolePrint("TrueGaze: Trace buffer flushed (%llu total events written).",
+                         static_cast<unsigned long long>(logger.TotalEvents()));
+            return true;
+        }
+
         // -----------------------------------------------------------------------
         // The command set
         // -----------------------------------------------------------------------
@@ -695,6 +797,9 @@ namespace TrueGaze::Integrations
             {"stgpreset", "Cycle Quick Presets (vanilla/subtle/intense/social/developer)",
              &CmdPreset},
             {"stgreload", "Reload TrueGaze.ini from disk and refresh the engine", &CmdReload},
+            {"stgtrace", "Toggle or inspect TrueGaze JSONL trace logging", &CmdTrace},
+            {"stgtraceoff", "Stop TrueGaze JSONL trace logging and flush buffer", &CmdTraceOff},
+            {"stgtraceflush", "Force immediate flush of trace log buffer to disk", &CmdTraceFlush},
         };
 
         // -----------------------------------------------------------------------

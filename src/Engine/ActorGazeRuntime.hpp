@@ -129,6 +129,16 @@ namespace TrueGaze::Engine
         /// player's character reflects the player's behaviour.
         float playerAttentionSec{0.0f};
 
+        // --- Trace telemetry state (A8) ---
+        uint8_t lastClassifiedRegion{0xFF};
+        float currentRegionDwellSec{0.0f};
+        bool wasInBallisticSaccade{false};
+        uint8_t saccadeFromRegion{0};
+        bool wasInCga{false};
+        float cgaDurationSec{0.0f};
+        bool wasBlinking{false};
+        float timeSinceLastBlink{0.0f};
+
         /// Cached resolved bones in the actor's 3D scene graph.
         /// Avoids thousands of redundant recursive traversals per frame.
         bool skeletonResolved{false};
@@ -170,6 +180,14 @@ namespace TrueGaze::Engine
             cgaActive = false;
             cgaDialogueReturnOffsetSec = 0.0f;
             wasNotInDialogue = true;
+            lastClassifiedRegion = 0xFF;
+            currentRegionDwellSec = 0.0f;
+            wasInBallisticSaccade = false;
+            saccadeFromRegion = 0;
+            wasInCga = false;
+            cgaDurationSec = 0.0f;
+            wasBlinking = false;
+            timeSinceLastBlink = 0.0f;
             skeletonResolved = false;
             cachedRoot = nullptr;
             cachedSpine = nullptr;

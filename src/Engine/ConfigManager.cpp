@@ -176,6 +176,16 @@ namespace TrueGaze::Engine
         // Debug
         debugGazeRays = ReadBool("Debug", "bDebugGazeRays", debugGazeRays, p);
         logLevel = GetPrivateProfileIntA("Debug", "iLogLevel", logLevel, p);
+        enableTraceLogging = ReadBool("Debug", "bEnableTraceLogging", enableTraceLogging, p);
+        traceBufferSize = GetPrivateProfileIntA("Debug", "iTraceBufferSize", traceBufferSize, p);
+        traceMaxFileSizeMB =
+            GetPrivateProfileIntA("Debug", "iTraceMaxFileSizeMB", traceMaxFileSizeMB, p);
+        traceGazeTick = ReadBool("Debug", "bTraceGazeTick", traceGazeTick, p);
+        traceSaccades = ReadBool("Debug", "bTraceSaccades", traceSaccades, p);
+        traceRegionChanges = ReadBool("Debug", "bTraceRegionChanges", traceRegionChanges, p);
+        traceCGA = ReadBool("Debug", "bTraceCGA", traceCGA, p);
+        traceBlinks = ReadBool("Debug", "bTraceBlinks", traceBlinks, p);
+        traceHitMismatches = ReadBool("Debug", "bTraceHitMismatches", traceHitMismatches, p);
 
         // Visuals (in-game 3D representation of the solved gaze)
         enableInGameVisuals = ReadBool("Visuals", "bEnableInGameVisuals", enableInGameVisuals, p);
@@ -385,6 +395,9 @@ namespace TrueGaze::Engine
         gazeRayThicknessCm = clampReport("fGazeRayThicknessCm", gazeRayThicknessCm, 0.05f, 20.0f);
         gazeRayLengthMeters = clampReport("fGazeRayLengthMeters", gazeRayLengthMeters, 0.5f, 50.0f);
         gazeRayOpacity = clampReport("fGazeRayOpacity", gazeRayOpacity, 0.0f, 1.0f);
+
+        traceBufferSize = std::clamp(traceBufferSize, 16, 4096);
+        traceMaxFileSizeMB = std::clamp(traceMaxFileSizeMB, 1, 1024);
 
         // Jitter interval: max must exceed min, or the OU reversion-rate derivation
         // inverts and the drift statistics become meaningless.
@@ -610,6 +623,20 @@ namespace TrueGaze::Engine
             snprintf(lvl, sizeof(lvl), "%d", logLevel);
             WritePrivateProfileStringA("Debug", "iLogLevel", lvl, p);
         }
+        WriteBool("Debug", "bEnableTraceLogging", enableTraceLogging);
+        {
+            char buf[16]{0};
+            snprintf(buf, sizeof(buf), "%d", traceBufferSize);
+            WritePrivateProfileStringA("Debug", "iTraceBufferSize", buf, p);
+            snprintf(buf, sizeof(buf), "%d", traceMaxFileSizeMB);
+            WritePrivateProfileStringA("Debug", "iTraceMaxFileSizeMB", buf, p);
+        }
+        WriteBool("Debug", "bTraceGazeTick", traceGazeTick);
+        WriteBool("Debug", "bTraceSaccades", traceSaccades);
+        WriteBool("Debug", "bTraceRegionChanges", traceRegionChanges);
+        WriteBool("Debug", "bTraceCGA", traceCGA);
+        WriteBool("Debug", "bTraceBlinks", traceBlinks);
+        WriteBool("Debug", "bTraceHitMismatches", traceHitMismatches);
 
         // Visuals
         WriteBool("Visuals", "bEnableInGameVisuals", enableInGameVisuals);

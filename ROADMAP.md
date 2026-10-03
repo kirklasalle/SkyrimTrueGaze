@@ -725,8 +725,8 @@ Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R
 
 ### A8–A9 — Trace Telemetry & Automated Verification (Phase 3)
 
-- [ ] **A8.1 — Structured JSONL Trace Logging**: Implement high-throughput lock-free trace log emitter conforming to `docs/Trace Log Schema — TrueGaze Gaze Diagnostics.md` under `Documents/My Games/Skyrim Special Edition/SKSE/TrueGaze_trace.jsonl`.
-- [ ] **A8.2 — Console Control**: Add `stgtrace` console command to dynamically enable/disable per-frame JSONL telemetry logging without restarting the game.
-- [ ] **A8.3 — Automated Log Validation Tooling**: Create Python analysis script (`scripts/analyze_trace.py`) to parse JSONL trace logs, verify 3-way agreement rate (target ≥99.5%), and flag biomechanical anomalies.
+- [x] **A8.1 — Structured JSONL Trace Logging**: Implement high-throughput lock-free trace log emitter conforming to `docs/Trace Log Schema — TrueGaze Gaze Diagnostics.md` under `Data/SKSE/Plugins/TrueGaze_GazeTrace.jsonl` (`TraceLogger.hpp` & `.cpp`, dedicated worker thread, 256-event / 1s flush, 100 MB hard cap).
+- [x] **A8.2 — Console Control**: Add `stgtrace`, `stgtraceoff`, `stgtraceflush` console commands and `[Debug]` INI configuration options to dynamically enable/disable per-frame JSONL telemetry logging and inspect buffer state at runtime without restarting.
+- [x] **A8.3 — Automated Log Validation Tooling**: Create Python analysis script (`scripts/analyze_trace.py`) to parse JSONL trace logs, verify 3-way agreement rate (target ≥99.5%), compute dwell distributions, and flag biomechanical anomalies.
 - [ ] **A8.4 — In-Engine Acceptance Run**: Execute verified tavern run capturing trace telemetry, verify 0 ray shears and 100% region agreement across conversation cycles.
 

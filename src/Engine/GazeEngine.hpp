@@ -217,6 +217,8 @@ namespace TrueGaze::Engine
         std::chrono::steady_clock::time_point _frameStart{};
         bool _frameOpen{false};
 
+        float _gameTimeSec{0.0f};
+
         uint64_t _tickCalls{0};
         uint64_t _eligibleTicks{0};
         uint64_t _culledTicks{0};

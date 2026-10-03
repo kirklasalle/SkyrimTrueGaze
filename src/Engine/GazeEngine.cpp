@@ -9,6 +9,7 @@
 #include "PerformanceProfiler.hpp"
 #include "PlayerGazeResolver.hpp"
 #include "TargetSelector.hpp"
+#include "TraceLogger.hpp"
 #include "Visuals/VisualEffectsManager.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
@@ -565,6 +566,83 @@ namespace TrueGaze::Engine
         state.lastYawDeg = yawDeg;
         state.lastPitchDeg = pitchDeg;
         state.gazeRegion = ClassifyRegion(yawDeg, pitchDeg);
+        _gameTimeSec += deltaSeconds;
+
+        // Trace Telemetry: Saccade onset and completion
+        if (state.saccade.isBallistic && !state.wasInBallisticSaccade)
+        {
+            state.wasInBallisticSaccade = true;
+            state.saccadeFromRegion = state.gazeRegion;
+            TraceLogger::Get().LogSaccadeOnset(
+                _gameTimeSec, formId, state.gazeRegion,
+                static_cast<uint8_t>(state.triangle.currentVertex),
+                state.saccade.amplitudeDeg, state.saccade.totalDurationSec);
+        }
+        else if (!state.saccade.isBallistic && state.wasInBallisticSaccade)
+        {
+            state.wasInBallisticSaccade = false;
+            TraceLogger::Get().LogSaccadeComplete(
+                _gameTimeSec, formId, state.gazeRegion,
+                state.saccade.elapsedSec, 0.0f);
+        }
+
+        // Trace Telemetry: Debounced region transitions
+        if (state.lastClassifiedRegion != state.gazeRegion)
+        {
+            if (state.lastClassifiedRegion != 0xFF)
+            {
+                TraceLogger::Get().LogRegionChange(
+                    _gameTimeSec, formId, state.lastClassifiedRegion, state.gazeRegion,
+                    state.currentRegionDwellSec, RegionName(state.lastClassifiedRegion),
+                    RegionName(state.gazeRegion));
+            }
+            state.lastClassifiedRegion = state.gazeRegion;
+            state.currentRegionDwellSec = 0.0f;
+        }
+        else
+        {
+            state.currentRegionDwellSec += deltaSeconds;
+        }
+
+        // Trace Telemetry: Controlled Gaze Aversion (CGA) enter / exit
+        if (state.cgaActive && !state.wasInCga)
+        {
+            state.wasInCga = true;
+            state.cgaDurationSec = 0.0f;
+            const char* trigger = (state.mutualGazeHoldSec >= _tuning.mutualGazeThreshold)
+                                      ? "MUTUAL_THRESHOLD"
+                                      : "COGNITIVE_BURDEN";
+            const uint8_t vert = static_cast<uint8_t>(state.triangle.currentVertex);
+            const uint8_t quadrant = (vert == 5 ? 9 : (vert == 6 ? 10 : (vert == 7 ? 11 : (vert == 8 ? 12 : 9))));
+            TraceLogger::Get().LogCgaEnter(_gameTimeSec, formId, trigger, quadrant,
+                                           RegionName(quadrant));
+        }
+        else if (!state.cgaActive && state.wasInCga)
+        {
+            state.wasInCga = false;
+            const char* trigger = _tuning.dialogueSyncCgaReturn ? "DIALOGUE_SYNC" : "TIMEOUT";
+            TraceLogger::Get().LogCgaExit(_gameTimeSec, formId, state.gazeRegion,
+                                          state.cgaDurationSec, trigger);
+        }
+        if (state.cgaActive)
+        {
+            state.cgaDurationSec += deltaSeconds;
+        }
+
+        // Trace Telemetry: Blink onset
+        if (state.blink.isBlinking && !state.wasBlinking)
+        {
+            state.wasBlinking = true;
+            TraceLogger::Get().LogBlink(_gameTimeSec, formId,
+                                        state.blink.blinkTotalDurationSec * 1000.0f,
+                                        state.timeSinceLastBlink);
+            state.timeSinceLastBlink = 0.0f;
+        }
+        else if (!state.blink.isBlinking)
+        {
+            state.wasBlinking = false;
+            state.timeSinceLastBlink += deltaSeconds;
+        }
 
         if (_tuning.debugGazeRays)
         {
@@ -621,6 +699,33 @@ namespace TrueGaze::Engine
         }
 
         ApplyToSkeleton(actor, state, yawDeg, pitchDeg);
+
+        // Structured JSONL Trace Gaze Tick and Mismatch
+        const auto hitInfo = Visuals::VisualEffectsManager::Get().GetActorHitInfo(formId);
+        const uint8_t hitRegion = hitInfo.hit ? hitInfo.hitRegion : 255;
+        const float eyeYaw = state.saccade.currentYaw + state.jitter.currentYawOffset;
+        const float eyePitch = state.saccade.currentPitch + state.jitter.currentPitchOffset;
+        const float totalDeflection = std::sqrt(yawDeg * yawDeg + pitchDeg * pitchDeg);
+        const float eyeDeflection = std::sqrt(eyeYaw * eyeYaw + eyePitch * eyePitch);
+        const float headPct =
+            (totalDeflection > 0.001f)
+                ? std::clamp(1.0f - (eyeDeflection / totalDeflection), 0.0f, 1.0f)
+                : 0.0f;
+
+        TraceLogger::Get().LogGazeTick(
+            _gameTimeSec, formId, state.trackedTargetFormId, yawDeg, pitchDeg, eyeYaw,
+            eyePitch, state.gazeRegion, hitRegion, ModeName(state.hcepMode),
+            actor->IsPlayerRef() ? 0 : 0, state.mutualGazeHoldSec > 0.0f,
+            state.mutualGazeHoldSec, headPct, deltaSeconds);
+
+        if (hitInfo.hit && !hitInfo.agreement && !state.saccade.isBallistic &&
+            !state.sceneDeferActive)
+        {
+            TraceLogger::Get().LogHitMismatch(_gameTimeSec, formId, state.gazeRegion,
+                                              hitInfo.hitRegion, eyeYaw, eyePitch,
+                                              hitInfo.hitX, hitInfo.hitZ, "BOUNDARY");
+        }
+
         PublishState(actor, state);
 #else
         (void)actor;
@@ -1823,37 +1928,7 @@ namespace TrueGaze::Engine
 
     const char* GazeEngine::RegionName(uint8_t region) noexcept
     {
-        switch (region)
-        {
-        case 0:
-            return "LeftEye";
-        case 1:
-            return "RightEye";
-        case 2:
-            return "Mouth";
-        case 3:
-            return "Forehead";
-        case 4:
-            return "Chin";
-        case 5:
-            return "Torso";
-        case 6:
-            return "RightHand";
-        case 7:
-            return "LeftHand";
-        case 8:
-            return "Ground";
-        case 9:
-            return "UpperLeftPeripheral";
-        case 10:
-            return "UpperRightPeripheral";
-        case 11:
-            return "Horizon";
-        case 12:
-            return "Defocused";
-        default:
-            return "Unknown";
-        }
+        return GazeRegionName(region);
     }
 
 } // namespace TrueGaze::Engine

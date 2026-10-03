@@ -171,6 +171,17 @@ namespace TrueGaze::Engine
         bool debugGazeRays{false};
         int logLevel{2};
 
+        // --- Structured JSONL Trace Logging (A8) ---
+        bool enableTraceLogging{false};
+        int traceBufferSize{256};
+        int traceMaxFileSizeMB{100};
+        bool traceGazeTick{true};
+        bool traceSaccades{true};
+        bool traceRegionChanges{true};
+        bool traceCGA{true};
+        bool traceBlinks{false};
+        bool traceHitMismatches{true};
+
         // --- Visuals (in-game 3D representation of the solved gaze) ---
         //
         // These keys drive src/Visuals. The whole subsystem is off by default and

@@ -641,7 +641,10 @@ namespace TrueGaze::Visuals
             /*halfWidthUnits=*/halfW,
             /*halfHeightUnits=*/halfH);
 
+        emitters.lastHitSuccess = hitResult.hit;
         emitters.lastHitRegion = hitResult.hitRegion;
+        emitters.lastHitX = hitResult.hitX;
+        emitters.lastHitZ = hitResult.hitZ;
         if (hitResult.hit)
         {
             _accuracyStats.totalEvaluations++;
@@ -1304,6 +1307,18 @@ namespace TrueGaze::Visuals
         a_originROut = RE::NiPoint3{};
         a_dirOut = RE::NiPoint3{};
 #endif
+    }
+
+    VisualEffectsManager::GazeHitInfo VisualEffectsManager::GetActorHitInfo(
+        uint32_t a_formId) const noexcept
+    {
+        auto it = _emitters.find(a_formId);
+        if (it != _emitters.end())
+        {
+            return {it->second.lastHitSuccess, it->second.lastHitRegion,
+                    it->second.lastHitX, it->second.lastHitZ, it->second.lastAgreement};
+        }
+        return {};
     }
 
 } // namespace TrueGaze::Visuals
