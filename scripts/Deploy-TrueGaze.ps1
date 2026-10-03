@@ -304,6 +304,7 @@ $legacyPaths = @(
     @{ Path = (Join-Path $dataDir 'Interface\MCM\Config\TrueGaze'); Label = 'Interface\MCM\Config\TrueGaze\' }
 )
 
+
 $removed = @()
 foreach ($entry in $legacyPaths) {
     if (Test-Path $entry.Path) {

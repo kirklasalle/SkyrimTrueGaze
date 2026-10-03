@@ -226,7 +226,7 @@ void GazeEngine::HarvestSceneContext(RE::Actor* actor, Bridge::SkyrimFeedbackPac
   1. Zero cart flipping, physics glitches, or actor displacement.
   2. Player character mirrors real-world Kinect head tracking while bound on the cart.
   3. NPCs maintain scripted narrative focus while exhibiting lifelike biological micro-saccades and emotion-matched dwell times.
-  4. Console `tgstatus` confirms stable tick rate and zero frame overruns.
+  4. Console `stgstatus` confirms stable tick rate and zero frame overruns.
 
 ---
 
@@ -234,5 +234,5 @@ void GazeEngine::HarvestSceneContext(RE::Actor* actor, Bridge::SkyrimFeedbackPac
 
 This specification is authored under the supreme authority of **Kirk LaSalle's Permanent Active Directives (10 Laws)**.
 * **Law 1 & 6 (Safety & Privacy):** Local named-pipe IPC only. Telemetry remains ephemeral on-device memory and is never logged to external disks or transmitted off-system.
-* **Law 9 (Transparency & Auditable State):** All meta-controller states are fully queryable via in-game console commands (`tgstatus`, `tgverbose`) with human-readable logging.
+* **Law 9 (Transparency & Auditable State):** All meta-controller states are fully queryable via in-game console commands (`stgstatus`, `stgverbose`) with human-readable logging.
 * **Law 10 (Operational Boundaries):** The Meta-Controller operates strictly within designated bone rotation bounds, guaranteeing complete stability and respect for Skyrim's core engine logic.

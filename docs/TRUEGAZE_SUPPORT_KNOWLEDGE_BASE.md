@@ -199,7 +199,7 @@ Check:
 
 ### Lights exist but no beam exists
 
-This is expected when `tgstatus` reports lights but `beam geometry` remains zero. `NiPointLight` illuminates the scene; it is not visible beam geometry.
+This is expected when `stgstatus` reports lights but `beam geometry` remains zero. `NiPointLight` illuminates the scene; it is not visible beam geometry.
 
 ## 6. TrueGaze Diagnostic Contract
 
@@ -229,7 +229,7 @@ Current S1/S2/S5 work provides:
 
 Future support improvements:
 
-- asset resolver state in `tgstatus`;
+- asset resolver state in `stgstatus`;
 - exact resource path in status output;
 - parent type and model pointer diagnostics;
 - geometry detach count;
@@ -254,7 +254,7 @@ Future support improvements:
 3. Enter third person.
 4. Stand 3-5 meters from a living humanoid.
 5. Wait for the skeleton probe.
-6. Run `tgstatus`.
+6. Run `stgstatus`.
 7. Record the runtime identity, rig origin, visual counters, and geometry result.
 8. Exit normally.
 9. Run post-run health analysis.
@@ -310,7 +310,7 @@ Parent node type:
 Geometry attached count:
 Visible in-game:
 Rig origin:
-tgstatus output:
+stgstatus output:
 TrueGaze.log:
 skse64.log:
 ```

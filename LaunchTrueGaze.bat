@@ -100,18 +100,21 @@ if exist "%PLUGINS%\" (
 
 :: ---- Check 6: Deploy TrueGaze.dll ----
 echo  [6/9] TrueGaze.dll...
-set "BUILD_DLL=%PROJECT%\build\windows-release\Release\TrueGaze.dll"
+:: Prefer the optimized Windows Release plugin, then the repo copy
+set "RELEASE_DLL=%PROJECT%\build\windows-release\Release\TrueGaze.dll"
+set "DEBUG_DLL=%PROJECT%\build\windows-debug\Debug\TrueGaze.dll"
 set "REPO_DLL=%PROJECT%\skyrim\SKSE\Plugins\TrueGaze.dll"
 set "DEST_DLL=%PLUGINS%\TrueGaze.dll"
 
-if exist "%BUILD_DLL%" (
-    echo        Source: build output
-    copy /y "%BUILD_DLL%" "%DEST_DLL%" >nul 2>&1
-) else (
-    if exist "%REPO_DLL%" (
-        echo        Source: repo copy
-        copy /y "%REPO_DLL%" "%DEST_DLL%" >nul 2>&1
-    )
+if exist "%RELEASE_DLL%" (
+    echo        Source: current Release build output
+    copy /y "%RELEASE_DLL%" "%DEST_DLL%" >nul 2>&1
+) else if exist "%DEBUG_DLL%" (
+    echo        Source: current Debug build output
+    copy /y "%DEBUG_DLL%" "%DEST_DLL%" >nul 2>&1
+) else if exist "%REPO_DLL%" (
+    echo        Source: repo copy
+    copy /y "%REPO_DLL%" "%DEST_DLL%" >nul 2>&1
 )
 
 if exist "%DEST_DLL%" (
@@ -153,11 +156,21 @@ set "SRC_MESHES=%PROJECT%\skyrim\meshes\TrueGaze"
 set "SRC_TEXTURES=%PROJECT%\skyrim\textures\TrueGaze"
 set "DEST_MESHES=%SKYRIM%\Data\meshes\TrueGaze"
 set "DEST_TEXTURES=%SKYRIM%\Data\textures\TrueGaze"
+set "SRC_ARROW=%PROJECT%\scratch\arrow_extract\meshes\marker_arrow.nif"
+set "DEST_ARROW=%SKYRIM%\Data\meshes\marker_arrow.nif"
 
 if not exist "%DEST_MESHES%" mkdir "%DEST_MESHES%" >nul 2>&1
 if not exist "%DEST_TEXTURES%" mkdir "%DEST_TEXTURES%" >nul 2>&1
+if not exist "%SKYRIM%\Data\meshes" mkdir "%SKYRIM%\Data\meshes" >nul 2>&1
 
 set ASSET_OK=1
+if exist "%SRC_ARROW%" (
+    copy /y "%SRC_ARROW%" "%DEST_ARROW%" >nul 2>&1
+    echo        Deployed marker_arrow.nif [primary beam]
+) else (
+    echo        FAIL - marker_arrow.nif not found in repo
+    set ASSET_OK=0
+)
 if exist "%SRC_MESHES%\GazeBeam.nif" (
     copy /y "%SRC_MESHES%\GazeBeam.nif" "%DEST_MESHES%\GazeBeam.nif" >nul 2>&1
     echo        Deployed GazeBeam.nif
@@ -167,16 +180,26 @@ if exist "%SRC_MESHES%\GazeBeam.nif" (
 )
 if exist "%SRC_MESHES%\GazeRegionPanel.nif" (
     copy /y "%SRC_MESHES%\GazeRegionPanel.nif" "%DEST_MESHES%\GazeRegionPanel.nif" >nul 2>&1
-    echo        Deployed GazeRegionPanel.nif
+    echo        Deployed GazeRegionPanel.nif [development panel]
 ) else (
-    echo        WARN - GazeRegionPanel.nif not found in repo
+    echo        FAIL - GazeRegionPanel.nif not found in repo
+    set ASSET_OK=0
+)
+if exist "%SRC_TEXTURES%\GazeBeamGlow.dds" (
+    copy /y "%SRC_TEXTURES%\GazeBeamGlow.dds" "%DEST_TEXTURES%\GazeBeamGlow.dds" >nul 2>&1
+    echo        Deployed GazeBeamGlow.dds
+) else (
+    echo        FAIL - GazeBeamGlow.dds not found in repo
+    set ASSET_OK=0
 )
 if exist "%SRC_TEXTURES%\GazeRegionPanel.dds" (
     copy /y "%SRC_TEXTURES%\GazeRegionPanel.dds" "%DEST_TEXTURES%\GazeRegionPanel.dds" >nul 2>&1
     echo        Deployed GazeRegionPanel.dds
 ) else (
-    echo        WARN - GazeRegionPanel.dds not found in repo
+    echo        FAIL - GazeRegionPanel.dds not found in repo
+    set ASSET_OK=0
 )
+
 
 if !ASSET_OK! equ 1 (
     echo        PASS - TrueGaze assets deployed

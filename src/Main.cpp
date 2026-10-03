@@ -1,14 +1,14 @@
-#include "PCH.h"
 #include "Bridge/NamedPipeServer.hpp"
 #include "Engine/AnimationHook.hpp"
 #include "Engine/ConfigManager.hpp"
 #include "Engine/GazeEngine.hpp"
-#include "Integrations/OarConditions.hpp"
 #include "Integrations/ConsoleCommands.hpp"
+#include "Integrations/OarConditions.hpp"
+#include "PCH.h"
 
 #if __has_include(<SKSE/SKSE.h>)
-#include <SKSE/SKSE.h>
 #include <RE/Skyrim.h>
+#include <SKSE/SKSE.h>
 #endif
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -17,9 +17,9 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <windows.h>
-#include <shlobj.h>
 #include <filesystem>
+#include <shlobj.h>
+#include <windows.h>
 
 namespace
 {
@@ -67,9 +67,12 @@ namespace
         // destroyed state — a use-after-free. Abandon instead leaves the
         // worker and its handles alive, flags the object so the destructor is
         // a no-op, and lets the OS reclaim everything at process exit.
-        std::atexit([]()
-                    { TrueGaze::Engine::GazeEngine::Get().StopBridge(
-                          TrueGaze::Bridge::NamedPipeServer::JoinPolicy::Abandon); });
+        std::atexit(
+            []()
+            {
+                TrueGaze::Engine::GazeEngine::Get().StopBridge(
+                    TrueGaze::Bridge::NamedPipeServer::JoinPolicy::Abandon);
+            });
 #else
         char myDocs[MAX_PATH]{0};
         if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_MYDOCUMENTS, nullptr, 0, myDocs)))
@@ -78,10 +81,11 @@ namespace
             std::error_code ec;
             std::filesystem::create_directories(logDir, ec);
             std::string logPath = logDir + "\\TrueGaze.log";
-            FILE *f = fopen(logPath.c_str(), "w");
+            FILE* f = fopen(logPath.c_str(), "w");
             if (f)
             {
-                fprintf(f, "[TrueGaze] True Gaze v1.0.0 (An HCEP Product by Kirk LaSalle) loaded.\n");
+                fprintf(f,
+                        "[TrueGaze] True Gaze v1.0.0 (An HCEP Product by Kirk LaSalle) loaded.\n");
                 fprintf(f, "[TrueGaze] Biomechanical Oculomotor Kinematics Engine initialized.\n");
                 fprintf(f, "[TrueGaze] Target engine: Skyrim Special Edition / AE.\n");
                 fclose(f);
@@ -118,7 +122,8 @@ namespace
 
         // If debug gaze rays are enabled, promote the level to at least info
         // so the user's requested 3D ray diagnostics are never silenced.
-        if (TrueGaze::Engine::ConfigManager::GetSingleton().debugGazeRays && lvl > spdlog::level::info)
+        if (TrueGaze::Engine::ConfigManager::GetSingleton().debugGazeRays &&
+            lvl > spdlog::level::info)
         {
             lvl = spdlog::level::info;
         }
@@ -141,16 +146,14 @@ namespace
 #if __has_include(<SKSE/SKSE.h>)
         // Plugin build identity. __DATE__/__TIME__ pin the exact binary that ran,
         // which is the cheapest defence against the stale-DLL class of confusion.
-        logger::info("[TrueGaze] Runtime identity: plugin v1.0.5 build {} {}",
-                     __DATE__, __TIME__);
+        logger::info("[TrueGaze] Runtime identity: plugin v1.0.7 build {} {}", __DATE__, __TIME__);
 
         // Game runtime version, formatted as the human-readable dotted string the
         // Address Library and SKSE filenames are derived from.
         try
         {
             const auto ver = REL::Module::get().version();
-            logger::info("[TrueGaze] Game runtime: {}.{}.{}.{}",
-                         ver[0], ver[1], ver[2], ver[3]);
+            logger::info("[TrueGaze] Game runtime: {}.{}.{}.{}", ver[0], ver[1], ver[2], ver[3]);
         }
         catch (...)
         {
@@ -160,14 +163,14 @@ namespace
         // Effective configuration path, so a reader knows which INI actually drove
         // this session rather than assuming the repository default.
         {
-            const auto &cfg = TrueGaze::Engine::ConfigManager::GetSingleton();
+            const auto& cfg = TrueGaze::Engine::ConfigManager::GetSingleton();
             logger::info("[TrueGaze] Effective config: '{}'",
                          cfg.LoadedPath().empty() ? "compiled defaults" : cfg.LoadedPath());
         }
 #endif
     }
 
-    void MessageHandler(SKSE::MessagingInterface::Message *a_msg)
+    void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
     {
         if (!a_msg)
         {
@@ -177,8 +180,8 @@ namespace
         // Dynamic SKSE message dispatch to OAR / external condition listeners
         TrueGaze::Integrations::OarConditions::OnSkseMessage(a_msg);
 
-        auto &engine = TrueGaze::Engine::GazeEngine::Get();
-        auto &config = TrueGaze::Engine::ConfigManager::GetSingleton();
+        auto& engine = TrueGaze::Engine::GazeEngine::Get();
+        auto& config = TrueGaze::Engine::ConfigManager::GetSingleton();
 
         switch (a_msg->type)
         {
@@ -219,7 +222,6 @@ namespace
             break;
 
         case SKSE::MessagingInterface::kPreLoadGame:
-        case SKSE::MessagingInterface::kNewGame:
             // The previous session's skeleton state is unrelated to the new one.
             config.Load();
             ApplyLogLevel(config.logLevel);
@@ -229,17 +231,37 @@ namespace
             logger::info("[TrueGaze] Session reset; actor gaze state cleared.");
             break;
 
+        case SKSE::MessagingInterface::kNewGame:
+            // Same reset as a save load, plus the session-start status log.
+            // (Save loads log at kPostLoadGame instead; kPreLoadGame would
+            // double-log since both fire for every save load.)
+            config.Load();
+            ApplyLogLevel(config.logLevel);
+            engine.RefreshTuning();
+            engine.ResetAll();
+            TrueGaze::Integrations::OarConditions::ClearCache();
+            logger::info("[TrueGaze] Session reset; actor gaze state cleared.");
+            // Kirk directive (2026-10-01): background status log at session start.
+            TrueGaze::Integrations::ConsoleCommands::LogStatusToLog();
+            break;
+
         case SKSE::MessagingInterface::kPostLoadGame:
             // Reload settings so changes made via the INI in a prior session are
             // picked up by the engine.
             config.Load();
             ApplyLogLevel(config.logLevel);
             engine.RefreshTuning();
+            // Kirk directive (2026-10-01): background status log at session start
+            // — every run's log is self-describing without opening the console.
+            TrueGaze::Integrations::ConsoleCommands::LogStatusToLog();
             break;
 
         case SKSE::MessagingInterface::kSaveGame:
             // Never let a procedural deflection be baked into a save.
             engine.ReleaseBones();
+            // Kirk directive (2026-10-01): background status log at session end
+            // (save = the player is leaving a play session; capture final counters).
+            TrueGaze::Integrations::ConsoleCommands::LogStatusToLog();
             break;
 
         default:
@@ -247,7 +269,7 @@ namespace
         }
     }
 #endif
-}
+} // namespace
 
 #if __has_include(<SKSE/SKSE.h>)
 // ---------------------------------------------------------------------------
@@ -273,17 +295,14 @@ namespace
 // declaration, and clang-format cannot tell where the statement ends without
 // it, so it indents the following function as if it were still part of the
 // macro arguments. An empty declaration at namespace scope is legal C++.
-SKSEPluginInfo(
-        .Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 5, 0},
-        .Name = "TrueGaze",
-        .Author = "Kirk LaSalle (HCEP)",
-        .SupportEmail = "",
-        .StructCompatibility = SKSE::StructCompatibility::Independent,
-        .RuntimeCompatibility = SKSE::PluginDeclaration::RuntimeCompatibility(
-            SKSE::VersionIndependence::AddressLibrary),
-        .MinimumSKSEVersion = SKSE::PluginDeclaration::VersionNumber{0, 0, 0, 0});
+SKSEPluginInfo(.Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 5, 0}, .Name = "TrueGaze",
+               .Author = "Kirk LaSalle (HCEP)", .SupportEmail = "",
+               .StructCompatibility = SKSE::StructCompatibility::Independent,
+               .RuntimeCompatibility = SKSE::PluginDeclaration::RuntimeCompatibility(
+                   SKSE::VersionIndependence::AddressLibrary),
+               .MinimumSKSEVersion = SKSE::PluginDeclaration::VersionNumber{0, 0, 0, 0});
 
-SKSEPluginLoad(const SKSE::LoadInterface *a_skse)
+SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
     InitializeLogging();
 
@@ -300,7 +319,7 @@ SKSEPluginLoad(const SKSE::LoadInterface *a_skse)
         spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
     }
 
-    logger::info("[TrueGaze] Loading True Gaze v1.0.5 (An HCEP Product by Kirk LaSalle)...");
+    logger::info("[TrueGaze] Loading True Gaze v1.0.7 (An HCEP Product by Kirk LaSalle)...");
 
     // Explicit InitInfo (Gold Standard fix): log=false makes API::InitLog a
     // no-op — it will NOT open/re-truncate TrueGaze.log and will NOT replace
@@ -332,7 +351,8 @@ SKSEPluginLoad(const SKSE::LoadInterface *a_skse)
 // produce a loadable plugin, and the CMake build refuses to reach this path in a
 // normal build. See docs/AUDIT_REPORT_2026-09-11.md finding C-2.
 // ---------------------------------------------------------------------------
-#pragma message("TrueGaze: SKSE headers not found - building standalone stub (not a loadable plugin).")
+#pragma message(                                                                                   \
+    "TrueGaze: SKSE headers not found - building standalone stub (not a loadable plugin).")
 
 int main()
 {

@@ -4,7 +4,7 @@
 
 During Kirk's play-test:
 - NPCs turned to look at the player using vanilla Skyrim static head-tracking and locked on without eye drift, saccades, or biological latency gap.
-- Running `tgstatus` in the console returned `0` for all counters (`tracked actors 0`, `tick calls 0`, `eligible ticks 0`, `target resolves 0`, etc.).
+- Running `stgstatus` in the console returned `0` for all counters (`tracked actors 0`, `tick calls 0`, `eligible ticks 0`, `target resolves 0`, etc.).
 
 ### Root Causes Identified in SKSE Logs (`TrueGaze.log`):
 1. **Uncalled Batch Ticking (`TickAllActors`)**:
@@ -48,7 +48,7 @@ During Kirk's play-test:
 - Deploy `TrueGaze.dll` and `TrueGaze.ini` to `G:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\Data\SKSE\Plugins\`.
 - Launch Skyrim and load a save in Riverwood Trader or Whiterun.
 - Stand near Lucan, Camilla, or town guards.
-- Open console (`~`) and execute `tgstatus`:
+- Open console (`~`) and execute `stgstatus`:
   - `tracked actors` > 0
   - `tick calls` > 0
   - `eligible ticks` > 0

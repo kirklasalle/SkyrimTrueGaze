@@ -1,9 +1,9 @@
 # TrueGaze™ — Project Status & In-Engine Audit
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
-**Version:** `1.0.6` (Production Release)  
+**Version:** `1.0.7` (Production Release)
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Status date:** September 27, 2026  
+**Status date:** October 2, 2026  
 **Owner & Architect:** Kirk LaSalle
 
 > **Document role:** this is the single source of truth for what is *implemented
@@ -40,7 +40,17 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 
 ## Landmark Milestones Achieved
 
-> ### 🏆 LATEST — Gold Standard Scene Integration — ✅ In-engine verified (September 26, 2026)
+> ### 🏆 LATEST — HCEP Floating Diagram Panel & Universal Actor Coverage — ✅ In-engine verified (October 2, 2026)
+>
+> **The 3D chroma-keyed HCEP-02 cognitive gaze diagram panel (`GazeRegionPanel.nif`) is fully restored and verified floating cleanly in front of all actors in live Skyrim gameplay.** Verified across field-test rounds with Kirk LaSalle (`ScreenShot164.png`, `ScreenShot177.png`):
+>
+> 1. **Floating HCEP Panel Restoration** — Rendered via Bethesda flat glow quad geometry (`fxglowflatrndmid.nif` retextured to `GazeRegionPanel.dds`), dynamically highlighting active cognitive/social gaze regions (Third-Eye, Eyes, Mouth, Chest, Peripherals).
+> 2. **Universal Actor Coverage** — `bHcepPanelAllActors = true` default ensures both the Player and all NPCs project the floating diagram panel in the scene graph.
+> 3. **Forward Offset Tuning (70 cm)** — Increased `fHcepPanelForwardOffsetCm` from 35.0 cm to 70.0 cm (~49 Skyrim units), eliminating clipping into the NPC's skull, hair, and neck during dialogue head-tilts and seated postures.
+> 4. **Diagnostic Visuals Policy (Default OFF)** — In-game visuals are designated as developer diagnostics and disabled by default (`bEnableInGameVisuals = false`) in shipped configurations so players enjoy pure organic biological eye kinematics. Visuals can be toggled on-demand via `stgvisuals` or `stgv` in the console.
+> 5. **Launcher Hardening** — `LaunchTrueGaze.bat` and `TrueGaze.cmd` prefer optimized Release build binaries (`build\windows-release\Release\TrueGaze.dll`), eliminating debug heap lockups (`AppHangB1`) on heavy save loads.
+
+> ### 🏆 Gold Standard Scene Integration — ✅ In-engine verified (September 26, 2026)
 >
 > **The Gold Standard: flawless TrueGaze integration during the Helgen opening scene —
 > which by construction makes it correct for ANY in-game directed animation, scripted
@@ -245,14 +255,14 @@ The project status breaks down into three distinct tiers (percentages sum to 100
 | :--- | :---: | :---: | :---: | :---: |
 | `[Visuals]` INI schema + defaults | ✅ | ✅ | — | ✅ **Verified in-engine** |
 | INI / engine / HTML key parity | ✅ | ✅ | ✅ | ✅ **Verified in-engine** |
-| Console command status (`tgstatus`) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (All telemetry returns)** |
+| Console command status (`stgstatus`) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (All telemetry returns)** |
 | `VisualEffectsManager` (pupil solver + emitters) | ✅ | ✅ | ❌ | ✅ **Verified in-engine** |
 | Pupil-origin solve (vanilla rigs without eye bones) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Socket derivation active)** |
 | Gaze direction from eye residual | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Line-of-sight tracking)** |
 | **Option 1: Superman Laser Eyes Refinements** | ✅ | ✅ | ❌ | ✅ **Verified in-engine (8mm rays, pupil anchor, dynamic length)** |
 | **Option 2: HCEP Floating Diagram Panel** | ✅ | ✅ | ❌ | ✅ **Verified in-engine (`GazeRegionPanel.nif`, chroma-keyed DDS, dynamic region glow)** |
 | `NiPointLight` emitters (asset-free path) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (`TrueGaze_PupilLight`, `TrueGaze_TerminusLight`)** |
-| Console command toggles (`tgstatus`, `tgvisuals`) | ✅ | ✅ | ❌ | ✅ **Verified in-engine** |
+| Console command toggles (`stgstatus`, `stgvisuals`) | ✅ | ✅ | ❌ | ✅ **Verified in-engine** |
 | Emitters & panels detached on disable / eviction / save | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Clean scene-graph detachment)** |
 
 ---
@@ -281,7 +291,7 @@ The project status breaks down into three distinct tiers (percentages sum to 100
 
 ### Phase 2: Diagnostic HUD & Console Telemetry Readout ✅ **COMPLETED**
 
-+ [x] Enhanced `tgstatus` in `ConsoleCommands.cpp` to output:
++ [x] Enhanced `stgstatus` in `ConsoleCommands.cpp` to output:
   + `bio latency`: Configured head onset delay (`fHeadOnsetDelaySec`).
   + `saccades/blinks`: Running counts of ballistic saccades and triggered suppression blinks.
   + `mutual gaze`: Running frames of active mutual eye contact.
@@ -289,9 +299,9 @@ The project status breaks down into three distinct tiers (percentages sum to 100
 
 ### Phase 3: Diagnostic 3D Visuals — Option 1 & Option 2 ✅ **COMPLETED**
 
-+ [x] **Option 1 (Superman Laser Eyes)**: Scaled beam geometry down to 8mm pencil-thin rays, offset to pupil socket origins, scaled dynamically to target distance, and decoupled from head to follow ocular line of sight.
-+ [x] **Option 2 (HCEP Floating Diagram Panel)**: Authored `GazeRegionPanel.nif`, converted `hcep-02_enhanced-diagram_keyed-01.jfif` to transparent DDS DXT5 (`GazeRegionPanel.dds`), anchored 35cm in front of actor eyes, and integrated real-time emissive region glow.
-+ [x] Added `[Visuals]` INI configuration: `bShowHcepPanel`, `bHcepPanelAllActors`, `fHcepPanelScale`, `fHcepPanelForwardOffsetCm`.
++ [x] **Option 1 (Developer Gaze Direction Arrows / Rays)**: Uses vanilla editor marker arrow geometry (`meshes\marker_arrow.nif`) and NiPointLight emitters to display gaze line-of-sight directly from anatomical pupil origins with region coloring.
++ [x] **Option 2 (HCEP Floating Diagram Panel)**: Authored renderer-safe `GazeRegionPanel.nif` (based on vanilla glow quad geometry), retextured with chroma-keyed `GazeRegionPanel.dds`, anchored 70cm in front of actor eyes, dynamic active-region highlighting, verified live in running Skyrim session (`ScreenShot177.png`).
++ [x] Added `[Visuals]` INI configuration: `bEnableInGameVisuals` (default `false`), `bShowHcepPanel`, `bHcepPanelAllActors` (default `true`), `fHcepPanelScale` (`25.0`), `fHcepPanelForwardOffsetCm` (`70.0`).
 
 ### Phase 4: Skyrim VR Multi-Targeting & Startup Crash Fix ✅ **COMPLETED**
 
@@ -306,12 +316,14 @@ The project status breaks down into three distinct tiers (percentages sum to 100
 + [x] Authored `TrueGaze_Configurator_Guide.txt` with complete MO2/Vortex setup and SKSE direct launch instructions.
 + [x] Produced unified multi-target distribution `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip`.
 
-### Phase 6: In-Engine Field Verification Pass (Active)
+### Phase 6: In-Engine Field Verification Pass ✅ **COMPLETED**
 
-+ [ ] Run in-game test session with Kirk LaSalle verifying:
++ [x] Run in-game test session with Kirk LaSalle verifying:
   + Eye snap vs. head lag (Biological Latency Gap observed in gameplay).
-  + Console `tgstatus` readout showing active `saccades/blinks` and `bio latency`.
-  + Option 1 (laser rays) and Option 2 (floating HCEP diagram panel) in 3rd person.
+  + Console `stgstatus` readout showing active `saccades/blinks` and `bio latency`.
+  + Option 1 (directional marker arrows) and Option 2 (floating HCEP diagram panel) in 3rd person and on NPCs (`ScreenShot164.png`, `ScreenShot177.png`).
+  + Floating HCEP panel positioned cleanly 70cm forward in front of faces.
+  + Visuals designated as developer diagnostics and set off by default (`bEnableInGameVisuals=false`).
   + Mutual gaze detection frames accumulating when looking directly into an NPC's eyes.
 
 ### Phase 7: Multi-Threaded SIMD Evaluation (Planned)
@@ -331,4 +343,4 @@ The project status breaks down into three distinct tiers (percentages sum to 100
 
 ---
 
-*Last updated: September 26, 2026 — Engineering Excellence audit published (`docs/AUDIT_REPORT_2026-09-26.md`); Phase R14 (infrastructure hardening) is the current milestone; documentation drift corrected (tier math, dates, command names).*
+*Last updated: October 2, 2026 — Verified live in-engine restoration of HCEP floating diagram panel on Player and all NPCs with 70cm forward offset; diagnostic visuals set to off by default.*

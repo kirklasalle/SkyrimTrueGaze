@@ -5,7 +5,7 @@
 ### A First-Party Product of the Human Communication Eye Protocol (HCEP) Architecture
 
 [![Status](https://img.shields.io/badge/status-Production%20Release-brightgreen)](#-current-project-status)
-[![Version](https://img.shields.io/badge/version-1.0.6-blue)](#)
+[![Version](https://img.shields.io/badge/version-1.0.7-blue)](#)
 [![Platform](https://img.shields.io/badge/platform-Skyrim%20SE%20%7C%20AE%20%7C%20VR-4b5563)](#)
 [![C++](https://img.shields.io/badge/C%2B%2B-23-00599C)](#)
 [![SDK](https://img.shields.io/badge/SDK-CommonLibSSE--NG-8b5cf6)](#)
@@ -21,7 +21,7 @@
 </p>
 
 > [!IMPORTANT]
-> **Production Release v1.0.6 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, organic social triangle cycling with weighted-random scanpaths), resolves eye-dominant gaze with a head engagement threshold, times Cognitive Gaze Aversion returns to dialogue onset with per-actor ±2s offsets, dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, bundles both Option 1 (Pencil-thin subtle laser rays) and Option 2 (Floating HCEP ocular diagram panel) visual systems, and packages the standalone TrueGaze Web Configurator suite and User Guide directly in the distribution archive.
+> **Production Release v1.0.7 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, organic social triangle cycling with weighted-random scanpaths), resolves eye-dominant gaze with a head engagement threshold, times Cognitive Gaze Aversion returns to dialogue onset with per-actor ±2s offsets, dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, and provides the in-engine developer arrow visual milestone verified in a running Skyrim session.
 
 ---
 
@@ -29,7 +29,7 @@
 
 | | |
 | :--- | :--- |
-| **Maturity** | 🟢 **Production Release v1.0.6 + Gold Standard Scene Integration** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
+| **Maturity** | 🟢 **Production Release v1.0.7** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
 | **Builds & links the SDK?** | ✅ Yes — unified multi-target Release x64 DLL (`CommonLibSSE-NG`, `OpenVR`, `spdlog`, `fmt`, `/O2`) |
 | **Drives bones?** | ✅ Yes — procedural saccadic, VOR, and cervical hierarchy bone manipulation live |
 | **In-Engine Verification** | ✅ **Verified in Skyrim AE & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, eye-to-eye targeting, and telemetry confirmed |
@@ -39,7 +39,7 @@
 | **Character Gaze Profiles** | 🔨 **Implemented + Unit-verified** — temperament-driven gaze: Skyrim's own characterization (Confidence, Aggression, relationships, archetypes) projected onto the HCEP-02 diagram. Every NPC looks like themselves. |
 | **3D Head Elevation Targeting** | ✅ Dynamic `NPC Head [Head]` bone world transform solving for seated, leaning, and crouched eye-to-eye alignment |
 | **3rd-Person Player Gaze** | ✅ Player character headtracks and engages nearby conversational partners in 3rd person view |
-| **Diagnostic Visual Systems** | ✅ **Option 1** (discreet ~2mm laser rays from pupils) & **Option 2** (floating HCEP ocular diagram panel) implemented |
+| **Diagnostic Visual Systems** | ✅ **Verified in-engine** — Option 1 directional marker arrows & Option 2 floating HCEP ocular diagram panel (off by default for organic gameplay; togglable via `stgvisuals`) |
 | **Skyrim VR Multi-Targeting** | ✅ Unified build supporting SE 1.5.97, AE 1.6.318–1.6.1170+, and Skyrim VR 1.4.15 ("Mad God VR") |
 | **Configurator Packaging** | ✅ Bundles standalone HTML5 configurator, one-click launcher, and quickstart guide (`TrueGaze_Configurator_Guide.txt`) |
 | **OAR Integration** | ✅ Native dynamic SKSE messaging registration (zero static symbol dependencies) |
@@ -553,14 +553,17 @@ no Papyrus, ESP, MCM or SkyUI. Set `bEnableConsoleCommands=true` under `[Console
 
 | Command | Does |
 | :--- | :--- |
-| `tgstatus` | Print the full effective state — start here |
-| `tg` | Toggle the gaze kinematics engine on/off |
-| `tgvisuals` | Toggle all in-game visuals |
-| `tgv` | Toggle the gaze-ray emitters (the "laser eyes") |
-| `tgon` / `tgoff` | Turn every visual on / off |
-| `tgmode` | Cycle render mode: Both → Light only → Geometry only |
-| `tgradius` | Toggle the gaze terminus glow |
-| `tgverbose` | Toggle Debug/Info logging |
+| `stgstatus` | Print the full effective state — start here |
+| `stg` | Toggle the gaze kinematics engine on/off |
+| `stgvisuals` | Toggle all in-game visuals (gaze rays + HCEP panel) |
+| `stgv` | Toggle the gaze-ray emitters (the "laser eyes") |
+| `stgpanel` | Toggle the floating HCEP gaze region diagram panel |
+| `stgon` / `stgoff` | Turn every visual on / off |
+| `stgmode` | Cycle render mode: Both → Light only → Geometry only |
+| `stgradius` | Toggle the gaze terminus glow |
+| `stgverbose` | Toggle Debug/Info logging |
+| `stgpreset` | Cycle Quick Presets (vanilla/subtle/intense/social/developer) |
+| `stgreload` | Reload TrueGaze.ini from disk and refresh the engine |
 
 Changes apply immediately **and persist** to the INI. This is the *runtime* control
 surface; `TrueGaze.ini` and this page remain the *authoring* surface.

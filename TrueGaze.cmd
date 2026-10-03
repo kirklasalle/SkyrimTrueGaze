@@ -50,6 +50,7 @@ set "PROJECT_ROOT=%~dp0"
 if "%PROJECT_ROOT:~-1%"=="\" set "PROJECT_ROOT=%PROJECT_ROOT:~0,-1%"
 
 set "BUILT_DLL=%PROJECT_ROOT%\build\windows-release\Release\TrueGaze.dll"
+if not exist "%BUILT_DLL%" set "BUILT_DLL=%PROJECT_ROOT%\build\windows-debug\Debug\TrueGaze.dll"
 set "SRC_INI=%PROJECT_ROOT%\skyrim\SKSE\Plugins\TrueGaze.ini"
 set "PS=powershell -NoProfile -ExecutionPolicy Bypass -Command"
 
@@ -512,7 +513,8 @@ REM ---------------------------------------------------------------------------
 REM DEPLOY_ASSETS - copy meshes and textures to the game Data folder.
 REM
 REM BSModelDB::Demand loads NIF files from the game Data/ directory (or BSA
-REM archives). Without these files the plugin falls back to marker_arrow.nif.
+REM archives). The development view explicitly installs the vanilla marker arrow
+REM as the primary beam, plus the branded fallback and HCEP panel resources.
 REM ---------------------------------------------------------------------------
 :DEPLOY_ASSETS
 set "DATADIR=%GAMEPATH%\Data"
@@ -520,23 +522,26 @@ set "SRC_MESHES=%PROJECT_ROOT%\skyrim\meshes\TrueGaze"
 set "SRC_TEXTURES=%PROJECT_ROOT%\skyrim\textures\TrueGaze"
 set "DST_MESHES=%DATADIR%\meshes\TrueGaze"
 set "DST_TEXTURES=%DATADIR%\textures\TrueGaze"
+set "SRC_ARROW=%PROJECT_ROOT%\scratch\arrow_extract\meshes\marker_arrow.nif"
+set "DST_ARROW=%DATADIR%\meshes\marker_arrow.nif"
 
+if not exist "%DATADIR%\meshes" mkdir "%DATADIR%\meshes" >nul 2>&1
 if not exist "%DST_MESHES%" mkdir "%DST_MESHES%" >nul 2>&1
 if not exist "%DST_TEXTURES%" mkdir "%DST_TEXTURES%" >nul 2>&1
 
+if exist "%SRC_ARROW%" copy /y "%SRC_ARROW%" "%DST_ARROW%" >nul 2>&1
 if exist "%SRC_MESHES%\GazeBeam.nif" copy /y "%SRC_MESHES%\GazeBeam.nif" "%DST_MESHES%\GazeBeam.nif" >nul 2>&1
 if exist "%SRC_MESHES%\GazeRegionPanel.nif" copy /y "%SRC_MESHES%\GazeRegionPanel.nif" "%DST_MESHES%\GazeRegionPanel.nif" >nul 2>&1
+if exist "%SRC_TEXTURES%\GazeBeamGlow.dds" copy /y "%SRC_TEXTURES%\GazeBeamGlow.dds" "%DST_TEXTURES%\GazeBeamGlow.dds" >nul 2>&1
 if exist "%SRC_TEXTURES%\GazeRegionPanel.dds" copy /y "%SRC_TEXTURES%\GazeRegionPanel.dds" "%DST_TEXTURES%\GazeRegionPanel.dds" >nul 2>&1
 
-if exist "%DST_MESHES%\GazeBeam.nif" echo   OK    GazeBeam.nif deployed.
-if exist "%DST_MESHES%\GazeRegionPanel.nif" echo   OK    GazeRegionPanel.nif deployed.
-if exist "%DST_TEXTURES%\GazeRegionPanel.dds" echo   OK    GazeRegionPanel.dds deployed.
-
-if not exist "%DST_MESHES%\GazeBeam.nif" echo   WARN  GazeBeam.nif not found; fallback marker_arrow.nif will be used.
+if not exist "%DST_ARROW%" echo   WARN  marker_arrow.nif not found; the primary development arrow is missing.
+if not exist "%DST_MESHES%\GazeBeam.nif" echo   WARN  GazeBeam.nif not found; branded fallback is missing.
+if not exist "%DST_MESHES%\GazeRegionPanel.nif" echo   WARN  GazeRegionPanel.nif not found; development panel is missing.
 exit /b 0
 
 :DEPLOY_NO_DLL
-echo   FAIL  No binary at build\windows-release\Release\TrueGaze.dll
+echo   FAIL  No binary at build\windows-debug\Debug\TrueGaze.dll
 set /a FAILED+=1
 exit /b 1
 

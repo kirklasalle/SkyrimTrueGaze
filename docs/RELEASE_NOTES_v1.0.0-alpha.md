@@ -29,7 +29,7 @@ Following project governance standards, all features are reported strictly accor
 | **Conversational Gaze Aversion** | ✅ In-Engine Verified | Periodic natural cognitive look-away breaks ($0.35 - 0.7\text{ s}$) to prevent unnatural staring. |
 | **Crosshair Sweet Spot** | ✅ In-Engine Verified | Mutual gaze detection when the player centers their view on an NPC's face. |
 | **3rd-Person Player Tracking** | ✅ In-Engine Verified | Live cervical and ocular gaze updates on the player character in third person. |
-| **Runtime Console Commands** | ✅ In-Engine Verified | 9 live console commands (`tg`, `tgstatus`, `tgvisuals`, `tgv`, `tgon`, `tgoff`, `tgmode`, etc.) via `~`. |
+| **Runtime Console Commands** | ✅ In-Engine Verified | 11 live console commands (`stg`, `stgstatus`, `stgvisuals`, `stgv`, `stgon`, `stgoff`, `stgmode`, etc.) via `~`. |
 | **In-Game Light Emitters** | ✅ In-Engine Verified | Dual `NiPointLight` emitters (pupil origin and target terminus) for visual debugging. |
 | **HCEP Desktop Telemetry Bridge** | 🔨 Implemented | 64-byte IPC streaming over `\\.\pipe\TrueGazeBridge` connected with published HCEP Desktop. |
 | **Visible Beam Geometry** | 🔨 In Calibration | NIF geometry attached via `BSModelDB::Demand`; scale and material tuning in progress. |
@@ -67,12 +67,12 @@ Data/
 
 Open the Skyrim console (`~`) at any time during gameplay to execute:
 
-* `tgstatus` — Output full real-time engine diagnostics (tracked actors, tick counts, active targets, visual emitters, and bridge state).
-* `tg` — Toggle TrueGaze kinematics engine on or off.
-* `tgvisuals` / `tgv` — Toggle in-game gaze visual emitters and debug rays.
-* `tgmode` — Cycle visual render modes (`0` = Lights + Geometry, `1` = Lights only, `2` = Geometry only).
-* `tgon` / `tgoff` — Turn all visual diagnostics on or off.
-* `tgverbose` — Toggle between Info and Debug logging levels in `TrueGaze.log`.
+* `stgstatus` — Output full real-time engine diagnostics (tracked actors, tick counts, active targets, visual emitters, and bridge state).
+* `stg` — Toggle TrueGaze kinematics engine on or off.
+* `stgvisuals` / `stgv` — Toggle in-game gaze visual emitters and debug rays.
+* `stgmode` — Cycle visual render modes (`0` = Lights + Geometry, `1` = Lights only, `2` = Geometry only).
+* `stgon` / `stgoff` — Turn all visual diagnostics on or off.
+* `stgverbose` — Toggle between Info and Debug logging levels in `TrueGaze.log`.
 
 Configuration changes made through console commands persist immediately to `TrueGaze.ini`.
 

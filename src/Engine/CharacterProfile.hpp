@@ -321,7 +321,11 @@ namespace TrueGaze::Engine
             p.aversionRateMult *= (1.0f - 0.45f * conf);  // cowardly: 1.45x, foolhardy: 0.55x
             p.aversionDwellMult *= (1.0f - 0.30f * conf); // cowardly dwells longer in aversion
             p.mutualGazeThresholdMult *= (1.0f + 0.50f * conf); // foolhardy holds eye contact
-            p.fixationScaleMult *= (1.0f - 0.20f * conf); // cowardly: quicker, darting glances
+            // Cowardly (conf<0) darts quicker -> SHORTER fixations; foolhardy
+            // (conf>0) holds longer. (The old sign was inverted: it gave
+            // cowardly 1.2x LONGER fixations, contradicting the comment,
+            // the psychology, and the KinematicsTests confidence ordering.)
+            p.fixationScaleMult *= (1.0f + 0.20f * conf);
 
             // Shyness signature on the diagram: low confidence raises the
             // Lower-Right aversion region (shyness/fear/deception per HCEP-02).

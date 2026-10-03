@@ -4,8 +4,8 @@
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
-**Current Milestone:** Phase R15 — Category Gaze Profiles & Configuration Truth  
-**Last Updated:** September 27, 2026
+**Current Milestone:** v1.0.7 — HCEP Floating Diagram Panel & Universal Actor Coverage
+**Last Updated:** October 2, 2026
 
 **Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)  
 **Current engineering plan:** [`docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md`](docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md)  
@@ -307,7 +307,7 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 - [x] **Option 1 (Superman Laser Eyes)**: Refactored `VisualEffectsManager` to render 8mm pencil-thin rays originating at pupil socket anchors and tracking computed ocular line-of-sight.
 - [x] **Option 2 (HCEP Floating Diagram Panel)**: Created 3D planar quad `GazeRegionPanel.nif`, converted chroma-keyed `hcep-02_enhanced-diagram_keyed-01.jfif` to transparent DXT5 `GazeRegionPanel.dds`, head-anchored ~35cm in front of eyes with dynamic region glow.
 - [x] **Light Emitters**: Seamless fallback to `TrueGaze_PupilLight` and `TrueGaze_TerminusLight`.
-- [x] **Runtime Console Control**: Real-time toggles via `tgvisuals`, `tgv`, `tgmode`.
+- [x] **Runtime Console Control**: Real-time toggles via `stgvisuals`, `stgv`, `stgmode`.
 - [x] **Clean Detachment**: Emitters and panels detach safely on cell change, disable, or game exit.
 
 ### Evidence boundary
@@ -386,7 +386,7 @@ With the core biological kinematics, HCEP duplex IPC bridge, standalone HTML con
 ### 1. In-Game Visuals & Default Policy Configuration
 
 - [x] Establish default `bEnableInGameVisuals = false` in shipped `TrueGaze.ini` so players experience pristine, organic biological eye contact without developer diagnostic beams.
-- [x] Retain `NiPointLight` emitters and console `tgvisuals` / `tgstatus` as zero-asset diagnostic fallbacks for developers.
+- [x] Retain `NiPointLight` emitters and console `stgvisuals` / `stgstatus` as zero-asset diagnostic fallbacks for developers.
 - [x] Probe primary standalone non-Bethesda mesh path (`skyrim/meshes/TrueGaze/GazeBeam.nif`), secondary fallback (`meshes\dlc01\effects\fxsoulcairnbeam.nif`), and ensure verified `NiPointLight` emitter fallback when geometry is absent.
 
 ### 2. Open Animation Replacer (OAR) Ecosystem Integration

@@ -11,7 +11,7 @@
 ### The Problem Observed During Play-Testing:
 1. NPCs and creatures turned their heads to face the player, but locked on rigidly like mannequins.
 2. There was no ocular drift, no look-away saccade, no social triangle, and no return to eye contact.
-3. Running `tgstatus` in the console printed `0` across every operational metric (`tracked actors 0`, `tick calls 0`, `eligible ticks 0`, etc.).
+3. Running `stgstatus` in the console printed `0` across every operational metric (`tracked actors 0`, `tick calls 0`, `eligible ticks 0`, etc.).
 
 ### Findings from `G:\Users\kirkl\Documents\My Games\Skyrim Special Edition\SKSE\TrueGaze.log`:
 ```
@@ -109,7 +109,7 @@ Executed [`scripts/PackageMod.ps1`](file:///d:/Projects/SkyrimTrueGaze/scripts/P
    - Notice the **Biological Latency Gap**: when shifting attention, the NPC's eyes snap first, and the head smoothly follows ~120 ms later.
 4. Open the console (`~`) and enter:
    ```
-   tgstatus
+   stgstatus
    ```
    Verify that:
    - `tracked actors` > 0

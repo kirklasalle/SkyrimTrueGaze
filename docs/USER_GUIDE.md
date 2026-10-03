@@ -19,7 +19,7 @@ The current runtime can:
 - Use configurable saccade, VOR, comfort, jitter, social, and LOD parameters.
 - Provide Option 1 (Superman laser eyes) and Option 2 (HCEP floating ocular diagram panel) developer visual overlays.
 - Receive optional HCEP telemetry through a Windows named pipe.
-- Report actor, target, skeleton, visual, and performance diagnostics through the Skyrim log and `tgstatus`.
+- Report actor, target, skeleton, visual, and performance diagnostics through the Skyrim log and `stgstatus`.
 
 The optional Visuals subsystem is an opt-in developer diagnostic. It is not required for the gaze kinematics engine itself.
 
@@ -83,7 +83,7 @@ Do not place the DLL beside `SkyrimSE.exe`. SKSE plugins belong under `Data\SKSE
 6. Switch to third-person view when testing player-attached visuals.
 7. Wait several seconds for actor updates.
 8. Open the vanilla console with `~`.
-9. Run `tgstatus` if console commands are enabled.
+9. Run `stgstatus` if console commands are enabled.
 
 A save reload or cell transition can rebuild actor 3D nodes, but neither is normally required. A new game does not solve a missing asset, a bad deployment, or an incorrect resource path.
 
@@ -203,40 +203,42 @@ Tier 1 is the full close-range biological kinematics. Tier 2 reduces fine detail
 
 ### Developer visuals (Option 1 & Option 2)
 
-TrueGaze includes two in-engine developer visual diagnostic systems (opt-in, disabled by default in production):
+TrueGaze includes two in-engine developer visual diagnostic systems (opt-in, disabled by default for organic gameplay):
 
 ```ini
 [Visuals]
-bEnableInGameVisuals=true
+; Developer diagnostics - disabled by default for pure organic gameplay
+; Toggle in-game via console: 'stgvisuals' or 'stgv'
+bEnableInGameVisuals=false
 bGazeRaysEnabled=true
 iRayRenderMode=0
-fGazeRayLengthMeters=10.0
+fGazeRayLengthMeters=2.5
 fGazeRayOpacity=0.85
 bGazeRaysOnPlayer=true
 bGazeRaysOnNPCs=true
 bGazeRaysOnCreatures=true
 bGazeRaysAttachHead=true
 bGazeRaysTerminus=true
-fPupilForwardOffsetCm=7.0
-fPupilUpOffsetCm=1.5
-fPupilGlowIntensity=0.5
+fPupilForwardOffsetCm=12.0
+fPupilUpOffsetCm=6.0
+fPupilGlowIntensity=0.35
 
 ; Option 2: HCEP Floating Ocular Diagram Panel
 bShowHcepPanel=true
 bHcepPanelAllActors=true
-fHcepPanelScale=0.35
-fHcepPanelForwardOffsetCm=35.0
+fHcepPanelScale=25.0
+fHcepPanelForwardOffsetCm=70.0
 ```
 
 Visual subsystems:
 
-- **Option 1: Superman Laser Eyes**:
-  - Gaze beams render as pencil-thin (~8mm) laser rays projecting directly from anatomical pupil socket anchors.
+- **Option 1: Directional Gaze Rays / Marker Arrows**:
+  - Gaze direction renders directly from anatomical pupil socket anchors along the solved line of sight.
   - Dynamically scaled in length based on actual target distance or `fGazeRayLengthMeters`.
   - Oriented dynamically to track computed saccadic/fixation eye line of sight (not head rotation).
 - **Option 2: HCEP Floating Diagram Panel**:
   - A 3D planar quad rendering the chroma-keyed HCEP-02 ocular diagram (`GazeRegionPanel.nif` / `GazeRegionPanel.dds`).
-  - Head-anchored and floating ~35cm in front of actor eyes, oriented toward the camera.
+  - Head-anchored and floating cleanly ~70cm in front of actor eyes, oriented toward the viewer.
   - Highlights active gaze regions in real time with an emissive glow (Social Triangle, Mutual Gaze, Intimate, Avoidance, Target).
 - **Visual Modes (`iRayRenderMode`)**:
   - `0`: Geometry plus point light emitters (`TrueGaze_PupilLight`, `TrueGaze_TerminusLight`).
@@ -330,7 +332,7 @@ Check:
 5. `skse64.log` contains `plugin TrueGaze.dll ... loaded correctly`.
 6. The DLL hash matches the intended build.
 
-### `tgstatus` is not recognized
+### `stgstatus` is not recognized
 
 Check `bEnableConsoleCommands=true` in the live deployed INI, then fully restart Skyrim. The command table is modified during plugin initialization; changing the INI while the game is open does not retroactively register commands.
 
@@ -378,7 +380,7 @@ For a repeatable test:
 6. Enter third person.
 7. Stand near a living humanoid NPC.
 8. Wait 10 seconds.
-9. Run `tgstatus`.
+9. Run `stgstatus`.
 10. Exit Skyrim normally.
 11. Save the complete logs before the next change.
 
@@ -407,7 +409,7 @@ Cell/location:
 First- or third-person:
 Live INI visual settings:
 Exact console command:
-TrueGaze tgstatus output:
+TrueGaze stgstatus output:
 TrueGaze.log:
 skse64.log:
 ```

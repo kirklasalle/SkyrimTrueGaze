@@ -287,7 +287,7 @@ The S2 rig-capability diagnostics classify the first successful skeleton probe a
 - `GeometricHeadSocket`: head resolved but both eye nodes absent, expected on many vanilla humanoid rigs;
 - `Unavailable`: no head anchor resolved.
 
-`tgstatus` also reports cumulative eye-node-absent and head-anchor-absent counts. Eye-node absence is a supported degraded capability; head-anchor absence blocks visible pose application.
+`stgstatus` also reports cumulative eye-node-absent and head-anchor-absent counts. Eye-node absence is a supported degraded capability; head-anchor absence blocks visible pose application.
 
 `GazeEngine::ComputeDeflection` combines:
 
@@ -327,45 +327,28 @@ The light path:
 
 A `NiPointLight` is an illumination source, not a visible beam mesh. Therefore `2 lights` is not evidence of visible geometry.
 
-### Current geometry path
+### Verified geometry path
 
-The geometry path currently attempts:
+The in-engine visual diagnostic subsystem supports two verified geometry assets:
 
-- `RE::BSModelDB::Demand` to resolve a `NiNode` model.
-- `NiNode::AttachChild` to attach the returned model.
-- A local transform update to place, orient, and scale the model along solved gaze.
+1. **Gaze Direction Marker Arrows (`meshes\marker_arrow.nif`)**:
+   - Resolved via `RE::BSModelDB::Demand` and cloned onto the pupil anchor node.
+   - Scaled down (30% scale) and offset forward along the gaze vector to visualize eye line-of-sight and region shifts.
+2. **HCEP Floating Diagram Panel (`meshes\TrueGaze\GazeRegionPanel.nif`)**:
+   - Authored from Skyrim's renderer-safe flat glow quad geometry (`fxglowflatrndmid.nif`) retextured to `GazeRegionPanel.dds` (DXT5 transparent).
+   - Anchored ~70cm in front of actor eye sockets, oriented to the viewer, with active-region dynamic emissive highlighting.
 
-The current candidate path has returned:
+Both geometry options and NiPointLight emitters are verified in live engine gameplay (`ScreenShot164.png`, `ScreenShot177.png`).
+
+### Diagnostic Visuals Policy (Default OFF)
+
+In-game visuals are **development diagnostics only**. Shipped configurations default `bEnableInGameVisuals = false` in `TrueGaze.ini` so players experience pristine biological gaze kinematics without visual clutter. Developers can enable them via the INI or toggle them dynamically at runtime via the console:
 
 ```text
-BSResource::ErrorCode::kNotExist
+stgvisuals    ; Toggle master visual switch (rays + HCEP panel)
+stgv          ; Toggle gaze rays / directional arrows
+stgpanel      ; Toggle floating HCEP diagram panel
 ```
-
-The latest controlled run recorded:
-
-```text
-visual updates   856
-anchors failed   0
-light creates failed 0
-beam geometry    0 attached / 856 attempts
-```
-
-This is an asset lookup failure, not evidence that `NiNode::AttachChild` is unavailable. Do not mark the visual feature in-engine verified until the log contains a successful geometry attachment and a human observes the result in Skyrim.
-
-### Safe visual-asset work
-
-Preferred asset strategy:
-
-1. Use a known Skyrim model path obtained from Skyrim's own form/model data or a reliable BSA extraction tool.
-2. Validate `BSModelDB::Demand` returns `kNone` and a non-null model.
-3. Attach only on the game thread.
-4. Keep a strong `NiPointer` while attached.
-5. Detach before releasing or replacing the parent.
-6. Update world/local transforms consistently with the anchor's coordinate frame.
-7. Test loading, cell transitions, save/load, and shutdown.
-8. Avoid redistributing Bethesda assets in the TrueGaze package.
-
-If a verified vanilla path cannot be resolved reliably, create an original TrueGaze NIF/texture asset and package it under the mod's own `meshes` and `textures` directories. Do not keep guessing filenames in production code.
 
 ## 12. HCEP Bridge
 
@@ -407,7 +390,7 @@ HCEP telemetry should be treated as optional, stale data should be rejected, and
 4. **Blink suppression** — with both eyes closed the vector is a prediction, not an observation; fusion is suppressed.
 5. **Convergence plausibility** — focal distance outside 0.3-6.0 m is flagged, not silently trusted.
 
-`LastIntent()` exposes the current fusion state; `tgstatus` prints it so a support report can answer why fusion is inactive without a debugger.
+`LastIntent()` exposes the current fusion state; `stgstatus` prints it so a support report can answer why fusion is inactive without a debugger.
 
 ### 12.2 Scripted Scenes & Meta-Controller Architecture
 

@@ -8,7 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [!IMPORTANT]
 > **Correction notice.** Earlier entries in this changelog described several features as "implemented" that are not functional, because they were written from design intent rather than from the code. Those entries have been annotated below. See [`docs/STATUS.md`](docs/STATUS.md) for the verified capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the full independent audit.
 
-## [Unreleased] - 2026-09-27 - Category Gaze Profiles & Configuration Truth (R15)
+## [1.0.7] - 2026-10-02 - HCEP Floating Diagram Panel & Universal Actor Coverage
+
+### Added
+
+- **HCEP Floating Diagram Panel (`GazeRegionPanel.nif`)** — The 3D chroma-keyed HCEP-02 cognitive gaze diagram floats in front of actors with dynamic active-region highlighting (Third-eye, Left/Right eye, Mouth, Chest, Far Upper/Lower regions), verified live in running Skyrim tavern sessions (`ScreenShot164.png`, `ScreenShot177.png`).
+- **Universal Actor Coverage** — `bHcepPanelAllActors=true` enabled across compile-time defaults and INI so the floating diagram panel is active across the Player and all NPCs.
+- **Adjusted Panel Forward Offset** — Increased `fHcepPanelForwardOffsetCm` from 35.0 cm to 70.0 cm (~49 Skyrim units) to position the panel cleanly in front of NPC faces and prevent clipping into the skull or neck during dialogue, gestures, or leaning.
+- **In-engine developer arrow visuals verified** — vanilla `marker_arrow.nif`
+  renders from actor gaze origins in a live Skyrim session, with region-driven
+  color changes visible in captured tavern screenshots.
+- **Arrow presentation tuning** — marker arrows render at 30% of their previous
+  uniform scale (70% reduction) and move forward by 50% of the configured pupil
+  offset along the solved gaze direction.
+- **Versioned runtime identity** — plugin logs, public API, CMake, vcpkg, README,
+  PRD, STATUS, and ROADMAP identify this milestone as v1.0.7.
+
+### Changed
+
+- **Default Visuals Configuration** — In-game diagnostic visuals (`bEnableInGameVisuals`) are disabled (`false`) by default for pure organic gameplay, togglable via `stgvisuals` / `stgv` console commands or the INI for developer inspection.
+- **Launcher Scripts Hardened** — `LaunchTrueGaze.bat` and `TrueGaze.cmd` now prefer the optimized Release build binary over Debug, avoiding debug heap contention and `AppHangB1` issues on cell loads.
+
+### Fixed
+
+- Launch/deployment paths no longer overwrite the active development build with
+  stale DLLs or omit primary arrow/panel assets.
+- Fixed panel clipping behind NPC heads by extending forward offset from 35 cm to 70 cm.
+
+## [Unreleased] - 2026-10-01 - Category Gaze Profiles & Configuration Truth (R15)
 
 > Execution of `docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md`
 > (roadmap Phase R15), from the configurator deep audit
@@ -713,7 +740,7 @@ Every entity is a point in (Confidence × Aggression × Relationship × StorySta
 ### Public Production Release on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze))
 
 - **Public Distribution Packaging:** Packaged production archive `dist/TrueGaze-v1.0.0-SkyrimSE-AE-VR.zip` (SHA-256: `41AB39649F3B78F505F6BA4D972460365CC4EFAA0352C61297CB66F60991410F`) and companion debug symbols `dist/TrueGaze-v1.0.0-Symbols.zip` (`TrueGaze.pdb`, SHA-256: `5021AB863EF30539F0A0DE4FC87A9C88C090AEB55B16FF3BC4FF74F28D10EA28`).
-- **Diagnostic Visuals Policy:** Shipped `TrueGaze.ini` defaults `bEnableInGameVisuals = false` for pristine, organic eye contact without developer diagnostic laser beams. When toggled (`tgvisuals`), `VisualEffectsManager` probes standalone mesh `meshes\TrueGaze\GazeBeam.nif`, falls back to Dawnguard `fxsoulcairnbeam.nif`, and seamlessly defaults to the verified `NiPointLight` emitter fallback (`TrueGaze_PupilLight`, `TrueGaze_TerminusLight`).
+- **Diagnostic Visuals Policy:** Shipped `TrueGaze.ini` defaults `bEnableInGameVisuals = false` for pristine, organic eye contact without developer diagnostic laser beams. When toggled (`stgvisuals`), `VisualEffectsManager` probes standalone mesh `meshes\TrueGaze\GazeBeam.nif`, falls back to Dawnguard `fxsoulcairnbeam.nif`, and seamlessly defaults to the verified `NiPointLight` emitter fallback (`TrueGaze_PupilLight`, `TrueGaze_TerminusLight`).
 - **Open Animation Replacer (OAR) Dynamic Messaging Hook:** Dynamic SKSE messaging registration (`OarConditions::OnSkseMessage`, `RegisterWithOar`) with zero static compile dependencies. Evaluates `TrueGaze_IsMode`, `TrueGaze_IsMutualGaze`, and `TrueGaze_GetGazeRegion` against live per-actor state cache in real time.
 - **Broad Multi-Race & Dialogue Field Acceptance:** Documented Stage 6 test protocol in `docs/TEST_SCENARIO.md` across Humanoid (Nord/Imperial in Whiterun/Riverwood), Elven (Bosmer/Dunmer), and Beast races (Khajiit/Argonian) for third-person dialogue camera, VOR counter-rotation, and Social Triangle cycling.
 - **Release Presentation:** Authored release presentation documentation with complete BBCode/Markdown formatting, live configurator screengrabs, hero banner, and release documentation.
@@ -749,7 +776,7 @@ built to do. The defect was the mechanism itself.
   already treats as not-a-command, so it needs no count and **cannot displace a working
   vanilla command** (a live entry is never a candidate). Nothing is ever written past
   the end of the array.
-- **Both name fields are set to the token you type** (`tgv`, not `TrueGazeRays`). The
+- **Both name fields are set to the token you type** (`stgv`, not `TrueGazeRays`). The
   SDK's lookup matches on `functionName`; we cannot be certain which field the engine's
   parser matches, so both hold the short token and the readable text lives in
   `helpString`, carrying the live-command marker.
@@ -781,16 +808,16 @@ console is the right place for **runtime** toggling, because `~` pauses the game
 frees the camera — exactly the moment you want to switch the gaze visuals on and step
 back to watch them.
 
-- **`src/Integrations/ConsoleCommands.{hpp,cpp}`** (new) — registers `tg*` commands
+- **`src/Integrations/ConsoleCommands.{hpp,cpp}`** (new) — registers `stg*` commands
   into the engine's own console command table.
 - **VANILLA ONLY.** No Papyrus, no ESP/ESL, no MCM, no SkyUI. This is also a hard
   requirement, not just a preference: **Papyrus native functions cannot be called from
   the console**, so the commands must be genuine `SCRIPT_FUNCTION` entries. A pre-flight
   check asserts no Papyrus API usage anywhere in `src/**`.
-- **Press `~` and type `tgstatus`** to see the live state, or `tgv` to toggle the gaze
-  rays. Commands: `tg` (simulation), `tgvisuals`/`tgv` (visuals / rays), `tgon`/`tgoff`,
-  `tgmode` (render mode), `tgradius` (terminus glow), `tgverbose` (logging),
-  `tgstatus` (full state).
+- **Press `~` and type `stgstatus`** to see the live state, or `stgv` to toggle the gaze
+  rays. Commands: `stg` (simulation), `stgvisuals`/`stgv` (visuals / rays), `stgon`/`stgoff`,
+  `stgmode` (render mode), `stgradius` (terminus glow), `stgverbose` (logging),
+  `stgstatus` (full state).
 - Toggles apply **immediately** and are **persisted** to the INI, so a console change
   survives a restart. Each command prints its new state to the console and the file log.
 - New `[Console]` INI section + a configurator panel.

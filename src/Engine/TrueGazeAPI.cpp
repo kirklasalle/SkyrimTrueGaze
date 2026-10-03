@@ -69,7 +69,7 @@ namespace TrueGaze::API
 
     TRUEGAZE_API uint32_t TrueGaze_GetVersion() noexcept
     {
-        return 0x01000600; // v1.0.6
+        return 0x01000700; // v1.0.7
     }
 
     TRUEGAZE_API bool TrueGaze_IsHcepConnected() noexcept

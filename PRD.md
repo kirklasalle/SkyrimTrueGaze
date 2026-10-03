@@ -6,7 +6,7 @@
 **Workspace:** `D:\Projects\SkyrimTrueGaze`  
 **Parent Ecosystem:** Kirk LaSalle's Human Communication Eye Protocol (HCEP) (`D:\Projects\HCEP`)  
 **Author & Product Owner:** Kirk LaSalle  
-**Version:** 1.0.6  
+**Version:** 1.0.7  
 **Status:** Production Release ([GitHub — kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze))  
 **Target Games:** The Elder Scrolls V: Skyrim (Special Edition 1.5.97, Anniversary Edition 1.6.318–1.6.1170+, Skyrim VR 1.4.15)
 

@@ -1439,6 +1439,10 @@ namespace TrueGaze::Engine
             state.cachedSpine = FindFirstBone(root, kSpineCandidates, std::size(kSpineCandidates));
             state.cachedNeck = FindFirstBone(root, kNeckCandidates, std::size(kNeckCandidates));
             state.cachedHead = FindFirstBone(root, kHeadCandidates, std::size(kHeadCandidates));
+            if (!state.cachedHead)
+            {
+                state.cachedHead = FindBoneFuzzy(root, "head");
+            }
             state.cachedEyeL =
                 FindFirstBone(root, kEyeLeftCandidates, std::size(kEyeLeftCandidates));
             state.cachedEyeR =

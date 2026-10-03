@@ -193,10 +193,10 @@ namespace TrueGaze::Engine
         float pupilGlowIntensity{0.5f};    // pupil emitter brightness multiplier
 
         // --- HCEP Floating Diagram Panel ---
-        bool showHcepPanel{false};     // master switch for the HCEP diagram panel
+        bool showHcepPanel{true};      // master switch for the HCEP diagram panel
         bool hcepPanelAllActors{true}; // true = Player + NPCs + Creatures; false = Player only
-        float hcepPanelScale{0.5f};    // panel scale factor
-        float hcepPanelForwardOffsetCm{35.0f}; // distance in front of head bone (cm)
+        float hcepPanelScale{25.0f};   // panel scale factor (25.0 units)
+        float hcepPanelForwardOffsetCm{70.0f}; // distance in front of head bone (cm)
 
         // --- Console commands (~) ---
         //

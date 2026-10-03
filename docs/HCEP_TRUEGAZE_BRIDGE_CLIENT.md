@@ -98,7 +98,7 @@ The published assembly was verified to contain `TrueGazeBridgeClient`.
 4. Load a save near an NPC and enter third person.
 5. Wait for TrueGaze to create `\\.\pipe\TrueGazeBridge`.
 6. HCEP should log a successful TrueGaze connection.
-7. Run `tgstatus` in Skyrim.
+7. Run `stgstatus` in Skyrim.
 8. Confirm the HCEP lines show a sequence, confidence, age, and head/convergence data.
 9. Move the head/gaze and confirm the sequence/confidence updates.
 10. Confirm stale, low-confidence, and blink states fall back safely.

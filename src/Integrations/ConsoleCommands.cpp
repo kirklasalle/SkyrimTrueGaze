@@ -26,7 +26,8 @@ namespace TrueGaze::Integrations
     {
 
         bool g_installed = false;
-
+        // Defined below; CmdStatus delegates to it.
+        void LogStatusToConsole() noexcept;
         // -----------------------------------------------------------------------
         // Console output
         // -----------------------------------------------------------------------
@@ -98,17 +99,18 @@ namespace TrueGaze::Integrations
             auto& cfg = Engine::ConfigManager::GetSingleton();
             cfg.enableInGameVisuals = !cfg.enableInGameVisuals;
 
-            // Turning the master ON also arms the rays. The master switch alone would
-            // show nothing - the rays key is separate - and "turn the visuals on"
-            // plainly means "show me the visuals".
-            if (cfg.enableInGameVisuals && !cfg.gazeRaysEnabled)
+            // Turning the master ON also arms both the rays AND the HCEP panel so the
+            // complete visual debug experience is visible immediately.
+            if (cfg.enableInGameVisuals)
             {
                 cfg.gazeRaysEnabled = true;
+                cfg.showHcepPanel = true;
             }
 
             PersistQuietly();
             ApplyAndReport("bEnableInGameVisuals", cfg.enableInGameVisuals);
-            ConsolePrint("TrueGaze: gaze rays = %s", cfg.gazeRaysEnabled ? "ON" : "OFF");
+            ConsolePrint("TrueGaze: gaze rays = %s, hcep panel = %s",
+                         cfg.gazeRaysEnabled ? "ON" : "OFF", cfg.showHcepPanel ? "ON" : "OFF");
             return true;
         }
 
@@ -117,16 +119,41 @@ namespace TrueGaze::Integrations
                      std::uint32_t&) noexcept
         {
             auto& cfg = Engine::ConfigManager::GetSingleton();
-            cfg.gazeRaysEnabled = !cfg.gazeRaysEnabled;
+            // Development-view contract: stgv toggles the complete diagnostic
+            // view as one atomic user action. If any part is currently disabled,
+            // the next invocation arms all three switches; only an all-ON state
+            // toggles the view OFF. This prevents a stale panel/master flag from
+            // making stgv appear to do nothing.
+            const bool allVisualsOn =
+                cfg.enableInGameVisuals && cfg.gazeRaysEnabled && cfg.showHcepPanel;
+            const bool enableVisuals = !allVisualsOn;
+            cfg.enableInGameVisuals = enableVisuals;
+            cfg.gazeRaysEnabled = enableVisuals;
+            cfg.showHcepPanel = enableVisuals;
 
-            // The rays are a child of the master switch, so enabling them implies it.
-            if (cfg.gazeRaysEnabled)
+            PersistQuietly();
+            Engine::GazeEngine::Get().RefreshTuning();
+            ConsolePrint("TrueGaze: development visuals = %s (rays=%s, panel=%s)",
+                         enableVisuals ? "ON" : "OFF", cfg.gazeRaysEnabled ? "ON" : "OFF",
+                         cfg.showHcepPanel ? "ON" : "OFF");
+            return true;
+        }
+
+        bool CmdPanel(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                      RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                      std::uint32_t&) noexcept
+        {
+            auto& cfg = Engine::ConfigManager::GetSingleton();
+            cfg.showHcepPanel = !cfg.showHcepPanel;
+
+            // The panel is a child of the master switch, so enabling it implies it.
+            if (cfg.showHcepPanel)
             {
                 cfg.enableInGameVisuals = true;
             }
 
             PersistQuietly();
-            ApplyAndReport("bGazeRaysEnabled", cfg.gazeRaysEnabled);
+            ApplyAndReport("bShowHcepPanel", cfg.showHcepPanel);
             return true;
         }
 
@@ -190,8 +217,9 @@ namespace TrueGaze::Integrations
             auto& cfg = Engine::ConfigManager::GetSingleton();
             cfg.enableInGameVisuals = true;
             cfg.gazeRaysEnabled = true;
+            cfg.showHcepPanel = true;
             PersistQuietly();
-            ApplyAndReport("in-game visuals", true);
+            ApplyAndReport("in-game visuals (rays + panel)", true);
             return true;
         }
 
@@ -202,8 +230,9 @@ namespace TrueGaze::Integrations
             auto& cfg = Engine::ConfigManager::GetSingleton();
             cfg.enableInGameVisuals = false;
             cfg.gazeRaysEnabled = false;
+            cfg.showHcepPanel = false;
             PersistQuietly();
-            ApplyAndReport("in-game visuals", false);
+            ApplyAndReport("in-game visuals (rays + panel)", false);
             return true;
         }
 
@@ -212,6 +241,72 @@ namespace TrueGaze::Integrations
         bool CmdStatus(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
                        RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
                        std::uint32_t&) noexcept
+        {
+            LogStatusToConsole();
+            return true;
+        }
+
+        // -----------------------------------------------------------------------
+        // Kirk directive (2026-10-01): automatic background status logging.
+        // The full stgstatus report is written to TrueGaze.log at session start
+        // and session end, so every run is self-describing for debugging without
+        // needing to open the console. Console output and log output are separate
+        // bodies (console uses ConsolePrint, log uses logger) but read the SAME
+        // live state so they can never disagree about facts.
+        // -----------------------------------------------------------------------
+        void WriteStatusToLog() noexcept
+        {
+            const auto& cfg = Engine::ConfigManager::GetSingleton();
+            auto& engine = Engine::GazeEngine::Get();
+            auto& visuals = Visuals::VisualEffectsManager::Get();
+
+            auto onOff = [](bool b)
+            {
+                return b ? "ON " : "OFF";
+            };
+
+            logger::info("[TrueGaze] === AUTO STATUS (session log) ===");
+            logger::info("[TrueGaze]   kinematics       {}  bEnableTrueGaze",
+                         onOff(cfg.enableTrueGaze));
+            logger::info("[TrueGaze]   in-game visuals  {}  bEnableInGameVisuals",
+                         onOff(cfg.enableInGameVisuals));
+            logger::info("[TrueGaze]   gaze rays        {}  bGazeRaysEnabled",
+                         onOff(cfg.gazeRaysEnabled));
+            logger::info("[TrueGaze]   hcep panel       {}  bShowHcepPanel",
+                         onOff(cfg.showHcepPanel));
+            logger::info("[TrueGaze]   render mode      {}   (0=Both 1=Light 2=Geometry)",
+                         cfg.rayRenderMode);
+            logger::info("[TrueGaze]   ray length       {:.1f} m, colour #{:06X}, opacity {:.2f}",
+                         cfg.gazeRayLengthMeters, cfg.gazeRayColour & 0x00FFFFFF,
+                         cfg.gazeRayOpacity);
+            logger::info("[TrueGaze]   panel offset     fwd {:.1f} cm, scale {:.1f}",
+                         cfg.hcepPanelForwardOffsetCm, cfg.hcepPanelScale);
+            logger::info("[TrueGaze]   tracked actors   {}", engine.TrackedActorCount());
+            logger::info("[TrueGaze]   tick calls        {}",
+                         static_cast<unsigned long long>(engine.TickCalls()));
+            logger::info("[TrueGaze]   eligible ticks    {}",
+                         static_cast<unsigned long long>(engine.EligibleTicks()));
+            logger::info("[TrueGaze]   target resolves   {} (none {})",
+                         static_cast<unsigned long long>(engine.TargetResolutions()),
+                         static_cast<unsigned long long>(engine.NoTargetResolutions()));
+            logger::info("[TrueGaze]   rig origin        {} (eye-absent {}, head-absent {})",
+                         engine.LastRigOrigin(),
+                         static_cast<unsigned long long>(engine.EyeNodeAbsentCount()),
+                         static_cast<unsigned long long>(engine.HeadAnchorAbsentCount()));
+            logger::info("[TrueGaze]   visual emitters  {} actors, {} lights",
+                         visuals.ActiveActorCount(), visuals.AttachedLightCount());
+            logger::info("[TrueGaze]   visual updates    {}, anchors failed {}",
+                         static_cast<unsigned long long>(visuals.UpdateCalls()),
+                         static_cast<unsigned long long>(visuals.AnchorFailures()));
+            logger::info("[TrueGaze]   beam geometry     {} attached / {} attempts",
+                         static_cast<unsigned long long>(visuals.GeometryCreated()),
+                         static_cast<unsigned long long>(visuals.GeometryAttempts()));
+            logger::info("[TrueGaze]   commands          {}",
+                         ConsoleCommands::IsInstalled() ? "registered" : "NOT registered");
+            logger::info("[TrueGaze] === END AUTO STATUS ===");
+        }
+
+        void LogStatusToConsole() noexcept
         {
             const auto& cfg = Engine::ConfigManager::GetSingleton();
             auto& engine = Engine::GazeEngine::Get();
@@ -228,6 +323,9 @@ namespace TrueGaze::Integrations
             ConsolePrint("  in-game visuals  %s  bEnableInGameVisuals",
                          onOff(cfg.enableInGameVisuals));
             ConsolePrint("  gaze rays        %s  bGazeRaysEnabled", onOff(cfg.gazeRaysEnabled));
+            ConsolePrint("  hcep panel       %s  bShowHcepPanel", onOff(cfg.showHcepPanel));
+            ConsolePrint("  panel all actors %s  bHcepPanelAllActors",
+                         onOff(cfg.hcepPanelAllActors));
             ConsolePrint("  terminus glow    %s  bGazeRaysTerminus", onOff(cfg.gazeRaysTerminus));
             ConsolePrint("  render mode      %d   (0=Both 1=Light 2=Geometry)", cfg.rayRenderMode);
             ConsolePrint("  ray length       %.1f m, colour #%06X, opacity %.2f",
@@ -235,6 +333,8 @@ namespace TrueGaze::Integrations
                          cfg.gazeRayOpacity);
             ConsolePrint("  pupil offset     fwd %.1f cm, up %.1f cm", cfg.pupilForwardOffsetCm,
                          cfg.pupilUpOffsetCm);
+            ConsolePrint("  panel offset     fwd %.1f cm, scale %.1f", cfg.hcepPanelForwardOffsetCm,
+                         cfg.hcepPanelScale);
             ConsolePrint("  log level        %d   (1=Debug 2=Info)", cfg.logLevel);
             ConsolePrint("  tracked actors   %zu", engine.TrackedActorCount());
             ConsolePrint("  tick calls       %llu",
@@ -309,7 +409,6 @@ namespace TrueGaze::Integrations
                          static_cast<unsigned long long>(visuals.GeometryAttempts()));
             ConsolePrint("  commands         %s",
                          ConsoleCommands::IsInstalled() ? "registered" : "NOT registered");
-            return true;
         }
 
         // -----------------------------------------------------------------------
@@ -461,7 +560,6 @@ namespace TrueGaze::Integrations
             const char* name = kNames[s_presetIndex % 5];
             s_presetIndex = (s_presetIndex + 1) % 5;
 
-            auto& cfg = Engine::ConfigManager::GetSingleton();
             int applied = 0;
             for (const auto& e : kPresets)
             {
@@ -559,9 +657,10 @@ namespace TrueGaze::Integrations
         /// Deliberately small and focused: toggles, plus a status read-out.
         constexpr CommandDef kCommands[] = {
             {"stg", "Toggle the SkyrimTrueGaze kinematics engine on/off", &CmdMaster},
-            {"stgvisuals", "Toggle all in-game visuals on/off", &CmdVisuals},
+            {"stgvisuals", "Toggle all in-game visuals (gaze rays + HCEP panel)", &CmdVisuals},
             {"stgv", "Toggle the gaze-ray emitters (laser eyes)", &CmdRays},
-            {"stgon", "Turn every in-game visual on", &CmdOn},
+            {"stgpanel", "Toggle the floating HCEP gaze region diagram panel", &CmdPanel},
+            {"stgon", "Turn every in-game visual on (rays + panel)", &CmdOn},
             {"stgoff", "Turn every in-game visual off", &CmdOff},
             {"stgmode", "Cycle render mode: Both / Light / Geometry", &CmdRenderMode},
             {"stgradius", "Toggle the gaze terminus glow", &CmdTerminus},
@@ -715,6 +814,14 @@ namespace TrueGaze::Integrations
 
     } // namespace
 
+    void ConsoleCommands::LogStatusToLog() noexcept
+    {
+        // Background logger (Kirk directive 2026-10-01): called automatically at
+        // session start/end from the SKSE message handler. Thin forwarder so the
+        // report body stays file-local next to the console variant.
+        WriteStatusToLog();
+    }
+
     void ConsoleCommands::Install() noexcept
     {
         if (g_installed)
@@ -790,7 +897,7 @@ namespace TrueGaze::Integrations
             // treat that field as the canonical name. We do not know for certain which
             // field the engine's parser matches, so setting BOTH to the same short token
             // makes the command reachable either way. Requiring the user to guess
-            // "TrueGazeRays" instead of the documented "tgv" would be a poor outcome for
+            // "TrueGazeRays" instead of the documented "stgv" would be a poor outcome for
             // no benefit - nothing here needs a namespaced long form.
             //
             // The readable description therefore lives where it belongs: in helpString.
@@ -855,6 +962,7 @@ namespace TrueGaze::Integrations
     {
         return false;
     }
+    void ConsoleCommands::LogStatusToLog() noexcept {}
 
 #endif
 

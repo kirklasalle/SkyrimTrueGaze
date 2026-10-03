@@ -207,7 +207,7 @@ Based on [hcep-02_enhanced.png](file:///d:/Projects/SkyrimTrueGaze/docs/images/h
 ### Manual Verification (Option 1)
 1. Run `python scripts/GenerateGazeBeamNif.py` to regenerate the beam NIF
 2. Deploy to Skyrim Data folder via `scripts/Deploy-TrueGaze.ps1`
-3. Launch Skyrim SE, enable visuals via console (`tgvisuals`) or TrueGaze.ini
+3. Launch Skyrim SE, enable visuals via console (`stgvisuals`) or TrueGaze.ini
 4. Verify in a tavern scene (multiple NPCs):
    - Beams originate from NPC eye area (not chest or feet)
    - Beams are **thin** (pencil-width, not conical wedges)

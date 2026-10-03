@@ -60,6 +60,13 @@ namespace TrueGaze::Integrations
 
         /// @brief True once the commands have been registered successfully.
         [[nodiscard]] static bool IsInstalled() noexcept;
+
+        /// @brief Writes the full stgstatus report to TrueGaze.log (background).
+        ///
+        /// Kirk directive (2026-10-01): auto-called at session start and session
+        /// end so every run is self-describing for debugging. Safe to call any
+        /// time after kDataLoaded; reads live state, no side effects.
+        static void LogStatusToLog() noexcept;
     };
 
 } // namespace TrueGaze::Integrations

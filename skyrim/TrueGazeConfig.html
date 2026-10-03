@@ -1221,8 +1221,8 @@
             },
             'Visuals': {
                 bEnableInGameVisuals: ['bool', false, 'Master switch for every in-game 3D visual (the "Superman laser eyes" subsystem)'],
-                bGazeRaysEnabled: ['bool', false, 'Emit a gaze beam from each actor\'s pupil along the solved gaze direction'],
-                iRayRenderMode: ['choice', '1', 'Render mode: Both (light + Dawnguard beam) / Light only (safest) / Geometry only', ['0', '1', '2']],
+                bGazeRaysEnabled: ['bool', true, 'Emit a gaze beam from each actor\'s pupil along the solved gaze direction'],
+                iRayRenderMode: ['choice', '0', 'Render mode: Both (light + beam geometry) / Light only (points-of-light, no beam) / Geometry only', ['0', '1', '2']],
                 fGazeRayLengthMeters: ['float', 2.5, 'Beam reach in meters (drives light radius and terminus position)', 0.5, 50, 0.5, '{v} m'],
                 fGazeRayThicknessCm: ['float', 0.2, 'Beam cross-section diameter (cm) (~2mm hair-thin laser)', 0.05, 5.0, 0.05, '{v} cm'],
                 iGazeRayColour: ['text', '13174890', 'Beam colour as decimal 0xRRGGBB (13174890 = #C9A86A TrueGaze gold)'],
@@ -1235,10 +1235,10 @@
                 fPupilForwardOffsetCm: ['float', 12.0, 'Pupil origin: offset forward from the head bone origin (cm)', 0, 30, 0.5, '{v} cm'],
                 fPupilUpOffsetCm: ['float', 6.0, 'Pupil origin: offset up from the head bone origin (cm)', -10, 15, 0.5, '{v} cm'],
                 fPupilGlowIntensity: ['float', 0.35, 'Pupil emitter brightness multiplier', 0, 3, 0.05, '{v}x'],
-                bShowHcepPanel: ['bool', false, 'Master switch for the floating HCEP 9-region diagram panel'],
+                bShowHcepPanel: ['bool', true, 'Master switch for the floating HCEP 9-region diagram panel'],
                 bHcepPanelAllActors: ['bool', true, 'Show HCEP panel on Player, NPCs, and Creatures (false = Player only)'],
-                fHcepPanelScale: ['float', 5.0, 'Scale factor for the floating HCEP panel in Skyrim units (~7cm readable label)', 0.5, 30.0, 0.5, '{v}'],
-                fHcepPanelForwardOffsetCm: ['float', 35.0, 'Forward distance in front of actor head in cm (~24.5 Skyrim units)', 10.0, 100.0, 1.0, '{v} cm']
+                fHcepPanelScale: ['float', 25.0, 'Scale factor for the floating HCEP panel in Skyrim units (~36cm readable label)', 0.5, 50.0, 0.5, '{v}'],
+                fHcepPanelForwardOffsetCm: ['float', 70.0, 'Forward distance in front of actor head in cm (~49 Skyrim units)', 10.0, 150.0, 1.0, '{v} cm']
             },
             'Console': {
                 bEnableConsoleCommands: ['bool', true, 'Register the stg* commands in the game console (~). Vanilla only - no Papyrus, ESP or MCM. Type stgstatus to check state, stgon/stgoff for visuals.']
@@ -1894,7 +1894,7 @@
             },
             'Console:bEnableConsoleCommands': {
                 desc: 'Registers the stg* commands so the game\'s own console (~) can toggle SkyrimTrueGaze at runtime.',
-                impact: 'Adds: stg (toggle kinematics engine), stgvisuals / stgv (visuals and gaze rays), stgon / stgoff, stgmode (render mode), stgradius (terminus glow), stgverbose (logging), stgstatus (print the full state).',
+                impact: 'Adds: stg (toggle kinematics engine), stgvisuals / stgv (visuals and gaze rays), stgpanel (toggle HCEP panel), stgon / stgoff, stgmode (render mode), stgradius (terminus glow), stgverbose (logging), stgstatus (print the full state).',
                 context: 'VANILLA ONLY — no Papyrus, no ESP/ESL, no MCM, no SkyUI. Commands are registered by reclaiming console-table entries the engine already treats as dead or empty, so no working vanilla command is displaced. Off by default because it writes into engine memory and has not yet been confirmed in a running game. Requires a game restart — commands register at load.',
                 rec: 'False, then True when you want runtime toggles',
                 dflt: 'false'
@@ -2430,9 +2430,9 @@
                     'Visuals:fPupilForwardOffsetCm': '12.0',
                     'Visuals:fPupilUpOffsetCm': '6.0',
                     'Visuals:fPupilGlowIntensity': '0.35',
-                    // --- HCEP floating panel ON for all actors ---
+                    // --- HCEP floating panel ON (Player-only to preserve frame rate & light limits) ---
                     'Visuals:bShowHcepPanel': 'true',
-                    'Visuals:bHcepPanelAllActors': 'true',
+                    'Visuals:bHcepPanelAllActors': 'false',
                     // --- Debug logging at maximum detail ---
                     'Debug:bDebugGazeRays': 'true',
                     'Debug:iLogLevel': '1',

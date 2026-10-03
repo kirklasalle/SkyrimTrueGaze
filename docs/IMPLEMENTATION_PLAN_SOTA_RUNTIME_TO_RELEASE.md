@@ -58,12 +58,12 @@ Completed implementation slices: runtime identity logging, effective INI-path lo
 
 - Add a session identifier and runtime build identifier to `TrueGaze.log`.
 - Log the game runtime, SKSE runtime, Address Library version, DLL hash, and effective INI path at startup.
-- Add a structured run summary at shutdown or explicit `tgstatus` capture.
+- Add a structured run summary at shutdown or explicit `stgstatus` capture.
 - Extend the health script to parse current markers rather than legacy phrases.
 - Store one sanitized evidence bundle under `docs/evidence/` or an external release record:
   - log excerpts;
   - DLL hash;
-  - `tgstatus` output;
+  - `stgstatus` output;
   - runtime and dependency versions;
   - test results;
   - known limitations.
@@ -80,7 +80,7 @@ Completed implementation slices: runtime identity logging, effective INI-path lo
 
 **Status:** 🔨 Implemented and deployed; the current player rig will be the first acceptance sample.
 
-Completed implementation slices: `EyeNode` / `GeometricHeadSocket` / `Unavailable` classification, eye-node-absent and head-anchor-absent counters, skeleton probe logging, and `tgstatus` output.
+Completed implementation slices: `EyeNode` / `GeometricHeadSocket` / `Unavailable` classification, eye-node-absent and head-anchor-absent counters, skeleton probe logging, and `stgstatus` output.
 
 ### Rig classes
 
@@ -100,7 +100,7 @@ Completed implementation slices: `EyeNode` / `GeometricHeadSocket` / `Unavailabl
   - left/right eye resolved;
   - geometric pupil fallback active;
   - skeleton generation or 3D rebuild identity.
-- Report capabilities through `tgstatus` and the log once per actor-generation.
+- Report capabilities through `stgstatus` and the log once per actor-generation.
 - Keep separate counters for `eye nodes absent` and `head anchor absent`.
 - Add an explicit visual-origin mode:
   - `EyeNode`
@@ -165,7 +165,7 @@ Implemented in `PlayerGazeResolver`:
 - Blink suppression: with both eyes closed the gaze vector is a prediction, so fusion is suppressed rather than rotating on closed-eye data.
 - Convergence plausibility: focal distance outside 0.3-6.0 m is flagged as implausible in diagnostics.
 - `LastIntent()` diagnostic snapshot: validity, confidence, sequence, age, stale/blink flags, head pose, and convergence state.
-- `tgstatus` now reports the intent state and WHY fusion is inactive (no telemetry, low confidence, stale, or blink).
+- `stgstatus` now reports the intent state and WHY fusion is inactive (no telemetry, low confidence, stale, or blink).
 
 ### S4 Design
 
@@ -239,7 +239,7 @@ If a vanilla asset is used for local development, resolve it from verified form/
 - Add a `VisualAssetResolver` with explicit states: `Unknown`, `Pending`, `Loaded`, `Missing`, `Invalid`.
 - Make the beam resource path configurable without a rebuild. **Implemented:** `VisualTuning::beamModelPath` now drives `BSModelDB::Demand`, so an extracted or original asset can be tested by editing the tuning snapshot rather than recompiling.
 - Log resource path, result code, model pointer state, parent type, and attachment result.
-- Add an explicit geometry count and `visible geometry candidate` status to `tgstatus`.
+- Add an explicit geometry count and `visible geometry candidate` status to `stgstatus`.
 - Verify local/world transform conventions with a known test mesh.
 - Add configurable beam thickness, opacity, colour, origin offset, target-follow mode, and terminus visibility.
 - Add a development-only `tgvdebug` state that forces a static, high-contrast marker at the head anchor to separate asset loading from gaze math.
@@ -294,7 +294,7 @@ The detailed research record and support decision tree are maintained in [`docs/
   - mode condition;
   - mutual-gaze threshold;
   - gaze-region condition.
-- Report registration state and API version in `tgstatus`.
+- Report registration state and API version in `stgstatus`.
 - Keep evaluators usable in standalone mode for tests.
 - Add a mock registration test for the adapter and an in-game OAR acceptance scenario.
 
@@ -382,7 +382,7 @@ The detailed research record and support decision tree are maintained in [`docs/
 
 ### S9 Acceptance criteria
 
-- `tgstatus` answers whether the system is active and why a visual or target is absent.
+- `stgstatus` answers whether the system is active and why a visual or target is absent.
 - The health script produces no known false positives.
 - Shutdown is race-free under repeated start/stop tests.
 - A support report can be triaged from logs without a debugger.

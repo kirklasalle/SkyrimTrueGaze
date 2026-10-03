@@ -17,14 +17,15 @@ namespace TrueGaze::Visuals
     {
         // --- Master switches ---
         bool enableInGameVisuals{false};
-        bool gazeRaysEnabled{false};
+        bool gazeRaysEnabled{true};
 
         /// 0 = Both (light emitter + beam geometry)
         /// 1 = LightOnly (bare-bones; NiPointLight emitters only, no art required)
         /// 2 = GeometryOnly (suppress the light emitters)
-        /// Default 1: light-only is the only mode proven crash-free across all
-        /// actor counts. Switch to 0 to enable beam geometry (Dawnguard beam).
-        int rayRenderMode{1};
+        /// Default 0: both light emitters and beam geometry are rendered so the
+        /// gaze laser is visually apparent. Mode 1 (light-only) creates only
+        /// invisible point-glow lights that are lost in ambient Skyrim lighting.
+        int rayRenderMode{0};
 
         // --- Beam appearance ---
         float gazeRayLengthMeters{2.5f};  // beam reach in metres (~175 Skyrim units)
@@ -32,22 +33,14 @@ namespace TrueGaze::Visuals
         uint32_t gazeRayColour{0xC9A86A}; // 0xRRGGBB, TrueGaze gold
         float gazeRayOpacity{0.85f};
 
-        /// Resource path of the visible beam model, relative to the Skyrim Data
-        /// root. Configurable so a standalone non-Bethesda asset can be used without
-        /// a rebuild.
-        ///
-        /// PRIMARY: Dawnguard Soul Cairn beam (Meshes01.bsa). Thin glowing beam
-        /// strip, PROVEN stable in-game across all actor counts. Used since the
-        /// hand-crafted GazeBeam.nif (Python-generated binary) was confirmed to
-        /// cause delayed SEH access violations during rendering when multiple
-        /// actors carry beam geometry simultaneously (2026-09-22, 2026-09-23).
-        /// The custom NIF loads via BSModelDB::Demand without error but the
-        /// renderer crashes later — uncatchable by C++ try/catch.
-        const char *beamModelPath{"meshes\\dlc01\\effects\\fxsoulcairnbeam.nif"};
-        /// Fallback: vanilla engine marker arrow (Skyrim - Meshes0.bsa), guaranteed
-        /// present in every install. Opaque white debug mesh — the runtime shader
-        /// tint in VisualEffectsManager recolours it when this path is used.
-        const char *beamModelFallbackPath{"meshes\\marker_arrow.nif"};
+        /// Resource path of the visible beam model, relative to the Skyrim Data root.
+        /// PRIMARY (Kirk directive 2026-10-01): the vanilla editor marker arrow —
+        /// a PROVEN in-engine mesh that has rendered correctly every time it was
+        /// used. Authored along +Y (handled by AlignBeamOrientation's standard
+        /// forward path).
+        const char* beamModelPath{"meshes\\marker_arrow.nif"};
+        /// Fallback: branded laser beam (SSE-correct rewrite 2026-10-01).
+        const char* beamModelFallbackPath{"meshes\\TrueGaze\\GazeBeam.nif"};
 
         // --- Which actors emit ---
         bool gazeRaysOnPlayer{true};
@@ -56,17 +49,20 @@ namespace TrueGaze::Visuals
 
         // --- Attachment / origin ---
         bool gazeRaysAttachHead{true};
-        bool gazeRaysTerminus{false};
+        bool gazeRaysTerminus{true};
         float pupilForwardOffsetCm{12.0f}; // ~12cm forward from head bone to eye socket
         float pupilUpOffsetCm{6.0f};       // ~6cm up from head bone to eye socket
         float pupilGlowIntensity{0.35f};
 
         // --- HCEP Floating Diagram Panel ---
-        bool showHcepPanel{false};             // master switch for the HCEP diagram panel
-        bool hcepPanelAllActors{true};         // true = Player + NPCs + Creatures; false = Player only
-        float hcepPanelScale{5.0f};            // panel scale factor in Skyrim units (~7cm readable label)
-        float hcepPanelForwardOffsetCm{35.0f}; // ~24.5 Skyrim units forward from head bone
-        const char *hcepPanelModelPath{"meshes\\TrueGaze\\GazeRegionPanel.nif"};
+        bool showHcepPanel{true};       // master switch for the HCEP diagram panel
+        bool hcepPanelAllActors{true};  // true = Player + NPCs; false = Player only
+        // Panel quad is authored 1 unit tall; scale 25 -> ~36 cm tall diagram,
+        // readable at the ~35 cm forward offset. (Old default 5 = 7 cm: unreadable.)
+        float hcepPanelScale{25.0f};           // panel scale factor in Skyrim units
+        float hcepPanelForwardOffsetCm{70.0f}; // ~49.0 Skyrim units forward from head bone
+        const char* hcepPanelModelPath{"meshes\\TrueGaze\\GazeRegionPanel.nif"};
+
 
         // --- Skyrim world constants ---
         static constexpr float kUnitsPerMeter = 70.0f;
