@@ -60,6 +60,28 @@ namespace TrueGaze::Engine
             return radians;
         }
 
+        struct RegionCalibrationSpec
+        {
+            uint8_t regionId;
+            const char* name;
+            float yawDeg;
+            float pitchDeg;
+        };
+
+        constexpr RegionCalibrationSpec kCalibrationSweepSpecs[] = {
+            {0, "LeftEye", -1.8f, 0.5f},
+            {1, "RightEye", 1.8f, 0.5f},
+            {5, "Torso", 0.0f, -4.5f},
+            {2, "Mouth", 5.5f, -4.5f},
+            {3, "Forehead", 0.0f, 7.0f},
+            {4, "Chin", 0.0f, -9.0f},
+            {8, "Ground", 0.0f, -18.0f},
+            {9, "ULPeripheral", -15.0f, 18.0f},
+            {10, "URPeripheral", 15.0f, 18.0f},
+            {11, "LLPeripheral", -15.0f, -18.0f},
+            {12, "LRPeripheral", 15.0f, -18.0f}
+        };
+
 #if __has_include(<RE/Skyrim.h>)
 
         /// Bone names to try, in priority order. Different rigs (vanilla, XP32/XPMSSE, custom
@@ -330,6 +352,61 @@ namespace TrueGaze::Engine
         logger::info("[TrueGaze] Actor gaze state cleared.");
     }
 
+    void GazeEngine::SetCalibrationOverride(bool active, float yawDeg, float pitchDeg,
+                                            uint32_t targetActorFormId) noexcept
+    {
+        _calState.active = active;
+        _calState.sweepActive = false;
+        _calState.overrideYawDeg = yawDeg;
+        _calState.overridePitchDeg = pitchDeg;
+        _calState.targetActorFormId = targetActorFormId;
+        _calState.sweepTimerSec = 0.0f;
+    }
+
+    void GazeEngine::StartCalibrationSweep(uint32_t targetActorFormId) noexcept
+    {
+        _calState.active = true;
+        _calState.sweepActive = true;
+        _calState.targetActorFormId = targetActorFormId;
+        _calState.currentRegionIndex = 0;
+        _calState.sweepTimerSec = 0.0f;
+        _calState.sweepSettledFrames = 0;
+        _calState.sweepAgreedFrames = 0;
+        _calState.sweepMismatchFrames = 0;
+        _calState.overrideYawDeg = kCalibrationSweepSpecs[0].yawDeg;
+        _calState.overridePitchDeg = kCalibrationSweepSpecs[0].pitchDeg;
+        logger::info("[TrueGaze::Cal] Started calibration sweep across {} regions.",
+                     std::size(kCalibrationSweepSpecs));
+    }
+
+    void GazeEngine::StepCalibrationNext(uint32_t targetActorFormId) noexcept
+    {
+        if (!_calState.active || _calState.sweepActive)
+        {
+            _calState.active = true;
+            _calState.sweepActive = false;
+            _calState.currentRegionIndex = 0;
+        }
+        else
+        {
+            _calState.currentRegionIndex =
+                (_calState.currentRegionIndex + 1) % static_cast<int>(std::size(kCalibrationSweepSpecs));
+        }
+        _calState.targetActorFormId = targetActorFormId;
+        _calState.overrideYawDeg = kCalibrationSweepSpecs[_calState.currentRegionIndex].yawDeg;
+        _calState.overridePitchDeg = kCalibrationSweepSpecs[_calState.currentRegionIndex].pitchDeg;
+    }
+
+    void GazeEngine::StopCalibration() noexcept
+    {
+        _calState.active = false;
+        _calState.sweepActive = false;
+        _calState.overrideYawDeg = 0.0f;
+        _calState.overridePitchDeg = 0.0f;
+        _calState.sweepTimerSec = 0.0f;
+        logger::info("[TrueGaze::Cal] Calibration override stopped.");
+    }
+
     // ---------------------------------------------------------------------------
     // Frame lifecycle
     // ---------------------------------------------------------------------------
@@ -555,6 +632,64 @@ namespace TrueGaze::Engine
         float pitchDeg = 0.0f;
         ComputeDeflection(actor, state, deltaSeconds, yawDeg, pitchDeg, speedScale, actorInCombat);
 
+        // --- Calibration Mode Override (A8 / Technical Design §8) ---
+        if (_calState.active && (_calState.targetActorFormId == 0 || _calState.targetActorFormId == formId))
+        {
+            yawDeg = _calState.overrideYawDeg;
+            pitchDeg = _calState.overridePitchDeg;
+            state.saccade.currentYaw = yawDeg;
+            state.saccade.currentPitch = pitchDeg;
+            state.saccade.isBallistic = false;
+            state.jitter.currentYawOffset = 0.0f;
+            state.jitter.currentPitchOffset = 0.0f;
+
+            if (_calState.sweepActive)
+            {
+                _calState.sweepTimerSec += deltaSeconds;
+                if (_calState.sweepTimerSec >= 0.2f)
+                {
+                    const auto hit = Visuals::VisualEffectsManager::Get().GetActorHitInfo(formId);
+                    if (hit.hit)
+                    {
+                        ++_calState.sweepSettledFrames;
+                        if (hit.agreement)
+                        {
+                            ++_calState.sweepAgreedFrames;
+                        }
+                        else
+                        {
+                            ++_calState.sweepMismatchFrames;
+                        }
+                    }
+                }
+
+                if (_calState.sweepTimerSec >= 2.0f)
+                {
+                    _calState.sweepTimerSec = 0.0f;
+                    ++_calState.currentRegionIndex;
+                    if (_calState.currentRegionIndex < static_cast<int>(std::size(kCalibrationSweepSpecs)))
+                    {
+                        _calState.overrideYawDeg = kCalibrationSweepSpecs[_calState.currentRegionIndex].yawDeg;
+                        _calState.overridePitchDeg = kCalibrationSweepSpecs[_calState.currentRegionIndex].pitchDeg;
+                        logger::info("[TrueGaze::Cal] Sweep advancing to [{}/{}]: {} (yaw={:+.1f}, pitch={:+.1f})",
+                                     _calState.currentRegionIndex + 1, std::size(kCalibrationSweepSpecs),
+                                     kCalibrationSweepSpecs[_calState.currentRegionIndex].name,
+                                     _calState.overrideYawDeg, _calState.overridePitchDeg);
+                    }
+                    else
+                    {
+                        const float agreementPct = _calState.sweepSettledFrames > 0
+                            ? (static_cast<float>(_calState.sweepAgreedFrames) / _calState.sweepSettledFrames) * 100.0f
+                            : 100.0f;
+                        logger::info("[TrueGaze::Cal] Sweep COMPLETE: {} settled frames, {} agreed ({:.1f}%), {} mismatches",
+                                     _calState.sweepSettledFrames, _calState.sweepAgreedFrames, agreementPct,
+                                     _calState.sweepMismatchFrames);
+                        StopCalibration();
+                    }
+                }
+            }
+        }
+
         // Gold Standard defer diagnostics: record the defer decision made by
         // this frame's target resolution so stgstatus can show it.
         _lastDeferActive = state.sceneDeferActive;
@@ -724,6 +859,14 @@ namespace TrueGaze::Engine
             TraceLogger::Get().LogHitMismatch(_gameTimeSec, formId, state.gazeRegion,
                                               hitInfo.hitRegion, eyeYaw, eyePitch,
                                               hitInfo.hitX, hitInfo.hitZ, "BOUNDARY");
+        }
+
+        if (_calState.active && (_calState.targetActorFormId == 0 || _calState.targetActorFormId == formId))
+        {
+            TraceLogger::Get().LogCalibration(
+                _gameTimeSec, _calState.sweepActive ? "sweep" : "step", state.gazeRegion,
+                yawDeg, pitchDeg, state.gazeRegion, hitRegion,
+                hitInfo.hit ? hitInfo.agreement : false);
         }
 
         PublishState(actor, state);

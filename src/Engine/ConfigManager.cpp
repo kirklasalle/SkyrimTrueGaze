@@ -176,6 +176,7 @@ namespace TrueGaze::Engine
         // Debug
         debugGazeRays = ReadBool("Debug", "bDebugGazeRays", debugGazeRays, p);
         logLevel = GetPrivateProfileIntA("Debug", "iLogLevel", logLevel, p);
+        enableCalibrationCommands = ReadBool("Debug", "bEnableCalibrationCommands", enableCalibrationCommands, p);
         enableTraceLogging = ReadBool("Debug", "bEnableTraceLogging", enableTraceLogging, p);
         traceBufferSize = GetPrivateProfileIntA("Debug", "iTraceBufferSize", traceBufferSize, p);
         traceMaxFileSizeMB =
@@ -623,6 +624,7 @@ namespace TrueGaze::Engine
             snprintf(lvl, sizeof(lvl), "%d", logLevel);
             WritePrivateProfileStringA("Debug", "iLogLevel", lvl, p);
         }
+        WriteBool("Debug", "bEnableCalibrationCommands", enableCalibrationCommands);
         WriteBool("Debug", "bEnableTraceLogging", enableTraceLogging);
         {
             char buf[16]{0};

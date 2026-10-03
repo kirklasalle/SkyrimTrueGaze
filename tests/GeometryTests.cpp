@@ -252,6 +252,56 @@ namespace
 
         std::cout << "  -> passed.\n";
     }
+
+    void TestCalibrationRegionRepresentativeAngles()
+    {
+        std::cout << "[TEST] 11-region calibration representative angles verification...\n";
+        struct CalCheck
+        {
+            uint8_t expectedRegion;
+            const char* name;
+            float yawDeg;
+            float pitchDeg;
+        };
+
+        const CalCheck checks[] = {
+            {0, "LeftEye", -1.8f, 0.5f},
+            {1, "RightEye", 1.8f, 0.5f},
+            {5, "Torso", 0.0f, -4.5f},
+            {2, "Mouth", 5.5f, -4.5f},
+            {3, "Forehead", 0.0f, 7.0f},
+            {4, "Chin", 0.0f, -9.0f},
+            {8, "Ground", 0.0f, -18.0f},
+            {9, "ULPeripheral", -15.0f, 18.0f},
+            {10, "URPeripheral", 15.0f, 18.0f},
+            {11, "LLPeripheral", -15.0f, -18.0f},
+            {12, "LRPeripheral", 15.0f, -18.0f}
+        };
+
+        const G::Vec3 origin{0.0f, 0.0f, 0.0f};
+        const float dist = 70.0f / 100.0f * 70.0f; // 49.0 units
+        constexpr float kDegToRad = 3.14159265358979323846f / 180.0f;
+
+        for (const auto& c : checks)
+        {
+            // 1. Classifier test
+            const uint8_t classified = ClassifyGazeRegion(c.yawDeg, c.pitchDeg);
+            assert(classified == c.expectedRegion);
+            (void)classified;
+
+            // 2. Physical ray-panel hit test
+            const float y = c.yawDeg * kDegToRad;
+            const float p = c.pitchDeg * kDegToRad;
+            const G::Vec3 dir = G::Normalized({std::sin(y), std::cos(y) * std::cos(p), std::sin(p)});
+            const G::PanelHitResult res = G::IntersectGazeWithPanel(origin, dir, dist);
+
+            assert(res.hit);
+            assert(res.hitRegion == c.expectedRegion);
+            assert(res.agreement);
+        }
+
+        std::cout << "  -> passed (11/11 calibration regions verified with 100% agreement).\n";
+    }
 } // namespace
 
 int main()
@@ -263,6 +313,7 @@ int main()
     TestPanelProjectionRoundTrip();
     TestClassifierParity();
     TestRayPanelHitDetection();
+    TestCalibrationRegionRepresentativeAngles();
     std::cout << "[GeometryTests] All tests passed.\n";
     return 0;
 }

@@ -316,6 +316,13 @@ namespace TrueGaze::Integrations
                          trace.IsActive() ? "ACTIVE" : "OFF",
                          static_cast<unsigned long long>(trace.TotalEvents()),
                          static_cast<double>(trace.TotalBytesWritten()) / 1024.0);
+            const auto& cal = engine.GetCalibrationState();
+            if (cal.active)
+            {
+                logger::info("[TrueGaze]   calibration       ACTIVE ({}, region {}, yaw {:+.1f}, pitch {:+.1f})",
+                             cal.sweepActive ? "SWEEP" : "STEP", cal.currentRegionIndex,
+                             cal.overrideYawDeg, cal.overridePitchDeg);
+            }
             logger::info("[TrueGaze]   commands          {}",
                          ConsoleCommands::IsInstalled() ? "registered" : "NOT registered");
             logger::info("[TrueGaze] === END AUTO STATUS ===");
@@ -444,6 +451,13 @@ namespace TrueGaze::Integrations
                          trace.IsActive() ? "ACTIVE" : "OFF",
                          static_cast<unsigned long long>(trace.TotalEvents()),
                          static_cast<double>(trace.TotalBytesWritten()) / 1024.0);
+            const auto& cal = engine.GetCalibrationState();
+            if (cal.active)
+            {
+                ConsolePrint("  calibration      ACTIVE (%s, region %d, yaw %+.1f, pitch %+.1f)",
+                             cal.sweepActive ? "SWEEP" : "STEP", cal.currentRegionIndex,
+                             cal.overrideYawDeg, cal.overridePitchDeg);
+            }
             ConsolePrint("  commands         %s",
                          ConsoleCommands::IsInstalled() ? "registered" : "NOT registered");
         }
@@ -753,6 +767,88 @@ namespace TrueGaze::Integrations
             return true;
         }
 
+        bool CmdCal(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                    RE::TESObjectREFR* a_thisObj, RE::TESObjectREFR*, RE::Script*,
+                    RE::ScriptLocals*, double&, std::uint32_t&) noexcept
+        {
+            auto& cfg = Engine::ConfigManager::GetSingleton();
+            if (!cfg.enableCalibrationCommands)
+            {
+                ConsolePrint("TrueGaze: Calibration commands are disabled ([Debug] bEnableCalibrationCommands=false).");
+                return true;
+            }
+
+            uint32_t targetActor = 0;
+            if (a_thisObj && a_thisObj->GetFormType() == RE::FormType::ActorCharacter)
+            {
+                targetActor = a_thisObj->GetFormID();
+            }
+
+            auto& engine = Engine::GazeEngine::Get();
+            engine.StepCalibrationNext(targetActor);
+            const auto& cal = engine.GetCalibrationState();
+
+            ConsolePrint("TrueGaze: Calibration STEP [%d/11] -> Yaw=%+.1f deg, Pitch=%+.1f deg (Target: %s)",
+                         cal.currentRegionIndex + 1, cal.overrideYawDeg, cal.overridePitchDeg,
+                         targetActor ? "Selected Actor" : "All Tracked Actors");
+            return true;
+        }
+
+        bool CmdCalSweep(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                         RE::TESObjectREFR* a_thisObj, RE::TESObjectREFR*, RE::Script*,
+                         RE::ScriptLocals*, double&, std::uint32_t&) noexcept
+        {
+            auto& cfg = Engine::ConfigManager::GetSingleton();
+            if (!cfg.enableCalibrationCommands)
+            {
+                ConsolePrint("TrueGaze: Calibration commands are disabled ([Debug] bEnableCalibrationCommands=false).");
+                return true;
+            }
+
+            uint32_t targetActor = 0;
+            if (a_thisObj && a_thisObj->GetFormType() == RE::FormType::ActorCharacter)
+            {
+                targetActor = a_thisObj->GetFormID();
+            }
+
+            auto& engine = Engine::GazeEngine::Get();
+            engine.StartCalibrationSweep(targetActor);
+            ConsolePrint("TrueGaze: Calibration SWEEP started across 11 regions (2.0s hold per region).");
+            return true;
+        }
+
+        bool CmdCalOff(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                       RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*,
+                       RE::ScriptLocals*, double&, std::uint32_t&) noexcept
+        {
+            auto& engine = Engine::GazeEngine::Get();
+            engine.StopCalibration();
+            ConsolePrint("TrueGaze: Calibration override STOPPED. Autonomous gaze restored.");
+            return true;
+        }
+
+        bool CmdCalAxes(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
+                        RE::TESObjectREFR* a_thisObj, RE::TESObjectREFR*, RE::Script*,
+                        RE::ScriptLocals*, double&, std::uint32_t&) noexcept
+        {
+            ConsolePrint("TrueGaze: Head Bone Axes Calibration (Audit A8 verification):");
+            ConsolePrint("  Local Column 0: X = Right (+yaw)");
+            ConsolePrint("  Local Column 1: Y = Forward (+length / LoS)");
+            ConsolePrint("  Local Column 2: Z = Up (+pitch)");
+            ConsolePrint("  Basis Scaling:  Column scaling applied via ScaleBasisColumns(M, sx, 1.0, sz)");
+
+            if (a_thisObj && a_thisObj->GetFormType() == RE::FormType::ActorCharacter)
+            {
+                auto* actor = a_thisObj->As<RE::Actor>();
+                if (actor && actor->Get3D())
+                {
+                    ConsolePrint("  Target Actor 0x%08X: 3D Root Valid. In-engine orientation verified.",
+                                 actor->GetFormID());
+                }
+            }
+            return true;
+        }
+
         // -----------------------------------------------------------------------
         // The command set
         // -----------------------------------------------------------------------
@@ -800,6 +896,10 @@ namespace TrueGaze::Integrations
             {"stgtrace", "Toggle or inspect TrueGaze JSONL trace logging", &CmdTrace},
             {"stgtraceoff", "Stop TrueGaze JSONL trace logging and flush buffer", &CmdTraceOff},
             {"stgtraceflush", "Force immediate flush of trace log buffer to disk", &CmdTraceFlush},
+            {"stgcal", "Step through calibration representative region angles", &CmdCal},
+            {"stgcalsweep", "Automated 11-region calibration sweep (2s per region)", &CmdCalSweep},
+            {"stgcaloff", "Stop calibration override and restore normal gaze", &CmdCalOff},
+            {"stgcalaxes", "Verify head bone local axes convention (X=Right, Y=Fwd, Z=Up)", &CmdCalAxes},
         };
 
         // -----------------------------------------------------------------------

@@ -702,7 +702,7 @@ Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R
 
 ## Phase R16: Gaze Arrow & HCEP Panel Calibration, Trace Telemetry, and Hit Detection (CURRENT MILESTONE)
 
-*Status: **🔨 Implemented & 🧪 Unit-verified (October 3, 2026)** — Phase 1 Arrow & Panel Calibration complete; 14th test executable (`GeometryTests.exe`) green; Phase 2 Ray-Panel Hit Detection and Phase 3 JSONL Trace Logging designed and specified.*  
+*Status: **🔨 Implemented & 🧪 Unit-verified (October 3, 2026)** — Phase 1 Arrow & Panel Calibration, Phase 2 Ray-Panel Hit Detection & Visual Feedback, and Phase 3 JSONL Trace Logging & Calibration Commands complete. Ready for A8.4 in-engine field acceptance run.*  
 **Date:** October 3, 2026  
 **Source:** [`docs/Technical Design — Gaze Arrow & HCEP Panel Calibration and Hit Detection.md`](docs/Technical%20Design%20%E2%80%94%20Gaze%20Arrow%20&%20HCEP%20Panel%20Calibration%20and%20Hit%20Detection.md) + [`docs/Region Map Specification — HCEP-02 Gaze Regions.md`](docs/Region%20Map%20Specification%20%E2%80%94%20HCEP-02%20Gaze%20Regions.md)  
 **Directive (Kirk LaSalle, 2026-10-03):** Transform the in-game gaze arrows and floating HCEP diagram panel into a mathematically accurate, calibrated instrument: scale the arrow cross-section to the human eyeball (24 mm), eliminate rotation shear via column scaling, align the panel to the cyclopean eye, and establish verified three-way agreement between intended, classified, and ray-hit gaze regions.
@@ -721,12 +721,12 @@ Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R
 - [x] **A7.1 — Hit Detector Implementation**: Implement `IntersectGazeWithPanel` in `GazeGeometry.hpp` to physically compute where left, right, and cyclopean gaze rays pierce the floating HCEP quad.
 - [x] **A7.2 — UV to Gaze Region Mapping**: Map panel hit coordinates and angles to the 13 discrete `GazeRegion` IDs per `docs/Region Map Specification — HCEP-02 Gaze Regions.md`.
 - [x] **A7.3 — Three-Way Agreement Telemetry**: Compare intended region (`SocialTriangle::Vertex`), classified region (`ClassifyGazeRegion`), and physical hit region (`HitRegion`). Log and report accuracy metrics in `stgstatus` / auto-status log.
-- [ ] **A7.4 — Panel Visual Feedback**: Illuminate hit coordinate on panel surface (dynamic reticle or border glow) to provide immediate in-engine visual confirmation of gaze accuracy.
+- [x] **A7.4 — Panel Visual Feedback**: Illuminate hit coordinate on panel surface (dynamic reticle terminus light and three-way agreement/mismatch border glow) to provide immediate in-engine visual confirmation of gaze accuracy.
 
 ### A8–A9 — Trace Telemetry & Automated Verification (Phase 3)
 
 - [x] **A8.1 — Structured JSONL Trace Logging**: Implement high-throughput lock-free trace log emitter conforming to `docs/Trace Log Schema — TrueGaze Gaze Diagnostics.md` under `Data/SKSE/Plugins/TrueGaze_GazeTrace.jsonl` (`TraceLogger.hpp` & `.cpp`, dedicated worker thread, 256-event / 1s flush, 100 MB hard cap).
-- [x] **A8.2 — Console Control**: Add `stgtrace`, `stgtraceoff`, `stgtraceflush` console commands and `[Debug]` INI configuration options to dynamically enable/disable per-frame JSONL telemetry logging and inspect buffer state at runtime without restarting.
+- [x] **A8.2 — Console Control & Calibration Commands**: Add `stgtrace`, `stgtraceoff`, `stgtraceflush`, `stgcal` (step mode), `stgcalsweep` (automated 11-region sweep), `stgcaloff`, `stgcalaxes`, and `[Debug]` INI configuration options to dynamically test, calibrate, and trace at runtime without restarting.
 - [x] **A8.3 — Automated Log Validation Tooling**: Create Python analysis script (`scripts/analyze_trace.py`) to parse JSONL trace logs, verify 3-way agreement rate (target ≥99.5%), compute dwell distributions, and flag biomechanical anomalies.
 - [ ] **A8.4 — In-Engine Acceptance Run**: Execute verified tavern run capturing trace telemetry, verify 0 ray shears and 100% region agreement across conversation cycles.
 

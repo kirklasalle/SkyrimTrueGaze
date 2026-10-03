@@ -170,6 +170,7 @@ namespace TrueGaze::Engine
         // --- Debug ---
         bool debugGazeRays{false};
         int logLevel{2};
+        bool enableCalibrationCommands{true};
 
         // --- Structured JSONL Trace Logging (A8) ---
         bool enableTraceLogging{false};

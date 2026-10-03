@@ -665,6 +665,20 @@ namespace TrueGaze::Visuals
             emitters.lastAgreement = false;
         }
 
+        // A7.4: Terminus illumination placed directly at the panel hit point
+        if (emitters.terminusLight && hitResult.hit && allowPanel)
+        {
+            emitters.terminusLight->local.translate =
+                RE::NiPoint3{emitters.eyeMidLocal.x + hitResult.hitX,
+                             emitters.eyeMidLocal.y + _tuning.HcepPanelForwardOffsetUnits(),
+                             emitters.eyeMidLocal.z + hitResult.hitZ};
+            emitters.terminusLight->world = anchor->world * emitters.terminusLight->local;
+            RE::NiUpdateData updateData;
+            updateData.time = 0.0f;
+            updateData.flags = RE::NiUpdateData::Flag::kDirty;
+            emitters.terminusLight->UpdateDownwardPass(updateData, 0);
+        }
+
         // --- HCEP Floating Diagram Panel ---------------------------------------
         if (allowPanel)
         {
@@ -1127,7 +1141,7 @@ namespace TrueGaze::Visuals
             a_emitters.hcepPanel->UpdateDownwardPass(updateData, 0);
 
             // Active region highlight: dynamically adjust emissive tint
-            if (a_emitters.lastGazeRegion != a_gazeRegion)
+            if (a_emitters.lastGazeRegion != a_gazeRegion || !a_emitters.lastAgreement)
             {
                 auto* node = a_emitters.hcepPanel->AsNode();
                 if (node && !node->GetChildren().empty())
@@ -1144,10 +1158,19 @@ namespace TrueGaze::Visuals
                             {
                                 if (auto* material = effectShader->GetMaterial())
                                 {
-                                    const auto regionCol = GetRegionColour(a_gazeRegion, _tuning);
-                                    material->baseColor =
-                                        RE::NiColorA(regionCol.r, regionCol.g, regionCol.b, 1.0f);
-                                    material->baseColorScale = 1.3f;
+                                    if (a_emitters.lastHitSuccess && !a_emitters.lastAgreement)
+                                    {
+                                        // A7.4 Mismatch visual alert: warm warning glow
+                                        material->baseColor = RE::NiColorA(1.0f, 0.45f, 0.1f, 1.0f);
+                                        material->baseColorScale = 1.6f;
+                                    }
+                                    else
+                                    {
+                                        const auto regionCol = GetRegionColour(a_gazeRegion, _tuning);
+                                        material->baseColor =
+                                            RE::NiColorA(regionCol.r, regionCol.g, regionCol.b, 1.0f);
+                                        material->baseColorScale = 1.3f;
+                                    }
                                 }
                             }
                         }

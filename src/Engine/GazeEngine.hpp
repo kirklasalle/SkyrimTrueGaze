@@ -166,6 +166,28 @@ namespace TrueGaze::Engine
             }
         }
 
+        // --- Calibration Mode (A8 / Technical Design §8) ---
+        struct CalibrationState
+        {
+            bool active{false};
+            bool sweepActive{false};
+            float overrideYawDeg{0.0f};
+            float overridePitchDeg{0.0f};
+            uint32_t targetActorFormId{0}; // 0 = all actors
+            int currentRegionIndex{0};
+            float sweepTimerSec{0.0f};
+            uint32_t sweepSettledFrames{0};
+            uint32_t sweepAgreedFrames{0};
+            uint32_t sweepMismatchFrames{0};
+        };
+
+        void SetCalibrationOverride(bool active, float yawDeg, float pitchDeg,
+                                    uint32_t targetActorFormId = 0) noexcept;
+        void StartCalibrationSweep(uint32_t targetActorFormId = 0) noexcept;
+        void StepCalibrationNext(uint32_t targetActorFormId = 0) noexcept;
+        void StopCalibration() noexcept;
+        [[nodiscard]] const CalibrationState& GetCalibrationState() const noexcept { return _calState; }
+
     private:
         GazeEngine() = default;
 
@@ -239,6 +261,8 @@ namespace TrueGaze::Engine
         // target resolution, read by stgstatus).
         bool _lastDeferActive{false};
         uint64_t _deferFrames{0};
+
+        CalibrationState _calState{};
 
         /// Actors unseen for longer than this are evicted to bound memory (NFR-3).
         static constexpr float ACTOR_EVICTION_SEC = 30.0f;
