@@ -85,7 +85,7 @@ namespace
             if (f)
             {
                 fprintf(f,
-                        "[TrueGaze] True Gaze v1.0.0 (An HCEP Product by Kirk LaSalle) loaded.\n");
+                        "[TrueGaze] True Gaze v1.0.7 (An HCEP Product by Kirk LaSalle) loaded.\n");
                 fprintf(f, "[TrueGaze] Biomechanical Oculomotor Kinematics Engine initialized.\n");
                 fprintf(f, "[TrueGaze] Target engine: Skyrim Special Edition / AE.\n");
                 fclose(f);
@@ -295,7 +295,7 @@ namespace
 // declaration, and clang-format cannot tell where the statement ends without
 // it, so it indents the following function as if it were still part of the
 // macro arguments. An empty declaration at namespace scope is legal C++.
-SKSEPluginInfo(.Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 5, 0}, .Name = "TrueGaze",
+SKSEPluginInfo(.Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 7, 0}, .Name = "TrueGaze",
                .Author = "Kirk LaSalle (HCEP)", .SupportEmail = "",
                .StructCompatibility = SKSE::StructCompatibility::Independent,
                .RuntimeCompatibility = SKSE::PluginDeclaration::RuntimeCompatibility(

@@ -194,6 +194,8 @@ namespace TrueGaze::Engine
             ReadFloat("Visuals", "fPupilForwardOffsetCm", pupilForwardOffsetCm, p);
         pupilUpOffsetCm = ReadFloat("Visuals", "fPupilUpOffsetCm", pupilUpOffsetCm, p);
         pupilGlowIntensity = ReadFloat("Visuals", "fPupilGlowIntensity", pupilGlowIntensity, p);
+        arrowCrossSectionMm =
+            ReadFloat("Visuals", "fArrowCrossSectionMm", arrowCrossSectionMm, p);
         showHcepPanel = ReadBool("Visuals", "bShowHcepPanel", showHcepPanel, p);
         hcepPanelAllActors = ReadBool("Visuals", "bHcepPanelAllActors", hcepPanelAllActors, p);
         hcepPanelScale = ReadFloat("Visuals", "fHcepPanelScale", hcepPanelScale, p);
@@ -469,6 +471,10 @@ namespace TrueGaze::Engine
         pupilForwardOffsetCm =
             clampReport("fPupilForwardOffsetCm", pupilForwardOffsetCm, 0.0f, 30.0f);
         pupilUpOffsetCm = clampReport("fPupilUpOffsetCm", pupilUpOffsetCm, -30.0f, 30.0f);
+        // 5 mm (hair-thin) .. 100 mm (four eyeballs): outside that the arrow is
+        // either invisible or swallows the face it is meant to annotate.
+        arrowCrossSectionMm =
+            clampReport("fArrowCrossSectionMm", arrowCrossSectionMm, 5.0f, 100.0f);
         hcepPanelScale = clampReport("fHcepPanelScale", hcepPanelScale, 0.5f, 30.0f);
         hcepPanelForwardOffsetCm =
             clampReport("fHcepPanelForwardOffsetCm", hcepPanelForwardOffsetCm, 5.0f, 200.0f);
@@ -631,6 +637,7 @@ namespace TrueGaze::Engine
         WriteFloat("Visuals", "fPupilForwardOffsetCm", pupilForwardOffsetCm);
         WriteFloat("Visuals", "fPupilUpOffsetCm", pupilUpOffsetCm);
         WriteFloat("Visuals", "fPupilGlowIntensity", pupilGlowIntensity);
+        WriteFloat("Visuals", "fArrowCrossSectionMm", arrowCrossSectionMm);
         WriteBool("Visuals", "bShowHcepPanel", showHcepPanel);
         WriteBool("Visuals", "bHcepPanelAllActors", hcepPanelAllActors);
         WriteFloat("Visuals", "fHcepPanelScale", hcepPanelScale);

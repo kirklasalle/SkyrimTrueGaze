@@ -697,3 +697,36 @@ Following the successful public release of TrueGaze™ v1.0.0 on GitHub, Phase R
 - [x] **C4.4** STATUS/ROADMAP/guide/changelog documentation. *(This update + CHANGELOG entry.)*
 
 **Deliverable:** every category of entity in Skyrim — player, NPC type, race, creature, animal, other — gazes like *itself*, user-tunable per category from the configurator, with the global presets restored to truthful baselines and configuration drift made structurally impossible.
+
+---
+
+## Phase R16: Gaze Arrow & HCEP Panel Calibration, Trace Telemetry, and Hit Detection (CURRENT MILESTONE)
+
+*Status: **🔨 Implemented & 🧪 Unit-verified (October 3, 2026)** — Phase 1 Arrow & Panel Calibration complete; 14th test executable (`GeometryTests.exe`) green; Phase 2 Ray-Panel Hit Detection and Phase 3 JSONL Trace Logging designed and specified.*  
+**Date:** October 3, 2026  
+**Source:** [`docs/Technical Design — Gaze Arrow & HCEP Panel Calibration and Hit Detection.md`](docs/Technical%20Design%20%E2%80%94%20Gaze%20Arrow%20&%20HCEP%20Panel%20Calibration%20and%20Hit%20Detection.md) + [`docs/Region Map Specification — HCEP-02 Gaze Regions.md`](docs/Region%20Map%20Specification%20%E2%80%94%20HCEP-02%20Gaze%20Regions.md)  
+**Directive (Kirk LaSalle, 2026-10-03):** Transform the in-game gaze arrows and floating HCEP diagram panel into a mathematically accurate, calibrated instrument: scale the arrow cross-section to the human eyeball (24 mm), eliminate rotation shear via column scaling, align the panel to the cyclopean eye, and establish verified three-way agreement between intended, classified, and ray-hit gaze regions.
+
+### A1–A6 — Arrow & Panel Calibration (Phase 1)
+
+- [x] **A1 — Basis Column Scaling Fix**: Replace buggy row-scaling in `NiMatrix3` with column scaling (`G::ScaleBasisColumns`). Eliminates 32.97° directional distortion that squashed head-space lateral and vertical deflections.
+- [x] **A2 — Eyeball Cross-Section Calibration**: Calibrate widest arrow cross-section to adult human eyeball diameter (`fArrowCrossSectionMm = 24.0mm` = 1.68 Skyrim units) via `ComputeMarkerArrowScales`. Arrow length precisely tracks configured reach.
+- [x] **A3 — Binocular Gaze Convergence**: Dual gaze rays converge at a fixation point along the cyclopean gaze direction at reach distance (`ConvergedEyeDirection`), matching biological stereoscopic vision.
+- [x] **A4 — Decoupled Math Foundation**: Extract pure SDK-free geometry math into `src/Visuals/GazeGeometry.hpp` and region classification into `src/Engine/GazeRegion.hpp`.
+- [x] **A5 — Geometry Unit Test Suite**: Author `tests/GeometryTests.cpp` testing column scaling, arrow dimensions, binocular convergence, ray-plane intersection, angle-to-panel projection, and region classifier parity.
+- [x] **A6 — Cyclopean Eye Panel Centering**: Center floating HCEP panel on `eyeMidLocal` (pupil midpoint) instead of head-bone origin so panel angular coordinates match gaze deflection math.
+
+### A7 — Ray-Panel Hit Detection (Phase 2)
+
+- [ ] **A7.1 — Hit Detector Implementation**: Implement `IntersectRayQuad` and `HitDetectHcepPanel` in `GazeGeometry.hpp` to physically compute where left, right, and cyclopean gaze rays pierce the floating HCEP quad.
+- [ ] **A7.2 — UV to Gaze Region Mapping**: Map panel hit UV coordinates to the 13 discrete `GazeRegion` IDs per `docs/Region Map Specification — HCEP-02 Gaze Regions.md`.
+- [ ] **A7.3 — Three-Way Agreement Telemetry**: Compare intended region (`SocialTriangle::Vertex`), classified region (`ClassifyGazeRegion`), and physical hit region (`HitRegion`). Log frame-level agreement metrics.
+- [ ] **A7.4 — Panel Visual Feedback**: Illuminate hit coordinate on panel surface (dynamic reticle or border glow) to provide immediate in-engine visual confirmation of gaze accuracy.
+
+### A8–A9 — Trace Telemetry & Automated Verification (Phase 3)
+
+- [ ] **A8.1 — Structured JSONL Trace Logging**: Implement high-throughput lock-free trace log emitter conforming to `docs/Trace Log Schema — TrueGaze Gaze Diagnostics.md` under `Documents/My Games/Skyrim Special Edition/SKSE/TrueGaze_trace.jsonl`.
+- [ ] **A8.2 — Console Control**: Add `stgtrace` console command to dynamically enable/disable per-frame JSONL telemetry logging without restarting the game.
+- [ ] **A8.3 — Automated Log Validation Tooling**: Create Python analysis script (`scripts/analyze_trace.py`) to parse JSONL trace logs, verify 3-way agreement rate (target ≥99.5%), and flag biomechanical anomalies.
+- [ ] **A8.4 — In-Engine Acceptance Run**: Execute verified tavern run capturing trace telemetry, verify 0 ray shears and 100% region agreement across conversation cycles.
+

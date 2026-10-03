@@ -127,6 +127,12 @@ namespace TrueGaze::Visuals
 
             uint8_t lastGazeRegion{0xFF};
 
+            /// Anchor-local midpoint between the two pupils (cyclopean eye),
+            /// refreshed every UpdateActor. The HCEP panel is centred on this
+            /// point so the panel's angular layout is measured from the eyes,
+            /// not from the head-bone origin (finding A6).
+            RE::NiPoint3 eyeMidLocal{};
+
             RE::NiPointer<RE::NiAVObject> parent{};
             uint64_t lastFrame{0};
         };

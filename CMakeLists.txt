@@ -105,6 +105,14 @@ if(TRUEGAZE_STANDALONE)
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
         add_test(NAME ValidationTests COMMAND ValidationTests)
 
+        # Gaze-arrow / HCEP-panel geometry (SDK-free).
+        add_executable(GeometryTests "${CMAKE_CURRENT_SOURCE_DIR}/tests/GeometryTests.cpp")
+        target_link_libraries(GeometryTests PRIVATE TrueGazeKinematics)
+        truegaze_force_asserts(GeometryTests)
+        set_target_properties(GeometryTests PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+        add_test(NAME GeometryTests COMMAND GeometryTests)
+
         # The bridge mock exercises NamedPipeServer directly, so it needs the
         # implementation and the precompiled header the server expects.
         add_executable(HcepBridgeClientMock
@@ -269,6 +277,14 @@ if(TRUEGAZE_BUILD_TESTS)
     set_target_properties(ValidationTests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
     add_test(NAME ValidationTests COMMAND ValidationTests)
+
+    # Gaze-arrow / HCEP-panel geometry (SDK-free).
+    add_executable(GeometryTests "${CMAKE_CURRENT_SOURCE_DIR}/tests/GeometryTests.cpp")
+    target_link_libraries(GeometryTests PRIVATE TrueGazeKinematics)
+    truegaze_force_asserts(GeometryTests)
+    set_target_properties(GeometryTests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+    add_test(NAME GeometryTests COMMAND GeometryTests)
 
     add_executable(HcepBridgeClientMock
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/HcepBridgeClientMock.cpp"

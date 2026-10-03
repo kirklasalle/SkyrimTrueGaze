@@ -146,8 +146,7 @@ namespace TrueGaze::Integrations
             }
 
             g_registeredWithOar.store(true, std::memory_order_relaxed);
-            logger::info("[TrueGaze] OAR custom conditions (TrueGaze_IsMode, TrueGaze_IsMutualGaze, TrueGaze_GetGazeRegion) "
-                         "registered successfully via dynamic SKSE messaging.");
+            logger::info("[TrueGaze] OAR integration: condition query message listener active; registration message dispatched via SKSE messaging.");
             return true;
         }
         else

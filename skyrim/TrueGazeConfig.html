@@ -444,16 +444,32 @@
         }
 
         .sim-canvas-wrap {
-            width: 140px;
-            height: 90px;
-            background: #0a0805;
-            border: 1px solid var(--gold-dark);
+            width: 240px;
+            height: 140px;
+            background: #060504;
+            border: 1px solid var(--gold-dim);
             position: relative;
             flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.8);
+            box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.9), 0 0 12px rgba(201, 168, 106, 0.15);
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        .sim-canvas-wrap::after {
+            content: "INTERACTIVE GAZE HUD";
+            position: absolute;
+            bottom: 4px;
+            left: 6px;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            letter-spacing: 0.1em;
+            color: var(--gold-dim);
+            opacity: 0.7;
+            pointer-events: none;
         }
 
         #eyeCanvas {
@@ -1037,14 +1053,13 @@
 
         <!-- Real-Time Eye Dynamics & Kinematics -->
         <div class="kinematics-box">
-            <div class="sim-canvas-wrap">
-                <canvas id="eyeCanvas" width="140" height="90"></canvas>
+            <div class="sim-canvas-wrap" id="simWrap">
+                <canvas id="eyeCanvas" width="480" height="280"></canvas>
             </div>
             <div class="sim-info">
                 <div class="sim-title">Real-Time Biological Eye Dynamics &amp; Kinematics</div>
                 <div class="sim-desc">
-                    Demonstrating Main Sequence peak ballistic saccades, micro-saccadic Brownian jitter, and comfort
-                    eye-head engagement limits based on your active parameters.
+                    Live 3D oculomotor viewport demonstrating Main Sequence peak ballistic saccades, VOR eye-head decoupling, micro-saccadic Brownian jitter, and spontaneous blinking. Move your cursor over the viewport to test live gaze tracking and fixation lock.
                 </div>
             </div>
         </div>
@@ -2833,9 +2848,284 @@
             }
         });
 
+        // ------------------------------------------------------------------
+        // Interactive 3D Biological Eye Kinematics & VOR Simulation Engine
+        // ------------------------------------------------------------------
+        function initEyeKinematicsSimulation() {
+            const canvas = $('eyeCanvas');
+            const wrap = $('simWrap');
+            if (!canvas || !wrap) return;
+
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+
+            // Kinematic state
+            let headYaw = 0, headPitch = 0;
+            let eyeYaw = 0, eyePitch = 0;
+            let targetYaw = 0, targetPitch = 0;
+            let targetChangeTimer = 0;
+            let isMouseTracking = false;
+            let mouseX = W / 2, mouseY = H / 2;
+
+            // Blink state
+            let blinkProgress = 0;
+            let isBlinking = false;
+            let blinkTimer = 3.0;
+
+            // Micro-saccadic Brownian jitter
+            let jitterX = 0, jitterY = 0;
+            let lastTime = performance.now();
+
+            function getParamFloat(key, fallback) {
+                for (const section of parsed.values()) {
+                    if (section.has(key)) {
+                        const val = parseFloat(section.get(key));
+                        if (!isNaN(val)) return val;
+                    }
+                }
+                return fallback;
+            }
+
+            // Mouse tracking
+            wrap.addEventListener('mousemove', e => {
+                const rect = wrap.getBoundingClientRect();
+                isMouseTracking = true;
+                const normX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                const normY = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+                const maxYaw = getParamFloat('fEyeLimitYaw', 35);
+                const maxPitch = getParamFloat('fEyeLimitPitch', 25);
+                targetYaw = normX * maxYaw;
+                targetPitch = normY * maxPitch;
+            });
+
+            wrap.addEventListener('mouseleave', () => {
+                isMouseTracking = false;
+            });
+
+            function update(dt) {
+                const saccadeSpeed = getParamFloat('fEyeSaccadeMaxSpeed', getParamFloat('fSaccadeSpeed', 450));
+                const vorGain = getParamFloat('fVORGain', 0.98);
+                const vorDamping = getParamFloat('fVORDamping', 0.15);
+                const jitterAmp = getParamFloat('fBrownianJitter', 0.06);
+                const blinkInterval = getParamFloat('fBlinkInterval', 4.2);
+
+                // Autonomous fixation shifts if not mouse tracking
+                if (!isMouseTracking) {
+                    targetChangeTimer -= dt;
+                    if (targetChangeTimer <= 0) {
+                        const maxYaw = getParamFloat('fEyeLimitYaw', 32);
+                        const maxPitch = getParamFloat('fEyeLimitPitch', 20);
+                        targetYaw = (Math.random() * 2 - 1) * maxYaw * 0.85;
+                        targetPitch = (Math.random() * 2 - 1) * maxPitch * 0.75;
+                        targetChangeTimer = 1.6 + Math.random() * 2.4;
+                    }
+                }
+
+                // 1. Ballistic Saccade jump towards target
+                const saccadeRate = (saccadeSpeed / 60) * dt * 60;
+                const dYaw = targetYaw - (headYaw + eyeYaw);
+                const dPitch = targetPitch - (headPitch + eyePitch);
+                const dist = Math.hypot(dYaw, dPitch);
+
+                if (dist > 0.05) {
+                    const step = Math.min(dist, saccadeRate * 0.25);
+                    eyeYaw += (dYaw / dist) * step;
+                    eyePitch += (dPitch / dist) * step;
+                }
+
+                // 2. Exponential Neck Follow-Through (Head turn)
+                const prevHeadYaw = headYaw;
+                const prevHeadPitch = headPitch;
+                headYaw += (targetYaw - headYaw) * Math.min(1.0, dt * (1.0 / Math.max(0.05, vorDamping)) * 0.2);
+                headPitch += (targetPitch - headPitch) * Math.min(1.0, dt * (1.0 / Math.max(0.05, vorDamping)) * 0.2);
+
+                // 3. VOR (Vestibulo-Ocular Reflex): Eyes counter-rotate to maintain gaze lock
+                const headDeltaYaw = headYaw - prevHeadYaw;
+                const headDeltaPitch = headPitch - prevHeadPitch;
+                eyeYaw -= headDeltaYaw * vorGain;
+                eyePitch -= headDeltaPitch * vorGain;
+
+                // 4. Brownian micro-jitter
+                jitterX = (Math.sin(performance.now() * 0.02) + (Math.random() - 0.5) * 0.8) * jitterAmp * 8.0;
+                jitterY = (Math.cos(performance.now() * 0.025) + (Math.random() - 0.5) * 0.8) * jitterAmp * 6.0;
+
+                // 5. Spontaneous Blinking
+                blinkTimer -= dt;
+                if (blinkTimer <= 0 && !isBlinking) {
+                    isBlinking = true;
+                    blinkProgress = 0;
+                }
+
+                if (isBlinking) {
+                    blinkProgress += dt * 14.0; // Fast closure
+                    if (blinkProgress >= 1.0) {
+                        isBlinking = false;
+                        blinkProgress = 0;
+                        blinkTimer = blinkInterval * (0.6 + Math.random() * 0.8);
+                    }
+                }
+            }
+
+            function render() {
+                ctx.clearRect(0, 0, W, H);
+
+                // Background gradient
+                const bgGrad = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, W / 2);
+                bgGrad.addColorStop(0, '#100d09');
+                bgGrad.addColorStop(1, '#050403');
+                ctx.fillStyle = bgGrad;
+                ctx.fillRect(0, 0, W, H);
+
+                // Coordinate center
+                const cx = W / 2;
+                const cy = H / 2;
+                const eyeRadius = 78;
+
+                // Effective gaze projection
+                const totalYaw = headYaw + eyeYaw + jitterX;
+                const totalPitch = headPitch + eyePitch + jitterY;
+                const gazePxX = (totalYaw / 40) * 45;
+                const gazePxY = (totalPitch / 30) * 32;
+
+                // 1. Sclera (Eyeball Sphere) with 3D shading
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(cx, cy, eyeRadius, 0, Math.PI * 2);
+                ctx.clip();
+
+                const scleraGrad = ctx.createRadialGradient(
+                    cx - 20 + gazePxX * 0.3,
+                    cy - 25 + gazePxY * 0.3,
+                    15,
+                    cx, cy, eyeRadius
+                );
+                scleraGrad.addColorStop(0, '#f9f6f0');
+                scleraGrad.addColorStop(0.7, '#ded4c3');
+                scleraGrad.addColorStop(0.95, '#b8a994');
+                scleraGrad.addColorStop(1, '#7a6c5b');
+                ctx.fillStyle = scleraGrad;
+                ctx.fill();
+
+                // Subtle micro-vascular veins
+                ctx.strokeStyle = 'rgba(180, 50, 40, 0.15)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(cx - 65, cy - 10);
+                ctx.quadraticCurveTo(cx - 45, cy - 8, cx - 35, cy - 2);
+                ctx.moveTo(cx + 60, cy + 12);
+                ctx.quadraticCurveTo(cx + 45, cy + 8, cx + 38, cy + 1);
+                ctx.stroke();
+
+                // 2. Iris (Nordic Skyrim Ice-Gold / Cyan)
+                const irisX = cx + gazePxX;
+                const irisY = cy + gazePxY;
+                const irisRadius = 38;
+
+                // Limbal Ring (dark outer border)
+                ctx.beginPath();
+                ctx.arc(irisX, irisY, irisRadius, 0, Math.PI * 2);
+                ctx.fillStyle = '#0f222b';
+                ctx.fill();
+
+                // Iris Body
+                const irisGrad = ctx.createRadialGradient(irisX, irisY, 6, irisX, irisY, irisRadius);
+                irisGrad.addColorStop(0, '#c9a86a');    // Inner gold ring
+                irisGrad.addColorStop(0.35, '#3b7891'); // Nordic sapphire body
+                irisGrad.addColorStop(0.75, '#1e485b'); // Outer deep blue
+                irisGrad.addColorStop(1, '#0b1922');    // Limbal edge
+                ctx.beginPath();
+                ctx.arc(irisX, irisY, irisRadius - 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = irisGrad;
+                ctx.fill();
+
+                // Iris Crystalline Striations
+                ctx.save();
+                ctx.translate(irisX, irisY);
+                ctx.strokeStyle = 'rgba(244, 214, 147, 0.3)';
+                ctx.lineWidth = 0.8;
+                for (let a = 0; a < Math.PI * 2; a += Math.PI / 16) {
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(a) * 8, Math.sin(a) * 8);
+                    ctx.lineTo(Math.cos(a) * (irisRadius - 4), Math.sin(a) * (irisRadius - 4));
+                    ctx.stroke();
+                }
+                ctx.restore();
+
+                // 3. Pupil
+                const pupilRadius = 14;
+                ctx.beginPath();
+                ctx.arc(irisX, irisY, pupilRadius, 0, Math.PI * 2);
+                ctx.fillStyle = '#040507';
+                ctx.fill();
+
+                // 4. Dual Cornea Specular Highlights
+                ctx.beginPath();
+                ctx.arc(irisX - 12, irisY - 12, 6.5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(irisX + 10, irisY + 8, 3.2, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.fill();
+
+                ctx.restore(); // Exit eyeball clip
+
+                // 5. Realistic Organic Eyelids
+                const blinkClosed = Math.sin(blinkProgress * Math.PI); // 0 -> 1 -> 0
+                const upperLidY = cy - 42 + blinkClosed * 44;
+                const lowerLidY = cy + 44 - blinkClosed * 36;
+
+                // Eyelid skin shader
+                ctx.fillStyle = '#17130f';
+                ctx.strokeStyle = '#3d311c';
+                ctx.lineWidth = 2;
+
+                // Upper Eyelid
+                ctx.beginPath();
+                ctx.moveTo(cx - 100, cy);
+                ctx.quadraticCurveTo(cx, upperLidY, cx + 100, cy);
+                ctx.lineTo(cx + 120, cy - 80);
+                ctx.lineTo(cx - 120, cy - 80);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Lower Eyelid
+                ctx.beginPath();
+                ctx.moveTo(cx - 100, cy);
+                ctx.quadraticCurveTo(cx, lowerLidY, cx + 100, cy);
+                ctx.lineTo(cx + 120, cy + 80);
+                ctx.lineTo(cx - 120, cy + 80);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // 6. Real-Time Telemetry HUD Overlay
+                ctx.fillStyle = 'rgba(244, 214, 147, 0.85)';
+                ctx.font = '9px "JetBrains Mono", monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(`GAZE: ${totalYaw >= 0 ? '+' : ''}${totalYaw.toFixed(1)}° / ${totalPitch >= 0 ? '+' : ''}${totalPitch.toFixed(1)}°`, W - 10, 16);
+                ctx.fillStyle = isMouseTracking ? '#7ee08d' : '#aeb7bd';
+                ctx.fillText(isMouseTracking ? 'TRACK: LIVE POINTER' : 'MODE: AUTONOMOUS VOR', W - 10, 28);
+            }
+
+            function loop(now) {
+                const dt = Math.min(0.08, (now - lastTime) / 1000);
+                lastTime = now;
+                update(dt);
+                render();
+                requestAnimationFrame(loop);
+            }
+
+            requestAnimationFrame(loop);
+        }
+
         // Initialize on load
         runSystemScan();
         wireUiTooltips();
+        initEyeKinematicsSimulation();
     </script>
 </body>
 

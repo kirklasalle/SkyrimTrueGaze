@@ -3,7 +3,7 @@
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
 **Version:** `1.0.7` (Production Release)
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Status date:** October 2, 2026  
+**Status date:** October 3, 2026  
 **Owner & Architect:** Kirk LaSalle
 
 > **Document role:** this is the single source of truth for what is *implemented
@@ -33,14 +33,25 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 | :--- | :--- |
 | **📐 Designed** | Specified in documentation or architecture plans. No code, or declarations only. |
 | **🔨 Implemented** | Code exists and compiles. Executes in the engine loop, but has not yet been individually verified by in-game observation. |
-| **🧪 Unit-verified** | Exercises and passes in the standalone unit test suite (`KinematicsTests.exe`). |
+| **🧪 Unit-verified** | Exercises and passes in the standalone unit test suite (`KinematicsTests.exe`, `GeometryTests.exe`, `ValidationTests.exe`). |
 | **✅ In-engine verified** | Proven to work inside a running Skyrim instance through direct observation, runtime logs, or console diagnostics. |
 
 ---
 
 ## Landmark Milestones Achieved
 
-> ### 🏆 LATEST — HCEP Floating Diagram Panel & Universal Actor Coverage — ✅ In-engine verified (October 2, 2026)
+> ### 🏆 LATEST — Gaze Arrow & Panel Calibration, Geometry Engine & Test Suite — 🧪 Unit-verified & 🔨 Implemented (October 3, 2026)
+>
+> **The gaze arrow visuals and floating HCEP diagram panel have been mathematically calibrated and decoupled into a standalone geometry engine.**
+>
+> 1. **Basis Column Scaling Fix (A1)** — Replaced row-scaling with column-scaling (`G::ScaleBasisColumns`) in `NiMatrix3` rotation matrices, eliminating the 32.97° directional distortion that squashed lateral and vertical deflections.
+> 2. **Eyeball Cross-Section Calibration (A2)** — Widest cross-section (160-unit arrowhead) calibrated directly to adult eyeball diameter (`fArrowCrossSectionMm = 24.0mm` = 1.68 Skyrim units), rendering gaze rays as genuine lines of sight.
+> 3. **Binocular Convergence (A3)** — Left and right eye arrows converge toward a fixation point along the cyclopean line of sight at reach distance rather than casting parallel rays.
+> 4. **Decoupled Math Engine (`GazeGeometry.hpp`, `GazeRegion.hpp`)** — Pure SDK-free math foundation enabling headless verification without game dependencies.
+> 5. **Dedicated Geometry Test Suite (`GeometryTests.exe`)** — 14th test executable verifying scaling, dimensions, convergence, ray-plane intersection, angle-to-panel projection, and region classifier parity.
+> 6. **Cyclopean Eye Panel Centering (A6)** — Anchored floating HCEP panel to pupil midpoint (`eyeMidLocal`) ensuring mathematical alignment with angular ray projections.
+
+> ### 🏆 HCEP Floating Diagram Panel & Universal Actor Coverage — ✅ In-engine verified (October 2, 2026)
 >
 > **The 3D chroma-keyed HCEP-02 cognitive gaze diagram panel (`GazeRegionPanel.nif`) is fully restored and verified floating cleanly in front of all actors in live Skyrim gameplay.** Verified across field-test rounds with Kirk LaSalle (`ScreenShot164.png`, `ScreenShot177.png`):
 >

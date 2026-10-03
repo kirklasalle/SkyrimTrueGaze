@@ -8,32 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [!IMPORTANT]
 > **Correction notice.** Earlier entries in this changelog described several features as "implemented" that are not functional, because they were written from design intent rather than from the code. Those entries have been annotated below. See [`docs/STATUS.md`](docs/STATUS.md) for the verified capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the full independent audit.
 
-## [1.0.7] - 2026-10-02 - HCEP Floating Diagram Panel & Universal Actor Coverage
+## [1.0.7] - 2026-10-03 - Gaze Arrow & Panel Calibration, Geometry Engine & Universal Coverage
 
 ### Added
 
+- **Gaze Geometry & Region Core (`src/Visuals/GazeGeometry.hpp`, `src/Engine/GazeRegion.hpp`)** — Pure SDK-free mathematical foundation for 3D arrow ray scaling, binocular convergence, ray-panel intersection, and HCEP-02 angular region classification. Decoupled from SKSE/CommonLibSSE for standalone testability.
+- **Eyeball Cross-Section Calibration (`fArrowCrossSectionMm`)** — Calibrated the widest arrow cross-section (the 160-unit arrowhead) directly to adult human eyeball diameter (default 24.0 mm = 1.68 Skyrim units), configured via INI key `fArrowCrossSectionMm`. Arrowheads now visually read as the eyeball's own line of sight rather than oversized beams.
+- **Binocular Gaze Convergence** — Dual gaze rays now dynamically converge at a fixation point along the cyclopean line of sight at reach distance, replacing parallel projection with physiologically authentic convergence.
+- **Standalone Geometry Test Suite (`tests/GeometryTests.cpp`)** — 14th test executable verifying column scaling, eyeball dimensions, convergence geometry, ray-plane intersection, angle-to-panel projection, and region classifier parity.
+- **Comprehensive Calibration Architectural Suite (`docs/`)**:
+  - `docs/Region Map Specification — HCEP-02 Gaze Regions.md` (Approved 2026-10-03)
+  - `docs/Technical Design — Gaze Arrow & HCEP Panel Calibration and Hit Detection.md` (Approved 2026-10-03)
+  - `docs/Trace Log Schema — TrueGaze Gaze Diagnostics.md` (Approved 2026-10-03)
+  - `docs/Verification & Test Plan — Gaze Arrow & HCEP Panel Calibration.md` (Approved 2026-10-03)
 - **HCEP Floating Diagram Panel (`GazeRegionPanel.nif`)** — The 3D chroma-keyed HCEP-02 cognitive gaze diagram floats in front of actors with dynamic active-region highlighting (Third-eye, Left/Right eye, Mouth, Chest, Far Upper/Lower regions), verified live in running Skyrim tavern sessions (`ScreenShot164.png`, `ScreenShot177.png`).
 - **Universal Actor Coverage** — `bHcepPanelAllActors=true` enabled across compile-time defaults and INI so the floating diagram panel is active across the Player and all NPCs.
 - **Adjusted Panel Forward Offset** — Increased `fHcepPanelForwardOffsetCm` from 35.0 cm to 70.0 cm (~49 Skyrim units) to position the panel cleanly in front of NPC faces and prevent clipping into the skull or neck during dialogue, gestures, or leaning.
-- **In-engine developer arrow visuals verified** — vanilla `marker_arrow.nif`
-  renders from actor gaze origins in a live Skyrim session, with region-driven
-  color changes visible in captured tavern screenshots.
-- **Arrow presentation tuning** — marker arrows render at 30% of their previous
-  uniform scale (70% reduction) and move forward by 50% of the configured pupil
-  offset along the solved gaze direction.
-- **Versioned runtime identity** — plugin logs, public API, CMake, vcpkg, README,
-  PRD, STATUS, and ROADMAP identify this milestone as v1.0.7.
-
-### Changed
-
-- **Default Visuals Configuration** — In-game diagnostic visuals (`bEnableInGameVisuals`) are disabled (`false`) by default for pure organic gameplay, togglable via `stgvisuals` / `stgv` console commands or the INI for developer inspection.
-- **Launcher Scripts Hardened** — `LaunchTrueGaze.bat` and `TrueGaze.cmd` now prefer the optimized Release build binary over Debug, avoiding debug heap contention and `AppHangB1` issues on cell loads.
+- **Interactive Eye Kinematics Simulator** — Added live canvas-based eye kinematics simulation to `TrueGazeConfig.html` and synced identically to `skyrim/TrueGazeConfig.html`.
 
 ### Fixed
 
-- Launch/deployment paths no longer overwrite the active development build with
-  stale DLLs or omit primary arrow/panel assets.
-- Fixed panel clipping behind NPC heads by extending forward offset from 35 cm to 70 cm.
+- **Matrix Axis Basis Column Scaling (Fix A1)** — Resolved critical `NiMatrix3` rotation bug in `VisualEffectsManager.cpp` where row-scaling was squashing head-space X/Z rather than mesh-local X/Z. Row-scaling was inadvertently shearing the gaze ray toward head +Y and compressing deflections ~11x (causing up to 32.97° directional error). Fixed by scaling basis matrix columns 0 and 2 (`G::ScaleBasisColumns`).
+- **Cyclopean Eye Panel Centering (Fix A6)** — The floating HCEP panel is now anchored directly to the cyclopean eye midpoint (`eyeMidLocal`) rather than the head-bone origin (0, forward, 0), guaranteeing angular ray projections land on exact physical diagram coordinates.
+- **SKSE Version Multi-Split** — Synchronized `src/Main.cpp` `SKSEPluginInfo` export from stale `1.0.5.0` to `{1, 0, 7, 0}` and updated console banner from `v1.0.0` to `v1.0.7`.
+- **CI Workflow & Preset Aliasing** — Updated `.github/workflows/build-test.yml` to use `standalone` preset (configured, built, and tested in seconds with 0 external dependencies) and updated `Invoke-CiGate.ps1` to dynamically resolve version from `vcpkg.json` and cleanly map build/test presets.
+- **Truthful OAR Logging (`LAW7-TRUTHFUL-LOG`)** — Clarified `OarConditions.cpp` log output upon dispatching custom condition registration message.
 
 ## [Unreleased] - 2026-10-01 - Category Gaze Profiles & Configuration Truth (R15)
 

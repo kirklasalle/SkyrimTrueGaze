@@ -53,6 +53,10 @@ namespace TrueGaze::Visuals
         float pupilForwardOffsetCm{12.0f}; // ~12cm forward from head bone to eye socket
         float pupilUpOffsetCm{6.0f};       // ~6cm up from head bone to eye socket
         float pupilGlowIntensity{0.35f};
+        /// Widest visible cross-section of the marker-arrow gaze ray. Default is
+        /// the adult eyeball diameter (~24 mm = 1.68 units) so each arrow reads
+        /// as the eyeball's own line of sight (Kirk directive 2026-10-03).
+        float arrowCrossSectionMm{24.0f};
 
         // --- HCEP Floating Diagram Panel ---
         bool showHcepPanel{true};       // master switch for the HCEP diagram panel
@@ -103,6 +107,12 @@ namespace TrueGaze::Visuals
         [[nodiscard]] constexpr float UpOffsetUnits() const noexcept
         {
             return pupilUpOffsetCm / kCmPerMeter * kUnitsPerMeter;
+        }
+
+        /// Arrow cross-section in Skyrim units (mm -> units).
+        [[nodiscard]] constexpr float ArrowCrossSectionUnits() const noexcept
+        {
+            return arrowCrossSectionMm / 1000.0f * kUnitsPerMeter;
         }
 
         /// HCEP panel forward offset in Skyrim units.

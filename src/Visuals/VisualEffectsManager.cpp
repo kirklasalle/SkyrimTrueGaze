@@ -1,4 +1,5 @@
 #include "VisualEffectsManager.hpp"
+#include "GazeGeometry.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/B/BSEffectShaderMaterial.h>
@@ -522,69 +523,87 @@ namespace TrueGaze::Visuals
             emitters.terminusLight->local.translate = anchorInverse * terminusWorld;
         }
 
+        // Cyclopean (mid-eye) origin in anchor space; consumed by the HCEP panel.
+        emitters.eyeMidLocal = (localPupilL + localPupilR) * 0.5f;
+
         if (allowRays && (emitters.geometryL || emitters.geometryR))
         {
-            // Align native mesh orientation with gaze direction
-            const RE::NiMatrix3 beamRot =
-                AlignBeamOrientation(localDir, emitters.usingFallbackMesh);
-            // The custom GazeBeam.nif is authored at 70 units (1 metre) along +Y;
-            // scale uniformly by the configured reach so length AND cross-section
-            // grow together like a laser. The fallback mesh keeps its own ratio.
-            constexpr float kMarkerArrowScaleMultiplier = 0.30f;
-            // marker_arrow.nif is centered at its local origin and spans roughly
-            // -120..+120 units along native +Y. Move its center by the scaled
-            // half-length so its rear/base edge is at the calculated face socket.
-            constexpr float kMarkerArrowNativeHalfLengthUnits = 120.0f;
-            const float baseBeamScale =
-                emitters.usingFallbackMesh ? std::clamp(_tuning.LengthUnits() / 35.0f, 0.5f, 4.0f)
-                                           : std::clamp(_tuning.LengthUnits() / 70.0f, 0.1f, 10.0f);
-            // The vanilla marker arrow is a broad editor mesh rather than a thin
-            // laser cylinder. Render it at 30% of the previous size (70% smaller)
-            // and place its rear/base edge at the face, so the visible arrow grows
-            // outward from the player/NPC/creature rather than through its body.
-            const float beamScale = emitters.isMarkerArrow
-                                        ? baseBeamScale * kMarkerArrowScaleMultiplier
-                                        : baseBeamScale;
-            RE::NiMatrix3 geometryRot = beamRot;
-            if (emitters.isMarkerArrow)
-            {
-                // NiTransform exposes only a uniform scale. Keep local +Y at
-                // the current scale so arrow length remains exactly as tuned,
-                // while shrinking only local X/Z (width/height) to 30% of the
-                // current presentation. The basis columns are X/Y/Z. This is
-                // the second 70% reduction requested after the first successful
-                // length-preserving tuning pass: 0.30 * 0.30 = 0.09 of the
-                // original arrow cross-section.
-                constexpr float kMarkerArrowCrossSectionMultiplier = 0.09f;
-                for (int row = 0; row < 3; ++row)
-                {
-                    geometryRot.entry[0][row] *= kMarkerArrowCrossSectionMultiplier;
-                    geometryRot.entry[2][row] *= kMarkerArrowCrossSectionMultiplier;
-                }
-            }
-            const RE::NiPoint3 arrowForwardOffset =
-                emitters.isMarkerArrow ? localDir * (kMarkerArrowNativeHalfLengthUnits * beamScale)
-                                       : RE::NiPoint3{};
+            namespace G = TrueGaze::Visuals::Geometry;
+            const auto toVec = [](const RE::NiPoint3& p) noexcept { return G::Vec3{p.x, p.y, p.z}; };
+            const auto toNi = [](const G::Vec3& v) noexcept { return RE::NiPoint3{v.x, v.y, v.z}; };
 
             RE::NiUpdateData updateData;
             updateData.time = 0.0f;
             updateData.flags = RE::NiUpdateData::Flag::kDirty;
 
-            if (emitters.geometryL)
+            if (emitters.isMarkerArrow)
             {
-                emitters.geometryL->local.translate = localPupilL + arrowForwardOffset;
-                emitters.geometryL->local.rotate = geometryRot;
-                emitters.geometryL->local.scale = beamScale;
-                emitters.geometryL->world = anchor->world * emitters.geometryL->local;
-                emitters.geometryL->UpdateDownwardPass(updateData, 0);
+                // marker_arrow.nif measured 64 x 240 x 160 (X x Y x Z). Length is
+                // set EXACTLY to the configured reach via the uniform scale;
+                // the widest cross-section (the 160-unit arrowhead) is mapped
+                // to the eyeball diameter via a COLUMN scale on mesh-local X/Z.
+                const G::ArrowScales scales = G::ComputeMarkerArrowScales(
+                    _tuning.LengthUnits(), _tuning.ArrowCrossSectionUnits());
+
+                // Binocular convergence: both arrows meet at the fixation point
+                // one beam-length along the cyclopean gaze, instead of running
+                // parallel. (Phase 2 will pass the real target distance.)
+                const G::Vec3 mid = toVec(emitters.eyeMidLocal);
+                const G::Vec3 dirMid = toVec(localDir);
+
+                const auto placeArrow = [&](RE::NiAVObject* a_geo, const RE::NiPoint3& a_pupil) {
+                    if (!a_geo)
+                    {
+                        return;
+                    }
+                    const G::Vec3 eyeDir =
+                        G::ConvergedEyeDirection(toVec(a_pupil), mid, dirMid, _tuning.LengthUnits());
+                    const RE::NiPoint3 eyeDirNi = toNi(eyeDir);
+
+                    RE::NiMatrix3 rot = AlignBeamOrientation(eyeDirNi, /*authoredAlongZ*/ false);
+                    // FIX A1 (2026-10-03): scale COLUMNS 0 and 2 (mesh-local X and Z).
+                    // The previous loop scaled ROWS, i.e. squashed head-space X/Z,
+                    // which also bent the direction column toward head +Y and
+                    // compressed every lateral/vertical deflection ~11x.
+                    G::ScaleBasisColumns(rot.entry, scales.crossSection, 1.0f, scales.crossSection);
+
+                    // Rear edge of the arrow sits exactly on the pupil.
+                    a_geo->local.translate = a_pupil + eyeDirNi * scales.baseOffset;
+                    a_geo->local.rotate = rot;
+                    a_geo->local.scale = scales.uniform;
+                    a_geo->world = anchor->world * a_geo->local;
+                    a_geo->UpdateDownwardPass(updateData, 0);
+                };
+
+                placeArrow(emitters.geometryL.get(), localPupilL);
+                placeArrow(emitters.geometryR.get(), localPupilR);
             }
-            if (emitters.geometryR)
+            else
             {
-                emitters.geometryR->local.translate = localPupilR + arrowForwardOffset;
-                emitters.geometryR->local.rotate = geometryRot;
-                emitters.geometryR->local.scale = beamScale;
-                emitters.geometryR->world = anchor->world * emitters.geometryR->local;
-                emitters.geometryR->UpdateDownwardPass(updateData, 0);
+                // Non-arrow meshes (GazeBeam.nif / soul-cairn fallback): unchanged
+                // legacy behaviour — uniform scale by reach, parallel beams.
+                const RE::NiMatrix3 beamRot =
+                    AlignBeamOrientation(localDir, emitters.usingFallbackMesh);
+                const float beamScale =
+                    emitters.usingFallbackMesh ? std::clamp(_tuning.LengthUnits() / 35.0f, 0.5f, 4.0f)
+                                               : std::clamp(_tuning.LengthUnits() / 70.0f, 0.1f, 10.0f);
+
+                if (emitters.geometryL)
+                {
+                    emitters.geometryL->local.translate = localPupilL;
+                    emitters.geometryL->local.rotate = beamRot;
+                    emitters.geometryL->local.scale = beamScale;
+                    emitters.geometryL->world = anchor->world * emitters.geometryL->local;
+                    emitters.geometryL->UpdateDownwardPass(updateData, 0);
+                }
+                if (emitters.geometryR)
+                {
+                    emitters.geometryR->local.translate = localPupilR;
+                    emitters.geometryR->local.rotate = beamRot;
+                    emitters.geometryR->local.scale = beamScale;
+                    emitters.geometryR->world = anchor->world * emitters.geometryR->local;
+                    emitters.geometryR->UpdateDownwardPass(updateData, 0);
+                }
             }
 
             if (emitters.lastGazeRegion != a_gazeRegion)
@@ -1034,8 +1053,14 @@ namespace TrueGaze::Visuals
             // square, so the aspect is baked into the rotation COLUMNS: X (width)
             // scaled by aspect, Z (height) by 1.0. Columns per the verified NiMatrix3
             // convention (M * unitX = column 0).
+            // FIX A6 (2026-10-03): centre the panel on the cyclopean eye, not the
+            // head-bone origin, so a gaze of (yaw, pitch) lands at
+            // (d*tan(yaw), d*tan(pitch)/cos(yaw)) on the panel as specified in
+            // SPEC_Region_Map.md. eyeMidLocal is refreshed in UpdateActor.
             a_emitters.hcepPanel->local.translate =
-                RE::NiPoint3{0.0f, _tuning.HcepPanelForwardOffsetUnits(), 0.0f};
+                RE::NiPoint3{a_emitters.eyeMidLocal.x,
+                             a_emitters.eyeMidLocal.y + _tuning.HcepPanelForwardOffsetUnits(),
+                             a_emitters.eyeMidLocal.z};
             constexpr float kPanelSourceUnits = 512.0f;         // authored quad size
             constexpr float kDiagramAspect = 2760.0f / 1504.0f; // w:h = 1.835
             const float panelScale =

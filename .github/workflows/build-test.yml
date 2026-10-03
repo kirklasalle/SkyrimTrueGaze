@@ -40,10 +40,10 @@ jobs:
                   key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
 
             - name: Configure (standalone preset)
-              run: cmake --preset windows-release
+              run: cmake --preset standalone
 
             - name: Build
-              run: cmake --build --preset windows-release
+              run: cmake --build --preset standalone
 
             - name: Test (ctest)
-              run: ctest --preset windows-release --output-on-failure
+              run: ctest --preset standalone --output-on-failure

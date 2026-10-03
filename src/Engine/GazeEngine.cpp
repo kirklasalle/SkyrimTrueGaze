@@ -3,6 +3,7 @@
 #include "ConfigManager.hpp"
 #include "EyeAimConstraint.hpp"
 #include "GazeAnchors.hpp"
+#include "GazeRegion.hpp"
 #include "Integrations/OarConditions.hpp"
 #include "LodManager.hpp"
 #include "PerformanceProfiler.hpp"
@@ -181,51 +182,12 @@ namespace TrueGaze::Engine
         /// 10 = UpperRightPeripheral (CGA: memory/constructive thought)
         /// 11 = LowerLeftPeripheral (CGA: tiredness/negativity/sadness)
         /// 12 = LowerRightPeripheral (CGA: shyness/fear/deception)
+        ///
+        /// Implementation lives in GazeRegion.hpp (shared with the renderer,
+        /// the panel hit detector, and tests/GeometryTests.cpp).
         uint8_t ClassifyRegion(float yawDeg, float pitchDeg) noexcept
         {
-            // CGA aversion quadrants take priority: they are the cognitively
-            // meaningful peripheral regions from the HCEP-02 enhanced diagram.
-            if (pitchDeg > 12.0f)
-            {
-                if (yawDeg < -5.0f)
-                    return 9; // Upper-left peripheral (positivity, hope)
-                if (yawDeg > 5.0f)
-                    return 10; // Upper-right peripheral (memory, constructive thought)
-                return 3;      // Forehead / Third-Eye zone
-            }
-
-            if (pitchDeg < -12.0f)
-            {
-                if (yawDeg < -5.0f)
-                    return 11; // Lower-left peripheral (tiredness, negativity, sadness)
-                if (yawDeg > 5.0f)
-                    return 12; // Lower-right peripheral (shyness, fear, deception)
-                return 8;      // Floor / ground (shame, submission)
-            }
-
-            // Below face but within ~12 deg pitch: chin or torso zone
-            if (pitchDeg < -6.0f)
-            {
-                return 4; // Chin
-            }
-            if (pitchDeg < -3.0f && std::abs(yawDeg) < 5.0f)
-            {
-                return 5; // Torso / chest (empathic resonance)
-            }
-
-            // Within the face → social triangle vertices.
-            if (std::abs(pitchDeg) <= 3.0f)
-            {
-                if (yawDeg < -1.0f)
-                    return 0; // Left eye
-                if (yawDeg > 1.0f)
-                    return 1; // Right eye
-                return 0;
-            }
-
-            if (pitchDeg < 0.0f)
-                return 2; // Mouth / lips
-            return 3;     // Forehead / Third-Eye
+            return ClassifyGazeRegion(yawDeg, pitchDeg);
         }
 
 #endif // __has_include(<RE/Skyrim.h>)
@@ -316,6 +278,7 @@ namespace TrueGaze::Engine
             vis.pupilForwardOffsetCm = cfg.pupilForwardOffsetCm;
             vis.pupilUpOffsetCm = cfg.pupilUpOffsetCm;
             vis.pupilGlowIntensity = cfg.pupilGlowIntensity;
+            vis.arrowCrossSectionMm = cfg.arrowCrossSectionMm;
             vis.showHcepPanel = cfg.showHcepPanel;
             vis.hcepPanelAllActors = cfg.hcepPanelAllActors;
             vis.hcepPanelScale = cfg.hcepPanelScale;

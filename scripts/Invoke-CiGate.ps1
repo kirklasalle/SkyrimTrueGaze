@@ -25,7 +25,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Preset = 'windows-release',
+    [string]$Preset = 'standalone',
     [switch]$SkipConfigure
 )
 
@@ -37,10 +37,18 @@ Push-Location $repoRoot
 try {
     Write-Host '=== TrueGaze CI gate ===' -ForegroundColor Cyan
 
+    $configurePreset = $Preset
+    $buildPreset = switch ($Preset) {
+        'windows-release' { 'release' }
+        'windows-debug'   { 'debug' }
+        default           { $Preset }
+    }
+    $testPreset = $buildPreset
+
     # ---- Stage 1: Configure ------------------------------------------------
     if (-not $SkipConfigure) {
-        Write-Host "[1/5] Configure ($Preset)..." -ForegroundColor Yellow
-        cmake --preset $Preset
+        Write-Host "[1/5] Configure ($configurePreset)..." -ForegroundColor Yellow
+        cmake --preset $configurePreset
         if ($LASTEXITCODE -ne 0) { throw "Configure failed (exit $LASTEXITCODE)." }
     }
     else {
@@ -48,13 +56,13 @@ try {
     }
 
     # ---- Stage 2: Build ----------------------------------------------------
-    Write-Host "[2/5] Build ($Preset)..." -ForegroundColor Yellow
-    cmake --build --preset $Preset
+    Write-Host "[2/5] Build ($buildPreset)..." -ForegroundColor Yellow
+    cmake --build --preset $buildPreset
     if ($LASTEXITCODE -ne 0) { throw "Build failed (exit $LASTEXITCODE)." }
 
     # ---- Stage 3: Test -----------------------------------------------------
-    Write-Host "[3/5] Test ($Preset)..." -ForegroundColor Yellow
-    ctest --preset $Preset --output-on-failure
+    Write-Host "[3/5] Test ($testPreset)..." -ForegroundColor Yellow
+    ctest --preset $testPreset --output-on-failure
     if ($LASTEXITCODE -ne 0) { throw "Tests failed (exit $LASTEXITCODE)." }
 
     # ---- Stage 4: Charter manifest ----------------------------------------
@@ -73,7 +81,16 @@ try {
 
     # ---- Stage 5: Doc consistency -----------------------------------------
     Write-Host '[5/6] Doc consistency spot check...' -ForegroundColor Yellow
-    $expectedVersion = '1.0.6'
+    $vcpkgPath = Join-Path $repoRoot 'vcpkg.json'
+    $expectedVersion = '1.0.7'
+    if (Test-Path $vcpkgPath) {
+        try {
+            $vcpkgJson = Get-Content $vcpkgPath -Raw | ConvertFrom-Json
+            if ($vcpkgJson.'version-string') {
+                $expectedVersion = $vcpkgJson.'version-string'
+            }
+        } catch {}
+    }
     $checks = @(
         @{ File = 'vcpkg.json'; Pattern = '"version-string"\s*:\s*"' + [regex]::Escape($expectedVersion) + '"' },
         @{ File = 'README.md'; Pattern = [regex]::Escape($expectedVersion) },

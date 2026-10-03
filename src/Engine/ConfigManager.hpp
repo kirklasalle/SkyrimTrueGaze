@@ -191,6 +191,7 @@ namespace TrueGaze::Engine
         float pupilForwardOffsetCm{12.0f}; // pupil origin, forward from the head bone origin
         float pupilUpOffsetCm{6.0f};       // pupil origin, up from the head bone origin
         float pupilGlowIntensity{0.5f};    // pupil emitter brightness multiplier
+        float arrowCrossSectionMm{24.0f};  // gaze-arrow widest cross-section (eyeball diameter)
 
         // --- HCEP Floating Diagram Panel ---
         bool showHcepPanel{true};      // master switch for the HCEP diagram panel
