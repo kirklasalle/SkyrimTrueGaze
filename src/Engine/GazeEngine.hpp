@@ -199,10 +199,10 @@ namespace TrueGaze::Engine
                                float& outYaw, float& outPitch, float speedScale,
                                bool actorInCombat) noexcept;
 
+        /// Resolve and cache skeleton bone pointers on the actor's 3D scene graph.
+        void EnsureSkeletonResolved(RE::Actor* actor, ActorGazeRuntime& state) noexcept;
+
         /// Apply a computed deflection to the actor's bone chain.
-        ///
-        /// Takes a mutable state because it records whether the skeleton probe has
-        /// already been logged for this actor (see ActorGazeRuntime::bonesReported).
         void ApplyToSkeleton(RE::Actor* actor, ActorGazeRuntime& state, float yawDeg,
                              float pitchDeg) noexcept;
 

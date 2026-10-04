@@ -159,10 +159,18 @@ namespace TrueGaze::Engine
                                                             g_eyeAnchorUpCm);
         }
 
-        /// Convert a world-space target into actor-relative yaw/pitch, in degrees.
+        struct ReferenceOrientation
+        {
+            float headingRad{0.0f};
+            float pitchRad{0.0f};
+        };
+
+        /// Convert a world-space target into actor-relative yaw/pitch, in degrees,
+        /// measured relative to the observer's anatomical reference orientation.
         /// observerEyePos is the world position of the observer's head/eyes.
         /// targetPos is the true 3D world position of the target's head/eyes.
-        void WorldTargetToLocalGaze(const RE::NiPoint3& observerEyePos, float actorYawRad,
+        void WorldTargetToLocalGaze(const RE::NiPoint3& observerEyePos,
+                                    const ReferenceOrientation& ref,
                                     const RE::NiPoint3& targetPos, float& outYawDeg,
                                     float& outPitchDeg) noexcept
         {
@@ -174,11 +182,7 @@ namespace TrueGaze::Engine
 
             // R14 E7.4 — point-blank gate aligned with TargetSelector's
             // IsInVisualCone singularity guard (distSq < 16.0f, i.e. 4 units).
-            // The old 25-unit gate zeroed gaze for targets up to 0.35 m away,
-            // which contradicted the selector treating anything inside 4 units
-            // as "always in cone" — an NPC standing 20 units away was selected
-            // but then forced to stare dead ahead. 4 units is the smallest
-            // distance at which atan2(dx, dy) is still numerically stable.
+            // 4 units is the smallest distance at which atan2(dx, dy) is numerically stable.
             if (horizontal < 4.0f)
             {
                 outYawDeg = 0.0f;
@@ -186,14 +190,75 @@ namespace TrueGaze::Engine
                 return;
             }
 
-            // Skyrim's actor forward is +Y, so the bearing to the target is atan2(dx, dy).
+            // Bearing to target in Skyrim world coordinates (X = East, Y = North, Z = Up)
             const float bearing = std::atan2(dx, dy);
-            const float localYaw = WrapPi(bearing - actorYawRad);
+            const float localYaw = WrapPi(bearing - ref.headingRad);
 
-            const float pitch = std::atan2(dz, std::max(horizontal, 1.0f));
+            const float worldPitch = std::atan2(dz, std::max(horizontal, 1.0f));
+            const float localPitch = worldPitch - ref.pitchRad;
 
             outYawDeg = localYaw * kRadToDeg;
-            outPitchDeg = pitch * kRadToDeg;
+            outPitchDeg = localPitch * kRadToDeg;
+        }
+
+        void WorldTargetToLocalGaze(const RE::NiPoint3& observerEyePos, float actorYawRad,
+                                    const RE::NiPoint3& targetPos, float& outYawDeg,
+                                    float& outPitchDeg) noexcept
+        {
+            ReferenceOrientation ref{actorYawRad, 0.0f};
+            WorldTargetToLocalGaze(observerEyePos, ref, targetPos, outYawDeg, outPitchDeg);
+        }
+
+        /// Get the actor's anatomical reference heading and pitch in radians.
+        ///
+        /// Uses the upper torso bone (`NPC Spine2 [Spn2]`) world basis matrix column Y (forward)
+        /// to establish the torso-relative coordinate frame for cervical and ocular tracking.
+        /// This decouples the gaze solve from raw root `actor->GetAngleZ()`, correctly
+        /// resolving seated furniture, wagon/cart benches (e.g. Helgen cart), and leaning postures.
+        ReferenceOrientation GetActorReferenceOrientation(RE::Actor* actor,
+                                                          const ActorGazeRuntime& state) noexcept
+        {
+            ReferenceOrientation ref{};
+            ref.headingRad = actor ? actor->GetAngleZ() : 0.0f;
+            ref.pitchRad = 0.0f;
+
+            if (!actor)
+            {
+                return ref;
+            }
+
+            // 1. Primary: Upper Torso Bone (NPC Spine2 / Spine1)
+            // The spine bone's world rotation matrix already incorporates all parent nodes,
+            // vehicle roots, furniture attachments, and Havok skeletal animations.
+            if (state.cachedSpine)
+            {
+                const auto& m = state.cachedSpine->world.rotate;
+                const RE::NiPoint3 forward = m.GetVectorY();
+                const float horizLenSq = forward.x * forward.x + forward.y * forward.y;
+                if (horizLenSq >= 0.04f)
+                {
+                    ref.headingRad = std::atan2(forward.x, forward.y);
+                    const float horizLen = std::sqrt(horizLenSq);
+                    ref.pitchRad = std::atan2(forward.z, horizLen);
+                    return ref;
+                }
+            }
+
+            // 2. Secondary: Occupied furniture reference or vehicle attachment
+            if (auto* process = actor->GetActorRuntimeData().currentProcess)
+            {
+                if (auto furnHandle = process->GetOccupiedFurniture())
+                {
+                    if (auto furnPtr = furnHandle.get())
+                    {
+                        ref.headingRad = furnPtr->GetAngleZ();
+                        return ref;
+                    }
+                }
+            }
+
+            // 3. Fallback: Actor root orientation
+            return ref;
         }
 
         /// Map a desired gaze deflection onto one of the 13 documented regions.
@@ -560,6 +625,10 @@ namespace TrueGaze::Engine
             // every frame — that stomp defeated the calm cadence lever.
             state.triangle.fixationDurationSec = _tuning.triangleFixationDuration;
         }
+
+        // Ensure skeleton bones are resolved and cached on the actor's 3D rig BEFORE
+        // target evaluation and deflection calculation.
+        EnsureSkeletonResolved(actor, state);
 
         // Keep the drift amplitude in step with configuration changes. The mean
         // reversion rate derives from the configured micro-correction interval:
@@ -983,7 +1052,28 @@ namespace TrueGaze::Engine
 
                     float glanceYaw = 0.0f;
                     float glancePitch = 0.0f;
-                    WorldTargetToLocalGaze(observerEyePos, actor->GetAngleZ(), playerEye, glanceYaw,
+                    ReferenceOrientation glanceRef{};
+                    if (state.cachedHead)
+                    {
+                        const auto& m = state.cachedHead->world.rotate;
+                        const RE::NiPoint3 fwd = m.GetVectorY();
+                        const float hSq = fwd.x * fwd.x + fwd.y * fwd.y;
+                        if (hSq >= 0.04f)
+                        {
+                            glanceRef.headingRad = std::atan2(fwd.x, fwd.y);
+                            glanceRef.pitchRad = std::atan2(fwd.z, std::sqrt(hSq));
+                        }
+                        else
+                        {
+                            glanceRef = GetActorReferenceOrientation(actor, state);
+                        }
+                    }
+                    else
+                    {
+                        glanceRef = GetActorReferenceOrientation(actor, state);
+                    }
+
+                    WorldTargetToLocalGaze(observerEyePos, glanceRef, playerEye, glanceYaw,
                                            glancePitch);
 
                     // Wide social cone (150 deg): the player slightly off to the
@@ -1027,8 +1117,19 @@ namespace TrueGaze::Engine
             {
                 observerEyePos.z += kEyeHeightUnits;
             }
-            WorldTargetToLocalGaze(observerEyePos, actor->GetAngleZ(), targetPos, desiredYaw,
+
+            const auto ref = GetActorReferenceOrientation(actor, state);
+            WorldTargetToLocalGaze(observerEyePos, ref, targetPos, desiredYaw,
                                    desiredPitch);
+
+            // Anatomical cervical yaw clamp for seated / vehicle postures (Helgen cart, benches).
+            // Prevents unnatural neck-twisting beyond biological limits (±70°) relative to the seated spine.
+            const bool isSeated = (actor->GetSitSleepState() == RE::SIT_SLEEP_STATE::kIsSitting);
+            if (isSeated)
+            {
+                desiredYaw = std::clamp(desiredYaw, -BoneController::CHAIN_YAW_LIMIT,
+                                        BoneController::CHAIN_YAW_LIMIT);
+            }
         }
 
         // --- Cognitive state drives the HCEP mode -------------------------------
@@ -1586,6 +1687,127 @@ namespace TrueGaze::Engine
 #endif
     }
 
+    void GazeEngine::EnsureSkeletonResolved(RE::Actor* actor, ActorGazeRuntime& state) noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        if (!actor)
+        {
+            return;
+        }
+
+        auto* root = actor->Get3D();
+        if (!root)
+        {
+            return;
+        }
+
+        // Bone Caching: Probe and resolve bone pointers only once per actor / root model.
+        // On vanilla skeletons lacking eye bones, FindFirstBone misses for both eyes every frame,
+        // which previously triggered 6 recursive scene-graph traversals per actor per frame with
+        // string allocations. Caching resolved bones eliminates thousands of traversals per second.
+        if (!state.skeletonResolved || state.cachedRoot != root)
+        {
+            state.cachedRoot = root;
+            state.cachedSpine = FindFirstBone(root, kSpineCandidates, std::size(kSpineCandidates));
+            state.cachedNeck = FindFirstBone(root, kNeckCandidates, std::size(kNeckCandidates));
+            state.cachedHead = FindFirstBone(root, kHeadCandidates, std::size(kHeadCandidates));
+            if (!state.cachedHead)
+            {
+                state.cachedHead = FindBoneFuzzy(root, "head");
+            }
+            state.cachedEyeL =
+                FindFirstBone(root, kEyeLeftCandidates, std::size(kEyeLeftCandidates));
+            state.cachedEyeR =
+                FindFirstBone(root, kEyeRightCandidates, std::size(kEyeRightCandidates));
+
+            if (!state.cachedSpine)
+            {
+                state.cachedSpine = FindBoneFuzzy(root, "spn2");
+                if (!state.cachedSpine)
+                    state.cachedSpine = FindBoneFuzzy(root, "spn1");
+            }
+
+            if (!state.cachedEyeL)
+            {
+                state.cachedEyeL =
+                    FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "l eye");
+                if (!state.cachedEyeL)
+                    state.cachedEyeL =
+                        FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eye_l");
+                if (!state.cachedEyeL)
+                    state.cachedEyeL =
+                        FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eyeleft");
+            }
+
+            if (!state.cachedEyeR)
+            {
+                state.cachedEyeR =
+                    FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "r eye");
+                if (!state.cachedEyeR)
+                    state.cachedEyeR =
+                        FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eye_r");
+                if (!state.cachedEyeR)
+                    state.cachedEyeR =
+                        FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eyeright");
+            }
+
+            state.skeletonResolved = true;
+        }
+
+        // Report the skeleton probe once per actor.
+        if (!state.bonesReported)
+        {
+            const auto* spine = state.cachedSpine;
+            const auto* neck = state.cachedNeck;
+            const auto* head = state.cachedHead;
+            const auto* eyeL = state.cachedEyeL;
+            const auto* eyeR = state.cachedEyeR;
+
+            const int found =
+                (spine ? 1 : 0) + (neck ? 1 : 0) + (head ? 1 : 0) + (eyeL ? 1 : 0) + (eyeR ? 1 : 0);
+
+            // Phase S2 rig capability matrix: classify the visual-origin mode so a
+            // reader can tell an eye-node rig from a vanilla FaceGen rig, and so an
+            // absent eye node is never mistaken for a defect. The head socket is the
+            // documented, first-class fallback when a rig exposes no eye bones.
+            const bool hasEyeNode = (eyeL != nullptr || eyeR != nullptr);
+            const char* originMode =
+                head ? (hasEyeNode ? "EyeNode" : "GeometricHeadSocket") : "Unavailable";
+
+            // Record the outcome for the stgstatus rig-capability summary.
+            RecordRigProbe(originMode, head != nullptr, hasEyeNode);
+
+            logger::info("[TrueGaze] Skeleton probe for {:08X}: spine={} neck={} head={} "
+                         "eyeL={} eyeR={} ({} of 5 resolved) origin={} humanoid={} player={}",
+                         actor->GetFormID(), spine ? "yes" : "NO", neck ? "yes" : "NO",
+                         head ? "yes" : "NO", eyeL ? "yes" : "NO", eyeR ? "yes" : "NO", found,
+                         originMode, actor->IsHumanoid() ? "yes" : "no",
+                         actor->IsPlayerRef() ? "yes" : "no");
+
+            if (head && !hasEyeNode)
+            {
+                logger::info("[TrueGaze] Rig {:08X} exposes no eye nodes; using the "
+                             "GeometricHeadSocket origin. This is expected on vanilla "
+                             "humanoid rigs (eyes are FaceGen morphs), not an error.",
+                             actor->GetFormID());
+            }
+
+            if (!head)
+            {
+                logger::warn("[TrueGaze] Head anchor absent for {:08X} (origin=Unavailable). "
+                             "Gaze cannot be visible for this actor. The bone-name "
+                             "candidates in GazeEngine.cpp need extending for this rig.",
+                             actor->GetFormID());
+            }
+
+            state.bonesReported = true;
+        }
+#else
+        (void)actor;
+        (void)state;
+#endif
+    }
+
     void GazeEngine::ApplyToSkeleton(RE::Actor* actor, ActorGazeRuntime& state, float yawDeg,
                                      float pitchDeg) noexcept
     {
@@ -1644,118 +1866,13 @@ namespace TrueGaze::Engine
         state.eyeSaturated = (std::abs(eyeYaw) >= _tuning.maxComfortEyeAngle - 0.01f ||
                               std::abs(eyePitch) >= _tuning.maxComfortEyeAngle - 0.01f);
 
-        // Bone Caching: Probe and resolve bone pointers only once per actor / root model.
-        // On vanilla skeletons lacking eye bones, FindFirstBone misses for both eyes every frame,
-        // which previously triggered 6 recursive scene-graph traversals per actor per frame with
-        // string allocations. Caching resolved bones eliminates thousands of traversals per second.
-        if (!state.skeletonResolved || state.cachedRoot != root)
-        {
-            state.cachedRoot = root;
-            state.cachedSpine = FindFirstBone(root, kSpineCandidates, std::size(kSpineCandidates));
-            state.cachedNeck = FindFirstBone(root, kNeckCandidates, std::size(kNeckCandidates));
-            state.cachedHead = FindFirstBone(root, kHeadCandidates, std::size(kHeadCandidates));
-            if (!state.cachedHead)
-            {
-                state.cachedHead = FindBoneFuzzy(root, "head");
-            }
-            state.cachedEyeL =
-                FindFirstBone(root, kEyeLeftCandidates, std::size(kEyeLeftCandidates));
-            state.cachedEyeR =
-                FindFirstBone(root, kEyeRightCandidates, std::size(kEyeRightCandidates));
-
-            if (!state.cachedSpine)
-            {
-                state.cachedSpine = FindBoneFuzzy(root, "spn2");
-                if (!state.cachedSpine)
-                    state.cachedSpine = FindBoneFuzzy(root, "spn1");
-            }
-
-            if (!state.cachedEyeL)
-            {
-                state.cachedEyeL =
-                    FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "l eye");
-                if (!state.cachedEyeL)
-                    state.cachedEyeL =
-                        FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eye_l");
-                if (!state.cachedEyeL)
-                    state.cachedEyeL =
-                        FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eyeleft");
-            }
-
-            if (!state.cachedEyeR)
-            {
-                state.cachedEyeR =
-                    FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "r eye");
-                if (!state.cachedEyeR)
-                    state.cachedEyeR =
-                        FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eye_r");
-                if (!state.cachedEyeR)
-                    state.cachedEyeR =
-                        FindBoneFuzzy(state.cachedHead ? state.cachedHead : root, "eyeright");
-            }
-
-            state.skeletonResolved = true;
-        }
+        EnsureSkeletonResolved(actor, state);
 
         auto* spine = state.cachedSpine;
         auto* neck = state.cachedNeck;
         auto* head = state.cachedHead;
         auto* eyeL = state.cachedEyeL;
         auto* eyeR = state.cachedEyeR;
-
-        // Report the skeleton probe once per actor.
-        //
-        // Bone names are matched by string, and these candidate lists have never
-        // been confirmed against a live rig. If every name misses, the engine runs
-        // perfectly and rotates nothing - a silent no-op, which is precisely the
-        // failure this project exists to stop repeating. One log line per actor
-        // converts that into an answerable question: did the bones resolve?
-        if (!state.bonesReported)
-        {
-            const int found =
-                (spine ? 1 : 0) + (neck ? 1 : 0) + (head ? 1 : 0) + (eyeL ? 1 : 0) + (eyeR ? 1 : 0);
-
-            // Phase S2 rig capability matrix: classify the visual-origin mode so a
-            // reader can tell an eye-node rig from a vanilla FaceGen rig, and so an
-            // absent eye node is never mistaken for a defect. The head socket is the
-            // documented, first-class fallback when a rig exposes no eye bones.
-            const bool hasEyeNode = (eyeL != nullptr || eyeR != nullptr);
-            const char* originMode =
-                head ? (hasEyeNode ? "EyeNode" : "GeometricHeadSocket") : "Unavailable";
-
-            // Record the outcome for the stgstatus rig-capability summary.
-            RecordRigProbe(originMode, head != nullptr, hasEyeNode);
-
-            logger::info("[TrueGaze] Skeleton probe for {:08X}: spine={} neck={} head={} "
-                         "eyeL={} eyeR={} ({} of 5 resolved) origin={} humanoid={} player={}",
-                         actor->GetFormID(), spine ? "yes" : "NO", neck ? "yes" : "NO",
-                         head ? "yes" : "NO", eyeL ? "yes" : "NO", eyeR ? "yes" : "NO", found,
-                         originMode, actor->IsHumanoid() ? "yes" : "no",
-                         actor->IsPlayerRef() ? "yes" : "no");
-
-            // Separate the two failure classes explicitly. "Eye nodes absent" is an
-            // expected, supported vanilla-humanoid condition handled by the geometric
-            // head socket. "Head anchor absent" is genuinely blocking.
-            if (head && !hasEyeNode)
-            {
-                logger::info("[TrueGaze] Rig {:08X} exposes no eye nodes; using the "
-                             "GeometricHeadSocket origin. This is expected on vanilla "
-                             "humanoid rigs (eyes are FaceGen morphs), not an error.",
-                             actor->GetFormID());
-            }
-
-            // The head is the one that absolutely must resolve; without it there is
-            // no gaze to see. Be loud rather than let this pass as a quiet zero.
-            if (!head)
-            {
-                logger::warn("[TrueGaze] Head anchor absent for {:08X} (origin=Unavailable). "
-                             "Gaze cannot be visible for this actor. The bone-name "
-                             "candidates in GazeEngine.cpp need extending for this rig.",
-                             actor->GetFormID());
-            }
-
-            state.bonesReported = true;
-        }
 
         // PLAYER CONTROL MODEL (Kirk LaSalle directive, September 25 2026):
         //

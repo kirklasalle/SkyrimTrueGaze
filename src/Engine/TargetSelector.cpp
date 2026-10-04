@@ -153,6 +153,39 @@ namespace TrueGaze::Engine
             }
             return actor->GetPosition();
         }
+
+        /// Retrieve the natural reference heading in radians for the observer.
+        /// Samples the upper torso bone (NPC Spine2 [Spn2]) world basis vector Y
+        /// when available, decoupling visual cone and ambient forward gaze from raw actor->GetAngleZ()
+        /// during seated animations (e.g. Helgen cart ride benches).
+        float GetObserverHeadingRad(RE::Actor* observer, const ActorGazeRuntime* state) noexcept
+        {
+            if (state && state->cachedSpine)
+            {
+                const auto& m = state->cachedSpine->world.rotate;
+                const RE::NiPoint3 forward = m.GetVectorY();
+                const float horizLenSq = forward.x * forward.x + forward.y * forward.y;
+                if (horizLenSq >= 0.04f)
+                {
+                    return std::atan2(forward.x, forward.y);
+                }
+            }
+            if (observer)
+            {
+                if (auto* process = observer->GetActorRuntimeData().currentProcess)
+                {
+                    if (auto furnHandle = process->GetOccupiedFurniture())
+                    {
+                        if (auto furnPtr = furnHandle.get())
+                        {
+                            return furnPtr->GetAngleZ();
+                        }
+                    }
+                }
+                return observer->GetAngleZ();
+            }
+            return 0.0f;
+        }
 #endif
 
     } // namespace
@@ -235,7 +268,7 @@ namespace TrueGaze::Engine
                 const float pDist = DistanceMeters(observerHeadPos, playerHeadPos);
                 // Verify player is alive and within natural forward visual cone
                 if (pDist <= s_crosshair.maxRangeMeters &&
-                    IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos,
+                    IsInVisualCone(observerPos, GetObserverHeadingRad(observer, state), playerPos,
                                    kMaxHoldVisualConeAngleDeg))
                 {
                     target.targetFormId = player->GetFormID();
@@ -363,7 +396,7 @@ namespace TrueGaze::Engine
                             !otherActor->IsDisabled())
                         {
                             const auto oPos = GetActorWorldPosition(otherActor);
-                            if (IsInVisualCone(observerPos, player->GetAngleZ(), oPos,
+                            if (IsInVisualCone(observerPos, GetObserverHeadingRad(player, state), oPos,
                                                kMaxVisualConeAngleDeg))
                             {
                                 const float d = DistanceMeters(observerPos, oPos);
@@ -392,7 +425,7 @@ namespace TrueGaze::Engine
             }
 
             // 5. Ambient forward gaze aligned with player's facing direction
-            const float heading = player->GetAngleZ();
+            const float heading = GetObserverHeadingRad(player, state);
             target.priority = TargetPriority::AmbientInterest;
             target.worldX = observerHeadPos.x + std::sin(heading) * kAmbientForwardUnits;
             target.worldY = observerHeadPos.y + std::cos(heading) * kAmbientForwardUnits;
@@ -450,7 +483,7 @@ namespace TrueGaze::Engine
                         // never veto the player as dialogue partner. Range still
                         // applies — dialogue beyond 6 m is not an address.
                         if (dDist <= 6.0f && (dlgActor == player ||
-                                              IsInVisualCone(observerPos, observer->GetAngleZ(),
+                                              IsInVisualCone(observerPos, GetObserverHeadingRad(observer, state),
                                                              dPos, kMaxHoldVisualConeAngleDeg)))
                         {
                             const auto dHeadPos = GetActorHeadPosition(dlgActor);
@@ -583,6 +616,90 @@ namespace TrueGaze::Engine
                 return target;
             }
 
+            // VOICE ADDRESS DETECTION (Kirk directive, 2026-09-26 / Phase 8):
+            // The voice cannot lie: HighProcessData carries the actor's live
+            // VOICE_STATE (kStart/kContinue = speaking now) and lastSpokenToArray
+            // (the refs this actor last delivered dialogue TO). An actor who is
+            // SPEAKING and last spoke to someone is addressing them.
+            // Checked BEFORE deferral to ensure active speech directs TrueGaze rather
+            // than secondary vanilla procedure headtrack slots.
+            if (high)
+            {
+                const auto& voice = high->voiceState;
+                const bool isSpeaking =
+                    voice.underlying() == static_cast<std::uint32_t>(RE::VOICE_STATE::kStart) ||
+                    voice.underlying() == static_cast<std::uint32_t>(RE::VOICE_STATE::kContinue);
+
+                if (isSpeaking)
+                {
+                    RE::Actor* spokenToActor = nullptr;
+                    for (const auto& spokenHandle : high->lastSpokenToArray)
+                    {
+                        if (auto spokenPtr = spokenHandle.get())
+                        {
+                            if (auto* candidateActor = spokenPtr->As<RE::Actor>())
+                            {
+                                if (candidateActor != observer && !candidateActor->IsDead() &&
+                                    !candidateActor->IsDisabled())
+                                {
+                                    if (candidateActor == player)
+                                    {
+                                        spokenToActor = candidateActor;
+                                        break; // Player wins immediately
+                                    }
+                                    if (!spokenToActor)
+                                    {
+                                        spokenToActor = candidateActor;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (spokenToActor)
+                    {
+                        const auto sHeadPos = GetActorHeadPosition(spokenToActor);
+                        target.targetFormId = spokenToActor->GetFormID();
+                        target.priority = TargetPriority::DialoguePartner;
+                        target.worldX = sHeadPos.x;
+                        target.worldY = sHeadPos.y;
+                        target.worldZ = sHeadPos.z;
+                        target.distanceMeters = DistanceMeters(observerPos, sHeadPos);
+                        target.isPlayer = (spokenToActor == player);
+                        if (state)
+                        {
+                            state->sceneDeferActive = false;
+                            if (spokenToActor == player)
+                            {
+                                state->dialoguePlayerHoldSec = 3.0f; // hold through the line
+                            }
+                        }
+                        return target;
+                    }
+                }
+            }
+
+            // DIALOGUE PLAYER HOLD: if currently holding gaze toward player from recent dialogue,
+            // maintain eye contact through mid-line pauses and signal flicker before deferring to
+            // other NPC procedures.
+            if (state && state->dialoguePlayerHoldSec > 0.0f)
+            {
+                state->dialoguePlayerHoldSec -= deltaSeconds;
+                const float pDist = DistanceMeters(observerHeadPos, playerHeadPos);
+                if (pDist <= kNearbyRangeMeters)
+                {
+                    target.targetFormId = player->GetFormID();
+                    target.priority = TargetPriority::DialoguePartner;
+                    target.worldX = playerHeadPos.x;
+                    target.worldY = playerHeadPos.y;
+                    target.worldZ = playerHeadPos.z;
+                    target.distanceMeters = pDist;
+                    target.isPlayer = true;
+                    state->sceneDeferActive = false;
+                    return target;
+                }
+            }
+
             if (anyDirected && directedActor)
             {
                 // Directed target is another NPC: defer to vanilla scene
@@ -593,55 +710,6 @@ namespace TrueGaze::Engine
                 target.priority = TargetPriority::None;
                 target.targetFormId = 0;
                 return target;
-            }
-
-            // VOICE ADDRESS DETECTION (2026-09-26, "the Player is still being
-            // ignored by the NPC during dialogue directed for the player").
-            //
-            // The log forensics from every cart test show the same thing: during
-            // scene-delivered lines ("Hey you, you're finally awake") the
-            // headTrackTarget slots and dialogueItemTarget point at OTHER NPCs —
-            // the game stages the LOOK direction independently of the SPEECH.
-            // But the voice itself cannot lie: HighProcessData carries the
-            // actor's live VOICE_STATE (kStart/kContinue = speaking now) and
-            // lastSpokenToArray (the refs this actor last delivered dialogue
-            // TO). An actor who is SPEAKING and last spoke to the player is
-            // addressing the player — "a person addressing you looks at you,
-            // full stop" — regardless of what the staged look direction says.
-            //
-            // Both fields are pure data-side reads on HighProcessData (no
-            // relocation calls, no engine dispatch) — the safest access class.
-            if (state && state->dialoguePlayerHoldSec <= 0.0f)
-            {
-                const auto& voice = high->voiceState;
-                const bool isSpeaking =
-                    voice.underlying() == static_cast<std::uint32_t>(RE::VOICE_STATE::kStart) ||
-                    voice.underlying() == static_cast<std::uint32_t>(RE::VOICE_STATE::kContinue);
-
-                if (isSpeaking)
-                {
-                    for (const auto& spokenHandle : high->lastSpokenToArray)
-                    {
-                        if (auto spokenPtr = spokenHandle.get())
-                        {
-                            if (spokenPtr.get() == player)
-                            {
-                                // This actor is speaking TO the player right now.
-                                const auto pHeadPos = GetActorHeadPosition(player);
-                                target.targetFormId = player->GetFormID();
-                                target.priority = TargetPriority::DialoguePartner;
-                                target.worldX = pHeadPos.x;
-                                target.worldY = pHeadPos.y;
-                                target.worldZ = pHeadPos.z;
-                                target.distanceMeters = DistanceMeters(observerPos, pHeadPos);
-                                target.isPlayer = true;
-                                state->sceneDeferActive = false;
-                                state->dialoguePlayerHoldSec = 3.0f; // hold through the line
-                                return target;
-                            }
-                        }
-                    }
-                }
             }
         }
         else if (auto* process = observer->GetActorRuntimeData().currentProcess)
@@ -700,7 +768,7 @@ namespace TrueGaze::Engine
             const auto combatPos = GetActorWorldPosition(combatTarget);
             const float cDist = DistanceMeters(observerPos, combatPos);
             if (cDist <= 15.0f &&
-                IsInVisualCone(observerPos, observer->GetAngleZ(), combatPos, 75.0f))
+                IsInVisualCone(observerPos, GetObserverHeadingRad(observer, state), combatPos, 75.0f))
             {
                 const auto cHeadPos = GetActorHeadPosition(combatTarget);
                 target.targetFormId = combatTarget->GetFormID();
@@ -748,7 +816,7 @@ namespace TrueGaze::Engine
             if (state->trackedTargetFormId == player->GetFormID())
             {
                 if (playerDistanceMeters <= kNearbyRangeMeters &&
-                    IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos,
+                    IsInVisualCone(observerPos, GetObserverHeadingRad(observer, state), playerPos,
                                    kMaxHoldVisualConeAngleDeg))
                 {
                     if (state->fixationHoldSec < 1.5f)
@@ -777,7 +845,7 @@ namespace TrueGaze::Engine
                 {
                     const auto hPos = GetActorWorldPosition(heldActor);
                     const float hDist = DistanceMeters(observerPos, hPos);
-                    if (hDist <= 5.0f && IsInVisualCone(observerPos, observer->GetAngleZ(), hPos,
+                    if (hDist <= 5.0f && IsInVisualCone(observerPos, GetObserverHeadingRad(observer, state), hPos,
                                                         kMaxHoldVisualConeAngleDeg))
                     {
                         if (state->fixationHoldSec < 1.5f)
@@ -838,7 +906,7 @@ namespace TrueGaze::Engine
         // with the player (dialogueItemTarget == player), the bias strengthens to
         // 3m: a person addressing you looks at you, full stop.
         {
-            const bool playerInCone = IsInVisualCone(observerPos, observer->GetAngleZ(), playerPos,
+            const bool playerInCone = IsInVisualCone(observerPos, GetObserverHeadingRad(observer, state), playerPos,
                                                      kMaxHoldVisualConeAngleDeg);
             if (playerInCone && playerDistanceMeters < closestCandidateDist)
             {
@@ -925,7 +993,7 @@ namespace TrueGaze::Engine
 
             // STRICT VISUAL CONE: If target is behind the observer (>65 deg),
             // DO NOT select it! A human does not turn their head backward over their shoulder.
-            if (!IsInVisualCone(observerPos, observer->GetAngleZ(), oPos, kMaxVisualConeAngleDeg))
+            if (!IsInVisualCone(observerPos, GetObserverHeadingRad(observer, state), oPos, kMaxVisualConeAngleDeg))
             {
                 continue;
             }
@@ -974,7 +1042,7 @@ namespace TrueGaze::Engine
         if (state)
             state->fixationHoldSec = 0.0f;
         target.priority = TargetPriority::AmbientInterest;
-        const float actorYaw = observer->GetAngleZ();
+        const float actorYaw = GetObserverHeadingRad(observer, state);
         target.worldX = observerHeadPos.x + std::sin(actorYaw) * kAmbientForwardUnits;
         target.worldY = observerHeadPos.y + std::cos(actorYaw) * kAmbientForwardUnits;
         target.worldZ = observerHeadPos.z;

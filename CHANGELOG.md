@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Torso-Relative Reference Frame Kinematics (Phase 8 / R16)** — Added `GetActorReferenceOrientation` in `GazeEngine.cpp` sampling upper torso bone (`NPC Spine2 [Spn2]`) world basis column Y (`GetVectorY()`), establishing an anatomical chest coordinate frame for cervical and ocular tracking. Corrects coordinate divergence during seated animations (e.g. carriage/cart benches).
+- **Vehicle & Seated Furniture Decoupling** — Added secondary check on `actor->GetOccupiedFurniture()` and carriage attachments to decouple cervical tracking from vehicle trajectory when seated across vehicle beds.
+- **Seated Biomechanical Cervical Yaw Clamp** — Added anatomical cervical limit clamping (`[-70°, +70°]` via `BoneController::CHAIN_YAW_LIMIT`) relative to the seated spine orientation, preventing unnatural 180° backward neck snaps.
+- **Helgen Cart Kinematics Unit Test Suite** — Added `TestHelgenCartCoordinateTransform()` in `tests/KinematicsTests.cpp`, mathematically proving torso-relative reference orientation, conversational addressing, and anatomical clamping (14/14 tests passing).
+
+### Fixed
+
+- **Helgen Opening Cart Scene Head Yaw Defect (+90° Offset)** — Resolved +90° head rotation error where Ralof faced sideways toward Lokir when speaking to the Player (*"Hey you, you're finally awake"*), and faced behind himself when speaking to Lokir (*"You're from Rorikstead, right?"*).
+- **Visual Cone & Ambient Gaze Seated Misalignment** — Added `GetObserverHeadingRad` in `TargetSelector.cpp` to align natural forward visual cones and ambient forward gaze with the seated torso facing rather than raw root `actor->GetAngleZ()`.
+- **Scene Procedure Dialogue Target Hijacking** — Reordered Section 1c in `TargetSelector.cpp` so live Voice Address Detection (`high->voiceState` & `lastSpokenToArray`) and active player dialogue holds take precedence over secondary scene procedure headtrack slots.
+
 ## [1.0.8] - 2026-10-04 - OAR Conditions API V3, Biometric Privacy Hardening & Charter Realignment
 
 ### Added

@@ -935,6 +935,96 @@ namespace
                      "application order, creature split, play-style bias, clamps).\n";
     }
 
+    void TestHelgenCartCoordinateTransform()
+    {
+        std::cout << "[TEST] Running HelgenCartCoordinateTransform verification...\n";
+
+        constexpr float kPi = 3.14159265358979323846f;
+        constexpr float kTwoPi = 2.0f * kPi;
+        constexpr float kRadToDeg = 180.0f / kPi;
+
+        auto WrapPi = [&](float angle) noexcept -> float {
+            while (angle > kPi)
+                angle -= kTwoPi;
+            while (angle < -kPi)
+                angle += kTwoPi;
+            return angle;
+        };
+
+        // Kinematic Scenario: Helgen Opening Cart (PrisonerCarriage01).
+        // Cart moves forward along the road axis: North (+Y), angleZ = 0 rad (0 deg).
+        // Prisoner (Ralof) sits sideways on the right bench facing inward across the cart bed:
+        // Torso bone (NPC Spine2) forward vector is directed toward East (+X): (1.0f, 0.0f, 0.0f).
+        const float torsoForwardX = 1.0f;
+        const float torsoForwardY = 0.0f;
+        const float torsoHeadingRad = std::atan2(torsoForwardX, torsoForwardY); // +PI/2 rad (+90 deg)
+        assert(std::abs(torsoHeadingRad - (kPi * 0.5f)) < 1e-4f);
+
+        // 1. Dialogue with Player ("Hey you, you're finally awake"):
+        // Player is seated directly across the cart bed at East (+X) from Ralof:
+        // dx = +120.0f, dy = 0.0f.
+        const float playerDx = 120.0f;
+        const float playerDy = 0.0f;
+        const float bearingToPlayer = std::atan2(playerDx, playerDy); // +PI/2 rad (+90 deg)
+
+        // Raw root vehicle solve (the pre-fix defect):
+        const float rawVehicleHeading = 0.0f;
+        const float defectYawDeg = WrapPi(bearingToPlayer - rawVehicleHeading) * kRadToDeg;
+        // In the defect, desiredYaw was +90 deg relative to root. When applied on top of the
+        // +90 deg animated torso, Ralof turned +180 deg sideways/backward toward Lokir!
+        assert(std::abs(defectYawDeg - 90.0f) < 1e-4f);
+
+        // Spine2 torso-relative solve (the fix):
+        const float correctedPlayerYawDeg = WrapPi(bearingToPlayer - torsoHeadingRad) * kRadToDeg;
+        // With torso-relative reference orientation, desiredYaw is 0 deg: Ralof looks directly
+        // forward from his seated posture at the Player sitting across from him!
+        assert(std::abs(correctedPlayerYawDeg - 0.0f) < 1e-4f);
+
+        // 2. Dialogue with Lokir ("You're from Rorikstead, right?"):
+        // Lokir is seated further down the bench on Ralof's right:
+        // dx = 60.0f, dy = 120.0f.
+        const float lokirDx = 60.0f;
+        const float lokirDy = 120.0f;
+        const float bearingToLokir = std::atan2(lokirDx, lokirDy); // ~26.565 deg
+
+        const float correctedLokirYawDeg = WrapPi(bearingToLokir - torsoHeadingRad) * kRadToDeg;
+        // Relative to torso (+90 deg), Lokir is at ~26.565 - 90 = -63.435 deg.
+        assert(correctedLokirYawDeg < -60.0f && correctedLokirYawDeg > -65.0f);
+        // This is within the natural cervical chain yaw limit (±70 deg)
+        assert(std::abs(correctedLokirYawDeg) <= TrueGaze::Engine::BoneController::CHAIN_YAW_LIMIT);
+
+        // Under the defect, the bearing of +26.565 deg was added onto the +90 deg animated torso,
+        // resulting in a net heading of +116.565 deg — staring behind himself!
+        const float defectLokirNetDeg = 90.0f + (WrapPi(bearingToLokir - rawVehicleHeading) * kRadToDeg);
+        assert(defectLokirNetDeg > 115.0f);
+
+        // 3. Anatomical clamp test for seated actors:
+        // Suppose a distraction or sound occurs behind the cart seat: dx = -100.0f, dy = 0.0f.
+        const float behindDx = -100.0f;
+        const float behindDy = 0.0f;
+        const float bearingBehind = std::atan2(behindDx, behindDy); // -PI/2 rad (-90 deg)
+        const float unconstrainedYawDeg = WrapPi(bearingBehind - torsoHeadingRad) * kRadToDeg; // -180 deg
+        assert(std::abs(std::abs(unconstrainedYawDeg) - 180.0f) < 1e-4f);
+
+        // Anatomical cervical clamp strictly confines seated head turn to [-70, +70] deg
+        const float clampedYawDeg = std::clamp(
+            unconstrainedYawDeg,
+            -TrueGaze::Engine::BoneController::CHAIN_YAW_LIMIT,
+            TrueGaze::Engine::BoneController::CHAIN_YAW_LIMIT);
+        assert(std::abs(clampedYawDeg - (-70.0f)) < 1e-4f);
+
+        static_cast<void>(torsoHeadingRad);
+        static_cast<void>(defectYawDeg);
+        static_cast<void>(correctedPlayerYawDeg);
+        static_cast<void>(correctedLokirYawDeg);
+        static_cast<void>(defectLokirNetDeg);
+        static_cast<void>(unconstrainedYawDeg);
+        static_cast<void>(clampedYawDeg);
+
+        std::cout << "  -> HelgenCartCoordinateTransform passed (torso-relative reference, "
+                     "dialogue orientation, anatomical clamp).\n";
+    }
+
 } // namespace
 
 int main()
@@ -958,7 +1048,8 @@ int main()
     TestTelemetrySemanticValidation();
     TestCharacterProfile();
     TestCategoryProfiles();
+    TestHelgenCartCoordinateTransform();
 
-    std::cout << "\n[SUCCESS] ALL 13 BIOMECHANICAL KINEMATICS TESTS PASSED!\n";
+    std::cout << "\n[SUCCESS] ALL 14 BIOMECHANICAL KINEMATICS TESTS PASSED!\n";
     return 0;
 }

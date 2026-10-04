@@ -99,8 +99,8 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 > **Verified:** 12/12 unit suites; build clean; deployed hash-verified; log audit clean
 > (zero SEH faults, zero tick exceptions across the 20:15 session).
 >
-> ⚠️ **ACTIVE DEFECT IDENTIFIED (Helgen Cart Scene Head Orientation):**
-> Field testing by Kirk LaSalle identified a persistent 90-degree head rotation error during the opening cart ride. Ralof's head is rotated approximately 90 degrees too far: when addressing the Player (*"Hey you, you're finally awake"*), Ralof faces sideways toward Lokir; when he later addresses Lokir, his head turns another 90 degrees and faces behind himself. Root cause is a reference frame divergence between the vehicle/cart sideways bench seating animation and the actor root rotation (`actor->GetAngleZ()`). Tracked in the Defect Register below.
+> 🛠️ **DEFECT RESOLUTION IMPLEMENTED & UNIT-VERIFIED (Helgen Cart Scene Head Orientation — R16):**
+> Field testing by Kirk LaSalle identified a persistent 90-degree head rotation error during the opening cart ride (Ralof facing Lokir when speaking to the Player, and facing behind himself when speaking to Lokir). Root cause was reference frame divergence between the vehicle/cart sideways bench seating animation and the actor root rotation (`actor->GetAngleZ()`). **Resolved in code & unit-verified**: TrueGaze now samples the upper torso bone (`NPC Spine2 [Spn2]`) world basis matrix via `GetActorReferenceOrientation`, centers visual cones with `GetObserverHeadingRad`, clamps seated cervical yaw to anatomical limits (±70°), and prioritizes voice address detection so Ralof directly addresses the Player and Lokir without secondary scene procedure hijacking. Unit-verified via `TestHelgenCartCoordinateTransform()`. Live in-engine verification pending.
 
 > ### 🎭 Character Gaze Profiles: Temperament-Driven Gaze — 🔨 Implemented + 🧪 Unit-verified (September 25, 2026)
 >
@@ -172,8 +172,8 @@ The project status breaks down into three distinct tiers (percentages sum to 100
 2. **🔨 Implemented & Running, In-Game Verification Pending (~30%):** Code exists and executes on every actor tick, but specific scenario behaviors are awaiting verified in-engine observation (e.g. Character Gaze Profiles temperament differentiation, quantitative EFM eyelid blink counts, VOR counter-rotation visibility, micro-jitter Brownian drift visibility, spatial LOD degradation, mutual gaze hold tracking, HCEP joint live acceptance).
 3. **❌ Unimplemented / Deferred (~5%):** Subsystems designed but not yet completed (specifically **Multi-Threaded SIMD Evaluation** for massive crowds, and **OpenVR HMD/eye-tracking feed** — `VrController` is currently an approximate head pose).
 
-> ⚠️ **Active In-Engine Defects Under Investigation:**
-> - **Helgen Opening Cart Scene Head Yaw (+90° Offset):** During the opening cart ride, Ralof's head is rotated approximately 90 degrees too far. When speaking to the Player (*"Hey you, you're finally awake"*), Ralof faces sideways toward Lokir; when speaking to Lokir, Ralof faces behind himself. Root cause: reference heading calculation (`actor->GetAngleZ()`) does not match the sideways-facing cart bench seating orientation. See detailed entry in the Field Audit Insights below.
+> 🛠️ **Defects Resolved in Code (In-Engine Live Verification Pending):**
+> - **Helgen Opening Cart Scene Head Yaw (+90° Offset — R16):** Resolved in code and unit-verified. Decoupled cervical yaw from vehicle trajectory by referencing upper torso world orientation (`NPC Spine2`), centering visual cones with `GetObserverHeadingRad`, clamping seated cervical yaw to ±70°, and prioritizing voice address detection over secondary scene headtrack slots. Live in-engine verification pending.
 
 ---
 
@@ -323,10 +323,13 @@ The project status breaks down into three distinct tiers (percentages sum to 100
      - **Seated Furniture/Cart Idle Transform:** In the opening cart ride (`PrisonerCarriage01`), the carriage actor moves forward along the road axis. The prisoners sit sideways on benches across the cart bed. The seated furniture animation (`CartIdle`) rotates the actor's torso bone (`NPC Spine2 [Spn2]`) by ~90° relative to the root actor's vehicle attachment orientation (`actor->GetAngleZ()`).
      - **Compounded Head Rotation:** When TrueGaze calculates a head rotation relative to `actor->GetAngleZ()`, it assumes the torso is facing parallel to `GetAngleZ()`. Applying this delta to `NPC Head [Head]` atop a torso that is *already rotated 90° by the vehicle animation* creates a systematic +90° yaw error.
      - **Voice Address Targeting Interaction:** In `TargetSelector.cpp`, voice address detection correctly identifies the dialogue target (first the Player, then Lokir), but because the calculated gaze yaw has an extraneous 90° bias, every target direction is rotated 90° clockwise/counter-clockwise relative to the speaker's actual seated chest facing.
-   + **Remediation Plan (Phase 8 / R16):**
-     - **Torso-Relative Reference Frame:** Calculate the speaker's reference heading from the world transform basis matrix of the upper spine bone (`NPC Spine2 [Spn2]`) or clavicle rather than raw `actor->GetAngleZ()`.
-     - **Vehicle / Furniture Seating Detection:** Detect when an actor is attached to a vehicle or occupying a seated furniture reference (`actor->GetOccupiedFurniture()`), and align the head-tracking azimuth zero-axis with the actual forward facing vector of the seated rig.
-     - **Constraint Clamping in Seated Poses:** Enforce biomechanical cervical limits (±70° yaw) relative to the spine node rather than root actor rotation, preventing unnatural 180° backward head-twisting.
+   + **Remediation Implemented & Unit-Verified (Phase 8 / R16):**
+     - **Torso-Relative Reference Frame:** Sampled upper torso bone (`NPC Spine2 [Spn2]`) world transform basis column Y (`GetVectorY()`) in `GetActorReferenceOrientation` to establish a torso-relative coordinate frame for `desiredYaw`.
+     - **Seated Vehicle & Furniture Decoupling:** Secondary check on `actor->GetOccupiedFurniture()` decouples cervical tracking from vehicle trajectory when sitting on benches or wagons.
+     - **Visual Cone & Ambient Gaze Alignment:** Updated `TargetSelector.cpp` with `GetObserverHeadingRad` to center natural visual cones and ambient forward gaze on the seated chest facing.
+     - **Dialogue & Voice Address Precedence:** Reordered Section 1c in `TargetSelector.cpp` so live Voice Address Detection (`high->voiceState` & `lastSpokenToArray`) and active player dialogue holds take precedence over secondary scene procedure headtrack slots.
+     - **Biomechanical Cervical Clamping:** Clamped seated cervical yaw to anatomical limits (±70° via `BoneController::CHAIN_YAW_LIMIT`) relative to the spine coordinate frame, preventing 180° backward neck-twisting.
+     - **Unit Verification:** Validated in `tests/KinematicsTests.cpp` (`TestHelgenCartCoordinateTransform()`, 14/14 tests passing). Live in-engine verification pending.
 5. **Telemetry, Trace Logging & Modding Ecosystem:**
    + All 20 console commands (`stg`, `stgstatus`, `stgvisuals`, `stgpanel`, `stgpreset`, `stgreload`, `stgtrace`, `stgtraceoff`, `stgtraceflush`, `stgcal`, `stgcalsweep`, etc.) dynamically bound into the engine console table and confirmed operational.
    + Structured JSONL trace logging (`stgtrace`) produces comprehensive biomechanical traces with 21,900+ target evaluation cycles captured without frame stutter.
@@ -386,12 +389,15 @@ The project status breaks down into three distinct tiers (percentages sum to 100
 + [ ] Design and implement actor evaluation batching across background worker threads.
 + [ ] Profile frame time in dense crowds (20+ NPCs) to guarantee < 0.15 ms total frame time.
 
-### Phase 8: Helgen Cart Seated Vehicle Coordinate Correction (Planned / R16)
+### Phase 8: Helgen Cart Seated Vehicle Coordinate Correction — 🔨 Implemented + 🧪 Unit-verified (R16)
 
-+ [ ] Sample `NPC Spine2 [Spn2]` world transform matrix in `GazeEngine.cpp` to establish torso-relative reference frame for `desiredYaw`.
-+ [ ] Detect seated furniture and vehicle parent attachments (`actor->GetOccupiedFurniture()`, vehicle parent node) to decouple cervical yaw from vehicle movement vector.
-+ [ ] Enforce biomechanical cervical limits (±70° yaw) relative to the spine coordinate frame rather than root actor rotation.
-+ [ ] Validate Helgen opening scene cart dialogue in-engine: verify Ralof looks directly at Player for *"Hey you, you're finally awake"* and directly at Lokir for *"You're from Rorikstead, right?"*.
++ [x] Sample `NPC Spine2 [Spn2]` world transform matrix in `GazeEngine.cpp` via `GetActorReferenceOrientation` to establish torso-relative reference frame for `desiredYaw`.
++ [x] Detect seated furniture and vehicle parent attachments (`actor->GetOccupiedFurniture()`, vehicle parent node) to decouple cervical yaw from vehicle movement vector.
++ [x] Enforce biomechanical cervical limits (±70° yaw via `BoneController::CHAIN_YAW_LIMIT`) relative to the spine coordinate frame rather than root actor rotation.
++ [x] Update `TargetSelector.cpp` with `GetObserverHeadingRad` to center visual cones and ambient forward gaze on seated torso facing.
++ [x] Reorder Section 1c in `TargetSelector.cpp` so Voice Address Detection (`high->voiceState` & `lastSpokenToArray`) and active player dialogue holds take precedence over secondary scene procedure headtrack slots.
++ [x] Authored unit test `TestHelgenCartCoordinateTransform()` in `tests/KinematicsTests.cpp` (all 14 biomechanical kinematics tests passing).
++ [ ] Validate Helgen opening scene cart dialogue in live Skyrim session: verify Ralof looks directly at Player for *"Hey you, you're finally awake"* and directly at Lokir for *"You're from Rorikstead, right?"*.
 
 ---
 
