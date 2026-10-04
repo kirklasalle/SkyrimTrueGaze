@@ -371,3 +371,17 @@ The beam is not yet perceptible in-game. Expected causes, in check order:
 4. **Culling** — verify the attached node is not app-culled and its bounds survive the applied scale.
 
 **Pause decision:** visual tuning is deferred in favour of S4 (HCEP intent fusion) and S3 (perceptual acceptance). The loading/attachment pipeline is complete and documented; resuming requires only transform/material tuning via the configurable `VisualTuning::beamModelPath` and existing visual INI keys.
+
+## 12. Scripted Scenes & Kinematic Coordinate Anomalies (Phase 8 / R16)
+
+When actors are positioned in scripted/directed scenes, vehicles (e.g. `PrisonerCarriage01`), or seated furniture (thrones, benches, chairs), their Havok physics root (`actor->GetAngleZ()`) can diverge by 90° or more from their visible animated torso.
+
+For full architectural details, root cause analyses, and the graceful anomaly handling matrix, see the dedicated reference:
+- [`docs/SCRIPTED_SCENE_KINEMATIC_ANOMALIES.md`](SCRIPTED_SCENE_KINEMATIC_ANOMALIES.md)
+
+Key operational rules:
+1. **Always sample `NPC Spine2 [Spn2]` world rotation matrix** via `GetActorReferenceOrientation` for anatomical facing rather than raw `actor->GetAngleZ()`.
+2. **Never assume vanilla procedure headtrack slots match speech**: active speech (`high->voiceState` & `lastSpokenToArray`) takes precedence over secondary look procedures.
+3. **Always enforce biological cervical limits (±70° yaw)** relative to the spine coordinate frame to prevent 180° backward twisting.
+4. **Maintain Dialogue Player Hold (3.0s)** and **Fixation Stability (1.5s)** to prevent micro-twitching and target flapping.
+
