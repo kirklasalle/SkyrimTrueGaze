@@ -94,19 +94,19 @@
 
 ## Phase 4: Animation Replacers & Facial Morph Integrations
 
-*Status: **🔨 Implemented (~90%)** — dynamic OAR SKSE messaging hook implemented; state cache published each tick; **registration against a pinned OAR API version and a proven-firing rule remain open (SOTA S6)**.*
+*Status: **🔨 Implemented (~75%)** — OAR conditions registered through the real OAR Conditions API V3 (vendored, pinned to upstream `f4e7688`); state cache published each tick; **in-engine registration evidence, a valid OAR submod and animation content remain open (SOTA S6, issue #6)**.*
 
 - [x] **Open Animation Replacer (OAR) Custom Conditions**:
-  - `TrueGaze_IsMode(modeId)`
-  - `TrueGaze_IsMutualGaze(thresholdSec)`
-  - `TrueGaze_GetGazeRegion(regionId)`
-- [x] **Comprehensive OAR Rule Package**: Ship `skyrim/meshes/actors/character/animations/OpenAnimationReplacer/TrueGaze/config.json` supporting all 5 HCEP modes (LOGIC, AFFECT, SPIRIT, HEART, THINK).
-- [x] **Dynamic OAR SKSE Messaging Hook**: Implement dynamic runtime detection of `OpenAnimationReplacer.dll` via `GetModuleHandleA` and `GetProcAddress("RequestPluginAPI_Conditions")`, registering dynamic condition query hooks (`kMessage_QueryIsMode`, `kMessage_QueryIsMutualGaze`, `kMessage_QueryGazeRegion`) without static compile dependencies.
+  - `TrueGaze_IsMode` (numeric component `Mode`)
+  - `TrueGaze_IsMutualGaze` (numeric component `Minimum seconds`)
+  - `TrueGaze_GetGazeRegion` (numeric component `Region`)
+- [ ] **Comprehensive OAR Rule Package**: `skyrim/meshes/actors/character/animations/OpenAnimationReplacer/TrueGaze/config.json` exists but uses an invented schema (not OAR's `conditions` array) and ships no `.hkx` animations, so it cannot fire. Needs a valid submod plus animation content.
+- [x] **OAR Conditions API V3 Registration**: `OarCustomConditions::RegisterAll()` calls `OAR_API::Conditions::GetAPI(V3)` and `AddCustomCondition<T>()` for each condition at `kPostLoad`, logging the true per-condition result. Replaces the former SKSE-messaging "hook" (`kMessage_Query*`), which registered nothing while logging success (issue #6). In-engine evidence pending.
 - [x] **Per-Actor State Publishing**: `PublishActorState()` called each tick by `GazeEngine`, updating the live cache for instant OAR evaluation.
 - [x] **Saccadic Eyelid Blink Synchronization**: Implement `EfmBlinkController` micro-blinking on saccades $> 20^\circ$.
 - [x] **Expressive Facegen Morphs (EFM) Morph Binding**: Implemented `EfmBlinkController::ApplyMorphs` via `BSFaceGenAnimationData::SetExpressionOverride`.
 
-> ✅ **Resolved (September 14–20, 2026):** Condition evaluators query live `g_actorGazeCache` published every frame by `GazeEngine`. Dynamic messaging hook registers cleanly on `kPostLoad` and `kDataLoaded`. EFM morphs apply non-destructively through `SetExpressionOverride`.
+> ✅ **Resolved (September 14–20, 2026):** Condition evaluators query live `g_actorGazeCache` published every frame by `GazeEngine`. ~~Dynamic messaging hook registers cleanly on `kPostLoad` and `kDataLoaded`.~~ *(Retracted 2026-10-04, issue #6: that hook never registered with OAR; replaced by API V3 registration at `kPostLoad`.)* EFM morphs apply non-destructively through `SetExpressionOverride`.
 
 ---
 
@@ -248,14 +248,14 @@ The single highest-leverage phase in this roadmap. Almost every functional gap t
 *Status: **🔨 Implemented (~75%)***
 **Effort:** 1–2 weeks · **Dependency:** R3
 
-- [x] Implement dynamic OAR condition registration via dynamic SKSE messaging interface
+- [x] Implement OAR condition registration via the OAR Conditions API V3 (2026-10-04, replaces the non-functional SKSE-messaging approach — issue #6; in-engine unverified)
 - [x] Add `PublishActorState()` writing the OAR cache each tick
 - [x] Implement real `TrueGazeAPI` bodies that read live state and fail honestly
 - [x] Add an `IsBridgeConnected()` accessor so `TrueGaze_IsHcepConnected()` reports truthfully
 - [x] Enable and correct `EfmBlinkController::ApplyMorphs` — implemented via `SetExpressionOverride` (2026-09-14)
 - [x] Include `.pdb` in companion symbols package (`TrueGaze-v1.0.0-Symbols.zip`)
 
-**Deliverable:** ✅ Complete ecosystem integration with dynamic OAR condition registration and debug symbols.
+**Deliverable:** 🔨 Ecosystem integration with OAR Conditions API V3 registration (in-engine unverified) and debug symbols.
 
 ---
 
@@ -392,8 +392,8 @@ With the core biological kinematics, HCEP duplex IPC bridge, standalone HTML con
 ### 2. Open Animation Replacer (OAR) Ecosystem Integration
 
 - [x] Maintain per-actor OAR state cache (`g_actorGazeCache`) updated each tick with HCEP cognitive mode, mutual gaze duration, and gaze region.
-- [x] Ship ready-to-use 7-mode OAR rule definitions in `skyrim/meshes/actors/character/animations/OpenAnimationReplacer/TrueGaze/config.json`.
-- [x] Hook dynamic OAR SKSE messaging interface upon mod load to register native condition functions without static symbol dependencies.
+- [ ] Ship ready-to-use OAR rule definitions — the existing `config.json` is not valid OAR format and has no animations (issue #6).
+- [x] Register native condition functions through the OAR Conditions API V3 at `kPostLoad` (vendored API, upstream `f4e7688`); in-engine unverified.
 
 ### 3. Broad Multi-Race & Scenario Acceptance
 

@@ -167,6 +167,8 @@ namespace TrueGaze::Engine
         pipeName = pipeBuf;
         autoReconnectIntervalSec =
             ReadFloat("Bridge", "fAutoReconnectIntervalSec", autoReconnectIntervalSec, p);
+        retainTrackedPersonId =
+            ReadBool("Bridge", "bRetainTrackedPersonId", retainTrackedPersonId, p);
         // bLockFreeTelemetry intentionally not read: the key was removed (no-op).
 
         // LOD
@@ -279,10 +281,11 @@ namespace TrueGaze::Engine
 
         logger::info("[TrueGaze] Configuration loaded (base='{}').", basePath);
         logger::info("[TrueGaze]   saccadeMult={:.2f} jitter={:.2f} headSpeed={:.2f} "
-                     "eyeMax={:.1f} socialTriangle={} aversion={} bridge={}",
+                     "eyeMax={:.1f} socialTriangle={} aversion={} bridge={} trackedPersonId={}",
                      saccadeSpeedMult, microJitterAmp, headTrackingSpeed, maxComfortEyeAngle,
                      enableSocialTriangle ? "on" : "off", enableGazeAversion ? "on" : "off",
-                     connectHcepBridge ? "on" : "off");
+                     connectHcepBridge ? "on" : "off",
+                     retainTrackedPersonId ? "retained" : "discarded");
     }
 
     void ConfigManager::Sanitise() noexcept
@@ -614,6 +617,7 @@ namespace TrueGaze::Engine
         WriteBool("Bridge", "bConnectHcepBridge", connectHcepBridge);
         WritePrivateProfileStringA("Bridge", "sPipeName", pipeName.c_str(), p);
         WriteFloat("Bridge", "fAutoReconnectIntervalSec", autoReconnectIntervalSec);
+        WriteBool("Bridge", "bRetainTrackedPersonId", retainTrackedPersonId);
 
         WriteFloat("LOD", "fTier1DistanceMeters", tier1DistanceMeters);
         WriteFloat("LOD", "fTier2DistanceMeters", tier2DistanceMeters);

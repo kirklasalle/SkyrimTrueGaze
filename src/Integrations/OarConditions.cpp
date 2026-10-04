@@ -2,8 +2,13 @@
 #include <unordered_map>
 #include <shared_mutex>
 #include <atomic>
+#include <chrono>
 #ifdef _WIN32
 #include <windows.h>
+#endif
+
+#if __has_include(<SKSE/SKSE.h>)
+#include "OarCustomConditions.hpp"
 #endif
 
 namespace TrueGaze::Integrations
@@ -12,11 +17,14 @@ namespace TrueGaze::Integrations
     namespace
     {
 
+        using Clock = std::chrono::steady_clock;
+
         struct ActorGazeInfo
         {
             uint8_t mode{0};               // HCEP Mode 0..4
             float mutualGazeHoldSec{0.0f}; // Duration of continuous mutual gaze
             uint8_t regionId{0};           // Region ID 0..12
+            Clock::time_point updatedAt{}; // Last PublishActorState for this actor
         };
 
         std::shared_mutex g_cacheMutex;
@@ -25,10 +33,16 @@ namespace TrueGaze::Integrations
         /// Whether OAR accepted our registration. Set only by RegisterWithOar().
         std::atomic<bool> g_registeredWithOar{false};
 
+        [[nodiscard]] bool IsFresh(const ActorGazeInfo &entry, Clock::time_point now) noexcept
+        {
+            return (now - entry.updatedAt) <=
+                   std::chrono::duration<float>(OarConditions::STALE_AFTER_SEC);
+        }
+
     } // namespace
 
     // ---------------------------------------------------------------------------
-    // State publishing — the half that was missing
+    // State publishing
     // ---------------------------------------------------------------------------
 
     void OarConditions::PublishActorState(uint32_t actorFormId,
@@ -45,12 +59,14 @@ namespace TrueGaze::Integrations
         const uint8_t mode = hcepMode > 4 ? 4 : hcepMode;
         const uint8_t region = gazeRegion > 12 ? 12 : gazeRegion;
         const float hold = mutualGazeHoldSec < 0.0f ? 0.0f : mutualGazeHoldSec;
+        const auto now = Clock::now();
 
         std::unique_lock lock(g_cacheMutex);
         auto &entry = g_actorGazeCache[actorFormId];
         entry.mode = mode;
         entry.regionId = region;
         entry.mutualGazeHoldSec = hold;
+        entry.updatedAt = now;
     }
 
     void OarConditions::ClearCache() noexcept
@@ -65,6 +81,25 @@ namespace TrueGaze::Integrations
         return g_actorGazeCache.size();
     }
 
+    bool OarConditions::TryGetActorState(uint32_t actorFormId, ActorState &out) noexcept
+    {
+        const auto now = Clock::now();
+
+        std::shared_lock lock(g_cacheMutex);
+        const auto it = g_actorGazeCache.find(actorFormId);
+        if (it == g_actorGazeCache.end() || !IsFresh(it->second, now))
+        {
+            // No state, or the actor has left TrueGaze's processing set and its
+            // last state is no longer true. Either way, "unknown".
+            return false;
+        }
+
+        out.hcepMode = it->second.mode;
+        out.gazeRegion = it->second.regionId;
+        out.mutualGazeHoldSec = it->second.mutualGazeHoldSec;
+        return true;
+    }
+
     bool OarConditions::IsRegisteredWithOar() noexcept
     {
         return g_registeredWithOar.load(std::memory_order_relaxed);
@@ -76,37 +111,23 @@ namespace TrueGaze::Integrations
 
     bool OarConditions::EvaluateIsMode(uint32_t actorFormId, uint8_t targetMode) noexcept
     {
-        std::shared_lock lock(g_cacheMutex);
-        auto it = g_actorGazeCache.find(actorFormId);
-        if (it != g_actorGazeCache.end())
-        {
-            return it->second.mode == targetMode;
-        }
-        // An actor with no published state is not in any specific mode. Returning
-        // true for LOGIC here (as the original did) made Rule 1 fire unconditionally.
-        return false;
+        // An actor with no fresh published state is not in any specific mode.
+        // Returning true for LOGIC here (as the original did) made Rule 1 fire
+        // unconditionally.
+        ActorState state;
+        return TryGetActorState(actorFormId, state) && state.hcepMode == targetMode;
     }
 
     bool OarConditions::EvaluateIsMutualGaze(uint32_t actorFormId, float thresholdSeconds) noexcept
     {
-        std::shared_lock lock(g_cacheMutex);
-        auto it = g_actorGazeCache.find(actorFormId);
-        if (it != g_actorGazeCache.end())
-        {
-            return it->second.mutualGazeHoldSec >= thresholdSeconds;
-        }
-        return false;
+        ActorState state;
+        return TryGetActorState(actorFormId, state) && state.mutualGazeHoldSec >= thresholdSeconds;
     }
 
     bool OarConditions::EvaluateGazeRegion(uint32_t actorFormId, uint8_t targetRegionId) noexcept
     {
-        std::shared_lock lock(g_cacheMutex);
-        auto it = g_actorGazeCache.find(actorFormId);
-        if (it != g_actorGazeCache.end())
-        {
-            return it->second.regionId == targetRegionId;
-        }
-        return false;
+        ActorState state;
+        return TryGetActorState(actorFormId, state) && state.gazeRegion == targetRegionId;
     }
 
     // ---------------------------------------------------------------------------
@@ -121,90 +142,39 @@ namespace TrueGaze::Integrations
             return true;
         }
 
-        // Dynamic inspection: probe whether OpenAnimationReplacer.dll is loaded in process memory.
-        // This avoids any static link-time dependency on OpenAnimationReplacer.lib.
-        const auto oarModule = ::GetModuleHandleA("OpenAnimationReplacer.dll");
-        if (oarModule)
+        // OAR is optional. Probe first, so its absence is reported as such rather
+        // than as an API failure.
+        if (!::GetModuleHandleA("OpenAnimationReplacer.dll"))
         {
-            const auto requestApiFunc = reinterpret_cast<void *(*)(uint8_t, const char *, REL::Version)>(
-                ::GetProcAddress(oarModule, "RequestPluginAPI_Conditions"));
-
-            if (requestApiFunc)
-            {
-                logger::info("[TrueGaze] OpenAnimationReplacer.dll detected with RequestPluginAPI_Conditions export. "
-                             "Dynamic condition API hook established.");
-            }
-            else
-            {
-                logger::info("[TrueGaze] OpenAnimationReplacer.dll detected. Registering dynamic condition query messaging hook.");
-            }
-
-            // Dispatch dynamic condition registration message over SKSE messaging
-            if (const auto messaging = SKSE::GetMessagingInterface())
-            {
-                messaging->Dispatch(kMessage_RegisterConditions, nullptr, 0, "OpenAnimationReplacer");
-            }
-
-            g_registeredWithOar.store(true, std::memory_order_relaxed);
-            logger::info("[TrueGaze] OAR integration: condition query message listener active; registration message dispatched via SKSE messaging.");
-            return true;
-        }
-        else
-        {
-            logger::info("[TrueGaze] OpenAnimationReplacer.dll not detected in runtime process. "
-                         "OAR dynamic conditions bypassed; internal condition cache remains active.");
-            g_registeredWithOar.store(false, std::memory_order_relaxed);
+            logger::info("[TrueGaze] Open Animation Replacer is not installed; TrueGaze OAR "
+                         "conditions were not registered. Papyrus and C API condition queries "
+                         "are unaffected.");
             return false;
         }
+
+        bool ok = false;
+        try
+        {
+            ok = OarCustomConditions::RegisterAll();
+        }
+        catch (const std::exception &e)
+        {
+            logger::error("[TrueGaze] OAR condition registration threw: {}", e.what());
+            ok = false;
+        }
+        catch (...)
+        {
+            logger::error("[TrueGaze] OAR condition registration threw an unknown exception.");
+            ok = false;
+        }
+
+        g_registeredWithOar.store(ok, std::memory_order_relaxed);
+        return ok;
 #else
         logger::info("[TrueGaze] Standalone mode: OAR registration skipped.");
         g_registeredWithOar.store(false, std::memory_order_relaxed);
         return false;
 #endif
     }
-
-#if __has_include(<SKSE/SKSE.h>)
-    void OarConditions::OnSkseMessage(SKSE::MessagingInterface::Message *a_msg) noexcept
-    {
-        if (!a_msg)
-        {
-            return;
-        }
-
-        switch (a_msg->type)
-        {
-        case kMessage_RegisterConditions:
-            RegisterWithOar();
-            break;
-
-        case kMessage_QueryIsMode:
-            if (a_msg->data && a_msg->dataLen >= sizeof(QueryModePayload))
-            {
-                auto *payload = static_cast<QueryModePayload *>(a_msg->data);
-                payload->result = EvaluateIsMode(payload->actorFormId, payload->targetMode);
-            }
-            break;
-
-        case kMessage_QueryIsMutualGaze:
-            if (a_msg->data && a_msg->dataLen >= sizeof(QueryMutualGazePayload))
-            {
-                auto *payload = static_cast<QueryMutualGazePayload *>(a_msg->data);
-                payload->result = EvaluateIsMutualGaze(payload->actorFormId, payload->thresholdSeconds);
-            }
-            break;
-
-        case kMessage_QueryGazeRegion:
-            if (a_msg->data && a_msg->dataLen >= sizeof(QueryGazeRegionPayload))
-            {
-                auto *payload = static_cast<QueryGazeRegionPayload *>(a_msg->data);
-                payload->result = EvaluateGazeRegion(payload->actorFormId, payload->targetRegionId);
-            }
-            break;
-
-        default:
-            break;
-        }
-    }
-#endif
 
 } // namespace TrueGaze::Integrations

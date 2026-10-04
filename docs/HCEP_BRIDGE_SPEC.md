@@ -157,10 +157,34 @@ To guarantee **zero frame drops** in Skyrim:
 ### 6.2 Data minimisation decision
 
 * **`trackedPersonId`** is transmitted by HCEP Desktop but is **not consumed by
-  any gameplay logic** and is never logged. It exists in the wire format for
-  forward compatibility. Recommendation to the HCEP Desktop side: send `0` by
-  default; the field will be zeroed in a future protocol revision (v2) unless a
-  documented purpose exists.
+  any gameplay logic** and is never logged. `NamedPipeServer` **zeroes it on
+  receipt**, after CRC and semantic validation and before the packet is published
+  to the game thread. The operator can opt in to keeping it with
+  `[Bridge] bRetainTrackedPersonId=true`, which defaults to false. HCEP Desktop is
+  still encouraged to send `0`, and the field remains a candidate for removal in
+  protocol v2. Covered by the `[PRIVACY]` section of
+  `tests/HcepBridgeClientMock.cpp`.
+
+### 6.2.1 Connection audit
+
+Each client connection writes one line to `TrueGaze.log`:
+
+```
+[TrueGaze] HCEP bridge client connected on \\.\pipe\TrueGazeBridge: pid=4120 session=1
+           image='HCEP.App.exe' access=user-only ACL trackedPersonId=discarded.
+```
+
+Each disconnect writes:
+
+```
+[TrueGaze] HCEP bridge client disconnected: pid=4120 image='HCEP.App.exe'
+           framesAccepted=18233 rejectedIntegrity=0 rejectedSemantic=2.
+```
+
+Only the executable's **file name** is logged, never its full path, because a
+full path usually contains the Windows user name and plugin logs are often
+shared. Packet contents are never logged. Any field the OS cannot resolve is
+logged as `unknown`.
 
 ### 6.3 Failure & rejection policy
 
@@ -181,5 +205,5 @@ To guarantee **zero frame drops** in Skyrim:
 | Payload encryption | ❌ Plaintext — acceptable at single-user local scope; documented here rather than implied. |
 | Authentication | ❌ CRC only. A same-session malicious process can inject data; bounded by semantic validation. |
 | Stale-data protection | ✅ 500 ms freshness gate (documented contract). |
-| Connection audit | 🟡 Connect/disconnect logged (no identity); connection-identity events tracked in S9. |
-| Minimisation | 🟡 Fixed-size bounded packets; `trackedPersonId` unused but transmitted (protocol v2 candidate for zeroing). |
+| Connection audit | ✅ Connect logs PID, session, executable name and ACL state. Disconnect logs accepted and rejected frame counts. See §6.2.1. |
+| Minimisation | ✅ Fixed-size bounded packets; `trackedPersonId` zeroed on receipt unless `bRetainTrackedPersonId=true` (§6.2). |

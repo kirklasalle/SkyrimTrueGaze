@@ -5,7 +5,7 @@
 ### A First-Party Product of the Human Communication Eye Protocol (HCEP) Architecture
 
 [![Status](https://img.shields.io/badge/status-Production%20Release-brightgreen)](#-current-project-status)
-[![Version](https://img.shields.io/badge/version-1.0.7-blue)](#)
+[![Version](https://img.shields.io/badge/version-1.0.8-blue)](#)
 [![Platform](https://img.shields.io/badge/platform-Skyrim%20SE%20%7C%20AE%20%7C%20VR-4b5563)](#)
 [![C++](https://img.shields.io/badge/C%2B%2B-23-00599C)](#)
 [![SDK](https://img.shields.io/badge/SDK-CommonLibSSE--NG-8b5cf6)](#)
@@ -21,7 +21,7 @@
 </p>
 
 > [!IMPORTANT]
-> **Production Release v1.0.7 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, organic social triangle cycling with weighted-random scanpaths), resolves eye-dominant gaze with a head engagement threshold, times Cognitive Gaze Aversion returns to dialogue onset with per-actor ±2s offsets, dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, and provides the in-engine developer arrow visual milestone verified in a running Skyrim session.
+> **Production Release v1.0.8 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, organic social triangle cycling with weighted-random scanpaths), resolves eye-dominant gaze with a head engagement threshold, times Cognitive Gaze Aversion returns to dialogue onset with per-actor ±2s offsets, dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, and provides the in-engine developer arrow visual milestone verified in a running Skyrim session.
 
 ---
 
@@ -29,7 +29,7 @@
 
 | | |
 | :--- | :--- |
-| **Maturity** | 🟢 **Production Release v1.0.7** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
+| **Maturity** | 🟢 **Production Release v1.0.8** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
 | **Builds & links the SDK?** | ✅ Yes — unified multi-target Release x64 DLL (`CommonLibSSE-NG`, `OpenVR`, `spdlog`, `fmt`, `/O2`) |
 | **Drives bones?** | ✅ Yes — procedural saccadic, VOR, and cervical hierarchy bone manipulation live |
 | **In-Engine Verification** | ✅ **Verified in Skyrim AE & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, eye-to-eye targeting, and telemetry confirmed |
@@ -42,7 +42,7 @@
 | **Diagnostic Visual Systems** | ✅ **Verified in-engine** — Option 1 directional marker arrows & Option 2 floating HCEP ocular diagram panel (off by default for organic gameplay; togglable via `stgvisuals`) |
 | **Skyrim VR Multi-Targeting** | ✅ Unified build supporting SE 1.5.97, AE 1.6.318–1.6.1170+, and Skyrim VR 1.4.15 ("Mad God VR") |
 | **Configurator Packaging** | ✅ Bundles standalone HTML5 configurator, one-click launcher, and quickstart guide (`TrueGaze_Configurator_Guide.txt`) |
-| **OAR Integration** | ✅ Native dynamic SKSE messaging registration (zero static symbol dependencies) |
+| **OAR Integration** | 🔨 3 custom conditions registered via OAR Conditions API V3 (in-engine unverified; no animation content shipped yet) |
 | **Companion Symbols** | ✅ Packaged with full `TrueGaze.pdb` symbols archive for crash logger diagnostic parity |
 
 **Verified working:** **Gold Standard scene integration (Helgen opening scene end-to-end)** · **Eye-to-eye targeting (NPCs look directly into eyes)** · **Eye-to-eye fixation dominance (eye holds outlast all other regions; ~6-17s eye contact in dialogue)** · **Voice-address detection (an NPC speaking to the player looks at the player)** · **Calm/combat speed model (calm = quarter speed, 8× dwell; combat = full tuned speed)** · FaceGen eye-lead morph gain on vanilla rigs (eyes clearly lead the head) · player targeting in scripted scenes (Helgen cart) · point-blank seated actor resolution · Multi-target SDK linkage (SE/AE/VR) · the gaze engine and bone application · dynamic 3D head elevation solving · 3rd-person player conversational engagement · dynamic vtable slot redirection (`0xAF` for VR) · per-actor runtime kinematics state · configuration reaching the live engine · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · Option 1 subtle laser rays & Option 2 floating HCEP panel · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 12 passing test suites · a reproducible pinned build · standalone HTML configurator · multi-race acceptance protocol.
@@ -180,16 +180,16 @@ One of the most powerful architectural enhancements is making `TrueGaze` a first
 
 ### Custom OAR Conditions Exposed by TrueGaze
 
-`TrueGaze` registers custom condition functions directly with OAR's native API:
+`TrueGaze` registers custom conditions with OAR's Conditions API (V3) at `kPostLoad` when `OpenAnimationReplacer.dll` is loaded. Status: 🔨 implemented, in-engine unverified — `TrueGaze.log` reports `OAR integration active: 3/3` only when all three registrations actually succeed. TrueGaze does not yet ship animation content; see [`docs/OAR_INTEGRATION.md`](docs/OAR_INTEGRATION.md).
 
-1. `TrueGaze_IsMode(mode_id)`:
+1. `TrueGaze_IsMode` (component `Mode`):
    * **`THINK` (Mode 4)**: Modders can configure NPCs to touch their chin, look upward, or shift weight when deep in thought.
    * **`AFFECT` (Mode 1)**: NPCs play subtle nodding, smiling, or expressive conversational idles during Social Triangle scanning.
    * **`SPIRIT` (Mode 2)**: Triggers intense intimacy or mutual locked-gaze stances (perfect for companion mods).
-2. `TrueGaze_IsMutualGaze(duration_threshold)`:
+2. `TrueGaze_IsMutualGaze` (component `Minimum seconds`):
    * Returns true if the player and the NPC have maintained direct mutual eye contact for more than $X$ seconds (e.g., triggering a blush, a smile, or an intimidated combat posture).
-3. `TrueGaze_GetGazeRegion()`:
-   * Returns the classified 13-region gaze target (e.g., looking at player's eyes, looking at player's drawn weapon, looking at the ground in shame).
+3. `TrueGaze_GetGazeRegion` (component `Region`):
+   * True when the actor's classified 13-region gaze target equals `Region` (e.g., looking at player's eyes, looking at player's drawn weapon, looking at the ground in shame).
 
 ---
 
@@ -679,7 +679,7 @@ Contributions are welcome, particularly in the areas identified by the current r
 
 1. **Perceptual rig validation** for vanilla humanoids, custom humanoids, creatures, and player third person
 2. **Visible developer illustration** using a verified original or vanilla-compatible asset path
-3. **OAR condition registration** against a verified OAR API contract
+3. **OAR in-engine verification and animation content** — registration now uses the real OAR Conditions API V3; it needs in-game evidence, a valid OAR submod, and original `.hkx` animations
 4. **Skyrim VR validation** with a documented head-directed fallback and optional eye-tracking adapter
 5. **Release engineering**: clean-profile packaging, licensing resolution, and repeatable acceptance tests
 

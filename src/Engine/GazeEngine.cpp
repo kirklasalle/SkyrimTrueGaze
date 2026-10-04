@@ -225,6 +225,9 @@ namespace TrueGaze::Engine
     {
         const auto& cfg = ConfigManager::GetSingleton();
 
+        // Data minimisation (issue #7). Live: takes effect from the next frame.
+        _pipe.SetRetainTrackedPersonId(cfg.retainTrackedPersonId);
+
         _tuning.enableTrueGaze = cfg.enableTrueGaze;
         _tuning.enableCreatures = cfg.enableCreatures;
         _tuning.debugGazeRays = cfg.debugGazeRays;
@@ -329,6 +332,7 @@ namespace TrueGaze::Engine
         }
 
         const auto& cfg = ConfigManager::GetSingleton();
+        _pipe.SetRetainTrackedPersonId(cfg.retainTrackedPersonId);
         _pipe.Start(cfg.pipeName.c_str(), cfg.autoReconnectIntervalSec);
         _bridgeStarted = true;
     }

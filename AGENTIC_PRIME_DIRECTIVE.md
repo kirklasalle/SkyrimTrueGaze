@@ -106,10 +106,10 @@ The following principles, rooted in Asimov's classic Three Laws and extended by 
 
 ### Core Tenets (Kirk LaSalle Original)
 
-- **Human-Centric Assistance:** Designed to serve as a lifelong digital partner for the human species, prioritizing user safety by managing secure digital identities, preventing data misuse, and providing personalized support tailored to individual needs
-- **Promotion of Growth:** Facilitating intellectual and personal development through sentiment analysis, communication development, creative writing, and educational tools — empowering users to achieve their full potential
-- **Dialogue and Resolution:** Implementing the Socratic Method through active listening and reciprocal inquiry to cultivate comprehensive understanding of diverse perspectives
-- **Wellness and Prosperity:** Incorporating adaptive technologies to enhance overall wellness, including secure communication handling, emotional intelligence, and tools to streamline daily tasks
+- **Human-Centric Assistance:** Designed to serve as a lifelong digital partner for the human species, the platform prioritizes user safety by managing secure digital identities, preventing data misuse, and providing personalized support tailored to individual needs.
+- **Promotion of Growth:** The platform facilitates the intellectual and personal development of the human species through features such as sentiment analysis, communication development, creative writing, and educational tools—empowering users to achieve their full potential.
+- **Dialogue and Resolution: Implementing the Socratic Method:** Utilize the Socratic method—active listening and reciprocal inquiry—to cultivate a comprehensive understanding of diverse perspectives and integrate human-like reasoning into interactions.
+- **Wellness and Prosperity:** Incorporate adaptive technologies to enhance overall wellness, including secure communication handling, emotional intelligence in interactions, and tools to streamline daily tasks—thereby fostering a balanced and prosperous life.
 
 ## Amendments
 

@@ -85,7 +85,7 @@ namespace
             if (f)
             {
                 fprintf(f,
-                        "[TrueGaze] True Gaze v1.0.7 (An HCEP Product by Kirk LaSalle) loaded.\n");
+                        "[TrueGaze] True Gaze v1.0.8 (An HCEP Product by Kirk LaSalle) loaded.\n");
                 fprintf(f, "[TrueGaze] Biomechanical Oculomotor Kinematics Engine initialized.\n");
                 fprintf(f, "[TrueGaze] Target engine: Skyrim Special Edition / AE.\n");
                 fclose(f);
@@ -146,7 +146,7 @@ namespace
 #if __has_include(<SKSE/SKSE.h>)
         // Plugin build identity. __DATE__/__TIME__ pin the exact binary that ran,
         // which is the cheapest defence against the stale-DLL class of confusion.
-        logger::info("[TrueGaze] Runtime identity: plugin v1.0.7 build {} {}", __DATE__, __TIME__);
+        logger::info("[TrueGaze] Runtime identity: plugin v1.0.8 build {} {}", __DATE__, __TIME__);
 
         // Game runtime version, formatted as the human-readable dotted string the
         // Address Library and SKSE filenames are derived from.
@@ -177,25 +177,20 @@ namespace
             return;
         }
 
-        // Dynamic SKSE message dispatch to OAR / external condition listeners
-        TrueGaze::Integrations::OarConditions::OnSkseMessage(a_msg);
-
         auto& engine = TrueGaze::Engine::GazeEngine::Get();
         auto& config = TrueGaze::Engine::ConfigManager::GetSingleton();
 
         switch (a_msg->type)
         {
         case SKSE::MessagingInterface::kPostLoad:
-            // Attempted before data so condition state exists as early as OAR
-            // first evaluates.
+            // OAR's documented registration window: every plugin is loaded, and OAR
+            // has not yet built its condition-factory map. Registering any later
+            // has no effect, so there is deliberately no retry at kDataLoaded.
             TrueGaze::Integrations::OarConditions::RegisterWithOar();
             break;
 
         case SKSE::MessagingInterface::kDataLoaded:
             logger::info("[TrueGaze] Game data loaded. Initialising gaze engine.");
-
-            // Verify or establish OAR dynamic condition hook on data load
-            TrueGaze::Integrations::OarConditions::RegisterWithOar();
 
             // Configuration is loaded HERE, on the real plugin path. It was
             // previously only loaded in the unreachable #else branch below, so
@@ -295,7 +290,7 @@ namespace
 // declaration, and clang-format cannot tell where the statement ends without
 // it, so it indents the following function as if it were still part of the
 // macro arguments. An empty declaration at namespace scope is legal C++.
-SKSEPluginInfo(.Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 7, 0}, .Name = "TrueGaze",
+SKSEPluginInfo(.Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 8, 0}, .Name = "TrueGaze",
                .Author = "Kirk LaSalle (HCEP)", .SupportEmail = "",
                .StructCompatibility = SKSE::StructCompatibility::Independent,
                .RuntimeCompatibility = SKSE::PluginDeclaration::RuntimeCompatibility(
@@ -319,7 +314,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
         spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
     }
 
-    logger::info("[TrueGaze] Loading True Gaze v1.0.7 (An HCEP Product by Kirk LaSalle)...");
+    logger::info("[TrueGaze] Loading True Gaze v1.0.8 (An HCEP Product by Kirk LaSalle)...");
 
     // Explicit InitInfo (Gold Standard fix): log=false makes API::InitLog a
     // no-op — it will NOT open/re-truncate TrueGaze.log and will NOT replace
@@ -336,8 +331,6 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
         logger::error("[TrueGaze] Failed to register SKSE messaging listener.");
         return false;
     }
-    // Also register listener for OpenAnimationReplacer messages
-    messaging->RegisterListener("OpenAnimationReplacer", MessageHandler);
 
     logger::info("[TrueGaze] SKSE plugin loaded successfully.");
     return true;

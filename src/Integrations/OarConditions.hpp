@@ -6,8 +6,8 @@
 namespace TrueGaze::Integrations
 {
 
-    /// @brief Native C++ Condition Interface for Open Animation Replacer (OAR).
-    /// Allows animators to conditionally play custom body/gesture animations based on HCEP states.
+    /// @brief TrueGaze's condition state and its registration with Open Animation Replacer (OAR).
+    /// Lets animators play body/gesture animations conditionally, based on HCEP state.
     ///
     /// ## Correctness notes
     ///
@@ -17,11 +17,20 @@ namespace TrueGaze::Integrations
     /// fired Rule 1 unconditionally and Rules 2-7 never fired. See
     /// docs/AUDIT_REPORT_2026-09-11.md finding C-5.
     ///
-    /// Two rules are now enforced:
-    ///   1. `RegisterWithOar()` reports what actually happened. It never logs success
-    ///      for registration it did not perform.
-    ///   2. The cache is written every tick by `PublishActorState`, which GazeEngine
-    ///      calls after computing each actor's state.
+    /// A later revision replaced this with an invented SKSE "registration message"
+    /// sent to OpenAnimationReplacer. OAR does not listen for that message, so it
+    /// again logged success for work that did not happen (issue #6). It has been
+    /// removed.
+    ///
+    /// Rules now enforced:
+    ///   1. Registration uses OAR's published Conditions API (`RequestPluginAPI_Conditions`,
+    ///      interface V3), vendored unmodified in extern/OpenAnimationReplacer-API.
+    ///      Implementation: OarCustomConditions.cpp.
+    ///   2. `RegisterWithOar()` reports what actually happened. It returns true and logs
+    ///      success only if OAR accepted every condition.
+    ///   3. GazeEngine writes the cache every tick through `PublishActorState`. An entry
+    ///      that has not been refreshed for `STALE_AFTER_SEC` counts as unknown, so an
+    ///      NPC who leaves TrueGaze's processing range cannot keep matching an old mode.
     class OarConditions
     {
     public:
@@ -34,41 +43,22 @@ namespace TrueGaze::Integrations
             THINK = 4
         };
 
-        /// @brief Custom message types for SKSE dynamic messaging interface.
-        enum MessageType : uint32_t
-        {
-            kMessage_RegisterConditions = 0x54473031, // 'TG01' - Dynamic condition registration
-            kMessage_QueryIsMode        = 0x54473032, // 'TG02' - Query if actor is in HCEP mode
-            kMessage_QueryIsMutualGaze  = 0x54473033, // 'TG03' - Query if actor holds mutual gaze
-            kMessage_QueryGazeRegion    = 0x54473034  // 'TG04' - Query actor's gaze region
-        };
+        /// Cache entries older than this are treated as "no state" by every evaluator.
+        static constexpr float STALE_AFTER_SEC = 2.0f;
 
-        struct QueryModePayload
+        /// Snapshot of one actor's published state.
+        struct ActorState
         {
-            uint32_t actorFormId{0};
-            uint8_t targetMode{0};
-            bool result{false};
-        };
-
-        struct QueryMutualGazePayload
-        {
-            uint32_t actorFormId{0};
-            float thresholdSeconds{0.0f};
-            bool result{false};
-        };
-
-        struct QueryGazeRegionPayload
-        {
-            uint32_t actorFormId{0};
-            uint8_t targetRegionId{0};
-            bool result{false};
+            uint8_t hcepMode{0};
+            uint8_t gazeRegion{0};
+            float mutualGazeHoldSec{0.0f};
         };
 
         /// @brief Writes an actor's live gaze state into the condition cache.
         ///
         /// Called from the game thread every frame by GazeEngine. OAR reads the cache
-        /// during its own evaluation tick, so this must stay cheap: one short
-        /// shared-lock and one map insert.
+        /// during its own evaluation (possibly off the main thread), so this must stay
+        /// cheap: one short exclusive lock and one map insert.
         static void PublishActorState(uint32_t actorFormId,
                                       uint8_t hcepMode,
                                       uint8_t gazeRegion,
@@ -80,7 +70,11 @@ namespace TrueGaze::Integrations
         /// @brief Number of actors currently published to the cache. Diagnostic.
         [[nodiscard]] static size_t CachedActorCount() noexcept;
 
-        /// @brief Whether OAR accepted our condition registration.
+        /// @brief Fetches an actor's fresh published state.
+        /// @return false if the actor has no state, or its state is stale.
+        [[nodiscard]] static bool TryGetActorState(uint32_t actorFormId, ActorState &out) noexcept;
+
+        /// @brief Whether OAR accepted every TrueGaze condition.
         [[nodiscard]] static bool IsRegisteredWithOar() noexcept;
 
         /// @brief Evaluates whether the specified actor is currently in the requested HCEP mode.
@@ -92,14 +86,13 @@ namespace TrueGaze::Integrations
         /// @brief Evaluates whether the actor's current gaze region matches the requested region ID (0-12).
         static bool EvaluateGazeRegion(uint32_t actorFormId, uint8_t targetRegionId) noexcept;
 
-        /// @brief Registers TrueGaze custom conditions dynamically with Open Animation Replacer via SKSE messaging.
-        /// @return true if OAR is detected and dynamic condition hook is established.
+        /// @brief Registers TrueGaze_IsMode, TrueGaze_IsMutualGaze and TrueGaze_GetGazeRegion
+        /// as OAR custom conditions.
+        ///
+        /// Call during SKSE `kPostLoad`. After that point OAR has built its condition-factory
+        /// map and later registrations have no effect. Idempotent once it has succeeded.
+        /// @return true only if OAR accepted all three conditions.
         static bool RegisterWithOar() noexcept;
-
-#if __has_include(<SKSE/SKSE.h>)
-        /// @brief Handles incoming dynamic messages from SKSE and external condition evaluators.
-        static void OnSkseMessage(SKSE::MessagingInterface::Message *a_msg) noexcept;
-#endif
     };
 
 } // namespace TrueGaze::Integrations

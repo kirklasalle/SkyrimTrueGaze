@@ -6,6 +6,8 @@
 #include "NamedPipeServer.hpp"
 #include <cstring>
 #include <chrono>
+#include <format>
+#include <string>
 
 namespace TrueGaze::Bridge
 {
@@ -90,6 +92,62 @@ namespace TrueGaze::Bridge
             SECURITY_ATTRIBUTES _attributes{};
             bool _valid{false};
         };
+
+        /// Logs a runtime-formatted message.
+        ///
+        /// This TU builds into both the plugin (SKSE `logger`, which only accepts
+        /// compile-time format strings) and the standalone bridge mock (where `logger`
+        /// is spdlog or a one-argument stub). Pre-formatting with std::format and
+        /// passing the result through "{}" or as a single argument works in all three.
+        void LogInfo(const std::string &message)
+        {
+#if __has_include(<SKSE/SKSE.h>)
+            logger::info("{}", message);
+#else
+            logger::info(message);
+#endif
+        }
+
+        /// Who is on the other end of the pipe. Used only for the connection audit log.
+        struct PipeClientIdentity
+        {
+            ULONG processId{0};
+            ULONG sessionId{0};
+            bool processIdKnown{false};
+            bool sessionIdKnown{false};
+            std::string imageName{"unknown"};
+        };
+
+        /// Identifies the connected client for the audit log (issue #7).
+        ///
+        /// Only the executable's file name is recorded, not its full path: a full
+        /// path usually contains the Windows user name, and plugin logs are often
+        /// shared in support requests. If any query fails, the log says "unknown"
+        /// for that field rather than leaving it out.
+        PipeClientIdentity QueryPipeClient(HANDLE hPipe)
+        {
+            PipeClientIdentity id;
+            id.processIdKnown = GetNamedPipeClientProcessId(hPipe, &id.processId) != FALSE;
+            id.sessionIdKnown = GetNamedPipeClientSessionId(hPipe, &id.sessionId) != FALSE;
+
+            if (id.processIdKnown)
+            {
+                if (HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, id.processId))
+                {
+                    char path[MAX_PATH]{};
+                    DWORD length = MAX_PATH;
+                    if (QueryFullProcessImageNameA(process, 0, path, &length) && length > 0)
+                    {
+                        const std::string_view full(path, length);
+                        const auto slash = full.find_last_of("\\/");
+                        id.imageName = std::string(
+                            slash == std::string_view::npos ? full : full.substr(slash + 1));
+                    }
+                    CloseHandle(process);
+                }
+            }
+            return id;
+        }
 
     } // namespace
 
@@ -284,7 +342,24 @@ namespace TrueGaze::Bridge
             if (clientConnected && _isRunning.load(std::memory_order_relaxed))
             {
                 _isConnected.store(true, std::memory_order_release);
-                logger::info("[TrueGaze] HCEP Desktop connected on \\\\.\\pipe\\TrueGazeBridge.");
+
+                // Connection audit (issue #7): record who connected and under which
+                // access policy. Packet contents are never logged.
+                const PipeClientIdentity client = QueryPipeClient(hPipe);
+                LogInfo(std::format(
+                    "[TrueGaze] HCEP bridge client connected on {}: pid={} session={} image='{}' "
+                    "access={} trackedPersonId={}.",
+                    _pipeName,
+                    client.processIdKnown ? std::to_string(client.processId) : "unknown",
+                    client.sessionIdKnown ? std::to_string(client.sessionId) : "unknown",
+                    client.imageName,
+                    security.IsValid() ? "user-only ACL" : "default DACL (fallback)",
+                    _retainTrackedPersonId.load(std::memory_order_relaxed) ? "retained (opt-in)"
+                                                                           : "discarded"));
+
+                uint64_t framesAccepted = 0;
+                uint64_t framesRejectedIntegrity = 0; // size, magic or CRC
+                uint64_t framesRejectedSemantic = 0;  // ValidateTelemetryPacket
 
                 TrueGazeTelemetryPacket incoming{};
 
@@ -352,11 +427,13 @@ namespace TrueGaze::Bridge
 
                     if (bytesRead != sizeof(incoming))
                     {
+                        ++framesRejectedIntegrity;
                         continue;
                     }
 
                     if (incoming.magic != HCEP_MAGIC)
                     {
+                        ++framesRejectedIntegrity;
                         continue;
                     }
 
@@ -366,14 +443,31 @@ namespace TrueGaze::Bridge
 
                     if (incoming.crc32 != expectedCrc)
                     {
+                        ++framesRejectedIntegrity;
                         continue;
                     }
 
                     if (!ValidateTelemetryPacket(incoming))
                     {
+                        ++framesRejectedSemantic;
                         logger::warn("[TrueGaze] Rejected semantically invalid HCEP telemetry frame.");
                         continue;
                     }
+
+                    // --- Data minimisation (issue #7) -----------------------------
+                    //
+                    // trackedPersonId links a frame to an identified person and is not
+                    // consumed by any gameplay code, so it is discarded here, at the
+                    // trust boundary, before the packet is visible to the game thread.
+                    // This happens after CRC validation, so the stored crc32 no longer
+                    // matches the payload. Nothing downstream re-checks the CRC; the
+                    // reader checks only magic and freshness.
+                    if (!_retainTrackedPersonId.load(std::memory_order_relaxed))
+                    {
+                        incoming.trackedPersonId = 0;
+                    }
+
+                    ++framesAccepted;
 
                     // --- Publish into the next slot -------------------------------
                     //
@@ -401,7 +495,12 @@ namespace TrueGaze::Bridge
                 }
 
                 _isConnected.store(false, std::memory_order_release);
-                logger::info("[TrueGaze] HCEP Desktop disconnected.");
+                LogInfo(std::format(
+                    "[TrueGaze] HCEP bridge client disconnected: pid={} image='{}' "
+                    "framesAccepted={} rejectedIntegrity={} rejectedSemantic={}.",
+                    client.processIdKnown ? std::to_string(client.processId) : "unknown",
+                    client.imageName, framesAccepted, framesRejectedIntegrity,
+                    framesRejectedSemantic));
             }
 
             if (void *raw = _pipeHandle.exchange(nullptr))

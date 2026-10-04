@@ -159,6 +159,9 @@ namespace TrueGaze::Engine
         bool connectHcepBridge{true};
         std::string pipeName{R"(\\.\pipe\TrueGazeBridge)"};
         float autoReconnectIntervalSec{3.0f};
+        /// Keep HCEP's trackedPersonId on received telemetry. Default false: the
+        /// field is zeroed on receipt (data minimisation, issue #7 / Law 6).
+        bool retainTrackedPersonId{false};
         // NOTE: bLockFreeTelemetry was removed. The triple-buffered IPC is the only
         // implementation; there is no lock-based fallback to switch to, so the key
         // was a no-op. See CHANGELOG 2026-09-14.

@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [!IMPORTANT]
 > **Correction notice.** Earlier entries in this changelog described several features as "implemented" that are not functional, because they were written from design intent rather than from the code. Those entries have been annotated below. See [`docs/STATUS.md`](docs/STATUS.md) for the verified capability matrix and [`docs/AUDIT_REPORT_2026-09-11.md`](docs/AUDIT_REPORT_2026-09-11.md) for the full independent audit.
 
+## [Unreleased]
+
+## [1.0.8] - 2026-10-04 - OAR Conditions API V3, Biometric Privacy Hardening & Charter Realignment
+
+### Added
+
+- **OAR Conditions API V3 Integration (GitHub Issue #6)** — Vendored official Open Animation Replacer Conditions API (interface V3, upstream commit `f4e7688`) in `extern/OpenAnimationReplacer-API/`. Subclassed `Conditions::CustomCondition` to register three native condition evaluators (`TrueGaze_IsMode`, `TrueGaze_IsMutualGaze`, `TrueGaze_GetGazeRegion`) during `kPostLoad`.
+- **Thread-Safe Actor Gaze Cache & Staleness Guard (GitHub Issue #6)** — Re-architected OAR cache with timestamping and 2.0-second staleness timeout (`STALE_AFTER_SEC = 2.0f`). Stale actor records cleanly evaluate to false/unknown instead of persisting obsolete gaze states.
+- **Biometric Named Pipe Client Audit Logging (GitHub Issue #7 / Law 6)** — Named pipe server now queries and logs client process ID, session ID, process image name, pipe security posture, and biometric retention policy upon connection, plus disconnect audit summaries (accepted, integrity-rejected, and semantically rejected frame counts).
+- **Biometric Tracked Person ID Privacy Opt-In (GitHub Issue #7 / Law 6)** — Hardened biometric frame handling to unconditionally zero `trackedPersonId` after integrity checks unless explicitly enabled via `[Bridge] bRetainTrackedPersonId=true` in `TrueGaze.ini`.
+
+### Fixed
+
+- **OAR Condition Registration False-Success (GitHub Issue #6 / Law 7)** — Removed the non-functional SKSE messaging "hook" which broadcast dummy message types that OAR never listened for while falsely logging registration success.
+- **Core Tenets Charter Divergence (GitHub Issue #8)** — Restored the canonical phrasing of the Four Core Tenets from `Permanent_Active_Directives.txt` in both `AGENTIC_PRIME_DIRECTIVE.md` and `AGENTIC_SACRED_COVENANT.md`. Cleared known divergence overrides in `config/charter_manifest.json`; strict charter verification (`scripts/verify_charter.py --strict`) passes cleanly.
+- **OAR Integration Documentation (`docs/OAR_INTEGRATION.md`)** — Updated the guide to reflect the actual OAR Conditions API V3 components, corrected all 13 HCEP gaze regions to match `src/Engine/GazeRegion.hpp`, documented the in-game editor workflow, and clarified that TrueGaze exposes condition hooks but does not bundle `.hkx` animations.
+
 ## [1.0.7] - 2026-10-03 - Gaze Arrow & Panel Calibration, Geometry Engine & Universal Coverage
 
 ### Added

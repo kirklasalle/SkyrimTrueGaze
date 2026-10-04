@@ -2,7 +2,7 @@
 
 **Project:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine
 **Charter:** [`Permanent_Active_Directives.txt`](Permanent_Active_Directives.txt) (canonical), [`AGENTIC_PRIME_DIRECTIVE.md`](AGENTIC_PRIME_DIRECTIVE.md), [`AGENTIC_SACRED_COVENANT.md`](AGENTIC_SACRED_COVENANT.md)
-**Last reviewed:** September 11, 2026
+**Last reviewed:** October 4, 2026
 
 ---
 
@@ -30,7 +30,7 @@ which are not applicable.
 | `LAW10-CHARTER` — Laws pinned by digest, verified across all charter copies | 10 | ✅ **Implemented** | `scripts/verify_charter.py`, `config/charter_manifest.json`, `scripts/hooks/pre-commit` (active). CI workflow committed but not executing. |
 | `LAW7-TRUTHFUL-LOG` — no log may report success for an operation not performed | 7 | ✅ **Implemented** | See "Law 7" below |
 | `LAW9-AUDIT` — auditable record of reasoning and decisions | 9 | 🟡 **Partial** | `docs/AUDIT_REPORT_2026-09-11.md`, `CHANGELOG.md`, `docs/STATUS.md` |
-| `LAW6-BIOMETRIC` — protection of personal/biometric data | 6 | 🔴 **Gap** | See "Law 6" below |
+| `LAW6-BIOMETRIC` — protection of personal/biometric data | 6 | 🟡 **Partial** | See "Law 6" below |
 | `LAW10-APPROVAL` — cryptographically secured approval for directive changes | 10 | 🔴 **Gap** | Manifest regeneration is a plain file write; no signature |
 | `LAW1-PROHIBIT` — harm model and instruction-conflict evaluation | 1 | ⛔ **Not applicable** | No runtime control; see "Laws 1–5, 8" below |
 | `LAW2-HALT` — operator halt outranks the goal in progress | 2 | ⛔ **Not applicable** | No autonomous goal loop exists in this project |
@@ -38,7 +38,7 @@ which are not applicable.
 | `LAW5-JUDICIAL` — no judicial authority | 5 | ⛔ **Not applicable** | No adjudicative function exists |
 | `LAW8-EQUITY` — fairness instrumentation | 8 | ⛔ **Not applicable** | No runtime control; see below |
 
-**Summary: 2 implemented, 1 partial, 2 gaps, 5 not applicable.**
+**Summary: 2 implemented, 2 partial, 1 gap, 5 not applicable.**
 
 ---
 
@@ -87,10 +87,12 @@ convenience, not a guarantee:
 - It does not protect against changes made through the GitHub web interface.
 
 **CI status.** `.github/workflows/charter-integrity.yml` is committed and its
-YAML validates, but runs currently terminate with `startup_failure` and zero jobs
-created. This is an account-level GitHub Actions availability issue, not a defect
-in the workflow — no workflow in this account produces runs. Until it is
-resolved, **the only active enforcement is the local pre-commit hook**, and the
+YAML validates. The repository is **public**, but GitHub Actions runner jobs
+currently do not start because the account has an active billing hold on Actions
+(GitHub run failure annotation: `"The job was not started because your account is locked due to a billing issue"`).
+Nothing is wrong with the workflow itself. CI will execute automatically once the
+account billing hold is cleared at `https://github.com/settings/billing/summary`.
+Until then, **the only active enforcement is the local pre-commit hook**, and the
 control should be described as locally enforced rather than CI-enforced.
 
 **Design note — why only the Laws and Tenets are pinned.** The manifest pins each
@@ -116,14 +118,23 @@ an explicit "not implemented" — never a success message.
 This rule is enforced by review, not by tooling. It is recorded here so that it
 is a stated obligation rather than an unstated expectation.
 
+**Recurrence, October 2026 (issue #6).** A later revision of `RegisterWithOar()`
+sent an invented SKSE message to OpenAnimationReplacer, which does not listen for
+it, then logged "Dynamic condition API hook established" and reported itself as
+registered. That was the same violation in a new form. It was replaced with a
+binding against OAR's published Conditions API (vendored in
+`extern/OpenAnimationReplacer-API`). Success is now logged only when OAR returns
+`APIResult::OK` for every condition. Reviewers should look specifically for
+success logs that follow a call whose result is never checked.
+
 ---
 
 ## Gaps — Stated Plainly
 
-### Law 6 — Biometric data protection 🔴
+### Law 6 — Biometric data protection 🟡
 
-**This is the most significant governance gap in this repository, and it is
-specific to what TrueGaze actually does.**
+**This was the most significant governance gap in this repository. It has been
+narrowed, not closed.** It is specific to what TrueGaze actually does.
 
 The HCEP bridge carries, over a Windows named pipe:
 
@@ -134,34 +145,27 @@ The HCEP bridge carries, over a Windows named pipe:
 - cognitive and emotional state classification (`cognitiveState`, `emotionalValence`)
 
 Under GDPR Article 9, CCPA, and BIPA, several of these are **biometric data**.
-The project's own `LICENSE` acknowledges this ("BIOMETRIC DATA NOTICE").
+`LICENSE` ("BIOMETRIC AND PERSONAL DATA NOTICE") states what is and is not
+implemented, rather than asserting compliance.
 
-**What is missing:**
+**Current controls** (issue #7):
 
 | Requirement | Status |
 | :--- | :--- |
-| Access control on the named pipe | 🔴 **None.** `CreateNamedPipeA` is called with `nullptr` security attributes, so the pipe inherits the default DACL. Any process in the same session can connect. |
-| Encryption in transit | 🔴 **None.** The 64-byte packet is plaintext POD. |
-| Consent capture / retention policy | 🔴 **None.** No mechanism exists. |
-| Data minimisation | 🟡 Partial — the packet is fixed-size and bounded, which is good, but `trackedPersonId` is transmitted with no stated purpose limitation. |
-| Audit of who connected | 🔴 **None.** Connections are not logged with identity. |
+| Access control on the named pipe | ✅ Explicit user-only DACL (`D:(A;;GA;;;OW)`). If it cannot be built, the pipe falls back to the default DACL with a logged warning. |
+| Data minimisation | ✅ `trackedPersonId` is **zeroed on receipt**, before the game thread can see it, unless `[Bridge] bRetainTrackedPersonId=true`. Covered by a test in `tests/HcepBridgeClientMock.cpp`. |
+| Audit of who connected | ✅ Each connection is logged with PID, session ID, executable file name and ACL state. Each disconnect logs accepted and rejected frame counts. Packet contents are never logged. |
+| Stale-data rejection | ✅ Telemetry older than 500 ms is ignored. |
+| Persistence / retention | ✅ None. In memory only, nothing written to disk. |
+| Consent | 🟡 Bridge is opt-out via `bConnectHcepBridge`. There is no consent-capture workflow; per `LICENSE` the operator is responsible for consent. |
+| Encryption in transit | 🔴 **None.** Plaintext on a local pipe. A deliberate decision for the single-user threat model; see `docs/HCEP_BRIDGE_SPEC.md` §6.1. Revisit if a multi-user deployment is ever supported. |
+| Authentication of the client | 🔴 **None.** CRC-32 only. Any same-user process can inject telemetry, limited by semantic validation. |
 
-**Assessment.** For a single-user local mod on a personal machine, the practical
-risk is low — the pipe is local, and the data is the user's own. But the
-governance position is not defensible as written, because the project claims
-compliance with GDPR/CCPA/BIPA in its license while implementing none of the
-controls those regimes require.
-
-**Recommended remediation** (tracked as an issue):
-
-1. Apply an explicit security descriptor to the pipe restricting access to the
-   current user SID.
-2. Document the data flow, retention, and purpose limitation in
-   `docs/HCEP_BRIDGE_SPEC.md`.
-3. Make `trackedPersonId` optional and off by default.
-4. Log connection events (identity, timestamp) to the plugin log.
-5. Soften the `LICENSE` biometric notice to state what is actually implemented,
-   rather than implying compliance.
+**Assessment.** For a single-user local mod on a personal machine the practical
+risk is low. The license now describes the implementation accurately, which was
+the substantive governance problem. The control stays **partial** because
+encryption and client authentication are absent. That is a reasoned choice for
+this threat model, not something that has been solved.
 
 ### `LAW10-APPROVAL` — Cryptographic approval for directive changes 🔴
 
@@ -219,30 +223,46 @@ driving NPC animation — this assessment must be revisited, and Laws 1, 5, 6, a
 
 ## Known Charter Divergences
 
-The Core Tenets in `AGENTIC_PRIME_DIRECTIVE.md` and `AGENTIC_SACRED_COVENANT.md`
-are **paraphrases** of the canonical text in `Permanent_Active_Directives.txt`,
-not reproductions. All four differ in wording and content.
+**None outstanding.** `python scripts/verify_charter.py --strict` passes.
 
-These are recorded in `config/charter_manifest.json` under `known_divergences`
-with a stated reason, and are reported by the verifier on every run. They are
-**disclosed, not waived** — the verifier reports them loudly and `--strict`
-promotes them to failures.
+**Resolved 2026-10-04 (issue #8): Option A.** The four Core Tenets in
+`AGENTIC_PRIME_DIRECTIVE.md` and `AGENTIC_SACRED_COVENANT.md` had been
+paraphrased rather than reproduced. The most substantive change was in
+*Dialogue and Resolution*, where the paraphrase dropped the commitment to
+"integrate human-like reasoning into interactions". The project owner chose
+Option A: **restore the canonical wording**. Each tenet line was copied
+verbatim from `Permanent_Active_Directives.txt`, which remains supreme and was
+not changed. That makes this a correction to the copies, not a charter
+amendment, so no digest in `config/charter_manifest.json` changed. Only the eight
+`known_divergences` records were removed, because they no longer apply.
 
-**This requires a human decision, which is reserved to the Governance Council:**
+The options that were considered, kept for the record:
 
-- **Option A** — restore the canonical wording in both markdown documents.
-  Preserves the canonical text as supreme. Recommended if the canonical text is
-  authoritative.
-- **Option B** — amend the canonical text to the markdown wording. This is a
-  charter amendment and requires Council approval.
-- **Option C** — accept the paraphrases as intentional and record them as
-  permanent, with the Council's reasoning.
+- **Option A** (chosen): restore the canonical wording in both markdown documents.
+- **Option B**: amend the canonical text to the markdown wording. That would
+  have been a charter amendment.
+- **Option C**: accept the paraphrases as permanent.
 
-Until one is chosen, the divergence stands recorded and visible.
-
-**Note:** the 10 Laws themselves are now byte-identical across all three
+**Note:** the 10 Laws themselves are byte-identical across all three
 documents. Two cosmetic divergences (Fourth Law capitalisation, Ninth Law
-em-dash spacing) were corrected on September 11, 2026. The Laws are intact.
+em-dash spacing) were corrected on September 11, 2026.
+
+---
+
+## Third-Party Licenses
+
+| Component | Location | License | Status |
+| :--- | :--- | :--- | :--- |
+| CommonLibSSE-NG | `extern/CommonLibSSE-NG` (submodule) | MIT | ✅ Compatible with GPL-3.0 |
+| Open Animation Replacer Conditions API | `extern/OpenAnimationReplacer-API` (vendored, unmodified) | GPL-3.0 + OAR Modding Exception | ✅ Compatible: TrueGaze's software is itself GPL-3.0 |
+
+`LICENSE` puts TrueGaze's software under GPL-3.0 (see `docs/LICENSE_RESOLUTION.md`).
+The vendored OAR API files are GPL-3.0 too, and upstream explicitly invites
+modders to copy them into their own projects, so including them adds no new
+licensing obligation. Keep the upstream `COPYING` and `EXCEPTIONS` files next to
+the vendored sources, and include the corresponding source with any binary
+release, as GPL-3.0 already requires. Provenance (upstream commit SHA) is
+recorded in `extern/OpenAnimationReplacer-API/NOTICE.md`.
 
 ---
 

@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <optional>
 #include <thread>
 
 #include "../src/Bridge/NamedPipeServer.hpp"
@@ -279,6 +280,85 @@ int main()
         server.Stop();
         server.Stop(); // E1.1 idempotency: second Stop must be a safe no-op
         std::cout << "  Stop() idempotency verified (double-stop, no crash).\n";
+    }
+
+    // -------------------------------------------------------------------
+    // 9. Issue #7: data minimisation of trackedPersonId.
+    //
+    // By default the server must discard trackedPersonId at the pipe boundary;
+    // it is retained only when SetRetainTrackedPersonId(true) is called.
+    // -------------------------------------------------------------------
+    std::cout << "\n[PRIVACY] trackedPersonId minimisation (issue #7)...\n";
+    {
+        constexpr uint32_t kPersonId = 0xDEADBEEF;
+
+        // Returns the trackedPersonId the engine observes, or nullopt on failure.
+        auto roundTrip = [&](bool retain) -> std::optional<uint32_t>
+        {
+            TrueGaze::Bridge::NamedPipeServer s;
+            s.SetRetainTrackedPersonId(retain);
+            s.Start();
+            std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+            HANDLE pipe = INVALID_HANDLE_VALUE;
+            for (int retry = 0; retry < 20 && pipe == INVALID_HANDLE_VALUE; ++retry)
+            {
+                pipe = CreateFileA(R"(\\.\pipe\TrueGazeBridge)", GENERIC_READ | GENERIC_WRITE, 0,
+                                   nullptr, OPEN_EXISTING, 0, nullptr);
+                if (pipe == INVALID_HANDLE_VALUE)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                }
+            }
+            if (pipe == INVALID_HANDLE_VALUE)
+            {
+                s.Stop();
+                return std::nullopt;
+            }
+
+            TrueGaze::Bridge::TrueGazeTelemetryPacket p{};
+            p.magic = 0x48434550;
+            p.version = 0x0100;
+            p.sequenceId = 1;
+            p.gazeConvergence = 1.5f;
+            p.gazeConfidence = 0.9f;
+            p.trackedPersonId = kPersonId;
+            p.crc32 = ComputeCrc32(reinterpret_cast<const uint8_t*>(&p), sizeof(p) - sizeof(uint32_t));
+
+            DWORD w = 0;
+            WriteFile(pipe, &p, sizeof(p), &w, nullptr);
+
+            std::optional<uint32_t> observed;
+            for (int i = 0; i < 50 && !observed; ++i)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                TrueGaze::Bridge::TrueGazeTelemetryPacket got{};
+                if (s.TryGetLatestTelemetry(got))
+                {
+                    observed = got.trackedPersonId;
+                }
+            }
+
+            CloseHandle(pipe);
+            s.Stop();
+            return observed;
+        };
+
+        const auto byDefault = roundTrip(false);
+        if (!byDefault || *byDefault != 0)
+        {
+            std::cout << "  [FAIL] Default policy did not discard trackedPersonId.\n";
+            return 1;
+        }
+        std::cout << "  Default: trackedPersonId discarded on receipt (observed 0).\n";
+
+        const auto retained = roundTrip(true);
+        if (!retained || *retained != kPersonId)
+        {
+            std::cout << "  [FAIL] Opt-in retention did not preserve trackedPersonId.\n";
+            return 1;
+        }
+        std::cout << "  Opt-in: trackedPersonId retained (observed 0xDEADBEEF).\n";
     }
 
     std::cout << "\n[SUCCESS] HCEP Desktop <-> TrueGaze Bridge verification passed 100%!\n";

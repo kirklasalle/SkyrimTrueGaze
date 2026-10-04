@@ -1,9 +1,9 @@
 # TrueGaze™ — Project Status & In-Engine Audit
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
-**Version:** `1.0.7` (Production Release)
+**Version:** `1.0.8` (Production Release)  
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Status date:** October 3, 2026  
+**Status date:** October 4, 2026  
 **Owner & Architect:** Kirk LaSalle
 
 > **Document role:** this is the single source of truth for what is *implemented
@@ -230,9 +230,9 @@ The project status breaks down into three distinct tiers (percentages sum to 100
 | Capability | Designed | Implemented | Unit-verified | In-engine |
 | :--- | :---: | :---: | :---: | :---: |
 | OAR condition evaluators | ✅ | ✅ | ❌ | 🔨 Implemented |
-| OAR condition dynamic registration | ✅ | ✅ | — | 🔨 Dynamic SKSE messaging hook registered |
-| OAR condition state publishing | ✅ | ✅ | ❌ | 🔨 Published every tick |
-| OAR rule package (`config.json`) | ✅ | ✅ | — | 🔨 Shipped in archive |
+| OAR condition registration | ✅ | ✅ | — | 🔨 Registered via OAR Conditions API V3 (`RequestPluginAPI_Conditions` → `AddCustomCondition`) at `kPostLoad`; in-engine unverified — look for `OAR integration active: 3/3` in `TrueGaze.log` (issue #6). The previous SKSE-messaging "hook" never registered anything and was removed. |
+| OAR condition state publishing | ✅ | ✅ | ❌ | 🔨 Published every tick; entries older than 2 s are treated as unknown |
+| OAR rule package (`config.json`) | ✅ | ❌ | — | ❌ Not valid OAR submod format (invented `rules`/`arguments` schema) and ships **no `.hkx` animations** — cannot fire. Animation content is an open art-asset gap. |
 | Public C API surface (exports) | ✅ | ✅ | — | ✅ Exported in DLL (`SKSEPlugin_Load`, C API symbols) |
 | Public C API behaviour | ✅ | ✅ | ❌ | 🔨 Queries live runtime state |
 

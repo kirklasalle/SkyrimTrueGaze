@@ -50,6 +50,18 @@ namespace TrueGaze::Bridge
     /// data (gaze vector, head pose, blink state, cognitive classification), so
     /// same-session processes should not be able to subscribe. See GOVERNANCE.md
     /// "Law 6 — Biometric data protection".
+    ///
+    /// ## Data minimisation and connection audit (issue #7)
+    ///
+    ///   * `trackedPersonId` is an identity linkage that no gameplay code consumes. It
+    ///     is **zeroed on receipt**, after CRC and semantic validation and before the
+    ///     packet is published to the game thread, unless the operator opts in with
+    ///     `SetRetainTrackedPersonId(true)` (INI: `[Bridge] bRetainTrackedPersonId`).
+    ///   * Every client connection is logged with the client's process ID, session ID
+    ///     and executable file name (no full path, so the user profile is kept out
+    ///     of shared logs), plus whether the user-only ACL was in force. On disconnect,
+    ///     the log records how many frames were accepted and how many were rejected.
+    ///     Packet contents are never logged.
     class NamedPipeServer
     {
     public:
@@ -122,6 +134,21 @@ namespace TrueGaze::Bridge
         /// @brief Queues game feedback for the worker to transmit. Never blocks.
         void SendFeedback(const SkyrimFeedbackPacket &feedback) noexcept;
 
+        /// @brief Whether `trackedPersonId` is kept on received packets.
+        ///
+        /// Default false: the field is zeroed at the pipe boundary so the identity
+        /// linkage never reaches the rest of the plugin. May be called at any time;
+        /// takes effect from the next received frame.
+        void SetRetainTrackedPersonId(bool retain) noexcept
+        {
+            _retainTrackedPersonId.store(retain, std::memory_order_relaxed);
+        }
+
+        [[nodiscard]] bool RetainsTrackedPersonId() const noexcept
+        {
+            return _retainTrackedPersonId.load(std::memory_order_relaxed);
+        }
+
     private:
         void WorkerLoop() noexcept;
         void DrainOutboundQueue(void *pipeHandle) noexcept;
@@ -138,6 +165,9 @@ namespace TrueGaze::Bridge
         // --- Connection state ---
         std::atomic<bool> _isRunning{false};
         std::atomic<bool> _isConnected{false};
+
+        /// Data-minimisation switch (issue #7). False = zero trackedPersonId on receipt.
+        std::atomic<bool> _retainTrackedPersonId{false};
 
         /// Owned exclusively by the worker thread. Reset to null on teardown.
         /// Declared atomic so Stop() can safely close it while the worker holds it.

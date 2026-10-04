@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 project(
     TrueGaze
-    VERSION 1.0.7
+    VERSION 1.0.8
     DESCRIPTION "True Gaze - Biological NPC Gaze & Kinematics Engine for Skyrim SE/AE/VR (An HCEP Product)"
     LANGUAGES CXX
 )
@@ -207,6 +207,10 @@ set(TRUEGAZE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/ConsoleCommands.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/EfmBlinkController.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/OarConditions.cpp"
+    # Issue #6: real OAR condition registration. OarApiVendored.cpp compiles the
+    # unmodified upstream API sources from extern/OpenAnimationReplacer-API.
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/OarCustomConditions.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/OarApiVendored.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Visuals/VisualEffectsManager.cpp"
 )
 
@@ -219,7 +223,10 @@ endforeach()
 
 add_library(${PROJECT_NAME} SHARED ${TRUEGAZE_SOURCES})
 
-target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_include_directories(${PROJECT_NAME} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    # Vendored OAR Conditions API (GPL-3.0 + Modding Exception; see NOTICE.md there).
+    "${CMAKE_CURRENT_SOURCE_DIR}/extern/OpenAnimationReplacer-API")
 
 target_precompile_headers(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/PCH.h")
 
