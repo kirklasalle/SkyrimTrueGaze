@@ -61,20 +61,30 @@ Three compounding coordinate divergences created this phenomenon:
 
 ## 3. Core Architectural Principles for Scripted Scenes
 
-### Principle 1: The Upper Spine is Ground Truth
-> **The physics capsule rotation (`actor->GetAngleZ()`) is NEVER assumed to represent the torso's facing direction.**
+### Principle 1: Torso Decoupling via Spine Forward Vector & Level Pitch Invariant
+> **The physics capsule rotation (`actor->GetAngleZ()`) is ground truth for standing actors, while the torso forward vector decouples seated and vehicle postures.**
 
-The true anatomical heading must always be sampled from the world rotation matrix of the upper torso bone (`NPC Spine2 [Spn2]` or `NPC Spine1 [Spn1]`):
-```cpp
-const auto& m = state.cachedSpine->world.rotate;
-const RE::NiPoint3 forward = m.GetVectorY(); // Column 1 is +Y forward in NetImmerse
-const float torsoHeadingRad = std::atan2(forward.x, forward.y);
-```
-This single reference vector automatically incorporates:
-- Havok root translations and vehicle attachments.
-- Furniture seating animations (chairs, thrones, benches, bars).
-- Dynamic leaning, crouching, kneeling, and mounted postures.
-- Secondary animation replacers (OAR, DAR, Nemesis, Pandora).
+1. **Standing Humanoids — Level Horizon Pitch Invariant:**
+   - Standing actors are vertical in world space. Gaze elevation relative to the world horizon is computed as $\text{atan2}(dz, \text{horizontal})$.
+   - Reference pitch (`ref.pitchRad`) **must strictly be $0.0\text{ rad}$**.
+   - *Forensic Finding:* Sampling the spine bone's world rotation matrix (`cachedSpine->world.rotate.GetVectorY()`) on standing actors was catastrophic: Bethesda's idle animations tilt the spine bone downward (negative Z), injecting a negative reference pitch. Subtracting this in `WorldTargetToLocalGaze` shifted the local pitch upward by $+30^\circ$ to $+45^\circ$, causing standing NPCs to gaze at the ceiling or sky. Idle hip sway also rotated the reference heading laterally by $20^\circ\text{--}40^\circ$, throwing the player outside the NPC's forward visual cone.
+   - Standing actors whose torso is aligned with their capsule ($\text{diff} \le 30^\circ$) strictly use:
+     ```cpp
+     ref.headingRad = actor->GetAngleZ();
+     ref.pitchRad = 0.0f;
+     ```
+
+2. **Seated, Vehicle & Cart Postures — Torso Divergence Detection:**
+   - In scripted carriage scenes (`PrisonerCarriage01`), actors ride a vehicle rig via scripted idle animations (`CartIdle`). `actor->GetSitSleepState()` returns `kNormal` (0) rather than `kIsSitting`, causing naive sit-checks to fail and collapse back to the vehicle path axis ($0^\circ$).
+   - To reliably decouple all seated, vehicle, and furniture postures, TrueGaze evaluates the **Torso Divergence Metric**:
+     $$\text{diff} = |\text{WrapPi}(\text{spineHeading} - \text{actor}\to\text{GetAngleZ}())|$$
+     where $\text{spineHeading} = \text{atan2}(\text{forward}.x, \text{forward}.y)$ sampled from `cachedSpine->world.rotate.GetVectorY()`.
+   - When $\text{diff} > 30^\circ$ ($0.5236\text{ rad}$) — such as the $\sim 90^\circ$ orthogonal seating across the Helgen cart bed — or when `sitState != kNormal` or `GetOccupiedFurniture()` is non-null, TrueGaze automatically adopts the spine's physical horizontal forward facing:
+     ```cpp
+     ref.headingRad = spineHeading;
+     ref.pitchRad = 0.0f; // Level pitch invariant strictly preserved!
+     ```
+   - This cleanly decouples the chest coordinate frame from vehicle road axes, benches, and chairs without injecting any spine-tilt elevation corruption. Secondary clavicular vectors $(dx = p_R.x - p_L.x, dy = p_R.y - p_L.y)$ serve as fallback if the spine bone is absent.
 
 ### Principle 2: Speech Overrules Staged Look Procedures
 > **The voice cannot lie. When an actor speaks, their gaze belongs to the listener.**
@@ -84,12 +94,32 @@ Bethesda's AI frequently stages the physical look direction (`kProcedure` / `kAc
 - `high->lastSpokenToArray` indicates the recipient.
 - Active speech to a recipient unconditionally overrides secondary procedure slots and arms the **Dialogue Player Hold timer (3.0s)** to maintain eye contact across mid-line pauses and signal dropouts.
 
-### Principle 3: Cervical Limits are Relative to the Spine, Not the World
+### Principle 3: Cervical Limits are Relative to the Torso, Not the World
 > **A human neck cannot twist 180°. Seated actors must never rotate their heads beyond biological limits relative to their chest.**
 
 When an actor is seated or attached to a vehicle, cervical rotation is strictly clamped:
 $$\text{desiredYaw} = \text{std::clamp}(\text{desiredYaw}, -70^\circ, +70^\circ)$$
-Relative to the spine coordinate frame, this guarantees that even if a sound or procedure attempts to look behind the bench, the actor turns their head gracefully to the anatomical boundary (±70°) without snapping their neck backward.
+Relative to the torso coordinate frame, this guarantees that even if a sound or procedure attempts to look behind the bench, the actor turns their head gracefully to the anatomical boundary ($\pm 70^\circ$) without snapping their neck backward.
+
+### Principle 4: Elimination of Head Snapping & Discontinuities
+> **Bones must never jump or snap across a single frame. All engagement thresholds, mode changes, and scene deferrals must transition smoothly.**
+
+Three discrete step discontinuities were identified and permanently resolved:
+1. **Engagement Threshold Discontinuity:**
+   - In `BoneController::CalculateHierarchyStrain`, the binary threshold `if (totalMag < headEngageThresh) return dist;` produced an instantaneous $4.2^\circ$ jump on neck and head bones when crossing $12.0^\circ$.
+   - *Resolution:* Replaced with a smooth C1 Hermite cubic ease-in (smoothstep) between $0.75 \times \text{thresh}$ and $1.0 \times \text{thresh}$.
+2. **CGA Strain Switch Discontinuity:**
+   - Switching between `CalculateHierarchyStrain` (head involvement $\sim 0.35$) and `CalculateCgaStrain` (head involvement $0.08$) produced an immediate $6^\circ\text{--}8^\circ$ per-frame jump on the head bone.
+   - *Resolution:* Continuously blend between hierarchy strain and CGA strain using `cgaAversionBlend` at an exponential rate of $8.0/\text{s}$ ($\sim 125\text{ ms}$ smooth glide).
+3. **Scene Deferral Cut Discontinuity:**
+   - Abruptly gating bone updates via `if (!headChainYields)` caused the head chain to snap between vanilla Havok pose and TrueGaze deflection in a single frame.
+   - *Resolution:* Smoothly scale head chain deflection by $(1.0 - \text{headChainYieldAlpha})$ at an exponential rate of $8.0/\text{s}$ ($\sim 125\text{ ms}$ glide).
+
+### Principle 5: Conversational Eye Contact Majority
+> **The majority of conversational time must be spent looking directly into the target's eyes.**
+
+- Peripheral aversion vertices (`UpperLeftAversion`, `UpperRightAversion`, `LowerLeftAversion`, `LowerRightAversion`) are strictly quarantined to deliberate CGA / THINK mode episodes and removed from everyday social candidate loops.
+- Core social triangle scanning is biased $4.0\times$ toward the eyes (`LeftEye` = 4.0, `RightEye` = 4.0, `Mouth` = 1.0), ensuring NPCs maintain foveal eye contact $85\%+$ of the time.
 
 ---
 

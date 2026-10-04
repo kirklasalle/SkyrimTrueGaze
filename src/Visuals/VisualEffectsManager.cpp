@@ -368,7 +368,8 @@ namespace TrueGaze::Visuals
                                            RE::NiAVObject* a_eyeL, RE::NiAVObject* a_eyeR,
                                            float a_eyeYawDeg, float a_eyePitchDeg,
                                            uint8_t a_gazeRegion, bool a_isPlayer,
-                                           bool a_isHumanoid) noexcept
+                                           bool a_isHumanoid,
+                                           float a_targetDistanceUnits) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
         if (!a_actor)
@@ -516,10 +517,13 @@ namespace TrueGaze::Visuals
         if (emitters.terminusLight)
         {
             // Terminus positioned along the line of sight from eye center
+            const float focalDist = (a_targetDistanceUnits > 5.0f)
+                                        ? std::min(a_targetDistanceUnits, _tuning.LengthUnits())
+                                        : _tuning.LengthUnits();
             const RE::NiPoint3 centerWorld = (originLWorld + originRWorld) * 0.5f;
-            const RE::NiPoint3 terminusWorld{centerWorld.x + dirWorld.x * _tuning.LengthUnits(),
-                                             centerWorld.y + dirWorld.y * _tuning.LengthUnits(),
-                                             centerWorld.z + dirWorld.z * _tuning.LengthUnits()};
+            const RE::NiPoint3 terminusWorld{centerWorld.x + dirWorld.x * focalDist,
+                                             centerWorld.y + dirWorld.y * focalDist,
+                                             centerWorld.z + dirWorld.z * focalDist};
             emitters.terminusLight->local.translate = anchorInverse * terminusWorld;
         }
 
@@ -536,18 +540,21 @@ namespace TrueGaze::Visuals
             updateData.time = 0.0f;
             updateData.flags = RE::NiUpdateData::Flag::kDirty;
 
+            const float focalDistance = (a_targetDistanceUnits > 5.0f)
+                                            ? std::min(a_targetDistanceUnits, _tuning.LengthUnits())
+                                            : _tuning.LengthUnits();
+
             if (emitters.isMarkerArrow)
             {
                 // marker_arrow.nif measured 64 x 240 x 160 (X x Y x Z). Length is
-                // set EXACTLY to the configured reach via the uniform scale;
-                // the widest cross-section (the 160-unit arrowhead) is mapped
-                // to the eyeball diameter via a COLUMN scale on mesh-local X/Z.
+                // set to the detected target focal distance (or configured reach) via
+                // uniform scale; widest cross-section is mapped to eyeball diameter
+                // via COLUMN scale on mesh-local X/Z.
                 const G::ArrowScales scales = G::ComputeMarkerArrowScales(
-                    _tuning.LengthUnits(), _tuning.ArrowCrossSectionUnits());
+                    focalDistance, _tuning.ArrowCrossSectionUnits());
 
-                // Binocular convergence: both arrows meet at the fixation point
-                // one beam-length along the cyclopean gaze, instead of running
-                // parallel. (Phase 2 will pass the real target distance.)
+                // Binocular convergence: both arrows meet at the exact fixation point
+                // at the real target distance along the cyclopean gaze.
                 const G::Vec3 mid = toVec(emitters.eyeMidLocal);
                 const G::Vec3 dirMid = toVec(localDir);
 
@@ -557,7 +564,7 @@ namespace TrueGaze::Visuals
                         return;
                     }
                     const G::Vec3 eyeDir =
-                        G::ConvergedEyeDirection(toVec(a_pupil), mid, dirMid, _tuning.LengthUnits());
+                        G::ConvergedEyeDirection(toVec(a_pupil), mid, dirMid, focalDistance);
                     const RE::NiPoint3 eyeDirNi = toNi(eyeDir);
 
                     RE::NiMatrix3 rot = AlignBeamOrientation(eyeDirNi, /*authoredAlongZ*/ false);
@@ -580,13 +587,13 @@ namespace TrueGaze::Visuals
             }
             else
             {
-                // Non-arrow meshes (GazeBeam.nif / soul-cairn fallback): unchanged
-                // legacy behaviour — uniform scale by reach, parallel beams.
+                // Non-arrow meshes (GazeBeam.nif / soul-cairn fallback):
+                // uniform scale by focal reach, aligned with gaze.
                 const RE::NiMatrix3 beamRot =
                     AlignBeamOrientation(localDir, emitters.usingFallbackMesh);
                 const float beamScale =
-                    emitters.usingFallbackMesh ? std::clamp(_tuning.LengthUnits() / 35.0f, 0.5f, 4.0f)
-                                               : std::clamp(_tuning.LengthUnits() / 70.0f, 0.1f, 10.0f);
+                    emitters.usingFallbackMesh ? std::clamp(focalDistance / 35.0f, 0.5f, 4.0f)
+                                               : std::clamp(focalDistance / 70.0f, 0.1f, 10.0f);
 
                 if (emitters.geometryL)
                 {
@@ -702,6 +709,7 @@ namespace TrueGaze::Visuals
         (void)a_gazeRegion;
         (void)a_isPlayer;
         (void)a_isHumanoid;
+        (void)a_targetDistanceUnits;
 #endif
     }
 

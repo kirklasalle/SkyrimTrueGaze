@@ -3,8 +3,10 @@
 #include "GazeAnchors.hpp"
 #include "GazeEngine.hpp"
 #include "PlayerGazeResolver.hpp"
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <vector>
 
 namespace TrueGaze::Engine
 {
@@ -155,11 +157,21 @@ namespace TrueGaze::Engine
         }
 
         /// Retrieve the natural reference heading in radians for the observer.
-        /// Samples the upper torso bone (NPC Spine2 [Spn2]) world basis vector Y
-        /// when available, decoupling visual cone and ambient forward gaze from raw actor->GetAngleZ()
-        /// during seated animations (e.g. Helgen cart ride benches).
+        /// - Standing actors: actor->GetAngleZ() is the ground truth horizontal facing.
+        ///   This eliminates lateral cone skew and restores immediate detection of the player.
+        /// - Seated / vehicle / cart actors: samples the upper torso bone (NPC Spine2 / Spine1) world basis
+        ///   vector Y when torso diverges from the root capsule (e.g. Helgen cart benches at ~90°),
+        ///   cleanly aligning the observer's visual cone with their physical chest orientation.
         float GetObserverHeadingRad(RE::Actor* observer, const ActorGazeRuntime* state) noexcept
         {
+            if (!observer)
+            {
+                return 0.0f;
+            }
+
+            const float rootYaw = observer->GetAngleZ();
+
+            // 1. Primary: Upper Torso Bone (NPC Spine2 / Spine1)
             if (state && state->cachedSpine)
             {
                 const auto& m = state->cachedSpine->world.rotate;
@@ -167,24 +179,487 @@ namespace TrueGaze::Engine
                 const float horizLenSq = forward.x * forward.x + forward.y * forward.y;
                 if (horizLenSq >= 0.04f)
                 {
-                    return std::atan2(forward.x, forward.y);
+                    const float spineHeading = std::atan2(forward.x, forward.y);
+                    const float diff = std::abs(WrapPi(spineHeading - rootYaw));
+
+                    bool isSeated = false;
+                    const auto sitState = observer->GetSitSleepState();
+                    if (sitState == RE::SIT_SLEEP_STATE::kIsSitting ||
+                        sitState == RE::SIT_SLEEP_STATE::kWaitingForSitAnim)
+                    {
+                        isSeated = true;
+                    }
+                    else if (auto* process = observer->GetActorRuntimeData().currentProcess)
+                    {
+                        if (process->GetOccupiedFurniture())
+                        {
+                            isSeated = true;
+                        }
+                    }
+
+                    if (isSeated || diff > 0.5236f)
+                    {
+                        return spineHeading;
+                    }
                 }
             }
-            if (observer)
+
+            // 2. Secondary: Clavicular shoulder vector fallback
+            if (state && state->cachedClavicleL && state->cachedClavicleR)
             {
-                if (auto* process = observer->GetActorRuntimeData().currentProcess)
+                const auto& pL = state->cachedClavicleL->world.translate;
+                const auto& pR = state->cachedClavicleR->world.translate;
+                const float dx = pR.x - pL.x;
+                const float dy = pR.y - pL.y;
+                if ((dx * dx + dy * dy) >= 25.0f)
                 {
-                    if (auto furnHandle = process->GetOccupiedFurniture())
+                    const float clavHeading = std::atan2(-dy, dx);
+                    const float diff = std::abs(WrapPi(clavHeading - rootYaw));
+                    if (diff > 0.5236f)
                     {
-                        if (auto furnPtr = furnHandle.get())
+                        return clavHeading;
+                    }
+                }
+            }
+
+            // 3. Fallback: Occupied furniture reference
+            if (auto* process = observer->GetActorRuntimeData().currentProcess)
+            {
+                if (auto furnHandle = process->GetOccupiedFurniture())
+                {
+                    if (auto furnPtr = furnHandle.get())
+                    {
+                        return furnPtr->GetAngleZ();
+                    }
+                }
+            }
+
+            // 4. Fallback: Actor root orientation
+            return rootYaw;
+        }
+
+        /// Retrieve the 3D world position of an actor's weapon or shield/hand.
+        /// Used for tactical combat action glances (strikes, parries, blocks).
+        RE::NiPoint3 GetActorWeaponOrHandPosition(RE::Actor* actor, bool preferShield) noexcept
+        {
+            if (!actor)
+                return RE::NiPoint3{0.0f, 0.0f, 0.0f};
+
+            if (auto* root = actor->Get3D())
+            {
+                if (preferShield)
+                {
+                    static const char* kShieldCandidates[] = {
+                        "SHIELD", "Shield", "NPC L Hand [LHnd]", "NPC L Forearm [LLar]",
+                        "NPC L Hand", "LeftHand"
+                    };
+                    for (const auto* name : kShieldCandidates)
+                    {
+                        if (auto* bone = root->GetObjectByName(RE::BSFixedString(name)))
                         {
-                            return furnPtr->GetAngleZ();
+                            return bone->world.translate;
                         }
                     }
                 }
-                return observer->GetAngleZ();
+                else
+                {
+                    static const char* kWeaponCandidates[] = {
+                        "WEAPON", "Weapon", "NPC R Hand [RHnd]", "NPC R Forearm [RLar]",
+                        "NPC R Hand", "RightHand"
+                    };
+                    for (const auto* name : kWeaponCandidates)
+                    {
+                        if (auto* bone = root->GetObjectByName(RE::BSFixedString(name)))
+                        {
+                            return bone->world.translate;
+                        }
+                    }
+                }
+
+                const float lateral = preferShield ? -15.0f : 15.0f;
+                return RE::NiPoint3{root->world.translate.x + lateral,
+                                    root->world.translate.y,
+                                    root->world.translate.z + kEyeHeightOffsetUnits * 0.60f};
             }
-            return 0.0f;
+
+            const auto pos = actor->GetPosition();
+            return RE::NiPoint3{pos.x, pos.y, pos.z + kEyeHeightOffsetUnits * 0.60f};
+        }
+
+        /// Retrieve the 3D world position of an actor's feet / footwork.
+        /// Used for combat movement glances.
+        RE::NiPoint3 GetActorFeetPosition(RE::Actor* actor) noexcept
+        {
+            if (!actor)
+                return RE::NiPoint3{0.0f, 0.0f, 0.0f};
+
+            if (auto* root = actor->Get3D())
+            {
+                static const char* kFeetCandidates[] = {
+                    "NPC L Foot [Lft ]", "NPC R Foot [Rft ]", "NPC L Foot [Lft]", "NPC R Foot [Rft]",
+                    "NPC L Calf [LClf]", "NPC R Calf [RClf]"
+                };
+                for (const auto* name : kFeetCandidates)
+                {
+                    if (auto* bone = root->GetObjectByName(RE::BSFixedString(name)))
+                    {
+                        return bone->world.translate;
+                    }
+                }
+                return RE::NiPoint3{root->world.translate.x, root->world.translate.y,
+                                    root->world.translate.z + 10.0f};
+            }
+
+            const auto pos = actor->GetPosition();
+            return RE::NiPoint3{pos.x, pos.y, pos.z + 10.0f};
+        }
+
+        /// Resolves the optimal combat target and tactical action focus for an actor in combat.
+        /// Implements:
+        /// 1. Primary combat target focus lock (eyes/face).
+        /// 2. Multi-target scanning across all hostile adversaries if multiple.
+        /// 3. Close encounter action glances to hands/weapon during a strike, or shield during a block.
+        /// 4. Movement / footwork glance down to feet/terrain when moving, always returning to the focus lock.
+        bool ResolveCombatTarget(RE::Actor* observer, ActorGazeRuntime* state, float deltaSeconds,
+                                 TargetSelector::GazeTarget& outTarget) noexcept
+        {
+            if (!observer)
+            {
+                return false;
+            }
+
+            const bool inCombat = observer->IsInCombat();
+            RE::Actor* primaryTarget = nullptr;
+            if (auto combatHandle = observer->GetActorRuntimeData().currentCombatTarget)
+            {
+                if (auto combatPtr = combatHandle.get())
+                {
+                    primaryTarget = combatPtr.get();
+                }
+            }
+
+            if (primaryTarget && (primaryTarget->IsDead() || primaryTarget->IsDisabled()))
+            {
+                primaryTarget = nullptr;
+            }
+
+            if (!inCombat && !primaryTarget)
+            {
+                if (state)
+                {
+                    state->combatGlance = ActorGazeRuntime::CombatGlanceType::None;
+                    state->combatGlanceTimerSec = 0.0f;
+                }
+                return false;
+            }
+
+            // Gather all active hostile combatants within combat engagement range (20m)
+            std::vector<RE::Actor*> hostiles;
+            if (primaryTarget)
+            {
+                hostiles.push_back(primaryTarget);
+            }
+
+            if (auto* processLists = RE::ProcessLists::GetSingleton())
+            {
+                for (auto& handle : processLists->highActorHandles)
+                {
+                    if (auto actorPtr = handle.get())
+                    {
+                        auto* other = actorPtr.get();
+                        if (!other || other == observer || other->IsDead() || other->IsDisabled())
+                        {
+                            continue;
+                        }
+
+                        if (other == primaryTarget)
+                        {
+                            continue;
+                        }
+
+                        bool isHostile = false;
+                        if (auto targetHandle = other->GetActorRuntimeData().currentCombatTarget)
+                        {
+                            if (targetHandle.get().get() == observer)
+                            {
+                                isHostile = true;
+                            }
+                        }
+
+                        if (!isHostile && inCombat && other->IsInCombat())
+                        {
+                            if (observer->IsHostileToActor(other) || other->IsHostileToActor(observer))
+                            {
+                                isHostile = true;
+                            }
+                        }
+
+                        if (isHostile)
+                        {
+                            const float d = DistanceMeters(observer->GetPosition(), other->GetPosition());
+                            if (d <= 20.0f)
+                            {
+                                hostiles.push_back(other);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If observer had no explicit primary combat target assigned by AI, select the closest in visual range
+            if (!primaryTarget && !hostiles.empty())
+            {
+                float bestDist = 9999.0f;
+                for (auto* h : hostiles)
+                {
+                    const float d = DistanceMeters(observer->GetPosition(), h->GetPosition());
+                    if (d < bestDist)
+                    {
+                        bestDist = d;
+                        primaryTarget = h;
+                    }
+                }
+            }
+
+            if (!primaryTarget)
+            {
+                if (state)
+                {
+                    state->combatGlance = ActorGazeRuntime::CombatGlanceType::None;
+                    state->combatGlanceTimerSec = 0.0f;
+                }
+                return false;
+            }
+
+            const auto observerPos = GetActorWorldPosition(observer);
+            const auto primaryPos = GetActorWorldPosition(primaryTarget);
+            const float cDist = DistanceMeters(observerPos, primaryPos);
+            const float observerHeading = GetObserverHeadingRad(observer, state);
+
+            // In combat, awareness visual cone is wide (100 degrees) or omnidirectional in close melee (<= 2.5m)
+            const bool inVisualField = (cDist <= 2.5f) || IsInVisualCone(observerPos, observerHeading, primaryPos, 100.0f);
+            if (!inVisualField && cDist > 5.0f)
+            {
+                RE::Actor* frontHostile = nullptr;
+                for (auto* h : hostiles)
+                {
+                    if (h != primaryTarget && IsInVisualCone(observerPos, observerHeading, GetActorWorldPosition(h), 80.0f))
+                    {
+                        frontHostile = h;
+                        break;
+                    }
+                }
+                if (frontHostile)
+                {
+                    primaryTarget = frontHostile;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            // Tactical action detection and glance state machine
+            if (state)
+            {
+                if (state->combatGlanceTimerSec > 0.0f)
+                {
+                    state->combatGlanceTimerSec -= deltaSeconds;
+                }
+                if (state->combatActionCooldownSec > 0.0f)
+                {
+                    state->combatActionCooldownSec -= deltaSeconds;
+                }
+                if (state->combatFootworkCooldownSec > 0.0f)
+                {
+                    state->combatFootworkCooldownSec -= deltaSeconds;
+                }
+                if (state->combatThreatScanTimerSec > 0.0f)
+                {
+                    state->combatThreatScanTimerSec -= deltaSeconds;
+                }
+
+                // Expiration of current glance
+                if (state->combatGlanceTimerSec <= 0.0f)
+                {
+                    state->combatGlance = ActorGazeRuntime::CombatGlanceType::None;
+                    state->combatSecondaryTargetFormId = 0;
+                }
+
+                // If in focus lock (None), evaluate tactical shifts:
+                if (state->combatGlance == ActorGazeRuntime::CombatGlanceType::None)
+                {
+                    // 1. Close encounter block or strike glance
+                    if (cDist <= 4.5f)
+                    {
+                        const auto targetAttack = primaryTarget->GetAttackState();
+                        const bool targetAttacking = (targetAttack != RE::ATTACK_STATE_ENUM::kNone);
+                        const bool targetAttackStart = targetAttacking &&
+                            (state->lastAttackState == static_cast<uint32_t>(RE::ATTACK_STATE_ENUM::kNone));
+                        state->lastAttackState = static_cast<uint32_t>(targetAttack);
+
+                        const bool targetBlocking = static_cast<bool>(primaryTarget->actorState2.wantBlocking);
+                        const bool targetBlockStart = targetBlocking && !state->wasBlockingLastFrame;
+                        state->wasBlockingLastFrame = targetBlocking;
+
+                        const bool observerAttacking = (observer->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone);
+                        const bool observerBlocking = static_cast<bool>(observer->actorState2.wantBlocking);
+
+                        if (state->combatActionCooldownSec <= 0.0f)
+                        {
+                            if (targetBlockStart || (targetBlocking && observerAttacking))
+                            {
+                                state->combatGlance = ActorGazeRuntime::CombatGlanceType::HandsShield;
+                                state->combatGlanceTimerSec = 0.40f;
+                                state->combatActionCooldownSec = 1.8f;
+                            }
+                            else if (targetAttackStart || (targetAttacking && (observerBlocking || targetAttacking)))
+                            {
+                                state->combatGlance = ActorGazeRuntime::CombatGlanceType::HandsWeapon;
+                                state->combatGlanceTimerSec = 0.45f;
+                                state->combatActionCooldownSec = 1.8f;
+                            }
+                        }
+                    }
+
+                    // 2. Movement / Footwork glance ("when a player moves, the eyes might look down at the feet and back up again")
+                    if (state->combatGlance == ActorGazeRuntime::CombatGlanceType::None && cDist <= 8.0f)
+                    {
+                        const bool obsMove = observer->actorState1.movingForward || observer->actorState1.movingBack ||
+                                             observer->actorState1.movingLeft || observer->actorState1.movingRight ||
+                                             observer->actorState1.running || observer->actorState1.sprinting;
+                        const bool tgtMove = primaryTarget->actorState1.movingForward || primaryTarget->actorState1.movingBack ||
+                                             primaryTarget->actorState1.movingLeft || primaryTarget->actorState1.movingRight ||
+                                             primaryTarget->actorState1.running || primaryTarget->actorState1.sprinting;
+
+                        const bool moveEdge = (obsMove && !state->wasMovingLastFrame) ||
+                                              (tgtMove && !state->wasTargetMovingLastFrame);
+                        state->wasMovingLastFrame = obsMove;
+                        state->wasTargetMovingLastFrame = tgtMove;
+
+                        if ((moveEdge || (obsMove && state->combatFootworkCooldownSec <= 0.0f)) &&
+                            state->combatFootworkCooldownSec <= 0.0f)
+                        {
+                            state->combatGlance = ActorGazeRuntime::CombatGlanceType::FeetFootwork;
+                            state->combatGlanceTimerSec = 0.30f;
+                            state->combatFootworkCooldownSec = 3.5f;
+                        }
+                    }
+
+                    // 3. Multi-Target Tactical Threat Scan ("and all targets if multiple")
+                    if (state->combatGlance == ActorGazeRuntime::CombatGlanceType::None && hostiles.size() > 1)
+                    {
+                        RE::Actor* urgentAttacker = nullptr;
+                        for (auto* h : hostiles)
+                        {
+                            if (h != primaryTarget)
+                            {
+                                if (h->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone &&
+                                    DistanceMeters(observerPos, GetActorWorldPosition(h)) <= 6.0f)
+                                {
+                                    urgentAttacker = h;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (urgentAttacker)
+                        {
+                            state->combatGlance = ActorGazeRuntime::CombatGlanceType::SecondaryTarget;
+                            state->combatSecondaryTargetFormId = urgentAttacker->GetFormID();
+                            state->combatGlanceTimerSec = 0.50f;
+                            state->combatThreatScanTimerSec = 2.5f;
+                        }
+                        else if (state->combatThreatScanTimerSec <= 0.0f)
+                        {
+                            for (auto* h : hostiles)
+                            {
+                                if (h != primaryTarget &&
+                                    IsInVisualCone(observerPos, observerHeading, GetActorWorldPosition(h), 80.0f))
+                                {
+                                    state->combatGlance = ActorGazeRuntime::CombatGlanceType::SecondaryTarget;
+                                    state->combatSecondaryTargetFormId = h->GetFormID();
+                                    state->combatGlanceTimerSec = 0.55f;
+                                    state->combatThreatScanTimerSec = 3.2f;
+                                    break;
+                                }
+                            }
+                            if (state->combatGlance == ActorGazeRuntime::CombatGlanceType::None)
+                            {
+                                state->combatThreatScanTimerSec = 1.5f;
+                            }
+                        }
+                    }
+                }
+            }
+
+            outTarget.priority = TargetSelector::TargetPriority::CombatTarget;
+            outTarget.isPlayer = (primaryTarget == RE::PlayerCharacter::GetSingleton());
+
+            if (state && state->combatGlance == ActorGazeRuntime::CombatGlanceType::HandsWeapon)
+            {
+                const auto wPos = GetActorWeaponOrHandPosition(primaryTarget, false);
+                outTarget.targetFormId = primaryTarget->GetFormID();
+                outTarget.worldX = wPos.x;
+                outTarget.worldY = wPos.y;
+                outTarget.worldZ = wPos.z;
+                outTarget.distanceMeters = DistanceMeters(observerPos, wPos);
+            }
+            else if (state && state->combatGlance == ActorGazeRuntime::CombatGlanceType::HandsShield)
+            {
+                const auto sPos = GetActorWeaponOrHandPosition(primaryTarget, true);
+                outTarget.targetFormId = primaryTarget->GetFormID();
+                outTarget.worldX = sPos.x;
+                outTarget.worldY = sPos.y;
+                outTarget.worldZ = sPos.z;
+                outTarget.distanceMeters = DistanceMeters(observerPos, sPos);
+            }
+            else if (state && state->combatGlance == ActorGazeRuntime::CombatGlanceType::FeetFootwork)
+            {
+                const auto fPos = GetActorFeetPosition(primaryTarget);
+                outTarget.targetFormId = primaryTarget->GetFormID();
+                outTarget.worldX = fPos.x;
+                outTarget.worldY = fPos.y;
+                outTarget.worldZ = fPos.z;
+                outTarget.distanceMeters = DistanceMeters(observerPos, fPos);
+            }
+            else if (state && state->combatGlance == ActorGazeRuntime::CombatGlanceType::SecondaryTarget &&
+                     state->combatSecondaryTargetFormId != 0)
+            {
+                auto* secForm = RE::TESForm::LookupByID(state->combatSecondaryTargetFormId);
+                auto* secActor = secForm ? secForm->As<RE::Actor>() : nullptr;
+                if (secActor && !secActor->IsDead())
+                {
+                    const auto secHeadPos = GetActorHeadPosition(secActor);
+                    outTarget.targetFormId = secActor->GetFormID();
+                    outTarget.worldX = secHeadPos.x;
+                    outTarget.worldY = secHeadPos.y;
+                    outTarget.worldZ = secHeadPos.z;
+                    outTarget.distanceMeters = DistanceMeters(observerPos, secHeadPos);
+                    outTarget.isPlayer = (secActor == RE::PlayerCharacter::GetSingleton());
+                }
+                else
+                {
+                    const auto cHeadPos = GetActorHeadPosition(primaryTarget);
+                    outTarget.targetFormId = primaryTarget->GetFormID();
+                    outTarget.worldX = cHeadPos.x;
+                    outTarget.worldY = cHeadPos.y;
+                    outTarget.worldZ = cHeadPos.z;
+                    outTarget.distanceMeters = cDist;
+                }
+            }
+            else
+            {
+                // DEFAULT FOCUS LOCK: Continuous lock onto primary target's face/eyes
+                const auto cHeadPos = GetActorHeadPosition(primaryTarget);
+                outTarget.targetFormId = primaryTarget->GetFormID();
+                outTarget.worldX = cHeadPos.x;
+                outTarget.worldY = cHeadPos.y;
+                outTarget.worldZ = cHeadPos.z;
+                outTarget.distanceMeters = cDist;
+            }
+
+            return true;
         }
 #endif
 
@@ -357,27 +832,11 @@ namespace TrueGaze::Engine
                 }
             }
 
-            // 3. Combat target
-            if (auto combatHandle = player->GetActorRuntimeData().currentCombatTarget)
+            // 3. Combat target (primary lock, multi-target threat scan, tactical action glances)
+            GazeTarget combatTargetGaze{};
+            if (ResolveCombatTarget(player, state, deltaSeconds, combatTargetGaze))
             {
-                if (auto combatPtr = combatHandle.get())
-                {
-                    if (auto* cTarget = combatPtr.get())
-                    {
-                        if (!cTarget->IsDead() && !cTarget->IsDisabled())
-                        {
-                            const auto cHeadPos = GetActorHeadPosition(cTarget);
-                            target.targetFormId = cTarget->GetFormID();
-                            target.priority = TargetPriority::CombatTarget;
-                            target.worldX = cHeadPos.x;
-                            target.worldY = cHeadPos.y;
-                            target.worldZ = cHeadPos.z;
-                            target.distanceMeters = DistanceMeters(observerHeadPos, cHeadPos);
-                            target.isPlayer = false;
-                            return target;
-                        }
-                    }
-                }
+                return combatTargetGaze;
             }
 
             // 4. Conversational Candidate Scan (3rd person / free exploration)
@@ -752,34 +1211,11 @@ namespace TrueGaze::Engine
             }
         }
 
-        // 2. Combat target. Reached through the actor's runtime data as a handle,
-        //    not a direct accessor, and validated for liveness before use.
-        RE::Actor* combatTarget = nullptr;
-        if (auto combatHandle = observer->GetActorRuntimeData().currentCombatTarget)
+        // 2. Combat target (primary lock, multi-target threat scan, tactical action glances)
+        GazeTarget combatTargetGaze{};
+        if (ResolveCombatTarget(observer, state, deltaSeconds, combatTargetGaze))
         {
-            if (auto combatPtr = combatHandle.get())
-            {
-                combatTarget = combatPtr.get();
-            }
-        }
-
-        if (combatTarget && !combatTarget->IsDead())
-        {
-            const auto combatPos = GetActorWorldPosition(combatTarget);
-            const float cDist = DistanceMeters(observerPos, combatPos);
-            if (cDist <= 15.0f &&
-                IsInVisualCone(observerPos, GetObserverHeadingRad(observer, state), combatPos, 75.0f))
-            {
-                const auto cHeadPos = GetActorHeadPosition(combatTarget);
-                target.targetFormId = combatTarget->GetFormID();
-                target.priority = TargetPriority::CombatTarget;
-                target.worldX = cHeadPos.x;
-                target.worldY = cHeadPos.y;
-                target.worldZ = cHeadPos.z;
-                target.distanceMeters = cDist;
-                target.isPlayer = (combatTarget == player);
-                return target;
-            }
+            return combatTargetGaze;
         }
 
         const float playerDistanceMeters = DistanceMeters(observerHeadPos, playerHeadPos);

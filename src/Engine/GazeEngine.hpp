@@ -204,7 +204,7 @@ namespace TrueGaze::Engine
 
         /// Apply a computed deflection to the actor's bone chain.
         void ApplyToSkeleton(RE::Actor* actor, ActorGazeRuntime& state, float yawDeg,
-                             float pitchDeg) noexcept;
+                             float pitchDeg, float deltaSeconds) noexcept;
 
         /// Publish actor state to the OAR condition cache.
         void PublishState(RE::Actor* actor, const ActorGazeRuntime& state) noexcept;

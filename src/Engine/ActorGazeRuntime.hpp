@@ -36,8 +36,39 @@ namespace TrueGaze::Engine
         /// here is what triggers a new ballistic saccade.
         uint32_t trackedTargetFormId{0};
 
-        /// Continuous seconds of mutual eye contact with the player.
+        /// Continuous seconds of mutual eye contact with the player or another actor.
         float mutualGazeHoldSec{0.0f};
+
+        /// True when the actor's line of sight intersects the target's eye contact zone.
+        bool eyeContactHit{false};
+
+        /// Distance to the active target in Skyrim world units (70 units = 1 meter).
+        float targetDistanceUnits{210.0f};
+
+        /// Binocular vergence angle in degrees applied inward to each eye.
+        float eyeVergenceYawDeg{0.0f};
+
+        /// Combat tactical sub-focus type (strike, block, footwork, secondary hostile).
+        enum class CombatGlanceType : uint8_t
+        {
+            None = 0,
+            HandsWeapon = 1,
+            HandsShield = 2,
+            FeetFootwork = 3,
+            SecondaryTarget = 4
+        };
+
+        /// Active combat tactical glance sub-focus.
+        CombatGlanceType combatGlance{CombatGlanceType::None};
+        float combatGlanceTimerSec{0.0f};
+        float combatActionCooldownSec{0.0f};
+        float combatFootworkCooldownSec{0.0f};
+        float combatThreatScanTimerSec{0.0f};
+        uint32_t combatSecondaryTargetFormId{0};
+        uint32_t lastAttackState{0};
+        bool wasBlockingLastFrame{false};
+        bool wasMovingLastFrame{false};
+        bool wasTargetMovingLastFrame{false};
 
         /// Last computed gaze deflection, for the debug visualiser and the API.
         float lastYawDeg{0.0f};
@@ -148,6 +179,16 @@ namespace TrueGaze::Engine
         RE::NiAVObject *cachedHead{nullptr};
         RE::NiAVObject *cachedEyeL{nullptr};
         RE::NiAVObject *cachedEyeR{nullptr};
+        RE::NiAVObject *cachedClavicleL{nullptr};
+        RE::NiAVObject *cachedClavicleR{nullptr};
+
+        /// Smoothed blend factor between normal hierarchy strain (0.0) and CGA aversion strain (1.0).
+        /// Eliminates head snapping when entering/exiting THINK mode.
+        float cgaAversionBlend{0.0f};
+
+        /// Smoothed blend factor for yielding head chain to vanilla scene direction (0.0 = TrueGaze, 1.0 = vanilla).
+        /// Eliminates head snapping when scene deferral starts or stops.
+        float headChainYieldAlpha{0.0f};
 
         /// Reset the kinematics runtime to a known state, e.g. after a cell change.
         void Reset(float startYaw, float startPitch) noexcept
@@ -166,6 +207,19 @@ namespace TrueGaze::Engine
             blink = {};
 
             mutualGazeHoldSec = 0.0f;
+            eyeContactHit = false;
+            targetDistanceUnits = 210.0f;
+            eyeVergenceYawDeg = 0.0f;
+            combatGlance = CombatGlanceType::None;
+            combatGlanceTimerSec = 0.0f;
+            combatActionCooldownSec = 0.0f;
+            combatFootworkCooldownSec = 0.0f;
+            combatThreatScanTimerSec = 0.0f;
+            combatSecondaryTargetFormId = 0;
+            lastAttackState = 0;
+            wasBlockingLastFrame = false;
+            wasMovingLastFrame = false;
+            wasTargetMovingLastFrame = false;
             lastYawDeg = startYaw;
             lastPitchDeg = startPitch;
             eyeSaturated = false;
@@ -195,6 +249,10 @@ namespace TrueGaze::Engine
             cachedHead = nullptr;
             cachedEyeL = nullptr;
             cachedEyeR = nullptr;
+            cachedClavicleL = nullptr;
+            cachedClavicleR = nullptr;
+            cgaAversionBlend = 0.0f;
+            headChainYieldAlpha = 0.0f;
             initialised = true;
         }
     };

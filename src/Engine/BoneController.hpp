@@ -117,31 +117,45 @@ namespace TrueGaze::Engine
 
             // HEAD ENGAGEMENT THRESHOLD: for small gaze shifts, the head stays still
             // and only the eyes move. This eliminates robotic micro-head-turns during
-            // social triangle cycling at close range. Human heads don't visibly move
-            // for tiny 2-5 degree gaze shifts — only the eyes do.
+            // social triangle cycling at close range.
+            //
+            // SMOOTH ENGAGEMENT CURVE (Hermite Smoothstep Deadband):
+            // The previous binary branch `if (totalMag < headEngageThresh) return dist;`
+            // created an instantaneous 4.2° step function on the head chain whenever
+            // totalMag crossed the threshold. This caused a visible head snap/jump.
+            // We now apply a smooth Hermite cubic ease-in (smoothstep) between
+            // 0.75 * thresh and 1.0 * thresh.
+            // - Below 0.75 * thresh: headWeight = 0.0 (pure ocular tracking, zero head twitch)
+            // - Above 1.0 * thresh: headWeight = 1.0 (full head involvement)
+            // - Between 0.75 and 1.0: seamless continuous acceleration with zero velocity spike.
             const float totalMag = std::sqrt(clampedYaw * clampedYaw + clampedPitch * clampedPitch);
-            const bool headSuppressed = (headEngageThresh > 0.0f && totalMag < headEngageThresh);
-
-            if (headSuppressed)
+            float headWeight = 1.0f;
+            if (headEngageThresh > 0.0f)
             {
-                // Eyes carry the entire deflection; head chain stays at zero.
-                dist.eyeYaw = std::clamp(clampedYaw, -eyeYawLimit, eyeYawLimit);
-                dist.eyePitch = std::clamp(clampedPitch, -eyePitchLimit, eyePitchLimit);
-                return dist;
+                const float lowThresh = headEngageThresh * 0.75f;
+                if (totalMag <= lowThresh)
+                {
+                    headWeight = 0.0f;
+                }
+                else if (totalMag < headEngageThresh)
+                {
+                    const float t = (totalMag - lowThresh) / (headEngageThresh - lowThresh);
+                    headWeight = t * t * (3.0f - 2.0f * t); // C1 continuous smoothstep
+                }
             }
 
             // --- Head chain: spine -> neck -> head (yaw), neck -> head (pitch) ---
-            dist.spineYaw = std::clamp(clampedYaw * weights.spineYaw,
+            dist.spineYaw = std::clamp(clampedYaw * weights.spineYaw * headWeight,
                                        -SPINE_YAW_LIMIT, SPINE_YAW_LIMIT);
 
-            dist.neckYaw = std::clamp(clampedYaw * weights.neckYaw,
+            dist.neckYaw = std::clamp(clampedYaw * weights.neckYaw * headWeight,
                                       -NECK_YAW_LIMIT, NECK_YAW_LIMIT);
-            dist.neckPitch = std::clamp(clampedPitch * weights.neckPitch,
+            dist.neckPitch = std::clamp(clampedPitch * weights.neckPitch * headWeight,
                                         -NECK_PITCH_LIMIT, NECK_PITCH_LIMIT);
 
-            dist.headYaw = std::clamp(clampedYaw * weights.headYaw,
+            dist.headYaw = std::clamp(clampedYaw * weights.headYaw * headWeight,
                                       -HEAD_YAW_LIMIT, HEAD_YAW_LIMIT);
-            dist.headPitch = std::clamp(clampedPitch * weights.headPitch,
+            dist.headPitch = std::clamp(clampedPitch * weights.headPitch * headWeight,
                                         -HEAD_PITCH_LIMIT, HEAD_PITCH_LIMIT);
 
             // --- Eyes: the residual the head chain did not cover ---

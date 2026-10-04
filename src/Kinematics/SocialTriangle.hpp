@@ -149,16 +149,17 @@ namespace TrueGaze::Kinematics
                 return NextTriangleVertex(state, current, 0.6f);
             }
 
-            // Candidate set: the three core triangle vertices plus the extended
-            // diagram points reachable from the current position. Keeping the
-            // candidate set small preserves the human eye-to-eye bias while
-            // letting weights shift the balance.
+            // Candidate set for normal social engagement: the core facial features
+            // and personal resonance points (LeftEye, RightEye, Mouth, ThirdEye, Chest).
+            // Peripheral aversion regions (UpperLeft, UpperRight, LowerLeft, LowerRight)
+            // are strictly reserved for CGA (Cognitive Gaze Aversion / THINK mode)
+            // and must NOT pollute the standard conversational candidate pool.
+            // Putting aversion regions here caused NPCs to stare off into distant
+            // corners 40% of the time during everyday conversation.
             static constexpr Vertex kCandidates[] = {
                 Vertex::LeftEye, Vertex::RightEye, Vertex::Mouth,
-                Vertex::ThirdEye, Vertex::Chest,
-                Vertex::UpperLeftAversion, Vertex::UpperRightAversion,
-                Vertex::LowerLeftAversion, Vertex::LowerRightAversion};
-            constexpr int kCount = 9;
+                Vertex::ThirdEye, Vertex::Chest};
+            constexpr int kCount = 5;
 
             float total = 0.0f;
             float w[kCount];
@@ -168,13 +169,13 @@ namespace TrueGaze::Kinematics
                 // but not favoured), matching the unweighted distribution's shape.
                 const float base = (kCandidates[i] == current) ? 0.20f : 1.0f;
 
-                // EYE-LOCK BIAS (Kirk fine-tuning, 2026-09-26): eye vertices are
-                // structurally favoured — 2.0x weight — so gaze locks onto the
-                // target's eyes more often than any other region, independent of
-                // the character profile's weights (which multiply on top).
-                const bool isEye = kCandidates[i] == Vertex::LeftEye ||
-                                   kCandidates[i] == Vertex::RightEye;
-                const float eyeBias = isEye ? 2.0f : 1.0f;
+                // EYE-LOCK BIAS (Kirk directive: "The majority time should be looking in the eyes of a target.")
+                // Eye vertices are heavily favoured (4.0x) so gaze locks onto the target's
+                // eyes the vast majority of the time, with natural brief visits to the mouth
+                // or forehead between prolonged eye holds.
+                const bool isEye = (kCandidates[i] == Vertex::LeftEye ||
+                                    kCandidates[i] == Vertex::RightEye);
+                const float eyeBias = isEye ? 4.0f : 1.0f;
 
                 w[i] = base * eyeBias * std::max(0.01f, weights[i]);
                 total += w[i];

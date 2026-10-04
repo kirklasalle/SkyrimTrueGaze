@@ -56,7 +56,8 @@ namespace TrueGaze::Visuals
         /// @brief Updates the in-world visuals for one actor.
         void UpdateActor(RE::Actor* a_actor, RE::NiAVObject* a_headBone, RE::NiAVObject* a_eyeL,
                          RE::NiAVObject* a_eyeR, float a_eyeYawDeg, float a_eyePitchDeg,
-                         uint8_t a_gazeRegion, bool a_isPlayer, bool a_isHumanoid) noexcept;
+                         uint8_t a_gazeRegion, bool a_isPlayer, bool a_isHumanoid,
+                         float a_targetDistanceUnits = 0.0f) noexcept;
 
         /// @brief Detaches every emitter for one actor. Call before state eviction.
         void RemoveActor(uint32_t a_formId) noexcept;

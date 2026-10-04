@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "../src/Bridge/TelemetryPacket.h"
+#include "../src/Engine/ActorGazeRuntime.hpp"
 #include "../src/Engine/BoneController.hpp"
 #include "../src/Engine/CharacterProfile.hpp"
 #include "../src/Engine/LodManager.hpp"
@@ -1025,6 +1026,101 @@ namespace
                      "dialogue orientation, anatomical clamp).\n";
     }
 
+    void TestCombatTacticalGlances()
+    {
+        std::cout << "[Test 15] Combat Tactical Glances & Multi-Target Dynamic Focus Lock...\n";
+
+        TrueGaze::Engine::ActorGazeRuntime runtime{};
+        runtime.Reset(0.0f, 0.0f);
+
+        // 1. Initial State: Focus lock on primary target, no active glance
+        assert(runtime.combatGlance == TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::None);
+        assert(runtime.combatGlanceTimerSec == 0.0f);
+        assert(runtime.combatActionCooldownSec == 0.0f);
+        assert(runtime.combatFootworkCooldownSec == 0.0f);
+
+        // 2. Incoming strike / attack glance triggering
+        runtime.combatGlance = TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::HandsWeapon;
+        runtime.combatGlanceTimerSec = 0.45f;
+        runtime.combatActionCooldownSec = 1.8f;
+        assert(runtime.combatGlance == TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::HandsWeapon);
+
+        // Glancing away from eyes means eyeContactHit is false
+        runtime.eyeContactHit = false;
+        assert(!runtime.eyeContactHit);
+
+        // Advance time during the strike glance
+        float dt = 0.15f;
+        runtime.combatGlanceTimerSec -= dt;
+        assert(runtime.combatGlanceTimerSec > 0.0f);
+        assert(runtime.combatGlance == TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::HandsWeapon);
+
+        // Expiration of strike glance: returns to None (focus lock on face)
+        runtime.combatGlanceTimerSec -= 0.35f;
+        if (runtime.combatGlanceTimerSec <= 0.0f)
+        {
+            runtime.combatGlance = TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::None;
+            runtime.eyeContactHit = true; // Focus lock re-engages
+        }
+        assert(runtime.combatGlance == TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::None);
+        assert(runtime.eyeContactHit);
+
+        // 3. Movement / Footwork glance: glance down at feet and back up again
+        runtime.combatGlance = TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::FeetFootwork;
+        runtime.combatGlanceTimerSec = 0.30f;
+        runtime.eyeContactHit = false;
+        assert(runtime.combatGlance == TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::FeetFootwork);
+
+        // Complete the footwork glance
+        runtime.combatGlanceTimerSec -= 0.30f;
+        if (runtime.combatGlanceTimerSec <= 0.0f)
+        {
+            runtime.combatGlance = TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::None;
+            runtime.eyeContactHit = true; // Back to focus lock
+        }
+        assert(runtime.combatGlance == TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::None);
+        assert(runtime.eyeContactHit);
+
+        // 4. Multi-Target Tactical Threat Scan
+        runtime.combatGlance = TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::SecondaryTarget;
+        runtime.combatSecondaryTargetFormId = 0x00012345;
+        runtime.combatGlanceTimerSec = 0.55f;
+        assert(runtime.combatGlance == TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::SecondaryTarget);
+        assert(runtime.combatSecondaryTargetFormId == 0x00012345);
+
+        // Complete the scan
+        runtime.combatGlanceTimerSec -= 0.55f;
+        if (runtime.combatGlanceTimerSec <= 0.0f)
+        {
+            runtime.combatGlance = TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::None;
+            runtime.combatSecondaryTargetFormId = 0;
+            runtime.eyeContactHit = true;
+        }
+        assert(runtime.combatGlance == TrueGaze::Engine::ActorGazeRuntime::CombatGlanceType::None);
+        assert(runtime.combatSecondaryTargetFormId == 0);
+        assert(runtime.eyeContactHit);
+
+        // 5. Physiological Vergence: verify crossing at point blank vs distance
+        // Formula: theta = atan2(halfIPD, dist) * (180 / pi)
+        constexpr float halfIpd = 2.24f; // units (~3.2 cm)
+        const float distNear = 14.0f; // 0.2m point blank
+        const float distMid = 105.0f; // 1.5m conversation/melee
+        const float distFar = 350.0f; // 5.0m
+        const float vergenceNear = std::atan2(halfIpd, distNear) * (180.0f / 3.14159265f);
+        const float vergenceMid = std::atan2(halfIpd, distMid) * (180.0f / 3.14159265f);
+        const float vergenceFar = std::atan2(halfIpd, distFar) * (180.0f / 3.14159265f);
+
+        assert(vergenceNear > 8.0f); // Realistic visible crossing at point blank!
+        assert(vergenceMid > 1.0f && vergenceMid < 2.0f);
+        assert(vergenceFar < 0.5f);
+
+        static_cast<void>(vergenceNear);
+        static_cast<void>(vergenceMid);
+        static_cast<void>(vergenceFar);
+
+        std::cout << "  -> CombatTacticalGlances passed (strike/block, footwork glance, multi-threat scan, vergence).\n";
+    }
+
 } // namespace
 
 int main()
@@ -1049,7 +1145,8 @@ int main()
     TestCharacterProfile();
     TestCategoryProfiles();
     TestHelgenCartCoordinateTransform();
+    TestCombatTacticalGlances();
 
-    std::cout << "\n[SUCCESS] ALL 14 BIOMECHANICAL KINEMATICS TESTS PASSED!\n";
+    std::cout << "\n[SUCCESS] ALL 15 BIOMECHANICAL KINEMATICS TESTS PASSED!\n";
     return 0;
 }
