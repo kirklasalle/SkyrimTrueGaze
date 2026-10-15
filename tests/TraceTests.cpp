@@ -1,3 +1,5 @@
+#include "TestSupport.hpp"
+
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -143,6 +145,12 @@ void TestTraceLoggerCgaBlinkAndMismatchEvents()
     CleanTestFile(testFile);
 
     auto& logger = TraceLogger::Get();
+    // Blink tracing is OFF by default (TraceLogger::_traceBlinks{false}) to keep
+    // production traces lean; this test exercises the blink schema, so opt in
+    // explicitly. (Audit 2026-10-15 F-02: previously masked by NDEBUG.)
+    logger.SetConfig(/*gazeTick*/ true, /*saccades*/ true, /*regionChanges*/ true,
+                     /*cga*/ true, /*blinks*/ true, /*hitMismatches*/ true,
+                     /*bufferSize*/ 256, /*maxFileSizeMb*/ 100);
     logger.StartTracing(testFile);
 
     logger.LogCgaEnter(102.5f, 0x000A2C94, "MUTUAL_THRESHOLD", 9, "ULPeripheral");

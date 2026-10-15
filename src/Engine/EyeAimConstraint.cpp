@@ -18,13 +18,19 @@ namespace TrueGaze::Engine
 
         /// A bone whose animated local rotation has been modified this frame.
         ///
-        /// The reference is a raw pointer held only for the duration of one frame.
-        /// The game cannot unload an actor while we are inside the update hook, so a
-        /// smart pointer would add ref-count traffic for no safety gain.
+        /// The reference is a raw pointer that lives from Apply() until the next
+        /// BeginFrame()/WithdrawActor() restores it — i.e. ACROSS the game's own
+        /// update, not merely within one frame. (Audit 2026-10-15 F-06b corrected
+        /// the earlier "duration of one frame" wording.) The actor's 3D can be
+        /// rebuilt in that window (equipment / race change, Reset3D, cell reload),
+        /// which would leave `bone` dangling. `root` records the rig the bone was
+        /// posed under; a restore only writes through `bone` if that same rig is
+        /// still the actor's live 3D. `root` is compared, never dereferenced.
         struct TouchedBone
         {
             uint32_t actorFormId{0};
             RE::NiAVObject* bone{nullptr};
+            RE::NiAVObject* root{nullptr}; // identity only - never dereferenced
             RE::NiMatrix3 originalRotate{};
             bool active{false};
         };
@@ -102,8 +108,25 @@ namespace TrueGaze::Engine
             bone->UpdateDownwardPass(updateData, 0);
         }
 
+        /// True if `slot` may safely be written back for `actor`: the rig it was
+        /// posed under is still the actor's live third- or first-person 3D. With
+        /// no recorded root (legacy caller) fall back to the old non-null check.
+        [[nodiscard]] bool RigStillLive(const RE::Actor* actor, const TouchedBone& slot) noexcept
+        {
+            if (!actor)
+            {
+                return false;
+            }
+            if (!slot.root)
+            {
+                return actor->Get3D() != nullptr;
+            }
+            return actor->Get3D(false) == slot.root || actor->Get3D(true) == slot.root;
+        }
+
         /// Locate an existing record for this bone, or create one.
-        TouchedBone* FindOrCreate(uint32_t actorFormId, RE::NiAVObject* bone) noexcept
+        TouchedBone* FindOrCreate(uint32_t actorFormId, RE::NiAVObject* bone,
+                                  RE::NiAVObject* root) noexcept
         {
             for (uint32_t i = 0; i < g_touchedCount; ++i)
             {
@@ -121,6 +144,7 @@ namespace TrueGaze::Engine
             TouchedBone& slot = g_touched[g_touchedCount++];
             slot.actorFormId = actorFormId;
             slot.bone = bone;
+            slot.root = root;
             slot.originalRotate = bone->local.rotate; // cache the animated pose
             slot.active = true;
             return &slot;
@@ -162,7 +186,7 @@ namespace TrueGaze::Engine
     }
 
     bool EyeAimConstraint::Apply(uint32_t actorFormId, RE::NiAVObject* bone, float yawDeg,
-                                 float pitchDeg) noexcept
+                                 float pitchDeg, RE::NiAVObject* rigRoot) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
         if (!bone)
@@ -181,7 +205,7 @@ namespace TrueGaze::Engine
             return true;
         }
 
-        TouchedBone* slot = FindOrCreate(actorFormId, bone);
+        TouchedBone* slot = FindOrCreate(actorFormId, bone, rigRoot);
         if (!slot)
         {
             return false; // capacity exhausted
@@ -200,6 +224,7 @@ namespace TrueGaze::Engine
         (void)bone;
         (void)yawDeg;
         (void)pitchDeg;
+        (void)rigRoot;
         return false;
 #endif
     }
@@ -209,7 +234,6 @@ namespace TrueGaze::Engine
 #if __has_include(<RE/Skyrim.h>)
         auto* form = RE::TESForm::LookupByID(actorFormId);
         auto* actor = form ? form->As<RE::Actor>() : nullptr;
-        auto* root = actor ? actor->Get3D() : nullptr;
 
         uint32_t write = 0;
         for (uint32_t read = 0; read < g_touchedCount; ++read)
@@ -217,7 +241,8 @@ namespace TrueGaze::Engine
             TouchedBone& slot = g_touched[read];
             if (slot.active && slot.actorFormId == actorFormId)
             {
-                if (slot.bone && root)
+                // Audit F-06b: only write through `bone` if its rig is still live.
+                if (slot.bone && RigStillLive(actor, slot))
                 {
                     slot.bone->local.rotate = slot.originalRotate;
                     RefreshWorldTransform(slot.bone);
@@ -225,6 +250,7 @@ namespace TrueGaze::Engine
                 slot.active = false;
                 slot.actorFormId = 0;
                 slot.bone = nullptr;
+                slot.root = nullptr;
                 continue;
             }
 
@@ -253,7 +279,8 @@ namespace TrueGaze::Engine
             {
                 auto* form = RE::TESForm::LookupByID(slot.actorFormId);
                 auto* actor = form ? form->As<RE::Actor>() : nullptr;
-                if (actor && actor->Get3D())
+                // Audit F-06b: only write through `bone` if its rig is still live.
+                if (RigStillLive(actor, slot))
                 {
                     slot.bone->local.rotate = slot.originalRotate;
                     RefreshWorldTransform(slot.bone);
@@ -262,6 +289,7 @@ namespace TrueGaze::Engine
             slot.active = false;
             slot.actorFormId = 0;
             slot.bone = nullptr;
+            slot.root = nullptr;
         }
 
         g_touchedCount = 0;
@@ -278,6 +306,7 @@ namespace TrueGaze::Engine
             g_touched[i].active = false;
             g_touched[i].actorFormId = 0;
             g_touched[i].bone = nullptr;
+            g_touched[i].root = nullptr;
         }
 
         g_touchedCount = 0;

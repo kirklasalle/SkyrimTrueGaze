@@ -6,10 +6,13 @@
 .DESCRIPTION
     Mirrors .github/workflows/build-test.yml locally:
       1. Configure the standalone preset (windows-release).
-      2. Build it.
-      3. Run ctest (KinematicsTests, ValidationTests, HcepBridgeClientMock).
+      2. Build it (fails on MSVC warning C5102 - audit 2026-10-15 F-01).
+      3. Run ctest (KinematicsTests, ValidationTests, GeometryTests, TraceTests,
+         HcepBridgeClientMock).
       4. Verify charter manifest integrity (config/charter_manifest.json).
-      5. Doc-consistency spot check (version strings across key docs).
+      5. Doc-consistency spot check (version strings across key docs; the
+         expected version is read from project(VERSION) in CMakeLists.txt).
+      6. Configurator parity (HTML DEFAULTS vs shipped INI).
 
     Exits non-zero on the first failing stage. Use -SkipConfigure to reuse an
     existing build tree.
@@ -47,26 +50,39 @@ try {
 
     # ---- Stage 1: Configure ------------------------------------------------
     if (-not $SkipConfigure) {
-        Write-Host "[1/5] Configure ($configurePreset)..." -ForegroundColor Yellow
+        Write-Host "[1/6] Configure ($configurePreset)..." -ForegroundColor Yellow
         cmake --preset $configurePreset
         if ($LASTEXITCODE -ne 0) { throw "Configure failed (exit $LASTEXITCODE)." }
     }
     else {
-        Write-Host '[1/5] Configure skipped (-SkipConfigure).' -ForegroundColor DarkGray
+        Write-Host '[1/6] Configure skipped (-SkipConfigure).' -ForegroundColor DarkGray
     }
 
     # ---- Stage 2: Build ----------------------------------------------------
-    Write-Host "[2/5] Build ($buildPreset)..." -ForegroundColor Yellow
-    cmake --build --preset $buildPreset
-    if ($LASTEXITCODE -ne 0) { throw "Build failed (exit $LASTEXITCODE)." }
+    Write-Host "[2/6] Build ($buildPreset)..." -ForegroundColor Yellow
+    # MSBuild reports compiler warnings on stdout, so no 2>&1 is needed (and under
+    # Windows PowerShell 5.1 with ErrorActionPreference=Stop it would turn any
+    # native stderr line into a terminating error).
+    cmake --build --preset $buildPreset | Tee-Object -Variable buildLog | Out-Host
+    $buildExit = $LASTEXITCODE
+    if ($buildExit -ne 0) { throw "Build failed (exit $buildExit)." }
+
+    # Audit 2026-10-15 F-01: warning C5102 ("ignoring invalid command-line macro
+    # definition") is how NDEBUG silently survived truegaze_force_asserts() and
+    # compiled every test assert out. It must never be tolerated again.
+    $c5102 = @($buildLog | Where-Object { "$_" -match 'warning C5102' })
+    if ($c5102.Count -gt 0) {
+        $c5102 | Select-Object -First 3 | ForEach-Object { Write-Warning "      $_" }
+        throw "Build emitted warning C5102 ($($c5102.Count)x): a test target's assert() may be compiled out."
+    }
 
     # ---- Stage 3: Test -----------------------------------------------------
-    Write-Host "[3/5] Test ($testPreset)..." -ForegroundColor Yellow
+    Write-Host "[3/6] Test ($testPreset)..." -ForegroundColor Yellow
     ctest --preset $testPreset --output-on-failure
     if ($LASTEXITCODE -ne 0) { throw "Tests failed (exit $LASTEXITCODE)." }
 
     # ---- Stage 4: Charter manifest ----------------------------------------
-    Write-Host '[4/5] Charter manifest verify...' -ForegroundColor Yellow
+    Write-Host '[4/6] Charter manifest verify...' -ForegroundColor Yellow
     $charterPath = Join-Path $repoRoot 'config/charter_manifest.json'
     if (-not (Test-Path $charterPath)) {
         throw "Charter manifest missing: $charterPath"
@@ -81,20 +97,18 @@ try {
 
     # ---- Stage 5: Doc consistency -----------------------------------------
     Write-Host '[5/6] Doc consistency spot check...' -ForegroundColor Yellow
-    $vcpkgPath = Join-Path $repoRoot 'vcpkg.json'
-    $expectedVersion = '1.0.7'
-    if (Test-Path $vcpkgPath) {
-        try {
-            $vcpkgJson = Get-Content $vcpkgPath -Raw | ConvertFrom-Json
-            if ($vcpkgJson.'version-string') {
-                $expectedVersion = $vcpkgJson.'version-string'
-            }
-        } catch {}
-    }
+    # Audit 2026-10-15 F-07: the expected version comes from project(VERSION) in
+    # CMakeLists.txt - the same source the plugin binary is built from - instead
+    # of vcpkg.json with a stale hardcoded fallback. vcpkg.json is now CHECKED
+    # against it like every other document.
+    $expectedVersion = & (Join-Path $PSScriptRoot 'Get-TrueGazeVersion.ps1')
+    $escapedVersion = [regex]::Escape($expectedVersion)
     $checks = @(
-        @{ File = 'vcpkg.json'; Pattern = '"version-string"\s*:\s*"' + [regex]::Escape($expectedVersion) + '"' },
-        @{ File = 'README.md'; Pattern = [regex]::Escape($expectedVersion) },
-        @{ File = 'CHANGELOG.md'; Pattern = [regex]::Escape($expectedVersion) }
+        @{ File = 'vcpkg.json'; Pattern = '"version-string"\s*:\s*"' + $escapedVersion + '"' },
+        @{ File = 'README.md'; Pattern = $escapedVersion },
+        @{ File = 'CHANGELOG.md'; Pattern = $escapedVersion },
+        @{ File = 'PRD.md'; Pattern = '\*\*Version:\*\*\s*' + $escapedVersion },
+        @{ File = 'ROADMAP.md'; Pattern = '\*\*Current Milestone:\*\*\s*v' + $escapedVersion }
     )
     $docFailures = 0
     foreach ($check in $checks) {

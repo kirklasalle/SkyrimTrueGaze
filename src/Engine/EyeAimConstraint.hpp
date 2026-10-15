@@ -40,9 +40,14 @@ namespace TrueGaze::Engine
         static void BeginFrame() noexcept;
 
         /// @brief Rotates a bone by the given degrees, relative to its animated pose.
+        /// @param rigRoot The actor's live 3D root (actor->Get3D()) at apply time.
+        ///        Recorded by identity so a later restore can refuse to write
+        ///        through a bone whose rig has since been rebuilt (audit F-06b).
+        ///        nullptr keeps the legacy "actor has any 3D" check.
         /// @return false if the bone is null or the rotation could not be applied.
         static bool Apply(uint32_t actorFormId, RE::NiAVObject *bone,
-                          float yawDeg, float pitchDeg) noexcept;
+                          float yawDeg, float pitchDeg,
+                          RE::NiAVObject *rigRoot = nullptr) noexcept;
 
         /// Restore only one actor's procedural pose before Skyrim animates that
         /// actor again. Other actors must remain posed until their own updates.

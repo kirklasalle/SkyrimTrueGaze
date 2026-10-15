@@ -1,6 +1,10 @@
 # R14 E4.2 — CI gate: configure (standalone preset) → build → ctest.
 # Runs on every push/PR touching code or build config. Windows-only because the
 # plugin targets MSVC and the standalone harness compiles the same sources.
+#
+# Audit 2026-10-15 (F-01 / F-07): CI now runs scripts/Invoke-CiGate.ps1 — the
+# exact gate developers run locally — so CI also fails on warning C5102 (asserts
+# compiled out), version drift across docs, and configurator default drift.
 name: build-test
 
 on:
@@ -10,18 +14,36 @@ on:
             - "src/**"
             - "tests/**"
             - "include/**"
+            - "cmake/**"
+            - "scripts/Invoke-CiGate.ps1"
+            - "scripts/Get-TrueGazeVersion.ps1"
             - "CMakeLists.txt"
             - "CMakePresets.json"
             - "vcpkg.json"
+            - "README.md"
+            - "CHANGELOG.md"
+            - "PRD.md"
+            - "ROADMAP.md"
+            - "TrueGazeConfig.html"
+            - "skyrim/SKSE/Plugins/TrueGaze.ini"
             - ".github/workflows/build-test.yml"
     pull_request:
         paths:
             - "src/**"
             - "tests/**"
             - "include/**"
+            - "cmake/**"
+            - "scripts/Invoke-CiGate.ps1"
+            - "scripts/Get-TrueGazeVersion.ps1"
             - "CMakeLists.txt"
             - "CMakePresets.json"
             - "vcpkg.json"
+            - "README.md"
+            - "CHANGELOG.md"
+            - "PRD.md"
+            - "ROADMAP.md"
+            - "TrueGazeConfig.html"
+            - "skyrim/SKSE/Plugins/TrueGaze.ini"
             - ".github/workflows/build-test.yml"
 
 jobs:
@@ -39,11 +61,6 @@ jobs:
                       ~/.cache/vcpkg/archives
                   key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
 
-            - name: Configure (standalone preset)
-              run: cmake --preset standalone
-
-            - name: Build
-              run: cmake --build --preset standalone
-
-            - name: Test (ctest)
-              run: ctest --preset standalone --output-on-failure
+            - name: CI gate (configure, build, ctest, charter, docs, parity)
+              shell: pwsh
+              run: ./scripts/Invoke-CiGate.ps1 -Preset standalone

@@ -1,4 +1,5 @@
 #include "GazeEngine.hpp"
+#include "ApiTelemetryCache.hpp"
 #include "BoneController.hpp"
 #include "ConfigManager.hpp"
 #include "EyeAimConstraint.hpp"
@@ -472,6 +473,7 @@ namespace TrueGaze::Engine
         EyeAimConstraint::Reset();
         Visuals::VisualEffectsManager::Get().Reset();
         _actors.clear();
+        API::Internal::ClearTelemetry(); // audit F-03: API snapshot + queued overrides
         logger::info("[TrueGaze] Actor gaze state cleared.");
     }
 
@@ -549,6 +551,9 @@ namespace TrueGaze::Engine
                 // The visual emitters are attached to the skeleton, so they must be
                 // detached here too or they would outlive the actor they annotate.
                 Visuals::VisualEffectsManager::Get().RemoveActor(it->first);
+                // Audit F-03: drop the thread-safe API snapshot and any queued
+                // override so external callers see "unknown", not a frozen state.
+                API::Internal::ForgetActor(it->first);
                 it = _actors.erase(it);
             }
             else
@@ -678,6 +683,20 @@ namespace TrueGaze::Engine
             // draw by cadenceScale); the engine no longer stomps this value
             // every frame — that stomp defeated the calm cadence lever.
             state.triangle.fixationDurationSec = _tuning.triangleFixationDuration;
+        }
+
+        // Audit F-03: apply a TrueGaze_OverrideActorMode() request. The exported API
+        // may be called from any thread, so it only queues the request; the game
+        // thread applies it here, before the cognitive-state block reads it.
+        {
+            uint8_t overrideMode = 0;
+            float overrideSec = 0.0f;
+            if (API::Internal::TakePendingModeOverride(formId, overrideMode, overrideSec))
+            {
+                state.hcepMode = overrideMode;
+                state.modeOverrideTimerSec = overrideSec;
+                state.hasModeOverride = true;
+            }
         }
 
         // Ensure skeleton bones are resolved and cached on the actor's 3D rig BEFORE
@@ -2083,21 +2102,26 @@ namespace TrueGaze::Engine
         state.headChainYieldAlpha += (targetYieldAlpha - state.headChainYieldAlpha) * yieldBlendAlpha;
         const float headWeight = 1.0f - state.headChainYieldAlpha;
 
+        // Audit F-06b: the rig root the bones are posed under, recorded by identity
+        // so the next restore can refuse to write through a rebuilt skeleton.
+        RE::NiAVObject* const rigRoot = actor->Get3D();
+
         if (!isPlayer && spine && headWeight > 0.001f)
         {
-            EyeAimConstraint::Apply(actor->GetFormID(), spine, strain.spineYaw * headWeight, 0.0f);
+            EyeAimConstraint::Apply(actor->GetFormID(), spine, strain.spineYaw * headWeight, 0.0f,
+                                    rigRoot);
         }
 
         if (allowHeadtrack && neck && headWeight > 0.001f)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), neck, strain.neckYaw * headWeight,
-                                    strain.neckPitch * headWeight);
+                                    strain.neckPitch * headWeight, rigRoot);
         }
 
         if (allowHeadtrack && head && headWeight > 0.001f)
         {
             EyeAimConstraint::Apply(actor->GetFormID(), head, strain.headYaw * headWeight,
-                                    strain.headPitch * headWeight);
+                                    strain.headPitch * headWeight, rigRoot);
         }
 
         // Eyes receive the low-inertia ballistic VOR counter-rotation and micro-jitter.
@@ -2115,12 +2139,12 @@ namespace TrueGaze::Engine
 
         if (eyeL)
         {
-            EyeAimConstraint::Apply(actor->GetFormID(), eyeL, leftEyeYaw, eyePitch);
+            EyeAimConstraint::Apply(actor->GetFormID(), eyeL, leftEyeYaw, eyePitch, rigRoot);
         }
 
         if (eyeR)
         {
-            EyeAimConstraint::Apply(actor->GetFormID(), eyeR, rightEyeYaw, eyePitch);
+            EyeAimConstraint::Apply(actor->GetFormID(), eyeR, rightEyeYaw, eyePitch, rigRoot);
         }
 
         // Eyelid morph writes and biological eye-direction morphs (EFA / EFM / Vanilla).
@@ -2163,6 +2187,22 @@ namespace TrueGaze::Engine
     {
         Integrations::OarConditions::PublishActorState(actor->GetFormID(), state.hcepMode,
                                                        state.gazeRegion, state.mutualGazeHoldSec);
+
+        // Audit F-03: thread-safe snapshot for the exported C API (TrueGazeAPI.h).
+        // The LOD tier is computed here, on the game thread, because it needs the
+        // actor's position.
+        {
+            API::Internal::TelemetrySnapshot snap{};
+            snap.targetFormId = state.trackedTargetFormId;
+            snap.gazePitchDeg = state.lastPitchDeg;
+            snap.gazeYawDeg = state.lastYawDeg;
+            snap.mutualGazeDurationSec = state.mutualGazeHoldSec;
+            snap.hcepMode = state.hcepMode;
+            snap.gazeRegion = state.gazeRegion;
+            snap.isBlinking = state.blink.isBlinking;
+            snap.lodTier = static_cast<uint8_t>(LodManager::GetLodTier(DistanceMetersForTier(actor)));
+            API::Internal::PublishTelemetry(actor->GetFormID(), snap);
+        }
 
         if (_pipe.IsConnected())
         {

@@ -4,8 +4,8 @@
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
-**Current Milestone:** v1.0.7 — HCEP Floating Diagram Panel & Universal Actor Coverage
-**Last Updated:** October 2, 2026
+**Current Milestone:** v1.0.8 — OAR Conditions API V3, Biometric Privacy Hardening & Charter Realignment (audit 2026-10-15 remediation in `[Unreleased]`)
+**Last Updated:** October 15, 2026
 
 **Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)  
 **Current engineering plan:** [`docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md`](docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md)  

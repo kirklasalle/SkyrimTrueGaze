@@ -72,15 +72,24 @@ if(MSVC)
 endif()
 
 # Test executables must keep asserts LIVE. Raw assert() compiles out under
-# NDEBUG, so a Release-built test suite silently verifies nothing. Forcing the
-# Debug runtime + no NDEBUG on the test targets makes that failure impossible
-# (R14 E3.4). /RTC1 requires /Od (D8016), so optimization is disabled for the
-# Release-configured test binaries — correctness of the tests matters more
-# than their speed.
+# NDEBUG, so a Release-built test suite silently verifies nothing (R14 E3.4).
+#
+# AUDIT 2026-10-15 F-01: the previous helper passed "/DNDEBUG" through
+# target_compile_definitions, which takes macro NAMES. MSVC rejected the
+# resulting "-D/DNDEBUG" (warning C5102) and CMake's default NDEBUG stayed
+# defined, so every assert() in the Release-configured suites — the
+# configuration CI runs — was compiled out. The symptom was 16x C4189
+# "initialized but not referenced" warnings on variables used only in asserts.
+#
+# /UNDEBUG undefines NDEBUG for these targets only, after CMake's /DNDEBUG,
+# while keeping the normal Release runtime and optimisation. tests/TestSupport.hpp
+# makes a failed assert exit non-zero instead of opening a modal dialog.
 function(truegaze_force_asserts target)
-    target_compile_definitions(${target} PRIVATE $<$<CONFIG:Release>:_DEBUG> $<$<CONFIG:Release>:/DNDEBUG>)
-    target_compile_options(${target} PRIVATE $<$<CONFIG:Release>:/MDd>)
-    target_compile_options(${target} PRIVATE $<$<CONFIG:Release>:/Od /RTC1>)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE $<$<NOT:$<CONFIG:Debug>>:/UNDEBUG>)
+    else()
+        target_compile_options(${target} PRIVATE $<$<NOT:$<CONFIG:Debug>>:-UNDEBUG>)
+    endif()
 endfunction()
 
 # ---------------------------------------------------------------------------
@@ -223,8 +232,17 @@ endforeach()
 
 add_library(${PROJECT_NAME} SHARED ${TRUEGAZE_SOURCES})
 
+# AUDIT 2026-10-15 F-07 — single-source the version. project(VERSION) above is
+# the only place the number is written; Main.cpp (SKSEPluginInfo, log lines) and
+# TrueGaze_GetVersion() read the generated header.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/TrueGazeVersion.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/TrueGazeVersion.h"
+    @ONLY)
+
 target_include_directories(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated"
     # Vendored OAR Conditions API (GPL-3.0 + Modding Exception; see NOTICE.md there).
     "${CMAKE_CURRENT_SOURCE_DIR}/extern/OpenAnimationReplacer-API")
 

@@ -15,6 +15,8 @@
 // TRUEGAZE_STANDALONE mode and runs under CTest.
 // ---------------------------------------------------------------------------
 
+#include "TestSupport.hpp"
+
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -22,6 +24,7 @@
 #include <random>
 
 #include "../src/Bridge/TelemetryPacket.h"
+#include "../src/Engine/ConfigParse.hpp"
 
 namespace
 {
@@ -262,6 +265,55 @@ namespace
         std::cout << "  -> CRC position invariants hold.\n";
     }
 
+    /// Audit 2026-10-15 F-04: INI float parsing must never let a non-finite
+    /// value through (NaN slips past every Sanitise() range comparison).
+    void TestConfigFloatParsing()
+    {
+        std::cout << "[TEST] INI float parsing rejects non-finite values (F-04)...\n";
+        using TrueGaze::Engine::ConfigParse::FloatParse;
+        using TrueGaze::Engine::ConfigParse::TryParseFiniteFloat;
+
+        const char* nonFinite[] = {"nan", "NaN", "-nan", "inf", "-inf", "INF",
+                                   "infinity", "1e39", "-1e39", "nan(ind)"};
+        for (const char* text : nonFinite)
+        {
+            float out = 42.0f;
+            CHECK(TryParseFiniteFloat(text, out) == FloatParse::NonFinite,
+                  "non-finite INI value accepted: " << text);
+            CHECK(out == 42.0f, "output modified on rejection: " << text);
+        }
+
+        const char* empty[] = {"", "   ", "abc", "true", "--1"};
+        for (const char* text : empty)
+        {
+            float out = 7.0f;
+            CHECK(TryParseFiniteFloat(text, out) == FloatParse::Empty,
+                  "garbage INI value not reported as Empty: '" << text << "'");
+            CHECK(out == 7.0f, "output modified on Empty: '" << text << "'");
+        }
+        {
+            float out = 7.0f;
+            CHECK(TryParseFiniteFloat(nullptr, out) == FloatParse::Empty, "nullptr not Empty");
+        }
+
+        struct Good
+        {
+            const char* text;
+            float expected;
+        };
+        const Good good[] = {{"1.5", 1.5f},        {"  0.25", 0.25f}, {"-10", -10.0f},
+                             {"3.0 ; comment", 3.0f}, {"1e3", 1000.0f}, {"0", 0.0f}};
+        for (const auto& g : good)
+        {
+            float out = -999.0f;
+            CHECK(TryParseFiniteFloat(g.text, out) == FloatParse::Ok,
+                  "valid INI value rejected: " << g.text);
+            CHECK(std::fabs(out - g.expected) < 1e-6f, "valid INI value misparsed: " << g.text);
+        }
+
+        std::cout << "  -> non-finite rejected, garbage Empty, valid values parsed.\n";
+    }
+
 } // namespace
 
 int main()
@@ -274,6 +326,7 @@ int main()
     TestValidPacketsAccepted();
     TestFuzzLite();
     TestCrcFieldPosition();
+    TestConfigFloatParsing();
 
     std::cout << "\nChecks: " << g_checks << ", failures: " << g_failures << "\n";
     if (g_failures > 0)

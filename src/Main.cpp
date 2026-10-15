@@ -5,6 +5,7 @@
 #include "Integrations/ConsoleCommands.hpp"
 #include "Integrations/OarConditions.hpp"
 #include "PCH.h"
+#include "TrueGazeVersion.h" // generated from project(VERSION) - audit F-07
 
 #if __has_include(<SKSE/SKSE.h>)
 #include <RE/Skyrim.h>
@@ -85,7 +86,8 @@ namespace
             if (f)
             {
                 fprintf(f,
-                        "[TrueGaze] True Gaze v1.0.8 (An HCEP Product by Kirk LaSalle) loaded.\n");
+                        "[TrueGaze] True Gaze v" TRUEGAZE_VERSION_STRING
+                        " (An HCEP Product by Kirk LaSalle) loaded.\n");
                 fprintf(f, "[TrueGaze] Biomechanical Oculomotor Kinematics Engine initialized.\n");
                 fprintf(f, "[TrueGaze] Target engine: Skyrim Special Edition / AE.\n");
                 fclose(f);
@@ -146,7 +148,8 @@ namespace
 #if __has_include(<SKSE/SKSE.h>)
         // Plugin build identity. __DATE__/__TIME__ pin the exact binary that ran,
         // which is the cheapest defence against the stale-DLL class of confusion.
-        logger::info("[TrueGaze] Runtime identity: plugin v1.0.8 build {} {}", __DATE__, __TIME__);
+        logger::info("[TrueGaze] Runtime identity: plugin v" TRUEGAZE_VERSION_STRING " build {} {}",
+                     __DATE__, __TIME__);
 
         // Game runtime version, formatted as the human-readable dotted string the
         // Address Library and SKSE filenames are derived from.
@@ -290,7 +293,10 @@ namespace
 // declaration, and clang-format cannot tell where the statement ends without
 // it, so it indents the following function as if it were still part of the
 // macro arguments. An empty declaration at namespace scope is legal C++.
-SKSEPluginInfo(.Version = SKSE::PluginDeclaration::VersionNumber{1, 0, 8, 0}, .Name = "TrueGaze",
+SKSEPluginInfo(.Version = SKSE::PluginDeclaration::VersionNumber{TRUEGAZE_VERSION_MAJOR,
+                                                                  TRUEGAZE_VERSION_MINOR,
+                                                                  TRUEGAZE_VERSION_PATCH, 0},
+               .Name = "TrueGaze",
                .Author = "Kirk LaSalle (HCEP)", .SupportEmail = "",
                .StructCompatibility = SKSE::StructCompatibility::Independent,
                .RuntimeCompatibility = SKSE::PluginDeclaration::RuntimeCompatibility(
@@ -314,7 +320,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
         spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
     }
 
-    logger::info("[TrueGaze] Loading True Gaze v1.0.8 (An HCEP Product by Kirk LaSalle)...");
+    logger::info("[TrueGaze] Loading True Gaze v" TRUEGAZE_VERSION_STRING
+                 " (An HCEP Product by Kirk LaSalle)...");
 
     // Explicit InitInfo (Gold Standard fix): log=false makes API::InitLog a
     // no-op — it will NOT open/re-truncate TrueGaze.log and will NOT replace

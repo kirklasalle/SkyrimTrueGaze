@@ -1,7 +1,9 @@
 #Requires -Version 5.1
 # Package-Release.ps1 — builds the release packages for TrueGaze
 param(
-    [string]$Version = "1.0.5"
+    # Audit 2026-10-15 F-07: defaults to project(VERSION) in CMakeLists.txt
+    # (previously a hardcoded, stale "1.0.5").
+    [string]$Version = (& (Join-Path $PSScriptRoot 'Get-TrueGazeVersion.ps1'))
 )
 
 Set-StrictMode -Version Latest

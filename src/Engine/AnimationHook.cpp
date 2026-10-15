@@ -79,13 +79,68 @@ namespace TrueGaze::Engine
 
         static inline std::atomic<uint32_t> s_mainThreadId{0};
 
+        // ---------------------------------------------------------------------
+        // AUDIT 2026-10-15 F-05 — SEH filter scope + circuit breaker.
+        //
+        // The original filter returned EXCEPTION_EXECUTE_HANDLER for EVERY code,
+        // including STATUS_STACK_OVERFLOW (whose guard page is not re-armed by
+        // __except, so the next overflow kills the process with no report),
+        // heap-corruption and breakpoint exceptions — hiding exactly the faults a
+        // crash logger exists to capture. And a deterministic fault would repeat
+        // every frame forever, abandoning the frame each time.
+        //
+        // Now: only data faults raised inside TrueGaze's own frame body are
+        // handled; everything else continues the search (game / crash logger).
+        // After kSehTripThreshold handled faults the breaker trips and gaze is
+        // disabled for the rest of the session.
+        // ---------------------------------------------------------------------
+        constexpr uint32_t kSehTripThreshold = 3;
+        constexpr unsigned int kMsvcCppExceptionCode = 0xE06D7363; // 'msc' C++ throw
+        static inline std::atomic<uint32_t> s_handledSehFaults{0};
+        static inline std::atomic<bool> s_sehBreakerTripped{false};
+
+        [[nodiscard]] bool IsRecoverableSehCode(unsigned int code) noexcept
+        {
+            switch (code)
+            {
+            case EXCEPTION_ACCESS_VIOLATION:
+            case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+            case EXCEPTION_INT_DIVIDE_BY_ZERO:
+            case EXCEPTION_INT_OVERFLOW:
+            case kMsvcCppExceptionCode: // a C++ throw escaping our code: same class as before
+                return true;
+            default:
+                return false;
+            }
+        }
+
         /// SEH fault reporter (Gold Standard, 2026-09-26). Called from the
         /// __except filter in RunGazeFrameSeh. Returns EXCEPTION_EXECUTE_HANDLER
         /// so the frame is abandoned and the game survives; logs the fault code
         /// and the faulting address, which with the PDB localises the crash to
         /// the exact source line. Rate-limited like ReportTickFailure.
+        ///
+        /// Audit F-05: non-recoverable codes now return EXCEPTION_CONTINUE_SEARCH,
+        /// and each handled fault counts toward the circuit breaker.
         int ReportSehFault(unsigned int code, EXCEPTION_POINTERS* info) noexcept
         {
+            if (!IsRecoverableSehCode(code))
+            {
+                // Do not log on a stack overflow: the filter runs on the
+                // exhausted stack and must touch as little as possible.
+                if (code != EXCEPTION_STACK_OVERFLOW)
+                {
+                    static std::atomic<uint32_t> s_passReports{0};
+                    if (s_passReports.fetch_add(1, std::memory_order_relaxed) < 3)
+                    {
+                        logger::critical("[TrueGaze] SEH exception 0x{:08X} is not a recoverable "
+                                         "data fault; passing it to the game's handler.",
+                                         code);
+                    }
+                }
+                return EXCEPTION_CONTINUE_SEARCH;
+            }
+
             static std::atomic<uint64_t> s_faultReports{0};
             const auto report = s_faultReports.fetch_add(1, std::memory_order_relaxed);
             if (report < 5)
@@ -98,7 +153,37 @@ namespace TrueGaze::Engine
                     "Fault #{} — address + PDB localises the line.",
                     code, fmt::ptr(addr), report + 1);
             }
+
+            const auto handled = s_handledSehFaults.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (handled >= kSehTripThreshold)
+            {
+                s_sehBreakerTripped.store(true, std::memory_order_relaxed);
+            }
             return EXCEPTION_EXECUTE_HANDLER;
+        }
+
+        /// Audit F-05: runs once, on the game thread, the first frame after the
+        /// breaker trips. Deliberately minimal: EyeAimConstraint::Reset() forgets
+        /// touched bones WITHOUT dereferencing them (the faults may have come from
+        /// exactly those pointers), then the user is told once.
+        void HandleSehBreakerTripped() noexcept
+        {
+            static bool s_handled = false;
+            if (s_handled)
+            {
+                return;
+            }
+            s_handled = true;
+
+            EyeAimConstraint::Reset();
+            logger::critical(
+                "[TrueGaze] {} internal faults handled this session; TrueGaze has disabled "
+                "itself until the game is restarted so it cannot destabilise the game. "
+                "Please report this log (fault addresses above) to the author.",
+                s_handledSehFaults.load(std::memory_order_relaxed));
+            RE::SendHUDMessage::ShowHUDMessage(
+                "[TrueGaze] Disabled for this session after repeated internal faults. "
+                "See TrueGaze.log.");
         }
 
         /// The TrueGaze-owned frame body, extracted so it can be wrapped in a
@@ -243,6 +328,13 @@ namespace TrueGaze::Engine
                 // (C++ exceptions AND SEH access violations; see RunGazeFrameSeh).
                 if constexpr (std::is_same_v<Tag, PlayerTag>)
                 {
+                    // Audit F-05: once the SEH circuit breaker has tripped, TrueGaze
+                    // stays out of the frame entirely for the rest of the session.
+                    if (s_sehBreakerTripped.load(std::memory_order_relaxed))
+                    {
+                        HandleSehBreakerTripped();
+                        return;
+                    }
                     RunGazeFrameSeh(a_actor, a_delta);
                     return;
                 }
@@ -326,6 +418,12 @@ namespace TrueGaze::Engine
             const auto count = list.size();
             for (uint32_t i = 0; i < count && i < list.size(); ++i)
             {
+                // Audit F-05: stop ticking the moment the breaker trips mid-frame.
+                if (s_sehBreakerTripped.load(std::memory_order_relaxed))
+                {
+                    return;
+                }
+
                 auto& handle = list[i];
                 auto actorPtr = handle.get();
                 if (!actorPtr)

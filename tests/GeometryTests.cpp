@@ -4,6 +4,8 @@
 // eyeball-sized arrow scales, base placement, convergence, ray-plane
 // intersection, angle<->panel projection round-trip, and classifier parity.
 
+#include "TestSupport.hpp"
+
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -297,7 +299,10 @@ namespace
 
             assert(res.hit);
             assert(res.hitRegion == c.expectedRegion);
-            assert(res.agreement);
+            // Agreement: the angular classifier and the physical panel hit concur.
+            // (PanelHitResult has no `agreement` member; this previously compiled
+            //  only because NDEBUG erased the assert — audit 2026-10-15 F-02.)
+            assert(res.hitRegion == classified);
         }
 
         std::cout << "  -> passed (11/11 calibration regions verified with 100% agreement).\n";

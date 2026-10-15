@@ -53,7 +53,8 @@ if (!(Test-Path $distDir)) {
 }
 
 # 4. Generate release archives
-$version = "1.0.5"
+# Audit 2026-10-15 F-07: single source of truth (was a stale hardcoded "1.0.5").
+$version = & (Join-Path $PSScriptRoot 'Get-TrueGazeVersion.ps1')
 $archiveName = "TrueGaze-v$version-SkyrimSE-AE-VR.zip"
 $archivePath = Join-Path $distDir $archiveName
 $symbolsName = "TrueGaze-v$version-Symbols.zip"

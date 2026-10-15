@@ -354,7 +354,14 @@ namespace TrueGaze::Engine
             }
 
             // Gather all active hostile combatants within combat engagement range (20m)
-            std::vector<RE::Actor*> hostiles;
+            //
+            // Audit 2026-10-15 F-10: this ran per actor per frame in combat and
+            // heap-allocated a fresh vector each time. Target selection runs only on
+            // the game thread (TickActor) and is not re-entrant, so one reused
+            // buffer is safe; clear() keeps its capacity.
+            static std::vector<RE::Actor*> s_hostilesScratch;
+            s_hostilesScratch.clear();
+            auto& hostiles = s_hostilesScratch;
             if (primaryTarget)
             {
                 hostiles.push_back(primaryTarget);

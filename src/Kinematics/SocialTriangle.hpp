@@ -141,6 +141,11 @@ namespace TrueGaze::Kinematics
         /// distribution (parity contract).
         ///
         /// @param weights Per-vertex weights indexed by Vertex (0..8), all 1.0 = neutral.
+        ///
+        /// @note (Audit 2026-10-15, F-02) Only the five conversational candidates
+        ///       below are selectable, so weights for the peripheral regions
+        ///       (indices 5..8, e.g. a shy NPC's LowerRight) are currently inert in
+        ///       this path; peripheral visits come from CGA / THINK mode instead.
         static Vertex NextWeightedVertex(TriangleState &state, Vertex current,
                                          const float *weights /*[9]*/) noexcept
         {
@@ -177,7 +182,10 @@ namespace TrueGaze::Kinematics
                                     kCandidates[i] == Vertex::RightEye);
                 const float eyeBias = isEye ? 4.0f : 1.0f;
 
-                w[i] = base * eyeBias * std::max(0.01f, weights[i]);
+                // Index by the Vertex enum value (weights[] is laid out per Vertex),
+                // not by candidate position, so reordering kCandidates stays safe.
+                const float profileWeight = weights[static_cast<int>(kCandidates[i])];
+                w[i] = base * eyeBias * std::max(0.01f, profileWeight);
                 total += w[i];
             }
 

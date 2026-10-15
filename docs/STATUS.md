@@ -265,7 +265,7 @@ The project status breaks down into three distinct tiers (percentages sum to 100
 | Target salience resolution | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Continuous multi-criteria salience scoring across 21,900+ logged cycles)** |
 | Spatial LOD tiering (Tier 0 $\to$ Tier 3) | ✅ | ✅ | ✅ | 🔨 Running in code; distance degradation active |
 | LOD thresholds read from config | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Loaded from `TrueGaze.ini`)** |
-| Frame-budget profiling (< 0.15 ms target) | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Sub-millisecond per-actor execution active; telemetry via `stgstatus`)** |
+| Frame-budget profiling (< 0.15 ms target) | ✅ | ✅ | ❌ | 🔨 **Instrumented, not yet benchmarked.** `PerformanceProfiler` records per-frame time and reports via `stgstatus`; no benchmark artifact yet shows the < 0.15 ms target is met. The warn threshold is 10× budget. *(Corrected by audit 2026-10-15; previously "Verified in-engine".)* |
 | Exception guard at hook boundary | ✅ | ✅ | ❌ | ✅ **Verified in-engine (Prevents CTDs on game thread)** |
 | **Multi-threaded SIMD evaluation** | ✅ | ❌ | ❌ | ❌ **Unimplemented (Priority Implementation)** |
 | Skyrim VR Multi-Targeting & HMD pose | ✅ | ✅ | ❌ | ✅ **Verified in-engine (`BUILD_SKYRIM_VR=ON`, Address Library CSV, slot 0xAF)** |

@@ -6,6 +6,8 @@
 #endif
 #include <windows.h>
 
+#include "TestSupport.hpp"
+
 #include <cassert>
 #include <chrono>
 #include <cstdint>

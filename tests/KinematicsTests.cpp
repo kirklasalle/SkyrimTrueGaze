@@ -1,3 +1,5 @@
+#include "TestSupport.hpp"
+
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -743,17 +745,37 @@ namespace
             const float neutral[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
             float counts[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
             constexpr int kSamples = 20000;
+            // Chain the walk (current = previous pick) exactly as
+            // SocialTriangle::UpdateWeighted does at runtime, so the counts reflect
+            // the steady-state distribution rather than a fixed starting vertex.
+            auto cur = TrueGaze::Kinematics::SocialTriangle::Vertex::LeftEye;
             for (int i = 0; i < kSamples; ++i)
             {
-                auto v = TrueGaze::Kinematics::SocialTriangle::NextWeightedVertex(
-                    st, TrueGaze::Kinematics::SocialTriangle::Vertex::LeftEye, neutral);
+                auto v = TrueGaze::Kinematics::SocialTriangle::NextWeightedVertex(st, cur, neutral);
                 counts[static_cast<int>(v)] += 1.0f;
+                cur = v;
             }
-            // Neutral weights: every vertex reachable, none dominant.
-            for (int i = 0; i < 9; ++i)
+            // Neutral weights (current design, audit 2026-10-15 F-02):
+            //  - peripheral aversion regions (indices 5..8) are reserved for
+            //    CGA / THINK mode and are never chosen conversationally;
+            //  - all five conversational candidates remain reachable;
+            //  - EYE-LOCK BIAS: the two eyes together take the majority, and
+            //    each eye individually out-draws every non-eye candidate.
+            for (int i = 5; i < 9; ++i)
+            {
+                assert(counts[i] == 0.0f);
+            }
+            for (int i = 0; i < 5; ++i)
             {
                 assert(counts[i] > 0.0f);
-                assert(counts[i] < static_cast<float>(kSamples) * 0.25f);
+            }
+            assert(counts[0] + counts[1] > static_cast<float>(kSamples) * 0.50f);
+            for (int eye = 0; eye < 2; ++eye)
+            {
+                for (int other = 2; other < 5; ++other)
+                {
+                    assert(counts[eye] > counts[other]);
+                }
             }
 
             // Heavy Chest weight: Chest draws the plurality.

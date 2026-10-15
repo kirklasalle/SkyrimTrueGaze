@@ -283,7 +283,10 @@ namespace TrueGaze::Bridge
             HANDLE hPipe = CreateNamedPipeA(
                 _pipeName.c_str(),
                 PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_OVERLAPPED,
-                PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
+                // Audit 2026-10-15 F-08: PIPE_REJECT_REMOTE_CLIENTS (a pipe-MODE flag,
+                // Vista+) makes the kernel refuse network (SMB) clients outright.
+                // The user-only DACL above limits who; this limits where from.
+                PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
                 1,    // max instances
                 4096, // out buffer
                 4096, // in buffer

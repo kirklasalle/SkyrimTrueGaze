@@ -10,6 +10,12 @@
 
 /// @brief Public C/C++ API for Kirk LaSalle's TrueGaze™ Biomechanical Engine.
 /// Third-party SKSE mod authors can include this header to interface directly with TrueGaze.
+///
+/// THREADING (audit 2026-10-15 F-03): every function below is safe to call from
+/// any thread. Telemetry is a snapshot the game thread publishes once per actor
+/// tick (so it may lag the live pose by up to one frame), and an actor that has
+/// not been ticked for ~2 s reports as unavailable. Mode overrides are queued and
+/// applied by the game thread on the actor's next tick.
 namespace TrueGaze::API
 {
 
@@ -41,18 +47,24 @@ namespace TrueGaze::API
     };
 #pragma pack(pop)
 
-    /// @brief Returns the version integer (e.g. 0x01000000 -> v1.0.0).
+    /// @brief Returns the packed plugin version 0xMMmmpp00 (e.g. 0x01000800 -> v1.0.8).
     TRUEGAZE_API uint32_t TrueGaze_GetVersion() noexcept;
 
     /// @brief Returns whether TrueGaze is connected to the HCEP Desktop perception platform.
     TRUEGAZE_API bool TrueGaze_IsHcepConnected() noexcept;
 
     /// @brief Fetches real-time gaze telemetry for an actor in the game world.
+    /// @return false if the actor is not currently processed by TrueGaze (out of
+    ///         range, culled, evicted) or @p outTelemetry is null.
     TRUEGAZE_API bool TrueGaze_GetActorGaze(uint32_t actorFormId,
                                             ActorGazeTelemetry* outTelemetry) noexcept;
 
     /// @brief Overrides an actor's cognitive mode (e.g., forcing THINK mode during specific
     /// dialogue scenes).
+    /// The request is ignored if the actor is not currently processed by TrueGaze or
+    /// @p mode is out of range. @p durationSec <= 0 (or non-finite) means 5 seconds.
+    /// Applied on the actor's next game-thread tick; a newer call replaces an older
+    /// request that has not yet been applied.
     TRUEGAZE_API void TrueGaze_OverrideActorMode(uint32_t actorFormId, HcepCognitiveMode mode,
                                                  float durationSec) noexcept;
 

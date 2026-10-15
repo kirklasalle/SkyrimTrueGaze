@@ -7,6 +7,8 @@
 #include <windows.h>
 
 #include "ConfigManager.hpp"
+#include "ConfigParse.hpp"
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 
@@ -24,9 +26,24 @@ namespace TrueGaze::Engine
             snprintf(defStr, sizeof(defStr), "%f", defaultValue);
 
             GetPrivateProfileStringA(section, key, defStr, buf, sizeof(buf), path);
-            char* end = nullptr;
-            float val = std::strtof(buf, &end);
-            return (end != buf) ? val : defaultValue;
+            // AUDIT 2026-10-15 F-04: strtof happily parses "nan", "inf" and
+            // overflowing literals. NaN compares false against every bound, so it
+            // would sail through Sanitise() into the kinematics. Keep the compiled
+            // default instead and say why. (Parsing is unit-tested in
+            // tests/ValidationTests.cpp via ConfigParse.hpp.)
+            float val = defaultValue;
+            switch (ConfigParse::TryParseFiniteFloat(buf, val))
+            {
+            case ConfigParse::FloatParse::Ok:
+                return val;
+            case ConfigParse::FloatParse::NonFinite:
+                logger::warn("[TrueGaze] [{}] {} = '{}' is not a finite number; using default {:.3f}.",
+                             section, key, buf, defaultValue);
+                return defaultValue;
+            case ConfigParse::FloatParse::Empty:
+            default:
+                return defaultValue;
+            }
         }
 
         bool ReadBool(const char* section, const char* key, bool defaultValue,
@@ -295,6 +312,14 @@ namespace TrueGaze::Engine
         // clamping is reported so a user can see why their value was ignored.
         const auto clampReport = [](const char* name, float value, float lo, float hi) -> float
         {
+            // AUDIT 2026-10-15 F-04: NaN fails both comparisons below and used to be
+            // returned unchanged. ReadFloat now rejects non-finite INI values; this
+            // is the last line of defence for any other writer.
+            if (std::isnan(value))
+            {
+                logger::warn("[TrueGaze] {} is NaN; clamped to {:.3f}.", name, lo);
+                return lo;
+            }
             if (value < lo || value > hi)
             {
                 const float clamped = value < lo ? lo : hi;
