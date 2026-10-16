@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PCH.h"
+#include "Engine/TargetSelector.hpp"
 #include "Kinematics/SaccadeGenerator.hpp"
 #include "Kinematics/VorCoordinator.hpp"
 #include "Kinematics/MicroJitter.hpp"
@@ -35,6 +36,7 @@ namespace TrueGaze::Engine
         /// The salience target the current saccade was committed to. A change
         /// here is what triggers a new ballistic saccade.
         uint32_t trackedTargetFormId{0};
+        TargetSelector::TargetPriority lastTargetPriority{TargetSelector::TargetPriority::None};
 
         /// Continuous seconds of mutual eye contact with the player or another actor.
         float mutualGazeHoldSec{0.0f};
@@ -44,6 +46,15 @@ namespace TrueGaze::Engine
 
         /// Distance to the active target in Skyrim world units (70 units = 1 meter).
         float targetDistanceUnits{210.0f};
+        struct WorldFixation
+        {
+            float x{0.0f}, y{0.0f}, z{0.0f};
+        };
+        WorldFixation fixationWorld{};
+        bool fixationWorldValid{false};
+        float appliedEyeYawDeg{0.0f};
+        float appliedEyePitchDeg{0.0f};
+        float eyeAimErrorDeg{180.0f};
 
         /// Binocular vergence angle in degrees applied inward to each eye.
         float eyeVergenceYawDeg{0.0f};
@@ -123,26 +134,16 @@ namespace TrueGaze::Engine
         /// True when the actor was NOT in dialogue last frame (edge detection).
         bool wasNotInDialogue{true};
 
-        /// SCENE DEFER (vanilla direction yield). When the game's own AI has
-        /// assigned this NPC a headtrack target via scripted scene direction
-        /// (PackageStart scenes like the Helgen cart), TrueGaze yields and lets
-        /// vanilla direct the gaze — UNLESS the player is that directed target.
-        /// Vanilla scene direction is authoritative for its own staged moments;
-        /// TrueGaze takes hold only when free-roaming or when the player is the
-        /// scene's focus.
+        /// SCENE DEFER (vanilla head-chain yield). Scripted scene direction
+        /// remains authoritative for spine/neck/head posing, while TrueGaze still
+        /// aims the eyes at the directed actor's anatomical eyeline.
         bool sceneDeferActive{false};
 
-        /// DIALOGUE PLAYER HOLD (2026-09-26, "Ralof and Lokir still do not
-        /// target the main player during targeted dialogue"). The engine's
-        /// direction signal (headTrackTarget slots / dialogueItemTarget)
-        /// FLICKERS between frames mid-line — the log showed priority=4 (the
-        /// player) for one trace window, then priority=2 (a nearer NPC winning
-        /// the social scan) the next. Each dropout re-aimed the gaze away from
-        /// the player mid-sentence. While this timer counts down, the player
-        /// target is re-served at DialoguePartner priority even if the raw
-        /// direction signal drops out. Armed (3 s) whenever a direction slot
-        /// or the dialogue item resolves to the player; decays otherwise.
-        float dialoguePlayerHoldSec{0.0f};
+        /// Dialogue target latch. Skyrim's dialogue/head-track signals can flicker
+        /// between frames mid-line. Preserve the addressed actor through those
+        /// gaps so player and NPC conversations keep continuous eye contact.
+        uint32_t dialogueTargetHoldFormId{0};
+        float dialogueTargetHoldSec{0.0f};
 
         /// CHARACTER GAZE PROFILE (temperament-driven gaze). Cached per actor;
         /// recomputed only on refresh events (cell change, combat edge), never
@@ -209,6 +210,11 @@ namespace TrueGaze::Engine
             mutualGazeHoldSec = 0.0f;
             eyeContactHit = false;
             targetDistanceUnits = 210.0f;
+            fixationWorld = {};
+            fixationWorldValid = false;
+            appliedEyeYawDeg = 0.0f;
+            appliedEyePitchDeg = 0.0f;
+            eyeAimErrorDeg = 180.0f;
             eyeVergenceYawDeg = 0.0f;
             combatGlance = CombatGlanceType::None;
             combatGlanceTimerSec = 0.0f;
@@ -224,6 +230,7 @@ namespace TrueGaze::Engine
             lastPitchDeg = startPitch;
             eyeSaturated = false;
             trackedTargetFormId = 0;
+            lastTargetPriority = TargetSelector::TargetPriority::None;
             bonesReported = false;
             modeOverrideTimerSec = 0.0f;
             hasModeOverride = false;
@@ -234,6 +241,9 @@ namespace TrueGaze::Engine
             cgaActive = false;
             cgaDialogueReturnOffsetSec = 0.0f;
             wasNotInDialogue = true;
+            sceneDeferActive = false;
+            dialogueTargetHoldFormId = 0;
+            dialogueTargetHoldSec = 0.0f;
             lastClassifiedRegion = 0xFF;
             currentRegionDwellSec = 0.0f;
             wasInBallisticSaccade = false;

@@ -1,5 +1,6 @@
 #include "VisualEffectsManager.hpp"
 #include "GazeGeometry.hpp"
+#include "Engine/GazeAnchors.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/B/BSEffectShaderMaterial.h>
@@ -422,7 +423,7 @@ namespace TrueGaze::Visuals
         RE::NiPoint3 originLWorld{};
         RE::NiPoint3 originRWorld{};
         RE::NiPoint3 dirWorld{};
-        ResolvePupils(a_headBone, a_eyeL, a_eyeR, anchor, a_eyeYawDeg, a_eyePitchDeg, originLWorld,
+        ResolvePupils(a_actor, a_headBone, a_eyeL, a_eyeR, anchor, a_eyeYawDeg, a_eyePitchDeg, originLWorld,
                       originRWorld, dirWorld);
 
         auto it = _emitters.find(formId);
@@ -518,7 +519,7 @@ namespace TrueGaze::Visuals
         {
             // Terminus positioned along the line of sight from eye center
             const float focalDist = (a_targetDistanceUnits > 5.0f)
-                                        ? std::min(a_targetDistanceUnits, _tuning.LengthUnits())
+                                        ? a_targetDistanceUnits
                                         : _tuning.LengthUnits();
             const RE::NiPoint3 centerWorld = (originLWorld + originRWorld) * 0.5f;
             const RE::NiPoint3 terminusWorld{centerWorld.x + dirWorld.x * focalDist,
@@ -540,9 +541,9 @@ namespace TrueGaze::Visuals
             updateData.time = 0.0f;
             updateData.flags = RE::NiUpdateData::Flag::kDirty;
 
-            const float focalDistance = (a_targetDistanceUnits > 5.0f)
-                                            ? std::min(a_targetDistanceUnits, _tuning.LengthUnits())
-                                            : _tuning.LengthUnits();
+            const float focalDistance = ((a_targetDistanceUnits > 5.0f)
+                                            ? a_targetDistanceUnits
+                                            : _tuning.LengthUnits()) / anchor->world.scale;
 
             if (emitters.isMarkerArrow)
             {
@@ -550,9 +551,6 @@ namespace TrueGaze::Visuals
                 // set to the detected target focal distance (or configured reach) via
                 // uniform scale; widest cross-section is mapped to eyeball diameter
                 // via COLUMN scale on mesh-local X/Z.
-                const G::ArrowScales scales = G::ComputeMarkerArrowScales(
-                    focalDistance, _tuning.ArrowCrossSectionUnits());
-
                 // Binocular convergence: both arrows meet at the exact fixation point
                 // at the real target distance along the cyclopean gaze.
                 const G::Vec3 mid = toVec(emitters.eyeMidLocal);
@@ -566,6 +564,9 @@ namespace TrueGaze::Visuals
                     const G::Vec3 eyeDir =
                         G::ConvergedEyeDirection(toVec(a_pupil), mid, dirMid, focalDistance);
                     const RE::NiPoint3 eyeDirNi = toNi(eyeDir);
+                    const G::Vec3 fixation = mid + G::Normalized(dirMid) * focalDistance;
+                    const auto scales = G::ComputeMarkerArrowScales(
+                        G::Length(fixation - toVec(a_pupil)), _tuning.ArrowCrossSectionUnits());
 
                     RE::NiMatrix3 rot = AlignBeamOrientation(eyeDirNi, /*authoredAlongZ*/ false);
                     // FIX A1 (2026-10-03): scale COLUMNS 0 and 2 (mesh-local X and Z).
@@ -587,30 +588,23 @@ namespace TrueGaze::Visuals
             }
             else
             {
-                // Non-arrow meshes (GazeBeam.nif / soul-cairn fallback):
-                // uniform scale by focal reach, aligned with gaze.
-                const RE::NiMatrix3 beamRot =
-                    AlignBeamOrientation(localDir, emitters.usingFallbackMesh);
-                const float beamScale =
-                    emitters.usingFallbackMesh ? std::clamp(focalDistance / 35.0f, 0.5f, 4.0f)
-                                               : std::clamp(focalDistance / 70.0f, 0.1f, 10.0f);
-
-                if (emitters.geometryL)
-                {
-                    emitters.geometryL->local.translate = localPupilL;
-                    emitters.geometryL->local.rotate = beamRot;
-                    emitters.geometryL->local.scale = beamScale;
-                    emitters.geometryL->world = anchor->world * emitters.geometryL->local;
-                    emitters.geometryL->UpdateDownwardPass(updateData, 0);
-                }
-                if (emitters.geometryR)
-                {
-                    emitters.geometryR->local.translate = localPupilR;
-                    emitters.geometryR->local.rotate = beamRot;
-                    emitters.geometryR->local.scale = beamScale;
-                    emitters.geometryR->world = anchor->world * emitters.geometryR->local;
-                    emitters.geometryR->UpdateDownwardPass(updateData, 0);
-                }
+                const auto mid = toVec(emitters.eyeMidLocal);
+                const auto fixation = mid + G::Normalized(toVec(localDir)) * focalDistance;
+                const auto placeBeam = [&](RE::NiAVObject* geometry, const RE::NiPoint3& pupil) {
+                    if (!geometry)
+                        return;
+                    const auto delta = fixation - toVec(pupil);
+                    geometry->local.translate = pupil;
+                    geometry->local.rotate = AlignBeamOrientation(
+                        toNi(G::Normalized(delta)), emitters.usingFallbackMesh);
+                    geometry->local.scale = emitters.usingFallbackMesh
+                        ? std::clamp(G::Length(delta) / 35.0f, 0.5f, 4.0f)
+                        : std::clamp(G::Length(delta) / 70.0f, 0.1f, 10.0f);
+                    geometry->world = anchor->world * geometry->local;
+                    geometry->UpdateDownwardPass(updateData, 0);
+                };
+                placeBeam(emitters.geometryL.get(), localPupilL);
+                placeBeam(emitters.geometryR.get(), localPupilR);
             }
 
             if (emitters.lastGazeRegion != a_gazeRegion)
@@ -636,7 +630,7 @@ namespace TrueGaze::Visuals
         // --- Phase 2 A7: Ray–Panel Physical Hit Detection & Accuracy Tracking ---
         namespace G = TrueGaze::Visuals::Geometry;
         const float panelScaleUnits =
-            (_tuning.hcepPanelScale > 0.1f ? _tuning.hcepPanelScale : 25.0f);
+            (_tuning.hcepPanelScale > 0.1f ? _tuning.hcepPanelScale : 27.5f);
         constexpr float kDiagramAspect = 2760.0f / 1504.0f; // w:h = 1.835
         const float halfW = panelScaleUnits * kDiagramAspect * 0.5f;
         const float halfH = panelScaleUnits * 0.5f;
@@ -1124,7 +1118,7 @@ namespace TrueGaze::Visuals
             constexpr float kPanelSourceUnits = 512.0f;         // authored quad size
             constexpr float kDiagramAspect = 2760.0f / 1504.0f; // w:h = 1.835
             const float panelScale =
-                (_tuning.hcepPanelScale > 0.1f ? _tuning.hcepPanelScale : 25.0f) /
+                (_tuning.hcepPanelScale > 0.1f ? _tuning.hcepPanelScale : 27.5f) /
                 kPanelSourceUnits;
             RE::NiMatrix3 faceViewer;
             // column 0 = X axis (width): flipped (face viewer) and widened by aspect
@@ -1257,7 +1251,7 @@ namespace TrueGaze::Visuals
     // Geometry helpers
     // ---------------------------------------------------------------------------
 
-    void VisualEffectsManager::ResolvePupils(const RE::NiAVObject* a_headBone,
+    void VisualEffectsManager::ResolvePupils(RE::Actor* a_actor, const RE::NiAVObject* a_headBone,
                                              const RE::NiAVObject* a_eyeL,
                                              const RE::NiAVObject* a_eyeR,
                                              const RE::NiAVObject* a_anchor, float a_eyeYawDeg,
@@ -1272,62 +1266,18 @@ namespace TrueGaze::Visuals
         const float yawRad = a_eyeYawDeg * kDegToRad;
         const float pitchRad = a_eyePitchDeg * kDegToRad;
 
-        const RE::NiPoint3 right = basis.GetVectorX();
-        const RE::NiPoint3 forward = basis.GetVectorY();
-        const RE::NiPoint3 up = basis.GetVectorZ();
-
-        const float scale =
-            a_headBone ? (a_headBone->world.scale > 0.0f ? a_headBone->world.scale : 1.0f) : 1.0f;
-        const float halfIpd = 2.2f * scale; // ~3.15 cm half-IPD (63mm human average)
-
-        if (a_eyeL && a_eyeR)
-        {
-            a_originLOut = a_eyeL->world.translate;
-            a_originROut = a_eyeR->world.translate;
-        }
-        else if (a_eyeL)
-        {
-            a_originLOut = a_eyeL->world.translate;
-            a_originROut = a_originLOut + right * (2.0f * halfIpd);
-        }
-        else if (a_eyeR)
-        {
-            a_originROut = a_eyeR->world.translate;
-            a_originLOut = a_originROut - right * (2.0f * halfIpd);
-        }
-        else if (a_headBone)
-        {
-            const float fOff = _tuning.ForwardOffsetUnits() * scale;
-            const float uOff = _tuning.UpOffsetUnits() * scale;
-            const RE::NiPoint3 center{
-                a_headBone->world.translate.x + forward.x * fOff + up.x * uOff,
-                a_headBone->world.translate.y + forward.y * fOff + up.y * uOff,
-                a_headBone->world.translate.z + forward.z * fOff + up.z * uOff};
-            a_originLOut = RE::NiPoint3{center.x - right.x * halfIpd, center.y - right.y * halfIpd,
-                                        center.z - right.z * halfIpd};
-            a_originROut = RE::NiPoint3{center.x + right.x * halfIpd, center.y + right.y * halfIpd,
-                                        center.z + right.z * halfIpd};
-        }
-        else if (a_anchor)
-        {
-            const float fOff = _tuning.ForwardOffsetUnits() * scale;
-            const float uOff = _tuning.UpOffsetUnits() * scale;
-            const RE::NiPoint3 center{a_anchor->world.translate.x + forward.x * fOff + up.x * uOff,
-                                      a_anchor->world.translate.y + forward.y * fOff + up.y * uOff,
-                                      a_anchor->world.translate.z + forward.z * fOff + up.z * uOff};
-            a_originLOut = RE::NiPoint3{center.x - right.x * halfIpd, center.y - right.y * halfIpd,
-                                        center.z - right.z * halfIpd};
-            a_originROut = RE::NiPoint3{center.x + right.x * halfIpd, center.y + right.y * halfIpd,
-                                        center.z + right.z * halfIpd};
-        }
-        else
-        {
-            a_originLOut = RE::NiPoint3{};
-            a_originROut = RE::NiPoint3{};
-        }
+        const auto eyes = TrueGaze::Anchors::ResolveEyeCenters(
+            a_actor, a_headBone, a_eyeL, a_eyeR,
+            _tuning.pupilForwardOffsetCm, _tuning.pupilUpOffsetCm);
+        a_originLOut = eyes.left;
+        a_originROut = eyes.right;
 
         a_dirOut = GazeDirection(basis, yawRad, pitchRad);
+        // The shader stores globe centres; arrows must emerge from the visible pupil.
+        a_originLOut = TrueGaze::Anchors::PupilOnCornea(eyes.left, a_dirOut, a_headBone);
+        a_originROut = TrueGaze::Anchors::PupilOnCornea(eyes.right, a_dirOut, a_headBone);
 #else
+        (void)a_actor;
         (void)a_headBone;
         (void)a_eyeL;
         (void)a_eyeR;

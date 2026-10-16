@@ -165,7 +165,7 @@ namespace TrueGaze::Visuals
         };
 
         /// Compute twin pupil origins (Left and Right) and gaze direction in world space.
-        void ResolvePupils(const RE::NiAVObject* a_headBone, const RE::NiAVObject* a_eyeL,
+        void ResolvePupils(RE::Actor* a_actor, const RE::NiAVObject* a_headBone, const RE::NiAVObject* a_eyeL,
                            const RE::NiAVObject* a_eyeR, const RE::NiAVObject* a_anchor,
                            float a_eyeYawDeg, float a_eyePitchDeg, RE::NiPoint3& a_originLOut,
                            RE::NiPoint3& a_originROut, RE::NiPoint3& a_dirOut) const noexcept;

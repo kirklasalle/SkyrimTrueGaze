@@ -12,6 +12,7 @@
 #include "TargetSelector.hpp"
 #include "TraceLogger.hpp"
 #include "Visuals/VisualEffectsManager.hpp"
+#include "Visuals/GazeGeometry.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/B/BSVisit.h>
@@ -152,16 +153,6 @@ namespace TrueGaze::Engine
                     return RE::BSVisit::BSVisitControl::kContinue;
                 });
             return result;
-        }
-
-        /// R14 E7.5 — EyeAnchorFromHeadBone moved to GazeAnchors.hpp (shared with
-        /// TargetSelector.cpp, which previously carried a byte-identical copy).
-        /// The observer's ray origin and the target's eye point are computed by
-        /// the SAME function, so the eyeline is identical by construction.
-        RE::NiPoint3 EyeAnchorFromHeadBone(const RE::NiAVObject* headBone) noexcept
-        {
-            return TrueGaze::Anchors::EyeAnchorFromHeadBone(headBone, g_eyeAnchorForwardCm,
-                                                            g_eyeAnchorUpCm);
         }
 
         struct ReferenceOrientation
@@ -376,10 +367,7 @@ namespace TrueGaze::Engine
         _tuning.eyeMorphGain = cfg.eyeMorphGain;
         _tuning.eyeMorphFullScaleDeg = cfg.eyeMorphFullScaleDeg;
 
-        // Eye-anchor offsets feed BOTH the target side (TargetSelector's static
-        // snapshot) and the observer's ray origin (the file-scope globals used by
-        // EyeAnchorFromHeadBone in this translation unit). Keeping them identical is
-        // what makes the solve genuinely eye-to-eye.
+        // These offsets are only used when FaceGen eye centres are unavailable.
         TargetSelector::s_eyeAnchor.forwardCm = cfg.eyeAnchorForwardCm;
         TargetSelector::s_eyeAnchor.upCm = cfg.eyeAnchorUpCm;
         g_eyeAnchorForwardCm = cfg.eyeAnchorForwardCm;
@@ -925,7 +913,7 @@ namespace TrueGaze::Engine
             state.timeSinceLastBlink += deltaSeconds;
         }
 
-        if (_tuning.debugGazeRays)
+        if (_tuning.debugGazeRays || spdlog::should_log(spdlog::level::debug))
         {
             state.rayDebugTimerSec += deltaSeconds;
             if (state.rayDebugTimerSec >= 1.0f)
@@ -971,22 +959,59 @@ namespace TrueGaze::Engine
         {
             if (auto* high = actor->GetHighProcess())
             {
-                for (std::uint32_t i = 0; i < RE::HighProcessData::HEAD_TRACK_TYPE::kTotal; ++i)
-                {
-                    high->ClearHeadtrackTarget(static_cast<RE::HighProcessData::HEAD_TRACK_TYPE>(i),
-                                               false);
-                }
+                // Do not erase the dialogue/script/procedure signals the next
+                // target resolution needs to retain the actual addressee.
+                high->ClearHeadtrackTarget(RE::HighProcessData::HEAD_TRACK_TYPE::kDefault, false);
             }
         }
 
         ApplyToSkeleton(actor, state, yawDeg, pitchDeg, deltaSeconds);
 
+        bool mutualGazeNow = false;
+        if (state.eyeContactHit && state.trackedTargetFormId != 0)
+        {
+            if (player && state.trackedTargetFormId == player->GetFormID())
+            {
+                if (_tuning.enableCrosshairGaze)
+                {
+                    PlayerGazeResolver::Params params{};
+                    params.baseToleranceDeg = _tuning.crosshairToleranceDeg;
+                    params.maxRangeMeters = _tuning.crosshairMaxRangeMeters;
+                    params.pointBlankMeters = _tuning.crosshairPointBlankMeters;
+                    mutualGazeNow = PlayerGazeResolver::IsPlayerLookingAtFace(formId, params);
+                }
+            }
+            else if (const auto other = _actors.find(state.trackedTargetFormId);
+                     other != _actors.end())
+            {
+                mutualGazeNow = other->second.trackedTargetFormId == formId &&
+                                other->second.eyeContactHit;
+            }
+        }
+        if (mutualGazeNow)
+        {
+            ++_mutualGazeFrames;
+            state.mutualGazeHoldSec += deltaSeconds;
+            if (_tuning.debugGazeRays && state.mutualGazeHoldSec >= 0.5f &&
+                state.mutualGazeHoldSec - deltaSeconds < 0.5f)
+            {
+                const char* actorName = actor->GetName();
+                char hudBuf[128];
+                std::snprintf(hudBuf, sizeof(hudBuf), "[TrueGaze] Eye Contact Held: %s",
+                              (actorName && actorName[0]) ? actorName : "Target NPC");
+                RE::SendHUDMessage::ShowHUDMessage(hudBuf);
+            }
+        }
+        else
+        {
+            state.mutualGazeHoldSec = 0.0f;
+        }
+
         // Structured JSONL Trace Gaze Tick and Mismatch
         const auto hitInfo = Visuals::VisualEffectsManager::Get().GetActorHitInfo(formId);
         const uint8_t hitRegion = hitInfo.hit ? hitInfo.hitRegion : 255;
-        const float jitterDamp = state.eyeContactHit ? 0.3f : 1.0f;
-        const float eyeYaw = state.saccade.currentYaw + state.jitter.currentYawOffset * jitterDamp;
-        const float eyePitch = state.saccade.currentPitch + state.jitter.currentPitchOffset * jitterDamp;
+        const float eyeYaw = state.appliedEyeYawDeg;
+        const float eyePitch = state.appliedEyePitchDeg;
         const float totalDeflection = std::sqrt(yawDeg * yawDeg + pitchDeg * pitchDeg);
         const float eyeDeflection = std::sqrt(eyeYaw * eyeYaw + eyePitch * eyePitch);
         const float headPct =
@@ -1046,6 +1071,14 @@ namespace TrueGaze::Engine
 
         // --- Salience -----------------------------------------------------------
         const auto target = TargetSelector::ResolveTarget(actor->GetFormID(), &state, deltaSeconds);
+        const bool dialogueJustStarted =
+            target.priority == TargetSelector::TargetPriority::DialoguePartner &&
+            state.lastTargetPriority != TargetSelector::TargetPriority::DialoguePartner;
+        const bool attentionAcquired = target.targetFormId != 0 &&
+            (target.targetFormId != state.trackedTargetFormId || dialogueJustStarted ||
+             (target.priority == TargetSelector::TargetPriority::CrosshairFocus &&
+              state.lastTargetPriority != TargetSelector::TargetPriority::CrosshairFocus));
+        state.lastTargetPriority = target.priority;
         ++_targetResolutions;
         _lastTargetPriority = static_cast<uint8_t>(target.priority);
         _lastTargetFormId = target.targetFormId;
@@ -1065,6 +1098,7 @@ namespace TrueGaze::Engine
 
         float desiredYaw = 0.0f;
         float desiredPitch = 0.0f;
+        state.fixationWorldValid = false;
 
         // CALM/COMBAT SPEED MODEL: speedScale was computed in TickActor (the
         // single decision point for this frame — see the full rationale there).
@@ -1107,7 +1141,8 @@ namespace TrueGaze::Engine
                     RE::NiPoint3 observerEyePos = actor->GetPosition();
                     if (state.cachedHead)
                     {
-                        observerEyePos = EyeAnchorFromHeadBone(state.cachedHead);
+                        observerEyePos = TrueGaze::Anchors::EyeMidpoint(
+                            actor, state.cachedHead, g_eyeAnchorForwardCm, g_eyeAnchorUpCm);
                     }
                     else
                     {
@@ -1187,7 +1222,8 @@ namespace TrueGaze::Engine
                 // Eye anchor, NOT the raw head-bone origin: the observer looks FROM
                 // its own eyeline so the yaw/pitch solve is eye-to-eye rather than
                 // throat-to-forehead. Uses the same projection as the target side.
-                observerEyePos = EyeAnchorFromHeadBone(state.cachedHead);
+                observerEyePos = TrueGaze::Anchors::EyeMidpoint(
+                    actor, state.cachedHead, g_eyeAnchorForwardCm, g_eyeAnchorUpCm);
             }
             else if (auto* root = actor->Get3D())
             {
@@ -1304,71 +1340,6 @@ namespace TrueGaze::Engine
             isEyeContactZone = true;
         }
         state.eyeContactHit = isEyeContactZone;
-
-        // --- Mutual gaze (crosshair sweet spot & NPC-to-NPC mutual gaze) ----------
-        // Evaluates whether mutual eye contact is currently active.
-        // Cases:
-        //   1. Player <-> NPC: Player crosshair/HCEP is looking at NPC face, and NPC is in eyeContactHit
-        //   2. NPC <-> NPC: Both NPCs are actively targeting each other and both are in eyeContactHit
-        bool mutualGazeNow = false;
-
-        if (target.priority >= TargetSelector::TargetPriority::NearbyActor && target.targetFormId != 0)
-        {
-            if (target.isPlayer)
-            {
-                if (_tuning.enableCrosshairGaze)
-                {
-                    PlayerGazeResolver::Params gazeParams{};
-                    gazeParams.baseToleranceDeg = _tuning.crosshairToleranceDeg;
-                    gazeParams.maxRangeMeters = _tuning.crosshairMaxRangeMeters;
-                    gazeParams.pointBlankMeters = _tuning.crosshairPointBlankMeters;
-
-                    const bool playerLookingAtMe =
-                        PlayerGazeResolver::IsPlayerLookingAtFace(actor->GetFormID(), gazeParams);
-                    mutualGazeNow = playerLookingAtMe && state.eyeContactHit;
-                }
-            }
-            else
-            {
-                // NPC-to-NPC mutual gaze: check if the other actor is also looking back at me!
-                auto targetIt = _actors.find(target.targetFormId);
-                if (targetIt != _actors.end())
-                {
-                    const bool otherLookingAtMe = (targetIt->second.trackedTargetFormId == actor->GetFormID());
-                    mutualGazeNow = otherLookingAtMe && state.eyeContactHit && targetIt->second.eyeContactHit;
-                }
-            }
-        }
-        else if (_tuning.enableCrosshairGaze &&
-                 target.priority == TargetSelector::TargetPriority::CrosshairFocus)
-        {
-            PlayerGazeResolver::Params gazeParams{};
-            gazeParams.baseToleranceDeg = _tuning.crosshairToleranceDeg;
-            gazeParams.maxRangeMeters = _tuning.crosshairMaxRangeMeters;
-            gazeParams.pointBlankMeters = _tuning.crosshairPointBlankMeters;
-
-            mutualGazeNow =
-                PlayerGazeResolver::IsPlayerLookingAtFace(actor->GetFormID(), gazeParams);
-        }
-
-        if (mutualGazeNow)
-        {
-            ++_mutualGazeFrames;
-            state.mutualGazeHoldSec += deltaSeconds;
-            if (_tuning.debugGazeRays && state.mutualGazeHoldSec >= 0.5f &&
-                state.mutualGazeHoldSec - deltaSeconds < 0.5f)
-            {
-                const char* actorName = actor->GetName();
-                char hudBuf[128];
-                std::snprintf(hudBuf, sizeof(hudBuf), "[TrueGaze] Eye Contact Held: %s",
-                              (actorName && actorName[0]) ? actorName : "Target NPC");
-                RE::SendHUDMessage::ShowHUDMessage(hudBuf);
-            }
-        }
-        else
-        {
-            state.mutualGazeHoldSec = 0.0f;
-        }
 
         // --- Dialogue-Synced CGA Return -------------------------------------------
         //
@@ -1607,6 +1578,12 @@ namespace TrueGaze::Engine
                     target.priority == TargetSelector::TargetPriority::DialoguePartner;
 
                 state.triangle.eyeDwellScale = inDialogue ? 4.0f : 2.5f;
+
+                if (attentionAcquired)
+                {
+                    Kinematics::SocialTriangle::ReturnToFace(state.triangle, faceDist);
+                    state.cgaActive = false;
+                }
             }
 
             if (_tuning.enableGazeAversion && state.hcepMode == 4)
@@ -1691,8 +1668,46 @@ namespace TrueGaze::Engine
                 }
             }
 
-            desiredYaw += state.triangle.vertexOffsetXDeg;
-            desiredPitch += state.triangle.vertexOffsetYDeg;
+            const bool eyeVertex = _tuning.enableSocialTriangle && _frame.triangleEnabled && (
+                state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::LeftEye ||
+                state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::RightEye);
+            bool aimedAtPupil = false;
+            if (eyeVertex && state.combatGlance == ActorGazeRuntime::CombatGlanceType::None)
+            {
+                auto* form = RE::TESForm::LookupByID(target.targetFormId);
+                auto* partner = form ? form->As<RE::Actor>() : nullptr;
+                auto* partnerRoot = partner ? partner->Get3D() : nullptr;
+                auto* partnerHead = partnerRoot ? FindFirstBone(
+                    partnerRoot, kHeadCandidates, std::size(kHeadCandidates)) : nullptr;
+                if (partnerHead)
+                {
+                    const auto eyes = TrueGaze::Anchors::ResolvePupilsForward(
+                        partner, partnerHead, g_eyeAnchorForwardCm, g_eyeAnchorUpCm);
+                    const auto origin = TrueGaze::Anchors::EyeMidpoint(
+                        actor, state.cachedHead, g_eyeAnchorForwardCm, g_eyeAnchorUpCm);
+                    const auto reference = GetActorReferenceOrientation(actor, state);
+                    // Triangle vertices are observer-relative: face to face, the
+                    // observer's "left eye" vertex is the partner's right pupil.
+                    float yawA = 0.0f, pitchA = 0.0f, yawB = 0.0f, pitchB = 0.0f;
+                    WorldTargetToLocalGaze(origin, reference, eyes.left, yawA, pitchA);
+                    WorldTargetToLocalGaze(origin, reference, eyes.right, yawB, pitchB);
+                    const bool wantObserverLeft = state.triangle.currentVertex ==
+                                                  Kinematics::SocialTriangle::Vertex::LeftEye;
+                    const bool aIsObserverLeft = yawA <= yawB;
+                    const bool useA = (wantObserverLeft == aIsObserverLeft);
+                    desiredYaw = useA ? yawA : yawB;
+                    desiredPitch = useA ? pitchA : pitchB;
+                    state.targetDistanceUnits = origin.GetDistance(useA ? eyes.left : eyes.right);
+                    aimedAtPupil = true;
+                }
+            }
+            if (!aimedAtPupil && _tuning.enableSocialTriangle && _frame.triangleEnabled)
+            {
+                desiredYaw += state.triangle.vertexOffsetXDeg;
+                desiredPitch += state.triangle.vertexOffsetYDeg;
+            }
+            state.eyeContactHit = eyeVertex && !state.cgaActive &&
+                state.combatGlance == ActorGazeRuntime::CombatGlanceType::None;
         }
 
         // --- Target classification & saccade ------------------------------------
@@ -1843,6 +1858,31 @@ namespace TrueGaze::Engine
 
         outYaw = state.saccade.currentYaw + jitterYaw;
         outPitch = state.saccade.currentPitch + jitterPitch;
+
+        if (target.priority != TargetSelector::TargetPriority::None)
+        {
+            const auto origin = TrueGaze::Anchors::EyeMidpoint(
+                actor, state.cachedHead, g_eyeAnchorForwardCm, g_eyeAnchorUpCm);
+            const auto ref = GetActorReferenceOrientation(actor, state);
+            const float damping = state.eyeContactHit ? 0.3f : 1.0f;
+            const float yaw = ref.headingRad +
+                (state.saccade.currentYaw + jitterYaw * damping) / kRadToDeg;
+            const float pitch = ref.pitchRad +
+                (state.saccade.currentPitch + jitterPitch * damping) / kRadToDeg;
+            const RE::NiPoint3 direction{std::sin(yaw) * std::cos(pitch),
+                                         std::cos(yaw) * std::cos(pitch), std::sin(pitch)};
+            const auto fixation = origin + direction * state.targetDistanceUnits;
+            state.fixationWorld = {fixation.x, fixation.y, fixation.z};
+            state.fixationWorldValid = true;
+            state.eyeAimErrorDeg = std::hypot(
+                desiredYaw - state.saccade.currentYaw - jitterYaw * damping,
+                desiredPitch - state.saccade.currentPitch - jitterPitch * damping);
+        }
+        else
+        {
+            state.eyeContactHit = false;
+            state.eyeAimErrorDeg = 180.0f;
+        }
 #else
         (void)actor;
         (void)state;
@@ -1952,8 +1992,11 @@ namespace TrueGaze::Engine
             // absent eye node is never mistaken for a defect. The head socket is the
             // documented, first-class fallback when a rig exposes no eye bones.
             const bool hasEyeNode = (eyeL != nullptr || eyeR != nullptr);
+            TrueGaze::Anchors::EyePair faceGenEyes{};
+            const bool hasFaceGenEyes = TrueGaze::Anchors::FaceGenEyeCenters(actor, head, faceGenEyes);
             const char* originMode =
-                head ? (hasEyeNode ? "EyeNode" : "GeometricHeadSocket") : "Unavailable";
+                head ? (hasFaceGenEyes ? "FaceGenEyeCenters" :
+                        (hasEyeNode ? "EyeNode" : "GeometricHeadSocket")) : "Unavailable";
 
             // Record the outcome for the stgstatus rig-capability summary.
             RecordRigProbe(originMode, head != nullptr, hasEyeNode);
@@ -1964,12 +2007,21 @@ namespace TrueGaze::Engine
                          head ? "yes" : "NO", eyeL ? "yes" : "NO", eyeR ? "yes" : "NO", found,
                          originMode, actor->IsHumanoid() ? "yes" : "no",
                          actor->IsPlayerRef() ? "yes" : "no");
-
-            if (head && !hasEyeNode)
+            if (hasFaceGenEyes)
             {
-                logger::info("[TrueGaze] Rig {:08X} exposes no eye nodes; using the "
-                             "GeometricHeadSocket origin. This is expected on vanilla "
-                             "humanoid rigs (eyes are FaceGen morphs), not an error.",
+                const auto inverse = head->world.Invert();
+                const auto left = inverse * faceGenEyes.left;
+                const auto right = inverse * faceGenEyes.right;
+                logger::info("[TrueGaze] FaceGen centres {:08X}: headLocalL=({:.3f},{:.3f},{:.3f}) "
+                             "headLocalR=({:.3f},{:.3f},{:.3f})",
+                             actor->GetFormID(), left.x, left.y, left.z, right.x, right.y, right.z);
+            }
+
+            if (head && !hasEyeNode && !hasFaceGenEyes)
+            {
+                logger::warn("[TrueGaze] Rig {:08X} has no usable eye shader centres or eye nodes; "
+                             "using configurable GeometricHeadSocket fallback. "
+                             "Pupil placement is approximate for this rig.",
                              actor->GetFormID());
             }
 
@@ -2002,10 +2054,8 @@ namespace TrueGaze::Engine
         (void)yawDeg;
         (void)pitchDeg;
 
-        // Distribute the head deflection across spine, neck, and head.
-        // The neck and head follow the inertial approach (state.vor.headYaw/Pitch),
-        // while the eyes directly receive the biological VOR counter-rotation
-        // (state.vor.eyeLocalYaw/Pitch) plus micro-saccadic jitter drift!
+        // Head-chain motion follows the inertial trajectory. Ocular compensation
+        // is solved after posing, against the head transform actually applied.
         //
         // CGA EYE-DOMINANT MODE: when the actor is in CGA aversion (THINK mode,
         // gaze directed to peripheral regions), the head chain gets near-zero
@@ -2026,12 +2076,29 @@ namespace TrueGaze::Engine
         const BoneController::StrainWeights weights{
             _tuning.spine2YawWeight, _tuning.neckYawWeight, _tuning.neckPitchWeight,
             _tuning.headYawWeight, _tuning.headPitchWeight};
+        float headCorrectionYaw = state.vor.headYaw;
+        float headCorrectionPitch = state.vor.headPitch;
+        if (state.cachedHead && state.fixationWorldValid)
+        {
+            namespace G = Visuals::Geometry;
+            const auto vec = [](const RE::NiPoint3& p) { return G::Vec3{p.x, p.y, p.z}; };
+            const auto ref = GetActorReferenceOrientation(actor, state);
+            const float yaw = ref.headingRad + state.vor.headYaw / kRadToDeg;
+            const float pitch = ref.pitchRad + state.vor.headPitch / kRadToDeg;
+            const G::Vec3 direction{std::sin(yaw) * std::cos(pitch),
+                                     std::cos(yaw) * std::cos(pitch), std::sin(pitch)};
+            const auto& basis = state.cachedHead->world.rotate;
+            const auto correction = G::AimInBasis(direction, vec(basis.GetVectorX()),
+                vec(basis.GetVectorY()), vec(basis.GetVectorZ()));
+            headCorrectionYaw = correction.yawDeg;
+            headCorrectionPitch = correction.pitchDeg;
+        }
         const auto normalStrain = BoneController::CalculateHierarchyStrain(
-            state.vor.headYaw, state.vor.headPitch, state.vor.eyeMaxAngle,
+            headCorrectionYaw, headCorrectionPitch, state.vor.eyeMaxAngle,
             state.vor.eyeMaxAngle, weights, _tuning.headEngageThresholdDeg);
 
         const auto cgaStrain = BoneController::CalculateCgaStrain(
-            state.vor.headYaw, state.vor.headPitch, state.vor.eyeMaxAngle,
+            headCorrectionYaw, headCorrectionPitch, state.vor.eyeMaxAngle,
             state.vor.eyeMaxAngle, _tuning.cgaHeadInvolvement);
 
         const float cgaB = state.cgaAversionBlend;
@@ -2049,14 +2116,6 @@ namespace TrueGaze::Engine
         const float jitterPitch = (DistanceMetersForTier(actor) <= _tuning.tier1DistanceMeters)
                                       ? state.jitter.currentPitchOffset * jitterDamp
                                       : 0.0f;
-
-        const float eyeYaw = std::clamp(state.vor.eyeLocalYaw + jitterYaw,
-                                        -_tuning.maxComfortEyeAngle, _tuning.maxComfortEyeAngle);
-        const float eyePitch = std::clamp(state.vor.eyeLocalPitch + jitterPitch,
-                                          -_tuning.maxComfortEyeAngle, _tuning.maxComfortEyeAngle);
-
-        state.eyeSaturated = (std::abs(eyeYaw) >= _tuning.maxComfortEyeAngle - 0.01f ||
-                              std::abs(eyePitch) >= _tuning.maxComfortEyeAngle - 0.01f);
 
         EnsureSkeletonResolved(actor, state);
 
@@ -2124,6 +2183,42 @@ namespace TrueGaze::Engine
                                     strain.headPitch * headWeight, rigRoot);
         }
 
+        float eyeYaw = state.vor.eyeLocalYaw + jitterYaw;
+        float eyePitch = state.vor.eyeLocalPitch + jitterPitch;
+        if (head && state.fixationWorldValid)
+        {
+            namespace G = Visuals::Geometry;
+            const auto vec = [](const RE::NiPoint3& p) { return G::Vec3{p.x, p.y, p.z}; };
+            const auto origin = TrueGaze::Anchors::EyeMidpoint(
+                actor, head, g_eyeAnchorForwardCm, g_eyeAnchorUpCm);
+            const auto& basis = head->world.rotate;
+            const RE::NiPoint3 fixation{
+                state.fixationWorld.x, state.fixationWorld.y, state.fixationWorld.z};
+            const auto aim = G::AimInBasis(vec(fixation - origin),
+                vec(basis.GetVectorX()), vec(basis.GetVectorY()), vec(basis.GetVectorZ()));
+            eyeYaw = aim.yawDeg;
+            eyePitch = aim.pitchDeg;
+            state.targetDistanceUnits = origin.GetDistance(fixation);
+        }
+        eyeYaw = std::clamp(eyeYaw, -_tuning.maxComfortEyeAngle, _tuning.maxComfortEyeAngle);
+        eyePitch = std::clamp(eyePitch, -_tuning.maxComfortEyeAngle, _tuning.maxComfortEyeAngle);
+        state.appliedEyeYawDeg = eyeYaw;
+        state.appliedEyePitchDeg = eyePitch;
+        state.eyeSaturated = (std::abs(eyeYaw) >= _tuning.maxComfortEyeAngle - 0.01f ||
+                              std::abs(eyePitch) >= _tuning.maxComfortEyeAngle - 0.01f);
+        state.eyeContactHit = state.eyeContactHit && !state.eyeSaturated &&
+                              !state.saccade.isBallistic && state.eyeAimErrorDeg <= 2.5f;
+        if ((_tuning.debugGazeRays || spdlog::should_log(spdlog::level::debug)) &&
+            state.rayDebugTimerSec == 0.0f)
+        {
+            logger::info("[TrueGaze::Aim] actor={:08X} target={:08X} "
+                         "eyeResidual=({:.2f},{:.2f}) distance={:.2f} "
+                         "eyeContact={} saturated={} vertex={} trackingErrorDeg={:.3f}",
+                         actor->GetFormID(), state.trackedTargetFormId, eyeYaw, eyePitch,
+                         state.targetDistanceUnits, state.eyeContactHit, state.eyeSaturated,
+                         static_cast<unsigned>(state.triangle.currentVertex), state.eyeAimErrorDeg);
+        }
+
         // Eyes receive the low-inertia ballistic VOR counter-rotation and micro-jitter.
         // IMPORTANT: eye bones and FaceGen morphs are ALWAYS written, even when
         // allowHeadtrack is false (player in 1st person). This is the "only the eyes
@@ -2159,20 +2254,29 @@ namespace TrueGaze::Engine
         // posed so the head bone's world transform is current, and is driven by the
         // *eye residual* - what the eyes carry beyond the already-turned head. Passing
         // the total deflection here would double-count the head's share and the beam
-        // would overshoot the true gaze direction.
-        try
+        // would overshoot the true gaze direction. Player-attached visuals are hidden
+        // in first person because the head rig is not the camera and its offset makes
+        // the beams appear detached from the view.
+        if (isPlayer && !allowHeadtrack)
         {
-            Visuals::VisualEffectsManager::Get().UpdateActor(
-                actor, state.cachedHead, state.cachedEyeL, state.cachedEyeR, eyeYaw, eyePitch,
-                state.gazeRegion, isPlayer, actor->IsHumanoid(), state.targetDistanceUnits);
+            Visuals::VisualEffectsManager::Get().RemoveActor(actor->GetFormID());
         }
-        catch (const std::exception& e)
+        else
         {
-            logger::error("[TrueGaze] VisualEffectsManager::UpdateActor exception: {}", e.what());
-        }
-        catch (...)
-        {
-            logger::error("[TrueGaze] VisualEffectsManager::UpdateActor unknown exception.");
+            try
+            {
+                Visuals::VisualEffectsManager::Get().UpdateActor(
+                    actor, state.cachedHead, state.cachedEyeL, state.cachedEyeR, eyeYaw, eyePitch,
+                    state.gazeRegion, isPlayer, actor->IsHumanoid(), state.targetDistanceUnits);
+            }
+            catch (const std::exception& e)
+            {
+                logger::error("[TrueGaze] VisualEffectsManager::UpdateActor exception: {}", e.what());
+            }
+            catch (...)
+            {
+                logger::error("[TrueGaze] VisualEffectsManager::UpdateActor unknown exception.");
+            }
         }
 #else
         (void)actor;

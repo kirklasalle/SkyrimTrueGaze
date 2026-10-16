@@ -67,8 +67,8 @@ namespace TrueGaze::Engine
         /// they track seated, leaning and crouched poses correctly.
         struct EyeAnchorParams
         {
-            float forwardCm{7.0f}; // toward the face, from the head bone origin
-            float upCm{7.5f};      // up to eyeline, from the head bone origin
+            float forwardCm{10.8f}; // toward the face, from the head bone origin
+            float upCm{5.4f};      // up to eyeline, from the head bone origin
         };
 
         /// @brief Eye-anchor parameters for the current frame. Set by

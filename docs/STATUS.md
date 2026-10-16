@@ -40,7 +40,15 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 
 ## Landmark Milestones Achieved
 
-> ### 🏆 LATEST — Focal Point Detection, Magnetic Eye Contact Lock & Binocular Vergence (Eye Crossing) — ✅ In-engine verified & 🧪 Unit-verified (October 4, 2026)
+> ### 🏆 LATEST — FaceGen Pupil Anchors, Dialogue Eye Lock & First-Person Visual Guard — ✅ In-engine verified (October 16, 2026)
+>
+> **Field test by Kirk LaSalle (`ScreenShot321.png`–`ScreenShot338.png`):**
+>
+> 1. **Whiterun tavern (`ScreenShot321`–`ScreenShot327`)** — NPC-to-NPC gaze rays emerge from the FaceGen eye globe centres and meet the partner's pupils during conversation.
+> 2. **First/third-person player visuals (`ScreenShot328`–`ScreenShot330`)** — Third-person player rays originate at the player's eyes. In first person, the head rig is offset from the camera, so player-attached rays appeared detached; player visuals are now hidden in first person and restored in third person, while first-person eye gaze and NPC visuals continue.
+> 3. **Helgen opening cart (`ScreenShot331`–`ScreenShot338`)** — Scripted cart dialogue keeps eye targets active and arrows aligned with the speakers' and listeners' eyes. Retested after the first-person fix and confirmed working.
+>
+> ### 🏆 Focal Point Detection, Magnetic Eye Contact Lock & Binocular Vergence (Eye Crossing) — ✅ In-engine verified & 🧪 Unit-verified (October 4, 2026)
 >
 > **Comprehensive forensic analysis of live gameplay screengrabs (Set 1 `ScreenShot297.png`–`ScreenShot302.png`: Bannered Mare busy tavern; Set 2 `ScreenShot303.png`–`ScreenShot306.png`: Helgen opening cart sequence):**
 >

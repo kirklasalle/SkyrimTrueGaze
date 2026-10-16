@@ -64,8 +64,8 @@ namespace TrueGaze::Engine
         float headEngageThresholdDeg{8.0f}; // below this angle, only eyes move
 
         // --- Eye anchor & eye-lead (the eyes ARE the target) ---
-        float eyeAnchorForwardCm{8.0f};    // head bone -> eyeline, toward the face
-        float eyeAnchorUpCm{8.5f};         // head bone -> eyeline, up to eye height
+        float eyeAnchorForwardCm{10.8f};    // head bone -> eyeline, toward the face
+        float eyeAnchorUpCm{5.4f};         // head bone -> eyeline, up to eye height
         float eyeMorphGain{1.7f};          // visible gain for FaceGen Look* eye morphs
         float eyeMorphFullScaleDeg{20.0f}; // eye deflection that maps to a full morph
 
@@ -203,15 +203,15 @@ namespace TrueGaze::Engine
         bool gazeRaysOnCreatures{true};
         bool gazeRaysAttachHead{true};     // attach emitters under the head bone (vs actor root)
         bool gazeRaysTerminus{false};      // emit a second glow at the gaze terminus
-        float pupilForwardOffsetCm{12.0f}; // pupil origin, forward from the head bone origin
-        float pupilUpOffsetCm{6.0f};       // pupil origin, up from the head bone origin
+        float pupilForwardOffsetCm{10.8f};  // visual socket fallback when eye geometry is unavailable
+        float pupilUpOffsetCm{5.4f};
         float pupilGlowIntensity{0.5f};    // pupil emitter brightness multiplier
         float arrowCrossSectionMm{24.0f};  // gaze-arrow widest cross-section (eyeball diameter)
 
         // --- HCEP Floating Diagram Panel ---
         bool showHcepPanel{true};      // master switch for the HCEP diagram panel
         bool hcepPanelAllActors{true}; // true = Player + NPCs + Creatures; false = Player only
-        float hcepPanelScale{25.0f};   // panel scale factor (25.0 units)
+        float hcepPanelScale{27.5f};   // panel height in Skyrim units
         float hcepPanelForwardOffsetCm{70.0f}; // distance in front of head bone (cm)
 
         // --- Console commands (~) ---

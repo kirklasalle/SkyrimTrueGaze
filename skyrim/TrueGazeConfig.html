@@ -1165,8 +1165,8 @@
                 fHeadEngageThresholdDeg: ['float', 12.0, 'Head engagement threshold: below this angle, only eyes move (the verified Gold Standard anti-twitch value)', 0, 45, 1, '{v} deg']
             },
             'GazeTarget': {
-                fEyeAnchorForwardCm: ['float', 8.0, 'Eye anchor: forward from the head bone onto the eyeline (cm) — the eyes are the target', -10, 25, 0.5, '{v} cm'],
-                fEyeAnchorUpCm: ['float', 8.5, 'Eye anchor: up from the head bone onto the eyeline (cm)', -10, 25, 0.5, '{v} cm'],
+                fEyeAnchorForwardCm: ['float', 10.8, 'Eye anchor: forward from the head bone onto the eyeline (cm) — the eyes are the target', -10, 25, 0.5, '{v} cm'],
+                fEyeAnchorUpCm: ['float', 5.4, 'Eye anchor: up from the head bone onto the eyeline (cm)', -10, 25, 0.5, '{v} cm'],
                 fEyeMorphGain: ['float', 1.7, 'Eyes-lead visible gain for vanilla FaceGen eye morphs (1 = raw, higher = stronger)', 0.5, 4, 0.1, '{v}x'],
                 fEyeMorphFullScaleDeg: ['float', 20.0, 'Eye deflection that maps to a fully-driven Look morph (smaller = eyes travel more per degree)', 5, 45, 1, '{v} deg']
             },
@@ -1247,12 +1247,12 @@
                 bGazeRaysOnCreatures: ['bool', true, 'Emit beams from creatures'],
                 bGazeRaysAttachHead: ['bool', true, 'Attach the emitter to the head bone (false = actor root)'],
                 bGazeRaysTerminus: ['bool', true, 'Also place a second glow where the gaze lands'],
-                fPupilForwardOffsetCm: ['float', 12.0, 'Pupil origin: offset forward from the head bone origin (cm)', 0, 30, 0.5, '{v} cm'],
-                fPupilUpOffsetCm: ['float', 6.0, 'Pupil origin: offset up from the head bone origin (cm)', -10, 15, 0.5, '{v} cm'],
+                fPupilForwardOffsetCm: ['float', 10.8, 'Pupil origin: offset forward from the head bone origin (cm)', 0, 30, 0.5, '{v} cm'],
+                fPupilUpOffsetCm: ['float', 5.4, 'Pupil origin: offset up from the head bone origin (cm)', -10, 15, 0.5, '{v} cm'],
                 fPupilGlowIntensity: ['float', 0.35, 'Pupil emitter brightness multiplier', 0, 3, 0.05, '{v}x'],
                 bShowHcepPanel: ['bool', true, 'Master switch for the floating HCEP 9-region diagram panel'],
                 bHcepPanelAllActors: ['bool', true, 'Show HCEP panel on Player, NPCs, and Creatures (false = Player only)'],
-                fHcepPanelScale: ['float', 25.0, 'Scale factor for the floating HCEP panel in Skyrim units (~36cm readable label)', 0.5, 50.0, 0.5, '{v}'],
+                fHcepPanelScale: ['float', 27.5, 'Height of the floating HCEP panel in Skyrim units (~39cm readable diagram)', 0.5, 50.0, 0.5, '{v}'],
                 fHcepPanelForwardOffsetCm: ['float', 70.0, 'Forward distance in front of actor head in cm (~49 Skyrim units)', 10.0, 150.0, 1.0, '{v} cm']
             },
             'Console': {
@@ -1400,15 +1400,15 @@
                 desc: 'How far forward from the head bone the true "eye point" sits, in centimetres. THE EYES ARE THE TARGET.',
                 impact: 'Moves the aim point off the base of the skull and onto the eyeline, so NPCs look DIRECTLY into the eyes instead of at the throat or nose bridge.',
                 context: 'The NPC Head [Head] bone origin is at the base of the skull — a few cm below and behind the eyeballs. Applied along the head bone\'s own forward axis, so it tracks seated, leaning and crouched poses (e.g. the bound prisoners in the Helgen cart).',
-                rec: '5 - 10 cm',
-                dflt: '8.0 cm'
+                rec: '10.8 cm (vanilla FaceGen eye-globe centre)',
+                dflt: '10.8 cm'
             },
             'GazeTarget:fEyeAnchorUpCm': {
                 desc: 'How far up from the head bone the true eye point sits, in centimetres.',
                 impact: 'Lifts the aim point up to eye height. Too low and NPCs stare at the mouth or chin; too high and they look at the forehead.',
                 context: 'Applied along the head bone\'s own up axis. Both offsets together place the anchor squarely on the eyeline for genuine eye-to-eye contact.',
-                rec: '6 - 9 cm',
-                dflt: '8.5 cm'
+                rec: '5.4 cm (vanilla FaceGen eye-globe centre)',
+                dflt: '5.4 cm'
             },
             'GazeTarget:fEyeMorphGain': {
                 desc: 'Visible strength of the eyes on vanilla NPCs, whose eyeballs move only via FaceGen "Look" morphs (they have no eye bones).',
@@ -1854,16 +1854,16 @@
             'Visuals:fPupilForwardOffsetCm': {
                 desc: 'How far forward of the head bone origin the pupil sits, in centimetres.',
                 impact: 'Places the emitter at the eye surface rather than the skull centre. Increase if beams appear to start behind the face; decrease if they float in front of it.',
-                context: 'This exists because vanilla Skyrim skeletons expose no eye bones — the eye position must be derived geometrically. Custom rigs (XP32/XPMSSE) that do have eye bones ignore this value.',
-                rec: '7.0 cm',
-                dflt: '7.0 cm'
+                context: 'Fallback only when neither FaceGen eye shader centres nor eye nodes can be resolved. Vanilla FaceGen eyes use their actual loaded head-part centres and ignore this value.',
+                rec: '10.8 cm',
+                dflt: '10.8 cm'
             },
             'Visuals:fPupilUpOffsetCm': {
                 desc: 'How far above the head bone origin the pupil sits, in centimetres.',
                 impact: 'Fine vertical placement of the emitter. Negative values move it below the head bone origin.',
-                context: 'Tune together with the forward offset until the glow sits in the eye socket on the rigs you use most.',
-                rec: '1.5 cm',
-                dflt: '1.5 cm'
+                context: 'Fallback rigs only. FaceGen eye shader centres take precedence; this does not move the arrows on a resolved FaceGen rig. Check the Skeleton probe origin in TrueGaze.log.',
+                rec: '5.4 cm',
+                dflt: '5.4 cm'
             },
             'Visuals:fPupilGlowIntensity': {
                 desc: 'Brightness multiplier applied to the pupil emitter only.',
@@ -1894,11 +1894,11 @@
                 dflt: 'true'
             },
             'Visuals:fHcepPanelScale': {
-                desc: 'Scale factor for the floating HCEP diagram panel.',
-                impact: '0.5 creates a 50cm wide HUD panel. Adjust between 0.2 (compact badge) to 1.5 (presentation banner).',
+                desc: 'Height of the floating HCEP diagram panel in Skyrim units.',
+                impact: '27.5 produces an approximately 39cm-high panel; width follows the diagram aspect ratio.',
                 context: 'Scales uniformly around the actor\'s head anchor without shifting the forward position.',
-                rec: '0.5x',
-                dflt: '0.5x'
+                rec: '27.5 units',
+                dflt: '27.5 units'
             },
             'Visuals:fHcepPanelForwardOffsetCm': {
                 desc: 'Forward distance in front of the actor\'s head where the panel hovers (in centimetres).',
@@ -2407,8 +2407,8 @@
                     'SkeletalHierarchy:fHeadYawWeight': '0.245',
                     'SkeletalHierarchy:fHeadPitchWeight': '0.245',
                     'SkeletalHierarchy:fHeadEngageThresholdDeg': '12.0',
-                    'GazeTarget:fEyeAnchorForwardCm': '7.0',
-                    'GazeTarget:fEyeAnchorUpCm': '7.5',
+                    'GazeTarget:fEyeAnchorForwardCm': '10.8',
+                    'GazeTarget:fEyeAnchorUpCm': '5.4',
                     'GazeTarget:fEyeMorphGain': '1.8',
                     'GazeTarget:fEyeMorphFullScaleDeg': '20.0',
                     'Social:fCgaHeadInvolvement': '0.06',
@@ -2442,8 +2442,8 @@
                     'Visuals:bGazeRaysOnCreatures': 'true',
                     'Visuals:bGazeRaysAttachHead': 'true',
                     'Visuals:bGazeRaysTerminus': 'true',
-                    'Visuals:fPupilForwardOffsetCm': '12.0',
-                    'Visuals:fPupilUpOffsetCm': '6.0',
+                    'Visuals:fPupilForwardOffsetCm': '10.8',
+                    'Visuals:fPupilUpOffsetCm': '5.4',
                     'Visuals:fPupilGlowIntensity': '0.35',
                     // --- HCEP floating panel ON (Player-only to preserve frame rate & light limits) ---
                     'Visuals:bShowHcepPanel': 'true',
@@ -2711,7 +2711,7 @@
         }
 
         function fallbackToDefaults() {
-            let template = `[General]\r\nbEnableTrueGaze=true\r\nbEnableCreatures=true\r\nsEngineTarget=Auto\r\n\r\n[Kinematics]\r\nfSaccadeSpeedMult=1.000000\r\nfVelocitySaturation=14.000000\r\nfMicroJitterAmp=0.350000\r\nfMicroJitterIntervalMin=0.200000\r\nfMicroJitterIntervalMax=0.450000\r\nfHeadTrackingSpeed=6.000000\r\nfMaxComfortEyeAngle=35.000000\r\n\r\n[SkeletalHierarchy]\r\nfSpine2YawWeight=0.100000\r\nfNeckYawWeight=0.250000\r\nfNeckPitchWeight=0.250000\r\nfHeadYawWeight=0.650000\r\nfHeadPitchWeight=0.750000\r\n\r\n[Social]\r\nbEnableGazeAversion=true\r\nbEnableSocialTriangle=true\r\nfTriangleFixationDuration=0.350000\r\nfMutualGazeThreshold=2.000000\r\n\r\n[Crosshair]\r\nbEnableCrosshairGaze=true\r\nfCrosshairToleranceDeg=4.000000\r\nfCrosshairMaxRangeMeters=25.000000\r\nfCrosshairPointBlankMeters=1.500000\r\n\r\n[Bridge]\r\nbConnectHcepBridge=true\r\nsPipeName=\\\\.\\pipe\\TrueGazeBridge\r\nfAutoReconnectIntervalSec=3.000000\r\n\r\n[LOD]\r\nfTier1DistanceMeters=5.000000\r\nfTier2DistanceMeters=15.000000\r\n\r\n[Debug]\r\nbDebugGazeRays=false\r\niLogLevel=2\r\n\r\n[Visuals]\r\nbEnableInGameVisuals=false\r\nbGazeRaysEnabled=false\r\niRayRenderMode=0\r\nfGazeRayLengthMeters=10.000000\r\niGazeRayColour=13174890\r\nfGazeRayOpacity=0.850000\r\nbGazeRaysOnPlayer=true\r\nbGazeRaysOnNPCs=true\r\nbGazeRaysOnCreatures=true\r\nbGazeRaysAttachHead=true\r\nbGazeRaysTerminus=false\r\nfPupilForwardOffsetCm=7.000000\r\nfPupilUpOffsetCm=1.500000\r\nfPupilGlowIntensity=0.500000\r\n\r\n[Console]\r\nbEnableConsoleCommands=false\r\n`;
+            let template = `[General]\r\nbEnableTrueGaze=true\r\nbEnableCreatures=true\r\nsEngineTarget=Auto\r\n\r\n[Kinematics]\r\nfSaccadeSpeedMult=1.000000\r\nfVelocitySaturation=14.000000\r\nfMicroJitterAmp=0.350000\r\nfMicroJitterIntervalMin=0.200000\r\nfMicroJitterIntervalMax=0.450000\r\nfHeadTrackingSpeed=6.000000\r\nfMaxComfortEyeAngle=35.000000\r\n\r\n[SkeletalHierarchy]\r\nfSpine2YawWeight=0.100000\r\nfNeckYawWeight=0.250000\r\nfNeckPitchWeight=0.250000\r\nfHeadYawWeight=0.650000\r\nfHeadPitchWeight=0.750000\r\n\r\n[Social]\r\nbEnableGazeAversion=true\r\nbEnableSocialTriangle=true\r\nfTriangleFixationDuration=0.350000\r\nfMutualGazeThreshold=2.000000\r\n\r\n[Crosshair]\r\nbEnableCrosshairGaze=true\r\nfCrosshairToleranceDeg=4.000000\r\nfCrosshairMaxRangeMeters=25.000000\r\nfCrosshairPointBlankMeters=1.500000\r\n\r\n[Bridge]\r\nbConnectHcepBridge=true\r\nsPipeName=\\\\.\\pipe\\TrueGazeBridge\r\nfAutoReconnectIntervalSec=3.000000\r\n\r\n[LOD]\r\nfTier1DistanceMeters=5.000000\r\nfTier2DistanceMeters=15.000000\r\n\r\n[Debug]\r\nbDebugGazeRays=false\r\niLogLevel=2\r\n\r\n[Visuals]\r\nbEnableInGameVisuals=false\r\nbGazeRaysEnabled=false\r\niRayRenderMode=0\r\nfGazeRayLengthMeters=10.000000\r\niGazeRayColour=13174890\r\nfGazeRayOpacity=0.850000\r\nbGazeRaysOnPlayer=true\r\nbGazeRaysOnNPCs=true\r\nbGazeRaysOnCreatures=true\r\nbGazeRaysAttachHead=true\r\nbGazeRaysTerminus=false\r\nfPupilForwardOffsetCm=10.800000\r\nfPupilUpOffsetCm=5.400000\r\nfPupilGlowIntensity=0.500000\r\n\r\n[Console]\r\nbEnableConsoleCommands=false\r\n`;
             acceptIniText(template, 'Shipped Defaults');
         }
 

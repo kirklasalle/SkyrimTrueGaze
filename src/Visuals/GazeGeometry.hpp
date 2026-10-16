@@ -55,6 +55,25 @@ namespace TrueGaze::Visuals::Geometry
         return len > 1e-6f ? a * (1.0f / len) : Vec3{};
     }
 
+    struct EyeAim
+    {
+        float yawDeg{0.0f};
+        float pitchDeg{0.0f};
+    };
+
+    /// Project a world fixation into the ACTUAL posed head basis. Subtracting
+    /// a simulated head angle loses the weighted chain, idle tilt and scene pose.
+    [[nodiscard]] inline EyeAim AimInBasis(const Vec3& direction, const Vec3& right,
+                                           const Vec3& forward, const Vec3& up) noexcept
+    {
+        const float x = Dot(direction, right);
+        const float y = Dot(direction, forward);
+        const float z = Dot(direction, up);
+        constexpr float radToDeg = 180.0f / 3.14159265358979323846f;
+        return {std::atan2(x, y) * radToDeg,
+                std::atan2(z, std::sqrt(x * x + y * y)) * radToDeg};
+    }
+
     // -----------------------------------------------------------------------
     // Native mesh dimensions (measured with scripts/measure_nif.py, 2026-10-03)
     // -----------------------------------------------------------------------

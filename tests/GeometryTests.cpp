@@ -131,6 +131,68 @@ namespace
         std::cout << "  -> passed.\n";
     }
 
+    void TestPosedHeadEyeAim()
+    {
+        std::cout << "[TEST] Actual posed-head residual and exact binocular endpoints...\n";
+        constexpr float rad = 3.14159265358979323846f / 180.0f;
+        for (float pitch : {-35.0f, -20.0f, 0.0f, 25.0f})
+        {
+            for (float yaw : {-65.0f, 0.0f, 60.0f})
+            {
+                float basis[3][3];
+                BasisForY({std::sin(yaw * rad) * std::cos(pitch * rad),
+                           std::cos(yaw * rad) * std::cos(pitch * rad),
+                           std::sin(pitch * rad)}, basis);
+                // Include head roll, as in Hulda's tilted seated idle.
+                const auto right = Mul(basis, {0.8660254f, 0, 0.5f});
+                const auto forward = Mul(basis, {0, 1, 0});
+                const auto up = Mul(basis, {-0.5f, 0, 0.8660254f});
+                const auto desired = G::Normalized({0.35f, 0.9f, 0.12f});
+                const auto aim = G::AimInBasis(desired, right, forward, up);
+                const auto rebuilt = right * (std::sin(aim.yawDeg * rad) * std::cos(aim.pitchDeg * rad)) +
+                    forward * (std::cos(aim.yawDeg * rad) * std::cos(aim.pitchDeg * rad)) +
+                    up * std::sin(aim.pitchDeg * rad);
+                assert(G::Length(rebuilt - desired) < 1e-5f);
+            }
+        }
+
+        // The old solver subtracts all 30 degrees but the weighted chain only
+        // turns 10.5 degrees: a 19.5 degree miss even after the head settles.
+        float basis[3][3];
+        BasisForY({std::sin(10.5f * rad), std::cos(10.5f * rad), 0}, basis);
+        const auto desired = G::Vec3{std::sin(30.0f * rad), std::cos(30.0f * rad), 0};
+        const auto corrected = G::AimInBasis(desired, Mul(basis, {1, 0, 0}),
+            Mul(basis, {0, 1, 0}), Mul(basis, {0, 0, 1}));
+        assert(Near(corrected.yawDeg, 19.5f, 1e-3f));
+        assert(G::Dot(Mul(basis, {0, 1, 0}), desired) < 0.95f);
+
+        // Real eyesmale.nif shader centres, tested at race scales and beyond
+        // the old 2.5 m debug-ray reach. Both actual arrow tips must meet.
+        for (float scale : {0.75f, 1.0f, 1.25f})
+        {
+            const G::Vec3 left = G::Vec3{-2.3971753f, 7.5724897f, 3.7506099f} * scale;
+            const G::Vec3 right = G::Vec3{2.3976867f, 7.5724893f, 3.7506099f} * scale;
+            const auto mid = (left + right) * 0.5f;
+            for (float distance : {35.0f, 175.0f, 420.0f})
+            {
+                const auto fixation = mid + desired * distance;
+                for (const auto eye : {left, right})
+                {
+                    const auto direction = G::ConvergedEyeDirection(eye, mid, desired, distance);
+                    const auto scales = G::ComputeMarkerArrowScales(
+                        G::Length(fixation - eye) / scale, 1.68f);
+                    const auto rear = eye + direction * (scales.baseOffset * scale -
+                        G::MarkerArrowMesh::kHalfLengthY * scales.uniform * scale);
+                    const auto tip = eye + direction *
+                        (G::MarkerArrowMesh::kLengthY * scales.uniform * scale);
+                    assert(G::Length(rear - eye) < 1e-4f);
+                    assert(G::Length(tip - fixation) < 1e-3f);
+                }
+            }
+        }
+        std::cout << "  -> passed (tilt/roll, weighted head, pupil origins, scaled arrow endpoints).\n";
+    }
+
     void TestRayPlane()
     {
         std::cout << "[TEST] Ray-plane intersection...\n";
@@ -314,6 +376,7 @@ int main()
     TestColumnScalingPreservesDirection();
     TestArrowScales();
     TestConvergence();
+    TestPosedHeadEyeAim();
     TestRayPlane();
     TestPanelProjectionRoundTrip();
     TestClassifierParity();

@@ -50,8 +50,8 @@ namespace TrueGaze::Visuals
         // --- Attachment / origin ---
         bool gazeRaysAttachHead{true};
         bool gazeRaysTerminus{true};
-        float pupilForwardOffsetCm{12.0f}; // ~12cm forward from head bone to eye socket
-        float pupilUpOffsetCm{6.0f};       // ~6cm up from head bone to eye socket
+        float pupilForwardOffsetCm{10.8f}; // fallback only: no FaceGen centres or eye nodes
+        float pupilUpOffsetCm{5.4f};
         float pupilGlowIntensity{0.35f};
         /// Widest visible cross-section of the marker-arrow gaze ray. Default is
         /// the adult eyeball diameter (~24 mm = 1.68 units) so each arrow reads
@@ -63,7 +63,7 @@ namespace TrueGaze::Visuals
         bool hcepPanelAllActors{true};  // true = Player + NPCs; false = Player only
         // Panel quad is authored 1 unit tall; scale 25 -> ~36 cm tall diagram,
         // readable at the ~35 cm forward offset. (Old default 5 = 7 cm: unreadable.)
-        float hcepPanelScale{25.0f};           // panel scale factor in Skyrim units
+        float hcepPanelScale{27.5f};           // panel scale factor in Skyrim units
         float hcepPanelForwardOffsetCm{70.0f}; // ~49.0 Skyrim units forward from head bone
         const char* hcepPanelModelPath{"meshes\\TrueGaze\\GazeRegionPanel.nif"};
 

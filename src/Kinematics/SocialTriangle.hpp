@@ -271,9 +271,16 @@ namespace TrueGaze::Kinematics
                 std::uniform_real_distribution<float> durDist(0.20f, 0.55f);
                 state.fixationDurationSec = durDist(state.rng) * state.cadenceScale;
 
-                state.currentVertex = NextWeightedVertex(state, state.currentVertex, weights);
+                const bool returningToEyes =
+                    state.currentVertex != Vertex::LeftEye && state.currentVertex != Vertex::RightEye;
+                state.currentVertex = returningToEyes
+                    ? (std::uniform_int_distribution<int>(0, 1)(state.rng) == 0
+                           ? Vertex::LeftEye : Vertex::RightEye)
+                    : NextWeightedVertex(state, state.currentVertex, weights);
                 ComputeVertexOffset(state, faceDistanceMeters);
                 ApplyEyeDwell(state);
+                if (state.currentVertex != Vertex::LeftEye && state.currentVertex != Vertex::RightEye)
+                    state.fixationDurationSec = std::min(state.fixationDurationSec, 1.2f);
             }
         }
 
@@ -477,25 +484,25 @@ namespace TrueGaze::Kinematics
             {
             case Vertex::LeftEye:
                 state.vertexOffsetXDeg = -eyeSeparationDeg * 0.5f;
-                state.vertexOffsetYDeg = eyeMouthDeg * 0.4f;
+                state.vertexOffsetYDeg = 0.0f;
                 break;
             case Vertex::RightEye:
                 state.vertexOffsetXDeg = eyeSeparationDeg * 0.5f;
-                state.vertexOffsetYDeg = eyeMouthDeg * 0.4f;
+                state.vertexOffsetYDeg = 0.0f;
                 break;
             case Vertex::Mouth:
                 state.vertexOffsetXDeg = 0.0f;
-                state.vertexOffsetYDeg = -eyeMouthDeg * 0.6f;
+                state.vertexOffsetYDeg = -eyeMouthDeg;
                 break;
             case Vertex::ThirdEye:
-                // Third-eye / forehead: centered, above eyes (~3cm above brow line)
+                // Third-eye / forehead: centered, about 4 cm above the eyeline.
                 state.vertexOffsetXDeg = 0.0f;
-                state.vertexOffsetYDeg = eyeMouthDeg * 1.2f; // above eyes
+                state.vertexOffsetYDeg = eyeMouthDeg * (4.0f / 7.0f);
                 break;
             case Vertex::Chest:
-                // Heart / sternum: centered, well below face (~30cm below chin)
+                // Heart / sternum: centered, about 35 cm below the eyeline.
                 state.vertexOffsetXDeg = 0.0f;
-                state.vertexOffsetYDeg = -eyeMouthDeg * 4.0f; // chest level
+                state.vertexOffsetYDeg = -eyeMouthDeg * 5.0f;
                 break;
 
             // CGA Peripheral Aversion Regions (from HCEP Enhanced Diagram)

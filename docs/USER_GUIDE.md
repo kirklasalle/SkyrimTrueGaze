@@ -219,21 +219,21 @@ bGazeRaysOnNPCs=true
 bGazeRaysOnCreatures=true
 bGazeRaysAttachHead=true
 bGazeRaysTerminus=true
-fPupilForwardOffsetCm=12.0
-fPupilUpOffsetCm=6.0
+fPupilForwardOffsetCm=10.8
+fPupilUpOffsetCm=5.4
 fPupilGlowIntensity=0.35
 
 ; Option 2: HCEP Floating Ocular Diagram Panel
 bShowHcepPanel=true
 bHcepPanelAllActors=true
-fHcepPanelScale=25.0
+fHcepPanelScale=27.5
 fHcepPanelForwardOffsetCm=70.0
 ```
 
 Visual subsystems:
 
 - **Option 1: Directional Gaze Rays / Marker Arrows**:
-  - Gaze direction renders directly from anatomical pupil socket anchors along the solved line of sight.
+  - Gaze origins prefer the loaded FaceGen eye shader's left/right globe centres. Eye-node or configurable socket fallbacks are used only when those centres cannot be resolved. Shader centres are globe centres, not measured pupil-surface vertices.
   - Dynamically scaled in length based on actual target distance or `fGazeRayLengthMeters`.
   - Oriented dynamically to track computed saccadic/fixation eye line of sight (not head rotation).
 - **Option 2: HCEP Floating Diagram Panel**:
@@ -387,11 +387,38 @@ For a repeatable test:
 ## 11. Current Limitations
 
 - The visible beam geometry asset is not yet successfully loading in the validated installation.
-- Vanilla humanoid rigs commonly expose no separate eye bones; TrueGaze uses a geometric pupil origin from the head transform in that case.
+- Vanilla humanoid rigs commonly expose no separate eye bones; TrueGaze reads the loaded FaceGen eye shader centres instead. If these cannot be resolved, the skeleton probe reports `GeometricHeadSocket` and logs a warning: that rig still needs manual fallback calibration.
 - OAR condition registration is not complete.
 - The HCEP bridge is local and optional; it is not an encrypted network transport.
 - Skyrim VR-specific HMD behavior remains a separate validation target.
 - The public release package and documentation are not a final 1.0 release until visible-effects verification and clean-profile testing are complete.
+
+### Cart/tavern eye-lock verification
+
+Use `stgon` for a short test, with Debug logging (`iLogLevel=1`; toggle `stgverbose`
+only if Debug logging is not already active). In `TrueGaze.log`, a resolved
+vanilla eye head part should report `origin=FaceGenEyeCenters`, followed by
+`FaceGen centres` in head-local coordinates. Do not adjust the legacy pupil offsets
+to correct such a rig: those offsets apply only to fallback origins.
+
+`TrueGaze::Aim` reports the actual posed-head ocular residual, target form ID,
+tracking error, and saturation. During a settled eye hold, expect a stable target,
+`eyeContact=true`, `saturated=false`, and tracking error at or below 2.5 degrees.
+Weighted conversational glances last at most 1.2 seconds before selecting an eye
+again; eye-hold duration still follows configured cadence and eye dwell.
+Thinking/extended-mode scanpaths retain their separate timing.
+
+Verify visually that both arrows emerge through the eyes and meet the partner's
+eye line, first during a cart conversation, then an NPC-to-NPC tavern exchange,
+and finally first- and third-person player dialogue. Shader globe centres and
+the gaze solver have numerical coverage; pupil-surface placement was verified in
+game on 2026-10-16 in the Whiterun tavern and the Helgen opening cart scene.
+FaceGen morph response calibration has not been separately measured.
+
+The player's own gaze rays and HCEP panel are drawn only in third person. In
+first person they are hidden by design, because the player's head rig is offset
+from the first-person camera and attached rays would appear detached. TrueGaze
+still drives the player's eyes in first person, and NPC rays remain visible.
 
 ## 12. Support Report Template
 

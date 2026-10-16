@@ -111,14 +111,6 @@ namespace TrueGaze::Engine
         /// Skyrim world units per centimetre (70 units == 1 m).
         constexpr float kUnitsPerCm = kUnitsPerMeter / 100.0f;
 
-        /// R14 E7.5 — EyeAnchorFromHeadBone moved to GazeAnchors.hpp (shared with
-        /// GazeEngine.cpp, which previously carried a byte-identical copy).
-        RE::NiPoint3 EyeAnchorFromHeadBone(const RE::NiAVObject* headBone) noexcept
-        {
-            return TrueGaze::Anchors::EyeAnchorFromHeadBone(
-                headBone, TargetSelector::s_eyeAnchor.forwardCm, TargetSelector::s_eyeAnchor.upCm);
-        }
-
         /// Retrieve the true 3D world position of an actor's EYES (eye anchor projected
         /// from the head bone transform when available). "The eyes are the target."
         /// Dynamically tracks seated postures, counter-leaning idles, crouching, and race scales.
@@ -134,7 +126,9 @@ namespace TrueGaze::Engine
                 {
                     if (auto* bone = root->GetObjectByName(RE::BSFixedString(name)))
                     {
-                        return EyeAnchorFromHeadBone(bone);
+                        return TrueGaze::Anchors::EyeMidpoint(
+                            actor, bone, TargetSelector::s_eyeAnchor.forwardCm,
+                            TargetSelector::s_eyeAnchor.upCm);
                     }
                 }
                 return RE::NiPoint3{root->world.translate.x, root->world.translate.y,
@@ -701,6 +695,29 @@ namespace TrueGaze::Engine
         const auto observerHeadPos = GetActorHeadPosition(observer);
         const auto playerHeadPos = GetActorHeadPosition(player);
 
+        const auto serveDialogueTarget =
+            [&](RE::Actor* partner, bool yieldHeadToVanilla, float holdSeconds) noexcept {
+                GazeTarget dialogueTarget{};
+                const auto eyePos = GetActorHeadPosition(partner);
+                dialogueTarget.targetFormId = partner->GetFormID();
+                dialogueTarget.priority = TargetPriority::DialoguePartner;
+                dialogueTarget.worldX = eyePos.x;
+                dialogueTarget.worldY = eyePos.y;
+                dialogueTarget.worldZ = eyePos.z;
+                dialogueTarget.distanceMeters = DistanceMeters(observerHeadPos, eyePos);
+                dialogueTarget.isPlayer = (partner == player);
+                if (state)
+                {
+                    state->sceneDeferActive = yieldHeadToVanilla;
+                    if (holdSeconds > 0.0f)
+                    {
+                        state->dialogueTargetHoldFormId = partner->GetFormID();
+                        state->dialogueTargetHoldSec = holdSeconds;
+                    }
+                }
+                return dialogueTarget;
+            };
+
         // SCENE DEFER IS A PER-FRAME DECISION (Gold Standard fix, 2026-09-26).
         // The flag is cleared at the top of every resolution and only re-set by
         // the 1c head-track classification below. Previously it was set on the
@@ -960,10 +977,10 @@ namespace TrueGaze::Engine
                             target.worldZ = dHeadPos.z;
                             target.distanceMeters = dDist;
                             target.isPlayer = (dlgActor == player);
-                            if (dlgActor == player && state)
+                            if (state)
                             {
-                                // DIALOGUE PLAYER HOLD: arm the latch (see 2b).
-                                state->dialoguePlayerHoldSec = 3.0f;
+                                state->dialogueTargetHoldFormId = dlgActor->GetFormID();
+                                state->dialogueTargetHoldSec = 6.0f;
                             }
                             return target;
                         }
@@ -1062,24 +1079,7 @@ namespace TrueGaze::Engine
             // what TrueGaze exists to deliver.
             if (playerDirected && playerDirectedActor)
             {
-                const auto htHeadPos = GetActorHeadPosition(playerDirectedActor);
-                target.targetFormId = playerDirectedActor->GetFormID();
-                target.priority = TargetPriority::DialoguePartner;
-                target.worldX = htHeadPos.x;
-                target.worldY = htHeadPos.y;
-                target.worldZ = htHeadPos.z;
-                target.distanceMeters = DistanceMeters(observerPos, htHeadPos);
-                target.isPlayer = true;
-                if (state)
-                {
-                    state->sceneDeferActive = false;
-                    // DIALOGUE PLAYER HOLD: arm the latch so the brief
-                    // direction-signal dropouts mid-line do not re-aim the
-                    // gaze at a nearer NPC (the 16:43 log showed priority=4
-                    // flickering to priority=2 between trace windows).
-                    state->dialoguePlayerHoldSec = 3.0f;
-                }
-                return target;
+                return serveDialogueTarget(playerDirectedActor, false, 6.0f);
             }
 
             // VOICE ADDRESS DETECTION (Kirk directive, 2026-09-26 / Phase 8):
@@ -1124,58 +1124,16 @@ namespace TrueGaze::Engine
 
                     if (spokenToActor)
                     {
-                        const auto sHeadPos = GetActorHeadPosition(spokenToActor);
-                        target.targetFormId = spokenToActor->GetFormID();
-                        target.priority = TargetPriority::DialoguePartner;
-                        target.worldX = sHeadPos.x;
-                        target.worldY = sHeadPos.y;
-                        target.worldZ = sHeadPos.z;
-                        target.distanceMeters = DistanceMeters(observerPos, sHeadPos);
-                        target.isPlayer = (spokenToActor == player);
-                        if (state)
-                        {
-                            state->sceneDeferActive = false;
-                            if (spokenToActor == player)
-                            {
-                                state->dialoguePlayerHoldSec = 3.0f; // hold through the line
-                            }
-                        }
-                        return target;
+                        return serveDialogueTarget(spokenToActor, false, 6.0f);
                     }
-                }
-            }
-
-            // DIALOGUE PLAYER HOLD: if currently holding gaze toward player from recent dialogue,
-            // maintain eye contact through mid-line pauses and signal flicker before deferring to
-            // other NPC procedures.
-            if (state && state->dialoguePlayerHoldSec > 0.0f)
-            {
-                state->dialoguePlayerHoldSec -= deltaSeconds;
-                const float pDist = DistanceMeters(observerHeadPos, playerHeadPos);
-                if (pDist <= kNearbyRangeMeters)
-                {
-                    target.targetFormId = player->GetFormID();
-                    target.priority = TargetPriority::DialoguePartner;
-                    target.worldX = playerHeadPos.x;
-                    target.worldY = playerHeadPos.y;
-                    target.worldZ = playerHeadPos.z;
-                    target.distanceMeters = pDist;
-                    target.isPlayer = true;
-                    state->sceneDeferActive = false;
-                    return target;
                 }
             }
 
             if (anyDirected && directedActor)
             {
-                // Directed target is another NPC: defer to vanilla scene
-                // direction. Signal the engine to stand down for this
-                // actor this frame.
-                if (state)
-                    state->sceneDeferActive = true;
-                target.priority = TargetPriority::None;
-                target.targetFormId = 0;
-                return target;
+                // Preserve vanilla's scripted head pose, but let TrueGaze own the
+                // eyes and aim them at the directed actor's actual eyeline.
+                return serveDialogueTarget(directedActor, true, 2.0f);
             }
         }
         else if (auto* process = observer->GetActorRuntimeData().currentProcess)
@@ -1191,27 +1149,10 @@ namespace TrueGaze::Engine
                             // Directed target is the player: TrueGaze takes hold.
                             if (htActor == player)
                             {
-                                const auto htHeadPos = GetActorHeadPosition(htActor);
-                                target.targetFormId = htActor->GetFormID();
-                                target.priority = TargetPriority::DialoguePartner;
-                                target.worldX = htHeadPos.x;
-                                target.worldY = htHeadPos.y;
-                                target.worldZ = htHeadPos.z;
-                                target.distanceMeters = DistanceMeters(observerPos, htHeadPos);
-                                target.isPlayer = true;
-                                if (state)
-                                    state->sceneDeferActive = false;
-                                return target;
+                                return serveDialogueTarget(htActor, false, 6.0f);
                             }
 
-                            // Directed target is another NPC: defer to vanilla scene
-                            // direction. Signal the engine to stand down for this
-                            // actor this frame.
-                            if (state)
-                                state->sceneDeferActive = true;
-                            target.priority = TargetPriority::None;
-                            target.targetFormId = 0;
-                            return target;
+                            return serveDialogueTarget(htActor, true, 2.0f);
                         }
                     }
                 }
@@ -1227,28 +1168,65 @@ namespace TrueGaze::Engine
 
         const float playerDistanceMeters = DistanceMeters(observerHeadPos, playerHeadPos);
 
-        // 2b. DIALOGUE PLAYER HOLD — serve the latched player target while the
-        // hold timer counts down. Armed whenever a direction slot or the
-        // dialogue item resolves to the player; this re-serves the player
-        // through the direction signal's mid-line flicker so an NPC speaking
-        // TO the player keeps looking at the player for the whole line.
-        if (state && state->dialoguePlayerHoldSec > 0.0f)
+        // Dialogue targets describe the speaker's addressee, not necessarily the
+        // listener's own target. Resolve that reverse edge to make gaze reciprocal.
+        if (auto* lists = RE::ProcessLists::GetSingleton())
         {
-            state->dialoguePlayerHoldSec -= deltaSeconds;
-
-            if (playerDistanceMeters <= kNearbyRangeMeters)
+            RE::Actor* speaker = nullptr;
+            float nearest = 6.0f;
+            for (const auto& handle : lists->highActorHandles)
             {
-                target.targetFormId = player->GetFormID();
-                target.priority = TargetPriority::DialoguePartner;
-                target.worldX = playerHeadPos.x;
-                target.worldY = playerHeadPos.y;
-                target.worldZ = playerHeadPos.z;
-                target.distanceMeters = playerDistanceMeters;
-                target.isPlayer = true;
-                return target;
+                auto ptr = handle.get();
+                auto* candidate = ptr.get();
+                if (!candidate || candidate == observer || candidate->IsDead() ||
+                    candidate->IsDisabled())
+                    continue;
+                auto* high = candidate->GetHighProcess();
+                if (!high || (high->voiceState.underlying() !=
+                                  static_cast<std::uint32_t>(RE::VOICE_STATE::kStart) &&
+                              high->voiceState.underlying() !=
+                                  static_cast<std::uint32_t>(RE::VOICE_STATE::kContinue)))
+                    continue;
+                const auto addressee = candidate->GetActorRuntimeData().dialogueItemTarget.get();
+                bool addressingMe = addressee && addressee.get() == observer;
+                if (!addressee)
+                {
+                    const auto recipient = high->headTrackTarget[
+                        RE::HighProcessData::HEAD_TRACK_TYPE::kDialogue].get();
+                    addressingMe = recipient && recipient.get() == observer;
+                }
+                if (!addressingMe)
+                    continue;
+                const auto position = GetActorWorldPosition(candidate);
+                const float distance = DistanceMeters(observerPos, position);
+                if (distance < nearest && IsInVisualCone(
+                    observerPos, GetObserverHeadingRad(observer, state), position,
+                    kMaxHoldVisualConeAngleDeg))
+                {
+                    speaker = candidate;
+                    nearest = distance;
+                }
             }
-            // Player out of range: let the hold expire naturally and fall
-            // through to the normal chain.
+            if (speaker)
+                return serveDialogueTarget(speaker, false, 6.0f);
+        }
+
+        // 2b. Serve a latched dialogue partner after the raw direction signal
+        // drops, so both player and NPC conversations remain stable.
+        if (state && state->dialogueTargetHoldSec > 0.0f &&
+            state->dialogueTargetHoldFormId != 0)
+        {
+            state->dialogueTargetHoldSec -= deltaSeconds;
+            auto* heldForm = RE::TESForm::LookupByID(state->dialogueTargetHoldFormId);
+            auto* heldActor = heldForm ? heldForm->As<RE::Actor>() : nullptr;
+            if (heldActor && !heldActor->IsDead() && !heldActor->IsDisabled())
+            {
+                const auto heldEye = GetActorHeadPosition(heldActor);
+                if (DistanceMeters(observerHeadPos, heldEye) <= kNearbyRangeMeters)
+                {
+                    return serveDialogueTarget(heldActor, false, 0.0f);
+                }
+            }
         }
 
         // 3. Target Fixation Stability (Dwell Time Hysteresis)

@@ -290,6 +290,9 @@ shippable in a release build, whereas the Augur asset is developer-only.
 character (only other actors / 3rd person). Reuse the existing `IsInThirdPerson()` / `IsPlayerRef()`
 logic already in `AnimationHook.cpp`.
 
+*Implemented (2026-10-16):* `GazeEngine::ApplyToSkeleton` removes the player's visual emitters while
+the player is not in third person, and recreates them on return to third person. Verified in game.
+
 ### 5.3 Asset production pipeline (concrete steps)
 
 1. **Author in Blender** (flat quad/ring meshes; no rig needed).

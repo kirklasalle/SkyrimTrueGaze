@@ -46,8 +46,8 @@ namespace TrueGaze::Engine
         // Where the true eye point sits relative to the head bone (centimetres),
         // so "the eyes are the target" is literally true. Applied on both the target
         // side (TargetSelector) and the observer's ray origin (GazeEngine).
-        float eyeAnchorForwardCm{8.0f};
-        float eyeAnchorUpCm{8.5f};
+        float eyeAnchorForwardCm{10.8f};
+        float eyeAnchorUpCm{5.4f};
         // Extra visible gain applied to the FaceGen Look* eye morphs on vanilla rigs
         // (which have no eye bones). 1.0 = raw solved eye angle; >1 makes the eyes
         // read more clearly as leading the head. Clamped so morphs never exceed 1.0.

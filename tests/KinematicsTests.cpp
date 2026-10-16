@@ -165,16 +165,26 @@ namespace
 
         TrueGaze::Kinematics::SocialTriangle::TriangleState state;
         auto initialVertex = state.currentVertex;
+        bool cycled = false;
 
         // Simulate 2 seconds to force vertex transition
         float dt = 0.05f;
         for (int i = 0; i < 40; ++i)
         {
             TrueGaze::Kinematics::SocialTriangle::Update(state, dt, 1.5f);
+            cycled = cycled || state.currentVertex != initialVertex;
         }
 
-        // Vertex must have cycled
-        assert(state.currentVertex != initialVertex);
+        // Verify the scanpath itself before forcing any vertex.
+        assert(cycled);
+
+        // Eye vertices are offsets from an already eye-centred target. Their
+        // vertical component must remain on the pupil line, not the eyebrows.
+        TrueGaze::Kinematics::SocialTriangle::ReturnToFace(state, 1.5f);
+        assert(state.currentVertex ==
+               TrueGaze::Kinematics::SocialTriangle::Vertex::RightEye);
+        assert(std::abs(state.vertexOffsetYDeg) <= 0.20f);
+        assert(state.vertexOffsetXDeg > 1.0f);
 
         // --- Organic path verification (r = 0: deterministic orbit preserved) ---
         {
@@ -243,7 +253,38 @@ namespace
             assert(differ); // same vertex, different landing angle each visit
         }
 
-        std::cout << "  -> SocialTriangle passed (organic path + landing scatter).\n";
+        {
+            using Triangle = TrueGaze::Kinematics::SocialTriangle;
+            Triangle::TriangleState s{};
+            Triangle::SeedRng(s, 77u);
+            s.cadenceScale = 8.0f;
+            s.eyeDwellScale = 4.0f;
+            const float weights[9]{1, 1, 1, 1, 1, 1, 1, 1, 1};
+            int eyeVisits = 0;
+            int glanceVisits = 0;
+            bool wasGlance = false;
+            for (int i = 0; i < 200; ++i)
+            {
+                Triangle::UpdateWeighted(s, s.fixationDurationSec + 0.01f, 1.5f, 0.6f, weights);
+                const bool eye = s.currentVertex == Triangle::Vertex::LeftEye ||
+                                 s.currentVertex == Triangle::Vertex::RightEye;
+                if (wasGlance)
+                    assert(eye);
+                if (eye)
+                {
+                    ++eyeVisits;
+                    assert(s.fixationDurationSec >= 6.4f);
+                }
+                else
+                {
+                    ++glanceVisits;
+                    assert(s.fixationDurationSec <= 1.2f);
+                }
+                wasGlance = !eye;
+            }
+            assert(eyeVisits > 0 && glanceVisits > 0);
+        }
+        std::cout << "  -> SocialTriangle passed (organic path, pupil height, sustained holds, brief glances).\n";
     }
 
     void TestBoneController()

@@ -1,5 +1,6 @@
 #include "PlayerGazeResolver.hpp"
 #include "GazeAnchors.hpp"
+#include "TargetSelector.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/Skyrim.h>
@@ -180,7 +181,8 @@ namespace TrueGaze::Engine
 
             if (auto* head = FindHeadBone(root))
             {
-                out = head->world.translate;
+                const auto& anchors = TargetSelector::s_eyeAnchor;
+                out = TrueGaze::Anchors::EyeMidpoint(actor, head, anchors.forwardCm, anchors.upCm);
                 return true;
             }
 
