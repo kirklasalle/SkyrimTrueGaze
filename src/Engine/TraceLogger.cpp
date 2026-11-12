@@ -300,7 +300,8 @@ namespace TrueGaze::Engine
             (targetId != 0) ? std::format("0x{:08X}", targetId) : "null";
 
         std::string line = std::format(
-            R"({{"t":"GAZE_TICK","ts":{:.3f},"actor":"0x{:08X}","target":"{}","yaw":{:.2f},"pitch":{:.2f},"eyeYaw":{:.2f},"eyePitch":{:.2f},"region":{},"hitRegion":{},"mode":"{}","lod":{},"mutual":{},"mutualSec":{:.2f},"headPct":{:.2f},"dt":{:.4f}}})",
+            R"({{"t":"GAZE_TICK","schema":2,"hitSemantics":"{}","ts":{:.3f},"actor":"0x{:08X}","target":"{}","yaw":{:.2f},"pitch":{:.2f},"eyeYaw":{:.2f},"eyePitch":{:.2f},"region":{},"hitRegion":{},"mode":"{}","lod":{},"mutual":{},"mutualSec":{:.2f},"headPct":{:.2f},"dt":{:.4f}}})",
+            hitRegion == 255 ? "retiredSelfPanel" : "legacySelfPanel",
             ts, actorId, targetStr, yaw, pitch, eyeYaw, eyePitch, region, hitRegion,
             (modeStr ? modeStr : "UNKNOWN"), lod, mutual ? "true" : "false", mutualSec, headPct, dt);
 
@@ -435,6 +436,24 @@ namespace TrueGaze::Engine
             pass ? "true" : "false");
 
         Enqueue(std::move(line));
+    }
+
+    void TraceLogger::LogIncomingHit(const Visuals::Incoming::Hit& hit) noexcept
+    {
+        if (!hit.hit || !_active.load(std::memory_order_relaxed) || !_traceGazeTick ||
+            (!ShouldLogActor(hit.observer) && !ShouldLogActor(hit.target)))
+            return;
+        const auto line = std::format(
+            R"({{"t":"INCOMING_HIT","schema":2,"frame":{},"observer":"0x{:08X}","target":"0x{:08X}","source":"{}","measurement":"{}","region":"{}","world":[{:.3f},{:.3f},{:.3f}],"distance":{:.3f},"panel":[{:.3f},{:.3f}],"quality":"{}","visibilityVerified":{}}})",
+            hit.frame, hit.observer, hit.target,
+            hit.source == Visuals::Incoming::Source::Camera ? "camera" : "posedEyes",
+            hit.measurement == Visuals::Incoming::Measurement::Anatomy ? "anatomy" :
+                hit.measurement == Visuals::Incoming::Measurement::AbovePanel ? "abovePanel" : "frontPanel",
+            Visuals::Incoming::Name(hit.region), hit.point.x, hit.point.y, hit.point.z,
+            hit.distance, hit.x, hit.z,
+            hit.quality == Visuals::Incoming::Quality::Anchored ? "anchoredApproximation" : "approximate",
+            hit.visibilityVerified);
+        Enqueue(std::string(line));
     }
 
 } // namespace TrueGaze::Engine

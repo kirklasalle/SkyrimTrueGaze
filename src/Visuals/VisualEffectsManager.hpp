@@ -65,6 +65,8 @@ namespace TrueGaze::Visuals
         /// @brief Detaches every emitter. Call on cell change, game load, or toggle.
         void Reset() noexcept;
 
+        RE::NiPointer<RE::NiNode> CreateReceivingPanel();
+
         // --- Diagnostics -------------------------------------------------------
 
         /// @brief Number of actors currently holding live emitters.

@@ -6,6 +6,7 @@
 #include "Engine/PlayerGazeResolver.hpp"
 #include "Engine/TraceLogger.hpp"
 #include "Visuals/VisualEffectsManager.hpp"
+#include "Visuals/IncomingGazeManager.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/C/CommandTable.h>
@@ -29,6 +30,7 @@ namespace TrueGaze::Integrations
         bool g_installed = false;
         // Defined below; CmdStatus delegates to it.
         void LogStatusToConsole() noexcept;
+        void LogIncomingStatus() noexcept;
         // -----------------------------------------------------------------------
         // Console output
         // -----------------------------------------------------------------------
@@ -158,6 +160,42 @@ namespace TrueGaze::Integrations
             return true;
         }
 
+        template <bool Engine::ConfigManager::* Setting>
+        bool CmdIncoming(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                         RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                         std::uint32_t&) noexcept
+        {
+            auto& cfg = Engine::ConfigManager::GetSingleton();
+            auto& enabled = cfg.*Setting;
+            enabled = !enabled;
+            if (enabled)
+                cfg.enableInGameVisuals = true;
+            const char* name =
+                Setting == &Engine::ConfigManager::showIncomingAbove ? "bIncomingPanelAbove" :
+                Setting == &Engine::ConfigManager::showIncomingHud ? "bIncomingPlayerHud" :
+                Setting == &Engine::ConfigManager::showIncomingText ? "bIncomingText" :
+                Setting == &Engine::ConfigManager::measureIncomingAnatomy ? "bIncomingAnatomy" :
+                "bIncomingPanelHits";
+            PersistQuietly();
+            ApplyAndReport(name, enabled);
+            return true;
+        }
+
+        template <int Direction>
+        bool CmdIncomingPage(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                             RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                             std::uint32_t&) noexcept
+        {
+            if (!Engine::ConfigManager::GetSingleton().showIncomingText)
+            {
+                ConsolePrint("Incoming inspection is off. Enable it with stgintext first.");
+                return true;
+            }
+            Visuals::IncomingGazeManager::Get().StepInspection(Direction);
+            ConsolePrint("Incoming inspection: %s text page / observation.", Direction > 0 ? "next" : "previous");
+            return true;
+        }
+
         /// Cycle Both -> Light only -> Geometry only -> Both.
         bool CmdRenderMode(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,
                            RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*,
@@ -172,11 +210,7 @@ namespace TrueGaze::Integrations
                                : (cfg.rayRenderMode == 1) ? "Light only (no art assets needed)"
                                                           : "Geometry only (needs the beam assets)";
             ConsolePrint("TrueGaze: iRayRenderMode = %d - %s", cfg.rayRenderMode, name);
-            if (cfg.rayRenderMode == 2)
-            {
-                ConsolePrint("TrueGaze: note - geometry assets are not installed yet, so "
-                             "nothing will be drawn. Use 1.");
-            }
+            ConsolePrint("TrueGaze: geometry modes require an available beam mesh; check attachment counters in stgstatus.");
             return true;
         }
 
@@ -219,6 +253,8 @@ namespace TrueGaze::Integrations
             cfg.enableInGameVisuals = true;
             cfg.gazeRaysEnabled = true;
             cfg.showHcepPanel = true;
+            cfg.showIncomingAbove = cfg.showIncomingHud = cfg.showIncomingText = true;
+            cfg.measureIncomingAnatomy = cfg.measureIncomingPanels = true;
             PersistQuietly();
             ApplyAndReport("in-game visuals (rays + panel)", true);
             return true;
@@ -232,6 +268,7 @@ namespace TrueGaze::Integrations
             cfg.enableInGameVisuals = false;
             cfg.gazeRaysEnabled = false;
             cfg.showHcepPanel = false;
+            cfg.showIncomingAbove = cfg.showIncomingHud = cfg.showIncomingText = false;
             PersistQuietly();
             ApplyAndReport("in-game visuals (rays + panel)", false);
             return true;
@@ -302,6 +339,7 @@ namespace TrueGaze::Integrations
             logger::info("[TrueGaze]   beam geometry     {} attached / {} attempts",
                          static_cast<unsigned long long>(visuals.GeometryCreated()),
                          static_cast<unsigned long long>(visuals.GeometryAttempts()));
+            LogIncomingStatus();
             const auto& acc = visuals.GetAccuracyStats();
             if (acc.totalEvaluations > 0)
             {
@@ -326,6 +364,45 @@ namespace TrueGaze::Integrations
             logger::info("[TrueGaze]   commands          {}",
                          ConsoleCommands::IsInstalled() ? "registered" : "NOT registered");
             logger::info("[TrueGaze] === END AUTO STATUS ===");
+        }
+
+        void LogIncomingStatus() noexcept
+        {
+            const auto& cfg = Engine::ConfigManager::GetSingleton();
+            const auto& incoming = Visuals::IncomingGazeManager::Get().Results();
+            ConsolePrint("Incoming: A=%s B=%s HUD=%s text=%s anatomy=%s panels=%s",
+                         cfg.showIncomingAbove ? "ON" : "OFF", cfg.showHcepPanel ? "ON" : "OFF",
+                         cfg.showIncomingHud ? "ON" : "OFF", cfg.showIncomingText ? "ON" : "OFF",
+                         cfg.measureIncomingAnatomy ? "ON" : "OFF", cfg.measureIncomingPanels ? "ON" : "OFF");
+            ConsolePrint("Incoming: %zu rays / %zu receivers / %zu measurements. Visibility unverified.",
+                         incoming.RayCount(), incoming.ReceiverCount(), incoming.HitCount());
+            const auto incomingCost = Visuals::IncomingGazeManager::Get().GetCost();
+            ConsolePrint("Development diagnostics menu visibility: %s (console settings unchanged).",
+                         Visuals::IncomingGazeManager::DiagnosticsSuppressed() ? "SUPPRESSED" : "GAMEPLAY");
+            ConsolePrint("Incoming finalize: %llu us (peak %llu); native UI: %llu us (peak %llu); panels=%zu labels=%zu",
+                         static_cast<unsigned long long>(incomingCost.finalizationUs),
+                         static_cast<unsigned long long>(incomingCost.peakFinalizationUs),
+                         static_cast<unsigned long long>(incomingCost.uiUs),
+                         static_cast<unsigned long long>(incomingCost.peakUiUs),
+                         incomingCost.panels, incomingCost.labels);
+            ConsolePrint("Incoming cards=%zu overflow=%zu. Timing windows: up to 256 active frames; earlier peaks are session-wide.",
+                         incomingCost.cards, incomingCost.overflowCards);
+            if (incomingCost.finalizationSamples)
+                ConsolePrint("Incoming finalize n=%zu: median=%llu p95=%llu window peak=%llu us",
+                             incomingCost.finalizationSamples,
+                             static_cast<unsigned long long>(incomingCost.finalizationMedianUs),
+                             static_cast<unsigned long long>(incomingCost.finalizationP95Us),
+                             static_cast<unsigned long long>(incomingCost.finalizationWindowPeakUs));
+            else
+                ConsolePrint("Incoming finalize: no active-frame timing samples.");
+            if (incomingCost.uiSamples)
+                ConsolePrint("Incoming UI n=%zu: median=%llu p95=%llu window peak=%llu us",
+                             incomingCost.uiSamples,
+                             static_cast<unsigned long long>(incomingCost.uiMedianUs),
+                             static_cast<unsigned long long>(incomingCost.uiP95Us),
+                             static_cast<unsigned long long>(incomingCost.uiWindowPeakUs));
+            else
+                ConsolePrint("Incoming UI: no active-frame timing samples.");
         }
 
         void LogStatusToConsole() noexcept
@@ -357,6 +434,7 @@ namespace TrueGaze::Integrations
                          cfg.pupilUpOffsetCm);
             ConsolePrint("  panel offset     fwd %.1f cm, scale %.1f", cfg.hcepPanelForwardOffsetCm,
                          cfg.hcepPanelScale);
+            LogIncomingStatus();
             ConsolePrint("  log level        %d   (1=Debug 2=Info)", cfg.logLevel);
             ConsolePrint("  tracked actors   %zu", engine.TrackedActorCount());
             ConsolePrint("  tick calls       %llu",
@@ -465,7 +543,7 @@ namespace TrueGaze::Integrations
         // -----------------------------------------------------------------------
         // R15 C4.1: preset application + config reload at the console.
         //
-        // stgpreset <name> applies the same re-calibrated Quick Presets the
+        // stgpreset cycles the same re-calibrated Quick Presets the
         // configurator ships (vanilla/subtle/intense/social/developer), writes
         // the INI, and refreshes the live tuning — a field test can switch
         // baselines without leaving the game. stgreload re-reads the INI from
@@ -503,6 +581,15 @@ namespace TrueGaze::Integrations
             {"vanilla", "Visuals", "bShowHcepPanel", "false"},
             {"vanilla", "Debug", "bDebugGazeRays", "false"},
             {"vanilla", "Debug", "iLogLevel", "2"},
+            {"vanilla", "SkeletalHierarchy", "fSpine2YawWeight", "0.035"},
+            {"vanilla", "SkeletalHierarchy", "fNeckYawWeight", "0.07"},
+            {"vanilla", "SkeletalHierarchy", "fNeckPitchWeight", "0.07"},
+            {"vanilla", "SkeletalHierarchy", "fHeadYawWeight", "0.245"},
+            {"vanilla", "SkeletalHierarchy", "fHeadPitchWeight", "0.245"},
+            {"vanilla", "Social", "bDialogueSyncCgaReturn", "true"},
+            {"vanilla", "Social", "bEnableGazeAversion", "true"},
+            {"vanilla", "Social", "bEnableSocialTriangle", "true"},
+            {"vanilla", "Crosshair", "bEnableCrosshairGaze", "true"},
             // subtle = baseline with a gentle combat-ceiling reduction.
             {"subtle", "Kinematics", "fSaccadeSpeedMult", "1.2"},
             {"subtle", "Kinematics", "fMicroJitterAmp", "0.18"},
@@ -519,6 +606,16 @@ namespace TrueGaze::Integrations
             {"subtle", "Visuals", "bShowHcepPanel", "false"},
             {"subtle", "Debug", "bDebugGazeRays", "false"},
             {"subtle", "Debug", "iLogLevel", "2"},
+            {"subtle", "Kinematics", "fHeadOnsetDelaySec", "0.13"},
+            {"subtle", "SkeletalHierarchy", "fSpine2YawWeight", "0.035"},
+            {"subtle", "SkeletalHierarchy", "fNeckYawWeight", "0.07"},
+            {"subtle", "SkeletalHierarchy", "fNeckPitchWeight", "0.07"},
+            {"subtle", "SkeletalHierarchy", "fHeadYawWeight", "0.245"},
+            {"subtle", "SkeletalHierarchy", "fHeadPitchWeight", "0.245"},
+            {"subtle", "Social", "bDialogueSyncCgaReturn", "true"},
+            {"subtle", "Social", "bEnableGazeAversion", "true"},
+            {"subtle", "Social", "bEnableSocialTriangle", "true"},
+            {"subtle", "Crosshair", "bEnableCrosshairGaze", "true"},
             // intense = baseline with a heightened combat ceiling (12° floor kept).
             {"intense", "Kinematics", "fSaccadeSpeedMult", "1.8"},
             {"intense", "Kinematics", "fMicroJitterAmp", "0.35"},
@@ -535,6 +632,16 @@ namespace TrueGaze::Integrations
             {"intense", "Visuals", "bShowHcepPanel", "false"},
             {"intense", "Debug", "bDebugGazeRays", "false"},
             {"intense", "Debug", "iLogLevel", "2"},
+            {"intense", "Kinematics", "fMaxComfortEyeAngle", "35.0"},
+            {"intense", "SkeletalHierarchy", "fSpine2YawWeight", "0.035"},
+            {"intense", "SkeletalHierarchy", "fNeckYawWeight", "0.07"},
+            {"intense", "SkeletalHierarchy", "fNeckPitchWeight", "0.07"},
+            {"intense", "SkeletalHierarchy", "fHeadYawWeight", "0.245"},
+            {"intense", "SkeletalHierarchy", "fHeadPitchWeight", "0.245"},
+            {"intense", "Social", "bDialogueSyncCgaReturn", "true"},
+            {"intense", "Social", "bEnableGazeAversion", "true"},
+            {"intense", "Social", "bEnableSocialTriangle", "true"},
+            {"intense", "Crosshair", "bEnableCrosshairGaze", "true"},
             // social = baseline tuned for conversation richness.
             {"social", "Kinematics", "fSaccadeSpeedMult", "1.5"},
             {"social", "Kinematics", "fMicroJitterAmp", "0.22"},
@@ -557,6 +664,16 @@ namespace TrueGaze::Integrations
             {"social", "Visuals", "bShowHcepPanel", "false"},
             {"social", "Debug", "bDebugGazeRays", "false"},
             {"social", "Debug", "iLogLevel", "2"},
+            {"social", "SkeletalHierarchy", "fSpine2YawWeight", "0.035"},
+            {"social", "SkeletalHierarchy", "fNeckYawWeight", "0.07"},
+            {"social", "SkeletalHierarchy", "fNeckPitchWeight", "0.07"},
+            {"social", "SkeletalHierarchy", "fHeadYawWeight", "0.245"},
+            {"social", "SkeletalHierarchy", "fHeadPitchWeight", "0.245"},
+            {"social", "GazeTarget", "fEyeMorphFullScaleDeg", "20.0"},
+            {"social", "Social", "bDialogueSyncCgaReturn", "true"},
+            {"social", "Social", "bEnableGazeAversion", "true"},
+            {"social", "Social", "bEnableSocialTriangle", "true"},
+            {"social", "Crosshair", "bEnableCrosshairGaze", "true"},
             // developer = the shipped baseline exactly + all visuals + debug.
             {"developer", "General", "bEnableTrueGaze", "true"},
             {"developer", "General", "bEnableCreatures", "true"},
@@ -579,37 +696,47 @@ namespace TrueGaze::Integrations
             {"developer", "Visuals", "bGazeRaysEnabled", "true"},
             {"developer", "Visuals", "iRayRenderMode", "0"},
             {"developer", "Visuals", "bShowHcepPanel", "true"},
-            {"developer", "Visuals", "bHcepPanelAllActors", "true"},
+            {"developer", "Visuals", "bHcepPanelAllActors", "false"},
             {"developer", "Debug", "bDebugGazeRays", "true"},
             {"developer", "Debug", "iLogLevel", "1"},
             {"developer", "Console", "bEnableConsoleCommands", "true"},
+            {"developer", "Visuals", "fGazeRayLengthMeters", "2.5"},
+            {"developer", "Visuals", "fGazeRayThicknessCm", "0.2"},
+            {"developer", "Visuals", "bGazeRaysOnPlayer", "true"},
+            {"developer", "Visuals", "bGazeRaysOnNPCs", "true"},
+            {"developer", "Visuals", "bGazeRaysOnCreatures", "true"},
+            {"developer", "Visuals", "bGazeRaysAttachHead", "true"},
+            {"developer", "Visuals", "bGazeRaysTerminus", "true"},
+            {"developer", "Visuals", "fPupilForwardOffsetCm", "10.8"},
+            {"developer", "Visuals", "fPupilUpOffsetCm", "5.4"},
+            {"developer", "Visuals", "fPupilGlowIntensity", "0.35"},
+            {"developer", "SkeletalHierarchy", "fSpine2YawWeight", "0.035"},
+            {"developer", "SkeletalHierarchy", "fNeckYawWeight", "0.07"},
+            {"developer", "SkeletalHierarchy", "fNeckPitchWeight", "0.07"},
+            {"developer", "SkeletalHierarchy", "fHeadYawWeight", "0.245"},
+            {"developer", "SkeletalHierarchy", "fHeadPitchWeight", "0.245"},
+            {"developer", "Social", "bEnableGazeAversion", "true"},
+            {"developer", "Social", "bEnableSocialTriangle", "true"},
+            {"developer", "Social", "bDialogueSyncCgaReturn", "true"},
+            {"developer", "Crosshair", "bEnableCrosshairGaze", "true"},
         };
 
         bool CmdPreset(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
                        RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
                        std::uint32_t&) noexcept
         {
-            // The preset name arrives via the compiled script's parameter block.
-            // The engine's console passes a single string argument for commands
-            // declared with one string param; read it defensively.
-            const char* presetName = nullptr;
-            // SCRIPT_PARAMETER access differs across SDK revisions; the robust
-            // path is the console's own compiled script text. Fall back to the
-            // last token of the raw command line via the console log's command
-            // buffer is NOT exposed — so we accept the parameter block directly.
-            // If no name resolves, print usage (honest, not a silent no-op).
+            auto& cfg = Engine::ConfigManager::GetSingleton();
+            const auto path = cfg.LoadedPath();
+            if (path.empty())
+            {
+                ConsolePrint("TrueGaze: cannot persist a preset without a loaded INI. Install TrueGaze.ini and restart.");
+                return true;
+            }
             static const char* kNames[] = {"vanilla", "subtle", "intense", "social", "developer"};
-            (void)presetName;
 
-            // NOTE: the engine's SCRIPT_PARAMETER layout for string args is not
-            // safely readable across SE/AE/VR without a verified relocation. The
-            // 2026-09-25 lesson (never guess an offset) applies. stgpreset
-            // therefore cycles presets when called without a parseable argument:
-            // each invocation advances to the next preset in a fixed order. This
-            // keeps the command useful (field switching) with ZERO offset risk.
+            // No string-argument parsing: the registered command cycles presets.
             static int s_presetIndex = 0;
-            const char* name = kNames[s_presetIndex % 5];
-            s_presetIndex = (s_presetIndex + 1) % 5;
+            const char* name = kNames[s_presetIndex];
 
             int applied = 0;
             for (const auto& e : kPresets)
@@ -618,45 +745,21 @@ namespace TrueGaze::Integrations
                 {
                     continue;
                 }
-                // Write through the same Win32 INI API ConfigManager uses, then
-                // re-read + sanitise + refresh so the engine sees one consistent
-                // state (never a half-applied preset).
-                if (std::strcmp(e.value, "true") == 0 || std::strcmp(e.value, "false") == 0)
+                if (!WritePrivateProfileStringA(
+                    e.section, e.key, e.value, path.c_str()))
                 {
-                    WritePrivateProfileStringA(e.section, e.key, e.value, "");
+                    ConsolePrint("TrueGaze: preset write failed at [%s] %s (Windows error %lu); INI may be partially updated. Runtime unchanged; inspect INI before stgreload.",
+                                 e.section, e.key, GetLastError());
+                    return true;
                 }
-                // The in-memory path below is the authoritative one; the INI write
-                // happens via Save() at the end so the file and memory agree.
                 ++applied;
-            }
-
-            // Apply in memory: re-run Load() from the INI we are about to write is
-            // circular; instead set values directly through the preset table by
-            // re-reading them as typed values.
-            // Simpler and honest: write the preset to the INI via Save() of the
-            // current state is wrong too. The clean sequence: apply the preset
-            // values into the ConfigManager fields, Save, RefreshTuning.
-            // The table above carries strings; parse them here.
-            for (const auto& e : kPresets)
-            {
-                if (std::strcmp(e.name, name) != 0)
-                {
-                    continue;
-                }
-                // Parse and assign each entry to the matching ConfigManager field
-                // via the same ReadFloat/ReadBool helpers is not exported; use
-                // ApplyIni-style direct writes through WritePrivateProfileString
-                // into the live INI, then Load() re-reads everything in one pass.
-                WritePrivateProfileStringA(
-                    e.section, e.key, e.value,
-                    Engine::ConfigManager::GetSingleton().LoadedPath().c_str());
             }
 
             // One consistent re-read: Load() re-reads every key, Sanitise() clamps,
             // and RefreshTuning() snapshots into the engine. Never half-applied.
-            Engine::ConfigManager::GetSingleton().Load(
-                Engine::ConfigManager::GetSingleton().LoadedPath());
+            cfg.Load(path);
             Engine::GazeEngine::Get().RefreshTuning();
+            s_presetIndex = (s_presetIndex + 1) % 5;
 
             ConsolePrint("TrueGaze: preset '%s' applied (%d keys) — next: '%s'", name, applied,
                          kNames[s_presetIndex]);
@@ -814,6 +917,7 @@ namespace TrueGaze::Integrations
             auto& engine = Engine::GazeEngine::Get();
             engine.StartCalibrationSweep(targetActor);
             ConsolePrint("TrueGaze: Calibration SWEEP started across 11 regions (2.0s hold per region).");
+            ConsolePrint("Angular diagnostic only: this does not validate incoming anatomy or panel ownership.");
             return true;
         }
 
@@ -888,9 +992,16 @@ namespace TrueGaze::Integrations
             {"stg", "Toggle the SkyrimTrueGaze kinematics engine on/off", &CmdMaster},
             {"stghelp", "Print all available TrueGaze console commands and descriptions", &CmdHelp},
             {"stgvisuals", "Toggle all in-game visuals (gaze rays + HCEP panel)", &CmdVisuals},
-            {"stgv", "Toggle the gaze-ray emitters (laser eyes)", &CmdRays},
-            {"stgpanel", "Toggle the floating HCEP gaze region diagram panel", &CmdPanel},
-            {"stgon", "Turn every in-game visual on (rays + panel)", &CmdOn},
+            {"stgv", "Toggle visual master, rays and front panel together (not a rays-only toggle)", &CmdRays},
+            {"stgpanel", "Toggle target-owned incoming panel B (front)", &CmdPanel},
+            {"stgpanela", "Toggle incoming panel A (above head)", &CmdIncoming<&Engine::ConfigManager::showIncomingAbove>},
+            {"stghud", "Toggle first-person player incoming HUD", &CmdIncoming<&Engine::ConfigManager::showIncomingHud>},
+            {"stgintext", "Toggle non-modal incoming inspection and detailed telemetry", &CmdIncoming<&Engine::ConfigManager::showIncomingText>},
+            {"stginnext", "Next incoming inspection text page / observation", &CmdIncomingPage<1>},
+            {"stginprev", "Previous incoming inspection text page / observation", &CmdIncomingPage<-1>},
+            {"stginanatomy", "Toggle approximate incoming anatomical measurements", &CmdIncoming<&Engine::ConfigManager::measureIncomingAnatomy>},
+            {"stginpanels", "Toggle physical incoming panel intersections", &CmdIncoming<&Engine::ConfigManager::measureIncomingPanels>},
+            {"stgon", "Enable visual master, rays, A/B panels, HUD, inspector and measurements", &CmdOn},
             {"stgoff", "Turn every in-game visual off", &CmdOff},
             {"stgmode", "Cycle render mode: Both / Light / Geometry", &CmdRenderMode},
             {"stgradius", "Toggle the gaze terminus glow", &CmdTerminus},
@@ -899,7 +1010,7 @@ namespace TrueGaze::Integrations
             {"stgpreset", "Cycle Quick Presets (vanilla/subtle/intense/social/developer)",
              &CmdPreset},
             {"stgreload", "Reload TrueGaze.ini from disk and refresh the engine", &CmdReload},
-            {"stgtrace", "Toggle or inspect TrueGaze JSONL trace logging", &CmdTrace},
+            {"stgtrace", "Start or inspect TrueGaze JSONL trace logging; stgtraceoff stops it", &CmdTrace},
             {"stgtraceoff", "Stop TrueGaze JSONL trace logging and flush buffer", &CmdTraceOff},
             {"stgtraceflush", "Force immediate flush of trace log buffer to disk", &CmdTraceFlush},
             {"stgcal", "Step through calibration representative region angles", &CmdCal},

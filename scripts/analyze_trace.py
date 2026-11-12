@@ -97,9 +97,10 @@ def load_events(file_path: str, actor_filter: Optional[str] = None) -> List[Dict
                 continue
 
             if actor_filter:
-                ev_actor = ev.get("actor", "").lower()
                 target_actor = actor_filter.lower()
-                if not ev_actor.endswith(target_actor.lstrip("0x")):
+                identities = ("observer", "target") if ev.get("t") == "INCOMING_HIT" else ("actor",)
+                if not any(ev.get(key, "").lower().endswith(target_actor[2:] if target_actor.startswith("0x") else target_actor)
+                           for key in identities):
                     continue
 
             events.append(ev)
@@ -121,6 +122,9 @@ def analyze(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     total_agreements = 0
     total_mismatches = 0
     total_panel_misses = 0
+    unavailable_hits = 0
+    incoming_measurements = Counter()
+    incoming_unverified = 0
 
     region_dwell_time = defaultdict(float)
     mode_counts = Counter()
@@ -145,10 +149,9 @@ def analyze(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             actors.add(actor)
 
         ts = ev.get("ts", 0.0)
-        if ts < start_ts:
-            start_ts = ts
-        if ts > end_ts:
-            end_ts = ts
+        if "ts" in ev:
+            start_ts = min(start_ts, ts)
+            end_ts = max(end_ts, ts)
 
         if t == "GAZE_TICK":
             total_gaze_ticks += 1
@@ -166,7 +169,9 @@ def analyze(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             if abs(yaw) > 85.0 or abs(pitch) > 85.0 or math.isnan(yaw) or math.isnan(pitch):
                 anomalies.append(f"Unphysiological deflection at ts={ts:.3f}: yaw={yaw}, pitch={pitch}")
 
-            if hit_region != 255:
+            if ev.get("hitSemantics") == "retiredSelfPanel":
+                unavailable_hits += 1
+            elif hit_region != 255:
                 total_hits += 1
                 if hit_region == region:
                     total_agreements += 1
@@ -174,6 +179,11 @@ def analyze(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                     total_mismatches += 1
             else:
                 total_panel_misses += 1
+
+        elif t == "INCOMING_HIT":
+            incoming_measurements[ev.get("measurement", "unknown")] += 1
+            incoming_unverified += not ev.get("visibilityVerified", False)
+            actors.update(identity for identity in (ev.get("observer"), ev.get("target")) if identity)
 
         elif t == "SACCADE_ONSET":
             amp = ev.get("angularDistance", 0.0)
@@ -218,7 +228,7 @@ def analyze(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                 anomalies.append(f"Hit mismatch [{reason}] at ts={ts:.3f}: classified={classified} != hit={hit}")
 
     duration_sec = max(0.0, end_ts - start_ts) if start_ts != float("inf") else 0.0
-    agreement_rate_pct = (total_agreements / total_hits * 100.0) if total_hits > 0 else 100.0
+    agreement_rate_pct = (total_agreements / total_hits * 100.0) if total_hits > 0 else None
     panel_hit_pct = (total_hits / total_gaze_ticks * 100.0) if total_gaze_ticks > 0 else 0.0
 
     return {
@@ -231,6 +241,9 @@ def analyze(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "total_agreements": total_agreements,
         "total_mismatches": total_mismatches,
         "total_panel_misses": total_panel_misses,
+        "unavailable_hits": unavailable_hits,
+        "incoming_measurements": dict(incoming_measurements),
+        "incoming_unverified": incoming_unverified,
         "agreement_rate_pct": agreement_rate_pct,
         "panel_hit_pct": panel_hit_pct,
         "region_dwell_sec": {REGION_NAMES.get(k, f"Region_{k}"): v for k, v in region_dwell_time.items()},
@@ -268,15 +281,21 @@ def print_report(results: Dict[str, Any]):
         print(f"  {ev_type:<20} {count:>8,}")
     print()
 
-    print("--- Three-Way Agreement & Physical Hit Detection (A7/A8) ---")
+    print("--- Legacy Self-Panel Agreement (NOT Incoming Accuracy) ---")
     print(f"  Gaze Tick Evaluations:  {results['total_gaze_ticks']:,}")
     print(f"  Panel Quad Hits:        {results['total_hits']:,} ({results['panel_hit_pct']:.1f}%)")
     print(f"  Agreements (Class==Hit):{results['total_agreements']:,}")
     print(f"  Hit Mismatches:         {results['total_mismatches']:,}")
     print(f"  Panel Misses (off-quad):{results['total_panel_misses']:,}")
+    print(f"  Retired/unavailable:    {results['unavailable_hits']:,}")
     agr = results["agreement_rate_pct"]
-    pass_str = "[PASS] >= 99.5%" if agr >= 99.5 else "[FAIL] < 99.5%"
-    print(f"  Agreement Rate:         {agr:.2f}%  {pass_str}")
+    if agr is None:
+        print("  Agreement Rate:         N/A (no legacy hit evidence)")
+    else:
+        pass_str = "[PASS] >= 99.5%" if agr >= 99.5 else "[FAIL] < 99.5%"
+        print(f"  Legacy Agreement Rate:  {agr:.2f}%  {pass_str}")
+    print(f"  Incoming Measurements:  {results['incoming_measurements']}")
+    print(f"  Visibility Unverified:  {results['incoming_unverified']:,} (not occlusion proof)")
     print()
 
     print("--- Region Dwell-Time Distribution ---")
@@ -332,8 +351,9 @@ def main():
         print(f"Wrote summary JSON to '{args.json_out}'.")
 
     if args.strict:
-        if results.get("agreement_rate_pct", 0.0) < 99.5:
-            print("Strict check failed: Agreement rate below 99.5%", file=sys.stderr)
+        agreement = results.get("agreement_rate_pct")
+        if agreement is None or agreement < 99.5:
+            print("Strict check failed: Legacy agreement unavailable or below 99.5%; incoming hits require separate acceptance.", file=sys.stderr)
             sys.exit(1)
         if len(results.get("anomalies", [])) > 0:
             print(f"Strict check failed: {len(results['anomalies'])} anomalies found", file=sys.stderr)

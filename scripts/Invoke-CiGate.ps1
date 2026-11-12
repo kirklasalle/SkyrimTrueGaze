@@ -209,6 +209,8 @@ try {
         Write-Host '      root and skyrim/ HTML copies identical.' -ForegroundColor Green
     }
 
+    & node (Join-Path $repoRoot 'tests\ConfiguratorTests.js')
+    if ($LASTEXITCODE -ne 0) { throw 'Configurator behavior/schema/command parity failed.' }
     Write-Host '=== CI gate PASSED ===' -ForegroundColor Green
     exit 0
 }

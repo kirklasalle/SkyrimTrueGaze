@@ -2,6 +2,7 @@
 #include "ConfigManager.hpp"
 #include "EyeAimConstraint.hpp"
 #include "GazeEngine.hpp"
+#include "Visuals/IncomingGazeManager.hpp"
 
 #include <atomic>
 
@@ -176,6 +177,7 @@ namespace TrueGaze::Engine
             s_handled = true;
 
             EyeAimConstraint::Reset();
+            Visuals::IncomingGazeManager::Get().AbandonFrame();
             logger::critical(
                 "[TrueGaze] {} internal faults handled this session; TrueGaze has disabled "
                 "itself until the game is restarted so it cannot destabilise the game. "
@@ -203,6 +205,7 @@ namespace TrueGaze::Engine
                 // 1. Prepare bone constraints for this frame by restoring previously touched
                 // bones to their pristine animated baseline before composing fresh gaze.
                 EyeAimConstraint::BeginFrame();
+                Visuals::IncomingGazeManager::Get().BeginFrame(GazeEngine::Get().GetFrameCounter());
 
                 auto* camera = RE::PlayerCamera::GetSingleton();
                 const bool isThirdPerson = camera && camera->IsInThirdPerson();
@@ -278,6 +281,8 @@ namespace TrueGaze::Engine
             {
                 // Frame abandoned. The next frame's BeginFrame() re-baselines
                 // bone state; gaze simply does not update for one frame.
+                Visuals::IncomingGazeManager::Get().AbandonFrame();
+                GazeEngine::Get().AdvanceFrameCounter();
             }
         }
 #else
@@ -436,6 +441,10 @@ namespace TrueGaze::Engine
                 {
                     continue;
                 }
+
+                if (GazeEngine::DistanceMetersForTier(actor) <=
+                    GazeEngine::Get().Tuning().tier2DistanceMeters)
+                    Visuals::IncomingGazeManager::Get().RegisterReceiver(actor);
 
                 if (!allowCreatures && !actor->IsHumanoid())
                 {

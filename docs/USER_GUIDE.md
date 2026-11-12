@@ -2,12 +2,53 @@
 
 **Product:** TrueGaze - Biological NPC Gaze and Biomechanical Kinematics Engine  
 **Audience:** Skyrim SE/AE/VR players, mod testers, and development partners  
-**Status date:** September 23, 2026  
-**Current release line:** 1.0.3 Production Release ([GitHub — kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze))  
+**Status date:** November 12, 2026
+
+**Current release line:** 1.0.8; receiving refinements are unreleased ([GitHub — kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze))
 
 > TrueGaze is an active production runtime engine. The plugin loads natively through SKSE across Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). It drives biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, Argyle & Cook social triangle cycling), dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, and offers two optional in-engine 3D visual diagnostics: Option 1 (discreet ~2mm hair-thin laser rays originating from pupils tracking line of sight) and Option 2 (head-anchored HCEP floating diagram panel with real-time region highlight).
 
 ## 1. What TrueGaze Does
+
+### Unreleased receiving diagnostics
+
+Cards are **development-only diagnostics**, enabled/disabled through the console,
+not a normal gameplay HUD. Use `stgoff` for ordinary play and enable the desired
+diagnostic channels for testing. Their saved settings are never changed by menus.
+
+Each panel shows **other actors looking at its owner**, not its owner's outgoing
+gaze. `stgpanel` toggles the front panel B; `stgpanela` toggles above-head panel A;
+`stghud` toggles the first-person player HUD; `stgintext` toggles detailed telemetry
+in addition to the human descriptions.
+`stginanatomy` and `stginpanels` independently toggle approximate anatomical and
+physical-quad measurements. `stgstatus` reports the current switches.
+
+Mapped anatomy uses `o`; actual quad hits use `+`; identifiers distinguish
+observers. Both are diagnostic measurements with **unverified visibility**.
+Panels/HUD identify their owner by name (the player is "You") and show a distinct
+observer count or "No incoming gaze matches detected". Descriptions distinguish
+"Your view" from an NPC's gaze, estimated anatomical areas from physical panel
+crossings, and always warn that visibility has not been checked. Duplicate names
+include IDs so identically named guards or animals remain distinguishable.
+The observer count is not the measurement count: one observer can make several
+matches. `stgintext` retains raw IDs, coordinates, measurement type and quality.
+Receiving information now uses one compact, dark-backed card per actor, with
+colored observer/region rows. Cards avoid each other and reserved gameplay areas;
+hit markers remain at their original positions. A notice explicitly counts cards
+that cannot fit. Enable `stgintext` to open the complete live inspection panel.
+`stginnext` and `stginprev` move through text pages, then target/observer entries;
+they wrap at the ends. Long/offscreen/overflow observations are available there.
+These commands use the console; the overlay does not capture movement or clicks.
+`stgstatus` reports card overflow and last-256 active-frame median/p95/window-peak
+CPU timings alongside session-wide peaks. This does not measure total game FPS.
+All diagnostic cards, rays, panels and lights temporarily disappear during
+radial/skills/inventory/magic/map and related full-screen menus. After closing
+the final menu, only your enabled channels return, with fresh frame data.
+The console and dialogue remain usable; menu changes do not toggle diagnostics on.
+Kirk's successive tavern screenshots confirm readable cards and a populated
+inspector; this is presentation evidence, not anatomical accuracy certification.
+Close-panel placement, nested menus and broader lifecycle/performance tests
+remain acceptance gates. See [the contract](INCOMING_GAZE_PANEL_DESIGN.md).
 
 TrueGaze is an SKSE plugin that drives live actor gaze kinematics from Skyrim's actor update path. It combines target salience, saccadic movement, eye/head coordination, micro-saccadic drift, social attention, and optional HCEP telemetry.
 
@@ -56,6 +97,7 @@ A normal installation (via MO2, Vortex, or manual) places files at:
 ```text
 Data\SKSE\Plugins\TrueGaze.dll
 Data\SKSE\Plugins\TrueGaze.ini
+Data\Interface\TrueGazeIncoming.swf
 Data\meshes\TrueGaze\GazeBeam.nif
 Data\meshes\TrueGaze\GazeRegionPanel.nif
 Data\textures\TrueGaze\GazeRegionPanel.dds
@@ -103,6 +145,16 @@ The configurator can:
 
 The top status cards use a classic Skyrim silver treatment. This is visual configurator styling only; it does not alter in-game rendering.
 
+The eye-dynamics preview displays **both eyes**, labeled by the subject's
+anatomical side (right eye on your left). Each turns toward one shared target at
+a fixed virtual depth, so the eyes converge inward when the pointer is between
+them. A held pointer gives steady fixation; small shared jitter runs only in
+autonomous mode. Head motion and blinking are shared. Saccade speed, head tracking, micro-jitter and comfort
+angle follow the current tuning controls. This is an illustrative canvas
+simulation with geometric vergence, not live game telemetry or clinically
+calibrated eye tracking. Convergence depends on target distance; 2D mouse
+position alone does not measure that distance.
+
 <p align="center">
   <img src="screengrabs/truegaze_config_03.png" alt="TrueGaze Configurator & Launcher (Live Execution Screenshot)" width="100%">
   <br>
@@ -137,12 +189,12 @@ sEngineTarget=Auto
 
 ```ini
 [Kinematics]
-fSaccadeSpeedMult=1.0
-fVelocitySaturation=14.0
-fMicroJitterAmp=0.35
+fSaccadeSpeedMult=1.5
+fVelocitySaturation=18.0
+fMicroJitterAmp=0.28
 fMicroJitterIntervalMin=0.20
 fMicroJitterIntervalMax=0.45
-fHeadTrackingSpeed=6.0
+fHeadTrackingSpeed=5.2
 fMaxComfortEyeAngle=35.0
 ```
 
@@ -227,7 +279,8 @@ fPupilGlowIntensity=0.35
 bShowHcepPanel=true
 bHcepPanelAllActors=true
 fHcepPanelScale=27.5
-fHcepPanelForwardOffsetCm=70.0
+fHcepPanelForwardOffsetCm=10.0
+fArrowCrossSectionMm=24.0
 ```
 
 Visual subsystems:
@@ -238,14 +291,16 @@ Visual subsystems:
   - Oriented dynamically to track computed saccadic/fixation eye line of sight (not head rotation).
 - **Option 2: HCEP Floating Diagram Panel**:
   - A 3D planar quad rendering the chroma-keyed HCEP-02 ocular diagram (`GazeRegionPanel.nif` / `GazeRegionPanel.dds`).
-  - Head-anchored and floating cleanly ~70cm in front of actor eyes, oriented toward the viewer.
-  - Highlights active gaze regions in real time with an emissive glow (Social Triangle, Mutual Gaze, Intimate, Avoidance, Target).
+  - Front panel B follows the actor's head basis, with a default 10 cm clearance ahead of resolved eyes (creatures: cranial anchor); it is not camera-facing.
+  - Shows incoming observations from others. Approximate anatomy (`o`) and physical panel crossings (`+`) remain separate; this is not the owner's outgoing cognitive-region display.
+  - Text cards remain collision-aware and independent of the physical panel position.
 - **Visual Modes (`iRayRenderMode`)**:
   - `0`: Geometry plus point light emitters (`TrueGaze_PupilLight`, `TrueGaze_TerminusLight`).
   - `1`: Light emitters only (subtle gold ambient eye/terminus glow without geometry).
   - `2`: Geometry only (pure 3D mesh rays and panel quad).
 
-You can toggle visuals live in-game at any time using the console command `stgvisuals` (or `stgv`).
+Use `stgoff` for normal gameplay. `stgvisuals` and `stgv` have different
+multi-switch behavior; see the full library below.
 
 ### Console commands
 
@@ -263,14 +318,48 @@ The current registered in-game console commands are:
 | Command | Purpose |
 | --- | --- |
 | `stg` | Toggle the master gaze kinematics engine on/off. |
-| `stgvisuals` | Toggle all in-game visuals (master visual switch) on/off. |
-| `stgv` | Toggle gaze-ray emitters (subtle laser rays) on/off. |
-| `stgon` | Turn every in-game visual diagnostic on. |
-| `stgoff` | Turn every in-game visual diagnostic off. |
+| `stghelp` | Print all 27 commands and descriptions. |
+| `stgvisuals` | Toggle visual master; enabling arms rays and B, retaining other channel flags. |
+| `stgv` | Toggle master + rays + B together; all ON -> OFF, otherwise all ON. Not rays-only. |
+| `stgpanel` | Toggle receiving front B; enabling also arms visual master. |
+| `stgpanela` | Toggle receiving above-head A; enabling also arms visual master. |
+| `stghud` | Toggle first-person incoming HUD; enabling also arms visual master. |
+| `stgintext` | Toggle non-modal full incoming inspector; enabling also arms visual master. |
+| `stginnext` | Next inspector text page, then observation; wraps. |
+| `stginprev` | Previous inspector text page, then observation; wraps. |
+| `stginanatomy` | Toggle approximate anatomy measurements; enabling arms visual master. |
+| `stginpanels` | Toggle physical receiving-quad measurements; enabling arms visual master. |
+| `stgon` | Enable master, rays, A/B, HUD, inspector and measurement channels; retain actor filters. |
+| `stgoff` | Disable master, rays, A/B, HUD and inspector; retain measurement preferences and kinematics. |
 | `stgmode` | Cycle render mode: `0` (Both) / `1` (Light only) / `2` (Geometry only). |
 | `stgradius` | Toggle the gaze terminus landing glow. |
 | `stgverbose` | Dynamically switch logging threshold between `Debug` and `Info` live without restarting. |
 | `stgstatus` | Print effective runtime state, tracked actors, ray deflections, and telemetry counters. |
+| `stgpreset` | Cycle vanilla/subtle/intense/social/developer (first call vanilla); write INI and reload. |
+| `stgreload` | Reload effective INI and refresh tuning; command registration still requires restart. |
+| `stgtrace` | Start trace, or report/flush an active trace; does not stop it. |
+| `stgtraceoff` | Stop trace and flush pending events. |
+| `stgtraceflush` | Flush active trace without stopping. |
+| `stgcal` | Step 11 angular deflections for selected actor or all tracked actors. |
+| `stgcalsweep` | Sweep 11 angular deflections, holding each for 2 seconds. |
+| `stgcaloff` | Stop calibration and restore autonomous gaze. |
+| `stgcalaxes` | Print head-axis convention and selected actor's 3D availability; not accuracy proof. |
+
+All commands take no arguments. Settings toggles attempt to persist to the live
+INI. Paging, traces and calibration are session actions; calibration step/sweep
+requires `bEnableCalibrationCommands=true`. Select an actor before starting a
+trace to filter it, or deselect to trace all. Presets replace only their listed
+keys; the developer preset uses player-only panels. Menus never rewrite settings.
+For a printable reference and safe sequence, use the
+[Console Commands Card](CONSOLE_COMMANDS_CARD.md).
+
+The webpage schema, offline defaults and compiled fallback now match the shipped
+INI. It includes trace/calibration and arrow-width controls and persists new keys
+when editing older files. Missing keys retain compiled defaults until explicitly
+saved. Web saves do not automatically refresh the running plugin: use
+`stgreload` for tuning, restart for command registration/bridge startup changes,
+and stop/start a trace for changed trace filters/limits. Do not edit the same
+configuration simultaneously through stale web and console sessions.
 
 ### Reading `stgstatus`
 

@@ -136,19 +136,30 @@ echo  [7/9] TrueGaze.ini...
 set "REPO_INI=%PROJECT%\skyrim\SKSE\Plugins\TrueGaze.ini"
 set "DEST_INI=%PLUGINS%\TrueGaze.ini"
 
-if exist "%REPO_INI%" (
-    copy /y "%REPO_INI%" "%DEST_INI%" >nul 2>&1
-    echo        PASS - TrueGaze.ini deployed (always refreshed from repo)
-    set /a PASS+=1
-) else (
-    if exist "%DEST_INI%" (
-        echo        PASS - TrueGaze.ini already present
-        set /a PASS+=1
-    ) else (
-        echo        FAIL - TrueGaze.ini not found
-        set /a FAIL+=1
-    )
-)
+if not exist "%REPO_INI%" goto :INI_SOURCE_MISSING
+if exist "%DEST_INI%" goto :INI_PRESERVED
+copy /y "%REPO_INI%" "%DEST_INI%" >nul 2>&1
+if errorlevel 1 goto :INI_COPY_FAILED
+echo        PASS - TrueGaze.ini deployed (first install)
+set /a PASS+=1
+goto :INI_DONE
+
+:INI_PRESERVED
+echo        PASS - Existing TrueGaze.ini preserved
+set /a PASS+=1
+goto :INI_DONE
+
+:INI_SOURCE_MISSING
+if exist "%DEST_INI%" goto :INI_PRESERVED
+echo        FAIL - TrueGaze.ini not found
+set /a FAIL+=1
+goto :INI_DONE
+
+:INI_COPY_FAILED
+echo        FAIL - Could not deploy TrueGaze.ini
+set /a FAIL+=1
+
+:INI_DONE
 
 :: ---- Check 8: Deploy mesh and texture assets ----
 echo  [8/9] TrueGaze Assets...
@@ -200,6 +211,20 @@ if exist "%SRC_TEXTURES%\GazeRegionPanel.dds" (
     set ASSET_OK=0
 )
 
+
+if not exist "%SKYRIM%\Data\Interface" mkdir "%SKYRIM%\Data\Interface" >nul 2>&1
+if not exist "%PROJECT%\skyrim\Interface\TrueGazeIncoming.swf" (
+    echo        FAIL - Incoming UI missing; rebuild the current Release target.
+    set /a FAIL+=1
+) else (
+    copy /y "%PROJECT%\skyrim\Interface\TrueGazeIncoming.swf" "%SKYRIM%\Data\Interface\TrueGazeIncoming.swf" >nul 2>&1
+    if !errorlevel! neq 0 (
+        echo        FAIL - Cannot deploy incoming UI.
+        set /a FAIL+=1
+    ) else (
+        echo        Deployed TrueGazeIncoming.swf
+    )
+)
 
 if !ASSET_OK! equ 1 (
     echo        PASS - TrueGaze assets deployed

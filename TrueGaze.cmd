@@ -446,6 +446,7 @@ call :CLEAN_LEGACY
 
 REM ---- Deploy mesh and texture assets ----
 call :DEPLOY_ASSETS
+if errorlevel 1 exit /b 1
 
 if not "%~1"=="1" exit /b 0
 if not exist "%PLUGDIR%\TrueGaze.ini" exit /b 0
@@ -518,6 +519,13 @@ REM as the primary beam, plus the branded fallback and HCEP panel resources.
 REM ---------------------------------------------------------------------------
 :DEPLOY_ASSETS
 set "DATADIR=%GAMEPATH%\Data"
+set "SRC_UI=%PROJECT_ROOT%\skyrim\Interface\TrueGazeIncoming.swf"
+if not exist "%SRC_UI%" echo   FAIL  Incoming UI missing; build the current Release target first.
+if not exist "%SRC_UI%" exit /b 1
+if not exist "%DATADIR%\Interface" mkdir "%DATADIR%\Interface" >nul 2>&1
+copy /y "%SRC_UI%" "%DATADIR%\Interface\TrueGazeIncoming.swf" >nul 2>&1
+if errorlevel 1 echo   FAIL  Cannot deploy incoming UI.
+if errorlevel 1 exit /b 1
 set "SRC_MESHES=%PROJECT_ROOT%\skyrim\meshes\TrueGaze"
 set "SRC_TEXTURES=%PROJECT_ROOT%\skyrim\textures\TrueGaze"
 set "DST_MESHES=%DATADIR%\meshes\TrueGaze"

@@ -76,6 +76,8 @@ try {
         Write-Host "Parity drifts: $parityFailures" -ForegroundColor Red
         exit 1
     }
+    & node (Join-Path $repoRoot 'tests\ConfiguratorTests.js')
+    if ($LASTEXITCODE -ne 0) { throw 'Configurator behavior/schema/command parity failed.' }
     Write-Host 'HTML DEFAULTS match the shipped INI (0 drifts).' -ForegroundColor Green
     exit 0
 }

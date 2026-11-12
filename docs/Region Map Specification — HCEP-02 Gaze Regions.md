@@ -10,6 +10,12 @@
 
 ## 1. Purpose
 
+> **Scope correction:** this map defines **outgoing cognitive angular regions**,
+> not anatomical locations struck on another actor. Published IDs remain unchanged
+> for OAR/API compatibility. Incoming regions and display mapping are separately
+> defined in [the receiving contract](INCOMING_GAZE_PANEL_DESIGN.md); numerical
+> equality between the two domains is not an accuracy test.
+
 This document is the **single source of truth** for TrueGaze's gaze region
 system. It defines:
 

@@ -13,6 +13,7 @@
 #include "TraceLogger.hpp"
 #include "Visuals/VisualEffectsManager.hpp"
 #include "Visuals/GazeGeometry.hpp"
+#include "Visuals/IncomingGazeManager.hpp"
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/B/BSVisit.h>
@@ -414,6 +415,11 @@ namespace TrueGaze::Engine
             vis.pupilGlowIntensity = cfg.pupilGlowIntensity;
             vis.arrowCrossSectionMm = cfg.arrowCrossSectionMm;
             vis.showHcepPanel = cfg.showHcepPanel;
+            vis.showIncomingAbove = cfg.showIncomingAbove;
+            vis.showIncomingHud = cfg.showIncomingHud;
+            vis.showIncomingText = cfg.showIncomingText;
+            vis.measureIncomingAnatomy = cfg.measureIncomingAnatomy;
+            vis.measureIncomingPanels = cfg.measureIncomingPanels;
             vis.hcepPanelAllActors = cfg.hcepPanelAllActors;
             vis.hcepPanelScale = cfg.hcepPanelScale;
             vis.hcepPanelForwardOffsetCm = cfg.hcepPanelForwardOffsetCm;
@@ -526,6 +532,19 @@ namespace TrueGaze::Engine
 
     void GazeEngine::EndFrame(float deltaSeconds) noexcept
     {
+        try
+        {
+            if (ConfigManager::GetSingleton().enableTrueGaze && deltaSeconds > 0 && deltaSeconds < 0.5f)
+                Visuals::IncomingGazeManager::Get().EndFrame();
+            else
+                Visuals::IncomingGazeManager::Get().Reset();
+        }
+        catch (const std::exception& e)
+        {
+            logger::error("[TrueGaze::Incoming] Frame finalization failed: {}", e.what());
+            Visuals::IncomingGazeManager::Get().AbandonFrame();
+        }
+
         // Retire actors the hook did not touch this frame. Without this the map grows
         // without bound across a long session (NFR-3: memory footprint under 12 MB).
         for (auto it = _actors.begin(); it != _actors.end();)
@@ -780,23 +799,6 @@ namespace TrueGaze::Engine
             if (_calState.sweepActive)
             {
                 _calState.sweepTimerSec += deltaSeconds;
-                if (_calState.sweepTimerSec >= 0.2f)
-                {
-                    const auto hit = Visuals::VisualEffectsManager::Get().GetActorHitInfo(formId);
-                    if (hit.hit)
-                    {
-                        ++_calState.sweepSettledFrames;
-                        if (hit.agreement)
-                        {
-                            ++_calState.sweepAgreedFrames;
-                        }
-                        else
-                        {
-                            ++_calState.sweepMismatchFrames;
-                        }
-                    }
-                }
-
                 if (_calState.sweepTimerSec >= 2.0f)
                 {
                     _calState.sweepTimerSec = 0.0f;
@@ -812,12 +814,7 @@ namespace TrueGaze::Engine
                     }
                     else
                     {
-                        const float agreementPct = _calState.sweepSettledFrames > 0
-                            ? (static_cast<float>(_calState.sweepAgreedFrames) / _calState.sweepSettledFrames) * 100.0f
-                            : 100.0f;
-                        logger::info("[TrueGaze::Cal] Sweep COMPLETE: {} settled frames, {} agreed ({:.1f}%), {} mismatches",
-                                     _calState.sweepSettledFrames, _calState.sweepAgreedFrames, agreementPct,
-                                     _calState.sweepMismatchFrames);
+                        logger::info("[TrueGaze::Cal] Angular sweep finished; incoming geometry and ownership are NOT evaluated.");
                         StopCalibration();
                     }
                 }
@@ -1008,8 +1005,8 @@ namespace TrueGaze::Engine
         }
 
         // Structured JSONL Trace Gaze Tick and Mismatch
-        const auto hitInfo = Visuals::VisualEffectsManager::Get().GetActorHitInfo(formId);
-        const uint8_t hitRegion = hitInfo.hit ? hitInfo.hitRegion : 255;
+        // Legacy self-panel region is retired, not replaced with anatomical IDs.
+        constexpr uint8_t hitRegion = 255;
         const float eyeYaw = state.appliedEyeYawDeg;
         const float eyePitch = state.appliedEyePitchDeg;
         const float totalDeflection = std::sqrt(yawDeg * yawDeg + pitchDeg * pitchDeg);
@@ -1025,20 +1022,12 @@ namespace TrueGaze::Engine
             actor->IsPlayerRef() ? 0 : 0, state.mutualGazeHoldSec > 0.0f,
             state.mutualGazeHoldSec, headPct, deltaSeconds);
 
-        if (hitInfo.hit && !hitInfo.agreement && !state.saccade.isBallistic &&
-            !state.sceneDeferActive)
-        {
-            TraceLogger::Get().LogHitMismatch(_gameTimeSec, formId, state.gazeRegion,
-                                              hitInfo.hitRegion, eyeYaw, eyePitch,
-                                              hitInfo.hitX, hitInfo.hitZ, "BOUNDARY");
-        }
-
         if (_calState.active && (_calState.targetActorFormId == 0 || _calState.targetActorFormId == formId))
         {
             TraceLogger::Get().LogCalibration(
-                _gameTimeSec, _calState.sweepActive ? "sweep" : "step", state.gazeRegion,
+                _gameTimeSec, _calState.sweepActive ? "angularSweep" : "angularStep", state.gazeRegion,
                 yawDeg, pitchDeg, state.gazeRegion, hitRegion,
-                hitInfo.hit ? hitInfo.agreement : false);
+                false);
         }
 
         PublishState(actor, state);

@@ -92,6 +92,13 @@ function(truegaze_force_asserts target)
     endif()
 endfunction()
 
+if(TRUEGAZE_BUILD_TESTS)
+    add_executable(IncomingGazeTests "${CMAKE_CURRENT_SOURCE_DIR}/tests/IncomingGazeTests.cpp")
+    target_link_libraries(IncomingGazeTests PRIVATE TrueGazeKinematics)
+    truegaze_force_asserts(IncomingGazeTests)
+    add_test(NAME IncomingGazeTests COMMAND IncomingGazeTests)
+endif()
+
 # ---------------------------------------------------------------------------
 # Standalone mode: tests only, no SDK required
 # ---------------------------------------------------------------------------
@@ -221,6 +228,7 @@ set(TRUEGAZE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/OarCustomConditions.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/OarApiVendored.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Visuals/VisualEffectsManager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Visuals/IncomingGazeManager.cpp"
 )
 
 foreach(_src IN LISTS TRUEGAZE_SOURCES)
@@ -231,6 +239,19 @@ foreach(_src IN LISTS TRUEGAZE_SOURCES)
 endforeach()
 
 add_library(${PROJECT_NAME} SHARED ${TRUEGAZE_SOURCES})
+
+set(INCOMING_UI "${CMAKE_CURRENT_BINARY_DIR}/assets/Interface/TrueGazeIncoming.swf")
+set(PACKAGED_INCOMING_UI "${CMAKE_CURRENT_SOURCE_DIR}/skyrim/Interface/TrueGazeIncoming.swf")
+add_custom_command(OUTPUT "${INCOMING_UI}" "${PACKAGED_INCOMING_UI}"
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+        -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Build-IncomingUi.ps1"
+        -OutputPath "${INCOMING_UI}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/skyrim/Interface"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INCOMING_UI}" "${PACKAGED_INCOMING_UI}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Build-IncomingUi.ps1"
+    VERBATIM)
+add_custom_target(TrueGazeIncomingUi DEPENDS "${INCOMING_UI}" "${PACKAGED_INCOMING_UI}")
+add_dependencies(${PROJECT_NAME} TrueGazeIncomingUi)
 
 # AUDIT 2026-10-15 F-07 — single-source the version. project(VERSION) above is
 # the only place the number is written; Main.cpp (SKSEPluginInfo, log lines) and

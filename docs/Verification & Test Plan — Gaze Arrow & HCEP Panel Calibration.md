@@ -10,6 +10,12 @@
 
 ## 1. Scope
 
+> **Acceptance supersession:** historical self-projection/angle agreement cannot
+> certify incoming panel ownership. `stgcalsweep` is an angular diagnostic only;
+> no measured hits cannot count as success. Use independent observer-to-target
+> world fixtures and [the receiving acceptance gates](INCOMING_GAZE_PANEL_DESIGN.md)
+> for anatomy, A/B panels, camera input, native HUD and creature/platform coverage.
+
 This plan covers every testable claim made by the Technical Design and Region
 Map Specification. Tests are split into three tiers:
 

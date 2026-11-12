@@ -2,7 +2,7 @@
 
 **Project:** TrueGaze - Biological NPC Gaze and Biomechanical Kinematics Engine
 **Audience:** Contributors, engine programmers, mod authors, HCEP integrators, and release engineers
-**Status date:** September 23, 2026
+**Status date:** November 12, 2026
 **Current validation runtime:** Skyrim AE `1.7.104.0`, SE `1.5.97`, Skyrim VR `1.4.15` ("Mad God VR")
 **Primary language:** C++23/C++20-compatible project code with MSVC
 **Game SDK:** CommonLibSSE-NG v7.5.4 (Multi-target SE/AE/VR, OpenVR)
@@ -10,6 +10,24 @@
 > This guide describes the implemented repository as it exists today. It intentionally separates implemented code, standalone-tested code, and in-engine evidence. The project has real Skyrim runtime evidence for loading, actor updates, target resolution, skeleton probing, light emitter attachment, and visual geometry. The unified multi-target binary dynamically routes `Actor::Update` (`0xAD` on SE/AE, `0xAF` on VR), avoiding vtable corruption on Skyrim VR. True 3D Head-Height Elevation dynamically resolves `NPC Head [Head]` bone transforms for seated, leaning, and crouched eye-to-eye alignment. 3rd-person player conversational gaze engagement allows the player character to track nearby dialogue partners. Both Option 1 (discreet ~2mm subtle laser rays: pupil-offset, eye line-of-sight tracking) and Option 2 (HCEP floating diagram panel: `GazeRegionPanel.nif` / `GazeRegionPanel.dds` chroma-keyed quad with real-time region highlight) are implemented and operational.
 
 ## 1. Development Principles
+
+### Incoming panels: ownership and validation boundary
+
+`IncomingGazeManager` collects sources and receivers on the game thread, then
+resolves them after the actor poses. Its SDK-free `IncomingGaze.hpp` separates
+incoming region types from outgoing cognitive IDs. UI snapshots contain values,
+not scene-graph pointers. Scene nodes are detached on normal reset/unload;
+fault abandonment clears measurements/UI without dereferencing suspect nodes.
+
+Build the Release target to generate and stage the original
+`Interface/TrueGazeIncoming.swf`. Deploy it alongside the matching DLL.
+`IncomingGazeTests` and `TraceTests` are standalone regressions; they cannot prove
+native movie rendering, creature solver axes, occlusion or the runtime budget.
+See [the receiving design/audit](INCOMING_GAZE_PANEL_DESIGN.md).
+
+Run `python tests\TraceAnalysisTests.py` for the focused analyzer regressions
+(unavailable evidence cannot pass strict accuracy; incoming endpoint filters and
+legacy agreement remain separate).
 
 ### Truth states
 
@@ -336,7 +354,7 @@ The in-engine visual diagnostic subsystem supports two verified geometry assets:
    - Scaled down (30% scale) and offset forward along the gaze vector to visualize eye line-of-sight and region shifts.
 2. **HCEP Floating Diagram Panel (`meshes\TrueGaze\GazeRegionPanel.nif`)**:
    - Authored from Skyrim's renderer-safe flat glow quad geometry (`fxglowflatrndmid.nif`) retextured to `GazeRegionPanel.dds` (DXT5 transparent).
-   - Anchored ~70cm in front of actor eye sockets, oriented to the viewer, with active-region dynamic emissive highlighting.
+   - Front B follows the actor's head basis, with 10 cm default clearance ahead of resolved eyes (creatures: cranial anchor). Its rendered and intersected quad share a transform; approximate anatomy and text cards remain independent.
 
 Both geometry options and NiPointLight emitters are verified in live engine gameplay (`ScreenShot164.png`, `ScreenShot177.png`).
 
@@ -346,7 +364,7 @@ In-game visuals are **development diagnostics only**. Shipped configurations def
 
 ```text
 stgvisuals    ; Toggle master visual switch (rays + HCEP panel)
-stgv          ; Toggle gaze rays / directional arrows
+stgv          ; Toggle master + rays + B together, NOT rays alone
 stgpanel      ; Toggle floating HCEP diagram panel
 ```
 
@@ -410,6 +428,48 @@ For full mathematical derivations, packet structures, and dialogue sentiment par
 
 ## 13. Console Diagnostics
 
+The registered library is below. Commands take no arguments. Settings toggles
+attempt to save the effective INI, then refresh tuning; registration itself
+requires startup with `[Console] bEnableConsoleCommands=true`. Tracing, paging
+and calibration are session actions. See the printable
+[Console Commands Card](CONSOLE_COMMANDS_CARD.md) for a safe test sequence.
+
+| Command | Runtime contract |
+| --- | --- |
+| `stg` | Toggle biological kinematics. |
+| `stghelp` | Enumerate `kCommands`. |
+| `stgvisuals` | Toggle visual master; ON also arms rays/B, retaining other channels. |
+| `stgv` | Toggle master/rays/B atomically as a group: all ON -> OFF, otherwise all ON. |
+| `stgpanel` | Toggle B; ON implies visual master. |
+| `stgpanela` | Toggle A; ON implies visual master. |
+| `stghud` | Toggle first-person incoming HUD; ON implies visual master. |
+| `stgintext` | Toggle non-modal full inspector; ON implies visual master. |
+| `stginnext` | Queue next inspector text page/entry, wrapping; inspector required. |
+| `stginprev` | Queue previous inspector text page/entry, wrapping; inspector required. |
+| `stginanatomy` | Toggle approximate anatomy; ON implies visual master. |
+| `stginpanels` | Toggle physical-quad measurements; ON implies visual master. |
+| `stgon` | Enable master/rays/A/B/HUD/inspector/both measurements, without resetting actor filters. |
+| `stgoff` | Disable master/rays/A/B/HUD/inspector; retain measurements and biological kinematics. |
+| `stgmode` | Cycle render mode `(mode + 1) % 3`. |
+| `stgradius` | Toggle terminus glow, not radius. |
+| `stgverbose` | Toggle Info/Debug and immediately update logger threshold. |
+| `stgstatus` | Print current engine and incoming state, menu gate, active-frame timing windows and resource counters. |
+| `stgpreset` | Cycle vanilla/subtle/intense/social/developer from vanilla each session; write listed keys, load/sanitize/refresh. |
+| `stgreload` | Load/sanitize effective INI and refresh tuning; not command registration. |
+| `stgtrace` | Start if inactive (selected-actor filter or all); otherwise report and flush. |
+| `stgtraceoff` | Stop and flush. |
+| `stgtraceflush` | Flush without stopping. |
+| `stgcal` | Step 11 angular overrides, selected actor or all; requires calibration flag. |
+| `stgcalsweep` | Start 11-region angular sweep, 2 s per region; requires calibration flag. |
+| `stgcaloff` | Stop override; restore autonomous gaze. |
+| `stgcalaxes` | Print axis convention/selected 3D availability; not geometric accuracy certification. |
+
+Presets are partial overlays, not full resets. Web and console preset key/value
+sets must match; developer uses player-only panels. A failed preset write reports
+the failing key, leaves live tuning unchanged, and warns that disk may be partly
+updated. Do not retry/reload blindly. Trace settings are captured on start;
+`stgtraceoff` then `stgtrace` applies changed filters/limits.
+
 `CmdStatus` is a development instrument, not a substitute for structured telemetry. It currently reports:
 
 - Effective configuration switches.
@@ -418,6 +478,9 @@ For full mathematical derivations, packet structures, and dialogue sentiment par
 - Visual lifecycle counters.
 - Geometry attempts and attachment count.
 - Command registration state.
+- Incoming switches, fresh current counts, card overflow, menu gate, rolling
+  median/p95/window peaks and sample populations. Console scrollback is historical;
+  startup auto-status may correctly report SUPPRESSED while the loading menu is open.
 
 When adding diagnostics:
 
@@ -444,6 +507,25 @@ When changing a configuration key:
 9. Verify live logs show the effective value.
 
 Do not assume the repository INI is the live INI. Deployment preserves user configuration by design.
+
+The local CI gate and `scripts/Test-ConfiguratorParity.ps1` require Node.js 22+
+for `tests/ConfiguratorTests.js` (no npm dependencies). This executes the actual
+webpage offline-template and serializer functions, checks complete key/default
+coverage including runtime reads/compiled numeric defaults, all five preset
+tables, and all 27 commands in both guides and the command card. Root and packaged
+HTML must remain identical. Tooltip default values derive from the same schema.
+The binocular preview uses one animation loop and one renderer for both labeled
+eyes, with shared simulated target/blink state. It reads actual schema keys rather
+than nonexistent preview-only tuning names. Each eye derives yaw/elevation from
+its own center to the same target at fixed virtual depth (one canvas width,
+unmeasured canvas units). Tests verify two pupils, anatomical label ordering,
+inward convergence, reconstructed rays reaching a shared target, and convergence
+decreasing with depth. It is not game telemetry or clinically calibrated vergence.
+Pointer fixation suppresses preview-only noise and exactly compensates head
+follow-through, so neither eye drifts after settling. Autonomous noise is shared,
+smoothed and unamplified. Regression tests hold off-center and centered targets,
+including high jitter settings, and require stable pupil coordinates.
+See [configuration audit](CONFIGURATION_AUDIT.md) for scope and field limits.
 
 ## 15. Packaging
 

@@ -2,6 +2,76 @@
 
 ## TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine
 
+## Incoming-gaze receiving-panel correction (Unreleased)
+
+The observer generates the gaze; the observed actor's panel displays where it
+lands. See [the receiving contract and scoped audit](docs/INCOMING_GAZE_PANEL_DESIGN.md).
+This supersedes historical **self-panel** ownership/accuracy claims below;
+it does not invalidate the historical outgoing-angle mathematics.
+
+| Workstream | Current evidence | Remaining gate |
+| --- | --- | --- |
+| Receiving geometry, ownership, camera/eye source separation, deterministic 64-actor cap | Unit-verified | Independently positioned in-game observer/target fixtures |
+| Engine-frame collection and receiver lifecycle | Implemented; Release compiles | Save/load, unload, camera transitions, fault recovery |
+| Independent A/B panels, per-observer reticles, grouped cards, ownership leaders, player HUD and paged inspection | Implemented; card/paging fixtures pass; earlier captions observed in game | Native grouped layout/scrolling, projection/font/texture handedness, input pass-through |
+| INI/configurator/console switches and schema-2 incoming traces | Implemented; defaults/trace unit checks pass | Live toggle/reload and trace captures |
+| Creature anchors | Vanilla archive names inspected; coarse receivers implemented | Detailed profile dimensions, local axes, posed eye rays, per-family field certification |
+| Deployment/package asset coverage | Controlled candidate backed up/deployed; isolated/live preflight: 16 pass, 0 fail (one pre-existing OAR warning) | Controlled native UI acceptance; not a certified release |
+| Runtime reliability and budget | Not yet measured for incoming diagnostics | Crowd median/p95/peak; SE/AE/VR separately |
+
+**Whiterun tavern field result:** initial missing-glyph boxes are superseded by a
+follow-up screenshot showing readable target labels. Both visible labels have
+zero incoming measurements; positive-hit ownership/reticles are not proven.
+The subsequent human-label screenshot shows a reported eye-area match but
+overlapping sentences fail layout acceptance. Grouped, native-measured cards,
+collision/protected-area placement, explicit overflow inspection and active-frame
+timing windows are implemented; native layout/scrolling/CPU and anatomical truth
+still require controlled field evidence. A further screenshot and Kirk's "it
+worked" confirm four readable separated cards and explicit 4/5 placement overflow
+in the tavern. Inspection paging and broader accuracy/performance remain open;
+overlays visible over the radial menu identified a menu-visibility refinement.
+Transient all-diagnostic suppression and fresh-frame restoration are now
+implemented, preserving development-only console toggles; native menu transitions
+and game-thread cleanup remain a field gate.
+The menu candidate passes the Release build and six-suite local CI gate and is
+backed up, staged and installed without launch. Build/stage/live DLL SHA-256:
+`70274DD50717D532AFA2C096105F90BF532E48A5DBFBBFDCFE889229B8767CB1`.
+Live preflight passes 16 checks, zero failures and the existing OAR warning;
+live INI bytes are unchanged. This is preparation for field acceptance, not
+verification of native menu transitions or cleanup latency.
+Detailed telemetry remains optional.
+
+**November 12 progression:** four new tavern images show named incoming rows and
+inspector entry 5/16 with physical-panel and estimated eye observations. Native
+cleanup task timings appear in the log; exhaustive nested-menu acceptance is
+still open. An over-budget engine sample/session peak prevents a CPU pass.
+The next candidate reduces front B clearance to 10 cm at the eye anchor while
+retaining size, anatomy and collision-aware text cards. All 109 configuration
+keys, offline save/default paths, five presets and 27-command references are
+synchronized with executable regression checks.
+The webpage preview now has two anatomically labeled simulated eyes sharing one
+target at fixed virtual depth and one animation loop, with geometric convergence;
+this is not per-eye game telemetry or clinically calibrated eye tracking.
+See [audit](docs/CONFIGURATION_AUDIT.md) and
+[console card](docs/CONSOLE_COMMANDS_CARD.md).
+
+The near-face/configuration candidate is now backed up, staged and installed
+without launch. Build/stage/live DLL:
+`8D3E4B0746BFE16639BB26FB3E89A34AC3FC1B3D6CAE567A43F8DAE1A79DA95F`.
+Release, six-suite/enhanced CI and 16-check live preflight pass (existing OAR
+warning). Only the requested live INI clearance value changed; every other byte
+was verified retained. Browser/geometry regressions cover convergence and stable
+held fixation, including a 45-frame zero-motion browser capture for both pupils.
+Next: native 10 cm clipping/parallax test, independently established receiving
+truth, crowd/lifecycle/menus and steady-state budgets. These are not completed
+by deployment or the browser simulation.
+
+The full incoming-panel contract is **not in-engine verified** yet. After the staged gate
+passed and Kirk explicitly approved a controlled test, the candidate DLL/UI/assets
+were deployed without launching Skyrim. The prior files have a hash-verified
+rollback backup; the user INI is unchanged. Continue the controlled game tests;
+do not publish this as a verified release.
+
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
 **Current Milestone:** v1.0.8 — OAR Conditions API V3, Biometric Privacy Hardening & Charter Realignment (audit 2026-10-15 remediation in `[Unreleased]`)

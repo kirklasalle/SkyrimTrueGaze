@@ -227,6 +227,11 @@ namespace TrueGaze::Engine
         arrowCrossSectionMm =
             ReadFloat("Visuals", "fArrowCrossSectionMm", arrowCrossSectionMm, p);
         showHcepPanel = ReadBool("Visuals", "bShowHcepPanel", showHcepPanel, p);
+        showIncomingAbove = ReadBool("Visuals", "bIncomingPanelAbove", showIncomingAbove, p);
+        showIncomingHud = ReadBool("Visuals", "bIncomingPlayerHud", showIncomingHud, p);
+        showIncomingText = ReadBool("Visuals", "bIncomingText", showIncomingText, p);
+        measureIncomingAnatomy = ReadBool("Visuals", "bIncomingAnatomy", measureIncomingAnatomy, p);
+        measureIncomingPanels = ReadBool("Visuals", "bIncomingPanelHits", measureIncomingPanels, p);
         hcepPanelAllActors = ReadBool("Visuals", "bHcepPanelAllActors", hcepPanelAllActors, p);
         hcepPanelScale = ReadFloat("Visuals", "fHcepPanelScale", hcepPanelScale, p);
         hcepPanelForwardOffsetCm =
@@ -503,12 +508,8 @@ namespace TrueGaze::Engine
         }
 
         // --- Visuals -----------------------------------------------------------
-        // A beam shorter than the eye is a dot; an unbounded one reaches across
-        // Whiterun. Both are configuration mistakes rather than preferences.
+        // Length, thickness and opacity were clamped above.
         rayRenderMode = std::clamp(rayRenderMode, 0, 2);
-        gazeRayLengthMeters =
-            clampReport("fGazeRayLengthMeters", gazeRayLengthMeters, 0.5f, 100.0f);
-        gazeRayOpacity = clampReport("fGazeRayOpacity", gazeRayOpacity, 0.0f, 1.0f);
         pupilGlowIntensity = clampReport("fPupilGlowIntensity", pupilGlowIntensity, 0.0f, 5.0f);
         pupilForwardOffsetCm =
             clampReport("fPupilForwardOffsetCm", pupilForwardOffsetCm, 0.0f, 30.0f);
@@ -697,6 +698,11 @@ namespace TrueGaze::Engine
         WriteFloat("Visuals", "fPupilGlowIntensity", pupilGlowIntensity);
         WriteFloat("Visuals", "fArrowCrossSectionMm", arrowCrossSectionMm);
         WriteBool("Visuals", "bShowHcepPanel", showHcepPanel);
+        WriteBool("Visuals", "bIncomingPanelAbove", showIncomingAbove);
+        WriteBool("Visuals", "bIncomingPlayerHud", showIncomingHud);
+        WriteBool("Visuals", "bIncomingText", showIncomingText);
+        WriteBool("Visuals", "bIncomingAnatomy", measureIncomingAnatomy);
+        WriteBool("Visuals", "bIncomingPanelHits", measureIncomingPanels);
         WriteBool("Visuals", "bHcepPanelAllActors", hcepPanelAllActors);
         WriteFloat("Visuals", "fHcepPanelScale", hcepPanelScale);
         WriteFloat("Visuals", "fHcepPanelForwardOffsetCm", hcepPanelForwardOffsetCm);

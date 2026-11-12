@@ -6,6 +6,7 @@
 #include "Integrations/OarConditions.hpp"
 #include "PCH.h"
 #include "TrueGazeVersion.h" // generated from project(VERSION) - audit F-07
+#include "Visuals/IncomingGazeManager.hpp"
 
 #if __has_include(<SKSE/SKSE.h>)
 #include <RE/Skyrim.h>
@@ -206,6 +207,7 @@ namespace
             LogRuntimeIdentity();
 
             engine.RefreshTuning();
+            TrueGaze::Visuals::IncomingGazeManager::Get().InstallUi();
             engine.StartBridge();
             TrueGaze::Engine::AnimationHook::Install();
 

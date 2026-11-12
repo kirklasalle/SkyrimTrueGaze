@@ -36,6 +36,9 @@ if ($LASTEXITCODE -ne 0) {
 # 2. Deploy binary and configurator suite to skyrim structure
 Write-Host "`n[2/4] Deploying TrueGaze.dll and Configurator suite to skyrim/..." -ForegroundColor Yellow
 Copy-Item -Path $releaseDll -Destination $pluginTarget -Force
+if (-not (Test-Path (Join-Path $skyrimDir "Interface\TrueGazeIncoming.swf"))) {
+    throw "Generated incoming UI asset missing after build."
+}
 
 # Stage Configurator files for Mod Organizer 2, Vortex, and manual modders
 Copy-Item -Path (Join-Path $projectRoot "TrueGazeConfig.html") -Destination (Join-Path $skyrimDir "TrueGazeConfig.html") -Force
@@ -44,6 +47,11 @@ $toolsDir = Join-Path $skyrimDir "tools\TrueGazeConfig"
 if (!(Test-Path $toolsDir)) { New-Item -ItemType Directory -Path $toolsDir -Force | Out-Null }
 Copy-Item -Path (Join-Path $projectRoot "scripts\Launch-TrueGazeConfig.ps1") -Destination (Join-Path $toolsDir "Launch-TrueGazeConfig.ps1") -Force
 Copy-Item -Path (Join-Path $projectRoot "scripts\TrueGazeBridgeServer.ps1") -Destination (Join-Path $toolsDir "TrueGazeBridgeServer.ps1") -Force
+$docsDir = Join-Path $skyrimDir "docs"
+New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
+foreach ($doc in @("USER_GUIDE.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD.md", "CONFIGURATION_AUDIT.md", "INCOMING_GAZE_PANEL_DESIGN.md", "STATUS.md", "TEST_SCENARIO.md")) {
+    Copy-Item -LiteralPath (Join-Path $projectRoot ("docs\" + $doc)) -Destination $docsDir -Force
+}
 
 Write-Host "  OK   TrueGaze Configurator HTML and Launchers staged into skyrim/" -ForegroundColor DarkGray
 

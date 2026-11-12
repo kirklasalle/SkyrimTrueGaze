@@ -439,13 +439,15 @@
             margin-bottom: 22px;
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 20px;
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
         }
 
         .sim-canvas-wrap {
-            width: 240px;
-            height: 140px;
+            width: 320px;
+            max-width: 100%;
+            aspect-ratio: 16 / 7;
             background: #060504;
             border: 1px solid var(--gold-dim);
             position: relative;
@@ -460,7 +462,7 @@
         }
 
         .sim-canvas-wrap::after {
-            content: "INTERACTIVE GAZE HUD";
+            content: "BINOCULAR SIMULATION - NOT LIVE GAME DATA";
             position: absolute;
             bottom: 4px;
             left: 6px;
@@ -1054,12 +1056,13 @@
         <!-- Real-Time Eye Dynamics & Kinematics -->
         <div class="kinematics-box">
             <div class="sim-canvas-wrap" id="simWrap">
-                <canvas id="eyeCanvas" width="480" height="280"></canvas>
+                <canvas id="eyeCanvas" width="640" height="280" role="img"
+                    aria-label="Simulated anatomical right eye on the viewer's left and left eye on the viewer's right, converging on one target at a fixed virtual depth. Not live game telemetry."></canvas>
             </div>
             <div class="sim-info">
                 <div class="sim-title">Real-Time Biological Eye Dynamics &amp; Kinematics</div>
                 <div class="sim-desc">
-                    Live 3D oculomotor viewport demonstrating Main Sequence peak ballistic saccades, VOR eye-head decoupling, micro-saccadic Brownian jitter, and spontaneous blinking. Move your cursor over the viewport to test live gaze tracking and fixation lock.
+                    Left and right eyes turn independently toward one target at a fixed virtual depth, converging inward as your pointer passes between them. Hold the pointer still for steady fixation; subtle shared jitter runs only in autonomous mode. Head motion and blinking are shared. Labels use the subject's anatomical sides (right eye on your left). This illustrative preview follows your tuning controls; it is not live game telemetry or clinically calibrated eye tracking.
                 </div>
             </div>
         </div>
@@ -1146,15 +1149,15 @@
                 sEngineTarget: ['choice', 'Auto', 'Target engine version (Auto-detect: SE, AE, VR)', ['Auto', 'SE', 'AE', 'VR']]
             },
             'Kinematics': {
-                fSaccadeSpeedMult: ['float', 1.5, 'Multiplier for peak ballistic saccade velocity (human: 700-900 deg/s). The COMBAT ceiling — calm behaviour runs at quarter speed at runtime', 0.5, 2.0, 0.1, '{v}x'],
-                fVelocitySaturation: ['float', 18.0, 'Velocity saturation constant (c parameter in Main Sequence equation)', 1, 60, 0.5, '{v}'],
-                fMicroJitterAmp: ['float', 0.28, 'Amplitude of micro-saccadic Brownian drift preventing visual freezing (degrees)', 0, 1, 0.05, '{v} deg'],
+                fSaccadeSpeedMult: ['float', 1.5, 'Multiplier for peak ballistic saccade velocity (human: 700-900 deg/s). The COMBAT ceiling — calm behaviour runs at quarter speed at runtime', 0.1, 5.0, 0.1, '{v}x'],
+                fVelocitySaturation: ['float', 18.0, 'Velocity saturation constant (c parameter in Main Sequence equation)', 1, 90, 0.5, '{v}'],
+                fMicroJitterAmp: ['float', 0.28, 'Amplitude of micro-saccadic Brownian drift preventing visual freezing (degrees)', 0, 3, 0.05, '{v} deg'],
                 fMicroJitterIntervalMin: ['float', 0.2, 'Micro-jitter update minimum interval (seconds)', 0.05, 2, 0.05, '{v} s'],
                 fMicroJitterIntervalMax: ['float', 0.45, 'Micro-jitter update maximum interval (seconds)', 0.1, 4, 0.05, '{v} s'],
-                fHeadTrackingSpeed: ['float', 5.2, 'Vestibulo-Ocular Reflex (VOR) head damping tracking factor — lower = slower, more graceful', 0.5, 20, 0.1, '{v}'],
+                fHeadTrackingSpeed: ['float', 5.2, 'Vestibulo-Ocular Reflex (VOR) head damping tracking factor — lower = slower, more graceful', 0.5, 40, 0.1, '{v}'],
                 fEyePursuitSpeed: ['float', 12.0, 'Smooth ocular pursuit glide rate between fixation points (1/s) — lower = more languid', 1, 60, 1, '{v}'],
-                fMaxComfortEyeAngle: ['float', 35.0, 'Maximum comfortable eye angle before head engagement (degrees)', 5, 60, 1, '{v} deg'],
-                fHeadOnsetDelaySec: ['float', 0.13, 'Biological latency gap: seconds head lags initial eye saccade (upper end of the 80-150ms window — the eyes clearly ARRIVE first)', 0.0, 0.4, 0.01, '{v} s']
+                fMaxComfortEyeAngle: ['float', 35.0, 'Maximum comfortable eye angle before head engagement (degrees)', 5, 45, 1, '{v} deg'],
+                fHeadOnsetDelaySec: ['float', 0.13, 'Biological latency gap: seconds head lags initial eye saccade (upper end of the 80-150ms window — the eyes clearly ARRIVE first)', 0.0, 0.5, 0.01, '{v} s']
             },
             'SkeletalHierarchy': {
                 fSpine2YawWeight: ['float', 0.035, 'Spine2 yaw strain weight', 0, 1, 0.005, '{v}'],
@@ -1208,9 +1211,9 @@
             'Social': {
                 bEnableGazeAversion: ['bool', true, 'Cognitive Gaze Aversion when NPCs process thoughts (THINK mode)'],
                 bEnableSocialTriangle: ['bool', true, 'Argyle & Cook Social Triangle gaze cycling in dialogue (AFFECT)'],
-                fTriangleFixationDuration: ['float', 0.35, 'Base social triangle fixation duration (seconds)', 0.1, 2, 0.05, '{v} s'],
+                fTriangleFixationDuration: ['float', 0.35, 'Base social triangle fixation duration (seconds)', 0.05, 2, 0.05, '{v} s'],
                 fTrianglePathRandomness: ['float', 0.6, 'Social triangle path randomness: 0 = fixed orbit, 1 = free organic wandering', 0, 1, 0.05, '{v}'],
-                fMutualGazeThreshold: ['float', 2.0, 'Continuous mutual eye contact for intimacy reactions (seconds)', 0.5, 5, 0.25, '{v} s'],
+                fMutualGazeThreshold: ['float', 2.0, 'Continuous mutual eye contact for intimacy reactions (seconds)', 0.1, 30, 0.1, '{v} s'],
                 fCgaHeadInvolvement: ['float', 0.08, 'Head chain fraction during CGA aversion (0 = eyes-only, 1 = full head)', 0, 1, 0.01, '{v}'],
                 bDialogueSyncCgaReturn: ['bool', true, 'CGA aversion ends when dialogue begins (attention capture)'],
                 fCgaDialogueOffsetSec: ['float', 2.0, 'Per-actor random ±offset around dialogue onset for organic variation (seconds)', 0, 5, 0.25, '{v} s']
@@ -1224,23 +1227,34 @@
             'Bridge': {
                 bConnectHcepBridge: ['bool', true, 'Connect to HCEP Desktop via named pipe (biometric data — see privacy note in INI)'],
                 sPipeName: ['text', '\\\\.\\pipe\\TrueGazeBridge', 'Named Pipe IPC address'],
-                fAutoReconnectIntervalSec: ['float', 3.0, 'Background worker reconnection interval (seconds)', 1, 30, 0.5, '{v} s']
+                fAutoReconnectIntervalSec: ['float', 3.0, 'Background worker reconnection interval (seconds)', 0.25, 60, 0.25, '{v} s'],
+                bRetainTrackedPersonId: ['bool', false, 'Retain tracked-person ID in bridge telemetry; privacy-sensitive, leave off unless explicitly required']
             },
             'LOD': {
-                fTier1DistanceMeters: ['float', 5.0, 'Tier 1: full biological kinematics distance (meters)', 1, 20, 0.5, '{v} m'],
-                fTier2DistanceMeters: ['float', 15.0, 'Tier 2: head/neck kinematics, simplified eyes (meters)', 2, 50, 1, '{v} m']
+                fTier1DistanceMeters: ['float', 5.0, 'Tier 1: full biological kinematics distance (meters)', 1, 50, 0.5, '{v} m'],
+                fTier2DistanceMeters: ['float', 15.0, 'Tier 2: head/neck kinematics, simplified eyes (meters)', 2, 200, 1, '{v} m']
             },
             'Debug': {
                 bDebugGazeRays: ['bool', false, 'Render in-game 3D line-of-sight visualizer rays'],
-                iLogLevel: ['int', 2, 'Logging level (0=Trace 1=Debug 2=Info 3=Warn 4=Error)', 0, 4, 1]
+                iLogLevel: ['int', 2, 'Logging level (0=Trace 1=Debug 2=Info 3=Warn 4=Error)', 0, 4, 1],
+                bEnableTraceLogging: ['bool', false, 'Start structured JSONL trace logging when the engine initializes; stgtrace/stgtraceoff control a live session'],
+                iTraceBufferSize: ['int', 256, 'Trace events buffered before flush', 16, 4096, 1],
+                iTraceMaxFileSizeMB: ['int', 100, 'Maximum trace file size in MB', 1, 1024, 1],
+                bTraceGazeTick: ['bool', true, 'Include gaze-tick trace events'],
+                bTraceSaccades: ['bool', true, 'Include saccade trace events'],
+                bTraceRegionChanges: ['bool', true, 'Include region-change trace events'],
+                bTraceCGA: ['bool', true, 'Include cognitive gaze-aversion trace events'],
+                bTraceBlinks: ['bool', false, 'Include blink trace events'],
+                bTraceHitMismatches: ['bool', true, 'Include hit-mismatch and incoming measurement trace events'],
+                bEnableCalibrationCommands: ['bool', true, 'Allow stgcal/stgcalsweep angular overrides; these do not certify incoming anatomy']
             },
             'Visuals': {
                 bEnableInGameVisuals: ['bool', false, 'Master switch for every in-game 3D visual (the "Superman laser eyes" subsystem)'],
                 bGazeRaysEnabled: ['bool', true, 'Emit a gaze beam from each actor\'s pupil along the solved gaze direction'],
                 iRayRenderMode: ['choice', '0', 'Render mode: Both (light + beam geometry) / Light only (points-of-light, no beam) / Geometry only', ['0', '1', '2']],
                 fGazeRayLengthMeters: ['float', 2.5, 'Beam reach in meters (drives light radius and terminus position)', 0.5, 50, 0.5, '{v} m'],
-                fGazeRayThicknessCm: ['float', 0.2, 'Beam cross-section diameter (cm) (~2mm hair-thin laser)', 0.05, 5.0, 0.05, '{v} cm'],
-                iGazeRayColour: ['text', '13174890', 'Beam colour as decimal 0xRRGGBB (13174890 = #C9A86A TrueGaze gold)'],
+                fGazeRayThicknessCm: ['float', 0.2, 'Beam cross-section diameter (cm) (~2mm hair-thin laser)', 0.05, 20.0, 0.05, '{v} cm'],
+                iGazeRayColour: ['text', '13174890', 'Beam colour as decimal RGB: shipped 13174890 = #C9086A; brand gold #C9A86A = 13215850'],
                 fGazeRayOpacity: ['float', 0.85, 'Emitter brightness, 0..1', 0, 1, 0.05, '{v}'],
                 bGazeRaysOnPlayer: ['bool', true, 'Emit beams from the player character'],
                 bGazeRaysOnNPCs: ['bool', true, 'Emit beams from humanoid NPCs'],
@@ -1248,12 +1262,18 @@
                 bGazeRaysAttachHead: ['bool', true, 'Attach the emitter to the head bone (false = actor root)'],
                 bGazeRaysTerminus: ['bool', true, 'Also place a second glow where the gaze lands'],
                 fPupilForwardOffsetCm: ['float', 10.8, 'Pupil origin: offset forward from the head bone origin (cm)', 0, 30, 0.5, '{v} cm'],
-                fPupilUpOffsetCm: ['float', 5.4, 'Pupil origin: offset up from the head bone origin (cm)', -10, 15, 0.5, '{v} cm'],
-                fPupilGlowIntensity: ['float', 0.35, 'Pupil emitter brightness multiplier', 0, 3, 0.05, '{v}x'],
-                bShowHcepPanel: ['bool', true, 'Master switch for the floating HCEP 9-region diagram panel'],
+                fPupilUpOffsetCm: ['float', 5.4, 'Pupil origin: offset up from the head bone origin (cm)', -30, 30, 0.5, '{v} cm'],
+                fPupilGlowIntensity: ['float', 0.35, 'Pupil emitter brightness multiplier', 0, 5, 0.05, '{v}x'],
+                fArrowCrossSectionMm: ['float', 24.0, 'Widest marker-arrow cross-section (mm), separate from beam thickness', 5, 100, 1, '{v} mm'],
+                bShowHcepPanel: ['bool', true, 'Panel B: target-owned front panel showing incoming observers'],
                 bHcepPanelAllActors: ['bool', true, 'Show HCEP panel on Player, NPCs, and Creatures (false = Player only)'],
-                fHcepPanelScale: ['float', 27.5, 'Height of the floating HCEP panel in Skyrim units (~39cm readable diagram)', 0.5, 50.0, 0.5, '{v}'],
-                fHcepPanelForwardOffsetCm: ['float', 70.0, 'Forward distance in front of actor head in cm (~49 Skyrim units)', 10.0, 150.0, 1.0, '{v} cm']
+                bIncomingPanelAbove: ['bool', false, 'Panel A: camera-facing incoming panel above the observed actor'],
+                bIncomingPlayerHud: ['bool', false, 'Non-modal first-person player incoming HUD'],
+                bIncomingText: ['bool', false, 'Non-modal paged incoming inspection with full names, IDs and hit telemetry; stginnext/stginprev navigate'],
+                bIncomingAnatomy: ['bool', true, 'Approximate incoming anatomical regions; visibility is unverified'],
+                bIncomingPanelHits: ['bool', true, 'Physical intersections with enabled receiving panels, separate from anatomy'],
+                fHcepPanelScale: ['float', 27.5, 'Height of the receiving diagram in Skyrim units, independent of anatomical volumes', 0.5, 30.0, 0.5, '{v}'],
+                fHcepPanelForwardOffsetCm: ['float', 10.0, 'Panel B clearance ahead of resolved eyes (creatures: cranial anchor); smaller reduces parallax, not anatomy uncertainty', 5.0, 200.0, 1.0, '{v} cm']
             },
             'Console': {
                 bEnableConsoleCommands: ['bool', true, 'Register the stg* commands in the game console (~). Vanilla only - no Papyrus, ESP or MCM. Type stgstatus to check state, stgon/stgoff for visuals.']
@@ -1804,9 +1824,9 @@
             },
             'Visuals:iGazeRayColour': {
                 desc: 'Beam colour as a decimal 0xRRGGBB value.',
-                impact: 'Colours the pupil and terminus emitters. The default 13174890 is #C9A86A, the TrueGaze gold used throughout this configurator.',
-                context: 'Because the value is a plain integer, some colour pickers read it as decimal. Convert a hex colour to decimal before entering it (e.g. #C9A86A = 13174890).',
-                rec: '13174890 (#C9A86A TrueGaze gold)',
+                impact: 'Colours the pupil and terminus emitters. The retained shipped value 13174890 is #C9086A.',
+                context: 'Enter decimal RGB. Brand gold #C9A86A is 13215850, not 13174890; existing user colour is not migrated.',
+                rec: 'Keep existing colour, or use 13215850 for brand gold',
                 dflt: '13174890'
             },
             'Visuals:fGazeRayOpacity': {
@@ -1869,27 +1889,27 @@
                 desc: 'Brightness multiplier applied to the pupil emitter only.',
                 impact: 'Lets the pupil glow be tuned independently of the global beam brightness — useful for a bright terminus with a subtle eye glow, or the reverse.',
                 context: 'Multiplies with Beam Opacity rather than replacing it.',
-                rec: '0.5x',
-                dflt: '0.5x'
+                rec: '0.35x',
+                dflt: '0.35x'
             },
             'Visuals:fGazeRayThicknessCm': {
                 desc: 'Cross-section diameter of the visible beam geometry in centimetres.',
                 impact: 'Controls pencil-beam vs wide-beam rendering. Set to ~0.8cm for an elegant laser line; higher values create a volumetric beam.',
                 context: 'Applies to geometry render modes. Light-only fallback scales radius with beam length.',
-                rec: '0.8 cm',
-                dflt: '0.8 cm'
+                rec: '0.2 cm',
+                dflt: '0.2 cm'
             },
             'Visuals:bShowHcepPanel': {
                 desc: 'Displays the floating 3D HCEP 9-region diagnostic diagram panel in front of actors.',
-                impact: 'Shows Kirk LaSalle\'s HCEP grid in real-time 3D world space. As the actor looks around, the active region lights up with its designated color.',
-                context: 'Uses transparent chroma-keyed panel textures with dynamic emissive highlighting. Toggleable in real time.',
+                impact: 'Shows where OTHER actors look at this actor. Mapped anatomy and physical quad hits use separate observer-ID markers.',
+                context: 'Target-owned incoming diagnostics; anatomical volumes are approximate and visibility is unverified. Toggle with stgpanel.',
                 rec: 'False (True for demonstration/diagnostics)',
-                dflt: 'false'
+                dflt: 'true (gated by the default-OFF visual master)'
             },
             'Visuals:bHcepPanelAllActors': {
                 desc: 'When enabled, displays the HCEP diagram on Player, NPCs, and creatures. When disabled, only the Player displays the panel.',
                 impact: 'Allows isolating the diagnostic panel to the player character or inspecting the whole scene simultaneously.',
-                context: 'Each actor\'s panel independently tracks and highlights that specific actor\'s cognitive gaze region.',
+                context: 'Each panel receives observations from other actors, never its owner\'s outgoing cognitive region.',
                 rec: 'True',
                 dflt: 'true'
             },
@@ -1901,18 +1921,18 @@
                 dflt: '27.5 units'
             },
             'Visuals:fHcepPanelForwardOffsetCm': {
-                desc: 'Forward distance in front of the actor\'s head where the panel hovers (in centimetres).',
-                impact: '35cm places the panel comfortably in front of the nose without clipping face meshes or helmet geometry.',
-                context: 'Follows head yaw, pitch, and roll in real time.',
-                rec: '35.0 cm',
-                dflt: '35.0 cm'
+                desc: 'Panel B clearance ahead of the resolved eye midpoint (creatures: cranial anchor), in centimetres.',
+                impact: '10cm reduces parallax compared with the former 70cm stand-off. Test face and helmet clipping; this diagram is not a measured facial surface.',
+                context: 'Follows head yaw, pitch and roll. Rendered quad and physical intersection share the same transform. Anatomical estimates and text-card layout are independent.',
+                rec: '10.0 cm; increase only if needed for clipping',
+                dflt: '10.0 cm'
             },
             'Console:bEnableConsoleCommands': {
                 desc: 'Registers the stg* commands so the game\'s own console (~) can toggle SkyrimTrueGaze at runtime.',
-                impact: 'Adds: stg (toggle kinematics engine), stgvisuals / stgv (visuals and gaze rays), stgpanel (toggle HCEP panel), stgon / stgoff, stgmode (render mode), stgradius (terminus glow), stgverbose (logging), stgstatus (print the full state).',
-                context: 'VANILLA ONLY — no Papyrus, no ESP/ESL, no MCM, no SkyUI. Commands are registered by reclaiming console-table entries the engine already treats as dead or empty, so no working vanilla command is displaced. Off by default because it writes into engine memory and has not yet been confirmed in a running game. Requires a game restart — commands register at load.',
-                rec: 'False, then True when you want runtime toggles',
-                dflt: 'false'
+                impact: 'Registers 27 commands: type stghelp for the complete library. Includes incoming inspection/paging, presets/reload, tracing and angular calibration. See docs/CONSOLE_COMMANDS_CARD.md.',
+                context: 'Vanilla console only, no Papyrus/ESP/MCM/SkyUI. Registration reclaims dead/empty slots and is all-or-nothing. Requires restart to change registration; stgreload cannot install commands.',
+                rec: 'True for console controls; use stgoff for normal gameplay',
+                dflt: 'true'
             }
         };
 
@@ -2044,11 +2064,21 @@
         function serializeIni() {
             let out = [];
             let section = null;
+            const original = parseIni(originalText);
+            const inserted = new Set();
             for (const line of originalText.split(/\r?\n/)) {
                 const sm = line.match(/^\s*\[([^\]]+)\]\s*$/);
                 if (sm) {
                     section = sm[1];
                     out.push(line);
+                    // Insert newly introduced keys once, without rewriting user
+                    // comments, unknown keys or existing section order.
+                    if (!inserted.has(section)) {
+                        for (const [key, value] of parsed.get(section) || []) {
+                            if (!original.get(section)?.has(key)) out.push(`${key}=${value}`);
+                        }
+                        inserted.add(section);
+                    }
                     continue;
                 }
                 const kv = line.match(/^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)(.*?)\s*$/);
@@ -2058,6 +2088,11 @@
                 } else {
                     out.push(line);
                 }
+            }
+            for (const [name, values] of parsed) {
+                if (original.has(name)) continue;
+                out.push('', `[${name}]`);
+                for (const [key, value] of values) out.push(`${key}=${value}`);
             }
             return out.join('\r\n');
         }
@@ -2123,7 +2158,7 @@
                     let controlHtml = '';
 
                     if (type === 'bool') {
-                        const isChecked = String(val).toLowerCase() === 'true';
+                        const isChecked = /^(true|1)$/i.test(String(val));
                         controlHtml = `
                             <label class="toggle-switch">
                                 <input type="checkbox" data-role="input" ${isChecked ? 'checked' : ''}>
@@ -2231,7 +2266,14 @@
 
         function showTooltip(e, key) {
             const uiData = UI_TOOLTIPS[key];
-            const data = uiData || TOOLTIPS[key];
+            const [sectionName, paramName] = key.split(':');
+            const spec = DEFAULTS[sectionName]?.[paramName];
+            const data = uiData || TOOLTIPS[key] || (spec && {
+                desc: spec[2],
+                impact: 'Developer configuration; save and use stgreload for live tuning. Initialization-only controls require restart or a new trace session.',
+                context: 'Preserve your existing configuration; the shipped default is shown below.',
+                rec: String(spec[1])
+            });
             if (!data) return;
 
             currentTooltipKey = key;
@@ -2255,7 +2297,7 @@
             // UI actions have no shipped numeric value, so only the recommendation row is shown.
             $('ttFooter').classList.toggle('hidden', !!uiData);
             $('ttRec').textContent = data.rec;
-            $('ttDefault').textContent = data.dflt || '—';
+            $('ttDefault').textContent = spec ? String(spec[1]) : '—';
 
             tooltipEl.classList.add('visible');
             moveTooltip(e);
@@ -2525,104 +2567,6 @@
         $('presetDeveloper').addEventListener('click', () => applyPreset('developer'));
 
         // ------------------------------------------------------------------
-        // Live Biological Eye Kinematics Canvas
-        // ------------------------------------------------------------------
-        const canvas = $('eyeCanvas');
-        const ctx = canvas.getContext('2d');
-        let eyeState = {
-            yaw: 0,
-            pitch: 0,
-            targetYaw: 0,
-            targetPitch: 0,
-            lastSaccade: performance.now(),
-            jitterYaw: 0,
-            jitterPitch: 0
-        };
-
-        function simLoop(time) {
-            // Read active parameters from parsed or defaults
-            const saccadeMult = Number(parsed.get('Kinematics')?.get('fSaccadeSpeedMult') || 1.0);
-            const jitterAmp = Number(parsed.get('Kinematics')?.get('fMicroJitterAmp') || 0.35);
-            const maxAngle = Number(parsed.get('Kinematics')?.get('fMaxComfortEyeAngle') || 35.0);
-
-            // Execute occasional saccade every 1.2 to 2.2 seconds
-            if (time - eyeState.lastSaccade > 1600) {
-                const range = Math.min(maxAngle, 26);
-                eyeState.targetYaw = (Math.random() - 0.5) * range * 1.5;
-                eyeState.targetPitch = (Math.random() - 0.5) * (range * 0.8);
-                eyeState.lastSaccade = time;
-            }
-
-            // Smooth convergence with ballistic velocity
-            const speed = 0.18 * saccadeMult;
-            eyeState.yaw += (eyeState.targetYaw - eyeState.yaw) * speed;
-            eyeState.pitch += (eyeState.targetPitch - eyeState.pitch) * speed;
-
-            // Brownian micro-jitter
-            eyeState.jitterYaw = (Math.random() - 0.5) * (jitterAmp * 3.5);
-            eyeState.jitterPitch = (Math.random() - 0.5) * (jitterAmp * 2.5);
-
-            // Render Eye Sphere
-            const w = canvas.width, h = canvas.height;
-            ctx.clearRect(0, 0, w, h);
-
-            // Eye Sclera (White)
-            ctx.save();
-            ctx.beginPath();
-            ctx.ellipse(w / 2, h / 2, 45, 26, 0, 0, Math.PI * 2);
-            ctx.clip();
-
-            const scleraGrad = ctx.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, 48);
-            scleraGrad.addColorStop(0, '#f2ece4');
-            scleraGrad.addColorStop(0.8, '#d6cbbd');
-            scleraGrad.addColorStop(1, '#968875');
-            ctx.fillStyle = scleraGrad;
-            ctx.fillRect(0, 0, w, h);
-
-            // Iris & Pupil Position
-            const irisX = w / 2 + (eyeState.yaw + eyeState.jitterYaw) * 1.35;
-            const irisY = h / 2 + (eyeState.pitch + eyeState.jitterPitch) * 1.1;
-
-            // Iris
-            const irisGrad = ctx.createRadialGradient(irisX, irisY, 2, irisX, irisY, 17);
-            irisGrad.addColorStop(0, '#557a95');
-            irisGrad.addColorStop(0.7, '#2d4b60');
-            irisGrad.addColorStop(1, '#111e28');
-
-            ctx.beginPath();
-            ctx.arc(irisX, irisY, 17, 0, Math.PI * 2);
-            ctx.fillStyle = irisGrad;
-            ctx.fill();
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = '#0a1017';
-            ctx.stroke();
-
-            // Pupil
-            ctx.beginPath();
-            ctx.arc(irisX, irisY, 7.5, 0, Math.PI * 2);
-            ctx.fillStyle = '#060708';
-            ctx.fill();
-
-            // Cornea Specular Highlight
-            ctx.beginPath();
-            ctx.arc(irisX - 4, irisY - 4, 3, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-            ctx.fill();
-
-            ctx.restore();
-
-            // Eyelids outline
-            ctx.beginPath();
-            ctx.ellipse(w / 2, h / 2, 45, 26, 0, 0, Math.PI * 2);
-            ctx.strokeStyle = '#c9a86a';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-
-            requestAnimationFrame(simLoop);
-        }
-        requestAnimationFrame(simLoop);
-
-        // ------------------------------------------------------------------
         // Bridge API Integration (Live Scan, Direct INI Sync & Launch)
         // ------------------------------------------------------------------
         async function runSystemScan() {
@@ -2711,7 +2655,9 @@
         }
 
         function fallbackToDefaults() {
-            let template = `[General]\r\nbEnableTrueGaze=true\r\nbEnableCreatures=true\r\nsEngineTarget=Auto\r\n\r\n[Kinematics]\r\nfSaccadeSpeedMult=1.000000\r\nfVelocitySaturation=14.000000\r\nfMicroJitterAmp=0.350000\r\nfMicroJitterIntervalMin=0.200000\r\nfMicroJitterIntervalMax=0.450000\r\nfHeadTrackingSpeed=6.000000\r\nfMaxComfortEyeAngle=35.000000\r\n\r\n[SkeletalHierarchy]\r\nfSpine2YawWeight=0.100000\r\nfNeckYawWeight=0.250000\r\nfNeckPitchWeight=0.250000\r\nfHeadYawWeight=0.650000\r\nfHeadPitchWeight=0.750000\r\n\r\n[Social]\r\nbEnableGazeAversion=true\r\nbEnableSocialTriangle=true\r\nfTriangleFixationDuration=0.350000\r\nfMutualGazeThreshold=2.000000\r\n\r\n[Crosshair]\r\nbEnableCrosshairGaze=true\r\nfCrosshairToleranceDeg=4.000000\r\nfCrosshairMaxRangeMeters=25.000000\r\nfCrosshairPointBlankMeters=1.500000\r\n\r\n[Bridge]\r\nbConnectHcepBridge=true\r\nsPipeName=\\\\.\\pipe\\TrueGazeBridge\r\nfAutoReconnectIntervalSec=3.000000\r\n\r\n[LOD]\r\nfTier1DistanceMeters=5.000000\r\nfTier2DistanceMeters=15.000000\r\n\r\n[Debug]\r\nbDebugGazeRays=false\r\niLogLevel=2\r\n\r\n[Visuals]\r\nbEnableInGameVisuals=false\r\nbGazeRaysEnabled=false\r\niRayRenderMode=0\r\nfGazeRayLengthMeters=10.000000\r\niGazeRayColour=13174890\r\nfGazeRayOpacity=0.850000\r\nbGazeRaysOnPlayer=true\r\nbGazeRaysOnNPCs=true\r\nbGazeRaysOnCreatures=true\r\nbGazeRaysAttachHead=true\r\nbGazeRaysTerminus=false\r\nfPupilForwardOffsetCm=10.800000\r\nfPupilUpOffsetCm=5.400000\r\nfPupilGlowIntensity=0.500000\r\n\r\n[Console]\r\nbEnableConsoleCommands=false\r\n`;
+            const template = Object.entries(DEFAULTS).map(([section, keys]) =>
+                `[${section}]\r\n` + Object.entries(keys).map(([key, spec]) =>
+                    `${key}=${spec[1]}`).join('\r\n')).join('\r\n\r\n') + '\r\n';
             acceptIniText(template, 'Shipped Defaults');
         }
 
@@ -2851,6 +2797,15 @@
         // ------------------------------------------------------------------
         // Interactive 3D Biological Eye Kinematics & VOR Simulation Engine
         // ------------------------------------------------------------------
+        function binocularEyeAngles(eyeX, eyeY, targetX, targetY, depth) {
+            const dx = targetX - eyeX;
+            const dy = targetY - eyeY;
+            return {
+                yaw: Math.atan2(dx, depth) * 180 / Math.PI,
+                pitch: Math.atan2(dy, Math.hypot(dx, depth)) * 180 / Math.PI
+            };
+        }
+
         function initEyeKinematicsSimulation() {
             const canvas = $('eyeCanvas');
             const wrap = $('simWrap');
@@ -2859,6 +2814,8 @@
             const ctx = canvas.getContext('2d');
             const W = canvas.width;
             const H = canvas.height;
+            // Virtual canvas units, not a measured viewing distance or IPD.
+            const targetDepth = W;
 
             // Kinematic state
             let headYaw = 0, headPitch = 0;
@@ -2866,7 +2823,6 @@
             let targetYaw = 0, targetPitch = 0;
             let targetChangeTimer = 0;
             let isMouseTracking = false;
-            let mouseX = W / 2, mouseY = H / 2;
 
             // Blink state
             let blinkProgress = 0;
@@ -2884,6 +2840,9 @@
                         if (!isNaN(val)) return val;
                     }
                 }
+                for (const section of Object.values(DEFAULTS)) {
+                    if (section[key]) return Number(section[key][1]);
+                }
                 return fallback;
             }
 
@@ -2891,12 +2850,14 @@
             wrap.addEventListener('mousemove', e => {
                 const rect = wrap.getBoundingClientRect();
                 isMouseTracking = true;
-                const normX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-                const normY = ((e.clientY - rect.top) / rect.height) * 2 - 1;
-                const maxYaw = getParamFloat('fEyeLimitYaw', 35);
-                const maxPitch = getParamFloat('fEyeLimitPitch', 25);
-                targetYaw = normX * maxYaw;
-                targetPitch = normY * maxPitch;
+                const pointerX = (e.clientX - rect.left) / rect.width * W;
+                const pointerY = (e.clientY - rect.top) / rect.height * H;
+                const maxYaw = getParamFloat('fMaxComfortEyeAngle', 35);
+                const maxPitch = maxYaw * 0.7;
+                targetYaw = Math.max(-maxYaw, Math.min(maxYaw,
+                    Math.atan2(pointerX - W / 2, targetDepth) * 180 / Math.PI));
+                targetPitch = Math.max(-maxPitch, Math.min(maxPitch,
+                    Math.atan2(pointerY - H / 2, targetDepth) * 180 / Math.PI));
             });
 
             wrap.addEventListener('mouseleave', () => {
@@ -2904,18 +2865,17 @@
             });
 
             function update(dt) {
-                const saccadeSpeed = getParamFloat('fEyeSaccadeMaxSpeed', getParamFloat('fSaccadeSpeed', 450));
-                const vorGain = getParamFloat('fVORGain', 0.98);
-                const vorDamping = getParamFloat('fVORDamping', 0.15);
-                const jitterAmp = getParamFloat('fBrownianJitter', 0.06);
-                const blinkInterval = getParamFloat('fBlinkInterval', 4.2);
+                const saccadeSpeed = 450 * getParamFloat('fSaccadeSpeedMult', 1.5);
+                const headSpeed = getParamFloat('fHeadTrackingSpeed', 5.2);
+                const jitterAmp = getParamFloat('fMicroJitterAmp', 0.28);
+                const blinkInterval = 4.2;
 
                 // Autonomous fixation shifts if not mouse tracking
                 if (!isMouseTracking) {
                     targetChangeTimer -= dt;
                     if (targetChangeTimer <= 0) {
-                        const maxYaw = getParamFloat('fEyeLimitYaw', 32);
-                        const maxPitch = getParamFloat('fEyeLimitPitch', 20);
+                        const maxYaw = getParamFloat('fMaxComfortEyeAngle', 35);
+                        const maxPitch = maxYaw * 0.7;
                         targetYaw = (Math.random() * 2 - 1) * maxYaw * 0.85;
                         targetPitch = (Math.random() * 2 - 1) * maxPitch * 0.75;
                         targetChangeTimer = 1.6 + Math.random() * 2.4;
@@ -2923,32 +2883,41 @@
                 }
 
                 // 1. Ballistic Saccade jump towards target
-                const saccadeRate = (saccadeSpeed / 60) * dt * 60;
                 const dYaw = targetYaw - (headYaw + eyeYaw);
                 const dPitch = targetPitch - (headPitch + eyePitch);
                 const dist = Math.hypot(dYaw, dPitch);
 
                 if (dist > 0.05) {
-                    const step = Math.min(dist, saccadeRate * 0.25);
+                    const step = Math.min(dist, saccadeSpeed * dt * 0.25);
                     eyeYaw += (dYaw / dist) * step;
                     eyePitch += (dPitch / dist) * step;
+                } else {
+                    eyeYaw += dYaw;
+                    eyePitch += dPitch;
                 }
 
                 // 2. Exponential Neck Follow-Through (Head turn)
                 const prevHeadYaw = headYaw;
                 const prevHeadPitch = headPitch;
-                headYaw += (targetYaw - headYaw) * Math.min(1.0, dt * (1.0 / Math.max(0.05, vorDamping)) * 0.2);
-                headPitch += (targetPitch - headPitch) * Math.min(1.0, dt * (1.0 / Math.max(0.05, vorDamping)) * 0.2);
+                const headBlend = -Math.expm1(-dt * headSpeed * 0.25);
+                headYaw += (targetYaw - headYaw) * headBlend;
+                headPitch += (targetPitch - headPitch) * headBlend;
 
                 // 3. VOR (Vestibulo-Ocular Reflex): Eyes counter-rotate to maintain gaze lock
                 const headDeltaYaw = headYaw - prevHeadYaw;
                 const headDeltaPitch = headPitch - prevHeadPitch;
-                eyeYaw -= headDeltaYaw * vorGain;
-                eyePitch -= headDeltaPitch * vorGain;
+                eyeYaw -= headDeltaYaw;
+                eyePitch -= headDeltaPitch;
 
-                // 4. Brownian micro-jitter
-                jitterX = (Math.sin(performance.now() * 0.02) + (Math.random() - 0.5) * 0.8) * jitterAmp * 8.0;
-                jitterY = (Math.cos(performance.now() * 0.025) + (Math.random() - 0.5) * 0.8) * jitterAmp * 6.0;
+                // Pointer fixation is a stable reference; noise belongs only
+                // to the autonomous illustration, in degrees without amplification.
+                if (isMouseTracking) {
+                    jitterX = jitterY = 0;
+                } else {
+                    const blend = -Math.expm1(-dt * 12);
+                    jitterX += ((Math.random() - 0.5) * jitterAmp - jitterX) * blend;
+                    jitterY += ((Math.random() - 0.5) * jitterAmp - jitterY) * blend;
+                }
 
                 // 5. Spontaneous Blinking
                 blinkTimer -= dt;
@@ -2977,14 +2946,25 @@
                 ctx.fillStyle = bgGrad;
                 ctx.fillRect(0, 0, W, H);
 
-                // Coordinate center
-                const cx = W / 2;
-                const cy = H / 2;
-                const eyeRadius = 78;
-
-                // Effective gaze projection
                 const totalYaw = headYaw + eyeYaw + jitterX;
                 const totalPitch = headPitch + eyePitch + jitterY;
+                const targetX = W / 2 + Math.tan(totalYaw * Math.PI / 180) * targetDepth;
+                const targetY = H / 2 + Math.tan(totalPitch * Math.PI / 180) * targetDepth;
+                const right = binocularEyeAngles(W * 0.25, H / 2, targetX, targetY, targetDepth);
+                const left = binocularEyeAngles(W * 0.75, H / 2, targetX, targetY, targetDepth);
+                drawEye(W * 0.25, H / 2, right.yaw, right.pitch, 'RIGHT EYE');
+                drawEye(W * 0.75, H / 2, left.yaw, left.pitch, 'LEFT EYE');
+
+                ctx.fillStyle = 'rgba(244, 214, 147, 0.85)';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(`SIMULATED GAZE: ${totalYaw.toFixed(1)} / ${totalPitch.toFixed(1)} deg`, W - 10, 16);
+                ctx.fillStyle = isMouseTracking ? '#7ee08d' : '#aeb7bd';
+                ctx.fillText(isMouseTracking ? 'TRACK: STEADY POINTER FIXATION' : 'MODE: AUTONOMOUS', W - 10, 32);
+            }
+
+            function drawEye(cx, cy, totalYaw, totalPitch, label) {
+                const eyeRadius = 78;
                 const gazePxX = (totalYaw / 40) * 45;
                 const gazePxY = (totalPitch / 30) * 32;
 
@@ -3102,13 +3082,10 @@
                 ctx.fill();
                 ctx.stroke();
 
-                // 6. Real-Time Telemetry HUD Overlay
                 ctx.fillStyle = 'rgba(244, 214, 147, 0.85)';
-                ctx.font = '9px "JetBrains Mono", monospace';
-                ctx.textAlign = 'right';
-                ctx.fillText(`GAZE: ${totalYaw >= 0 ? '+' : ''}${totalYaw.toFixed(1)}° / ${totalPitch >= 0 ? '+' : ''}${totalPitch.toFixed(1)}°`, W - 10, 16);
-                ctx.fillStyle = isMouseTracking ? '#7ee08d' : '#aeb7bd';
-                ctx.fillText(isMouseTracking ? 'TRACK: LIVE POINTER' : 'MODE: AUTONOMOUS VOR', W - 10, 28);
+                ctx.font = '16px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(label, cx, H - 30);
             }
 
             function loop(now) {

@@ -45,15 +45,15 @@ namespace TrueGaze::Engine
         bool enableCreatures{true};
 
         // --- Kinematics ---
-        float saccadeSpeedMult{1.0f};
-        float velocitySaturation{14.0f};
-        float microJitterAmp{0.18f};
+        float saccadeSpeedMult{1.5f};
+        float velocitySaturation{18.0f};
+        float microJitterAmp{0.28f};
         float microJitterIntervalMin{0.2f};  // mean time between micro-corrections, lower bound (s)
         float microJitterIntervalMax{0.45f}; // upper bound (s); 1/mean drives OU mean reversion
-        float headTrackingSpeed{3.5f};
+        float headTrackingSpeed{5.2f};
         float eyePursuitSpeed{12.0f}; // smooth ocular pursuit glide rate (1/s)
-        float maxComfortEyeAngle{28.0f};
-        float headOnsetDelaySec{0.12f};
+        float maxComfortEyeAngle{35.0f};
+        float headOnsetDelaySec{0.13f};
 
         // --- Skeletal hierarchy strain shares (yaw sums to 1.0; pitch: neck+head) ---
         float spine2YawWeight{0.035f};
@@ -61,7 +61,7 @@ namespace TrueGaze::Engine
         float neckPitchWeight{0.070f};
         float headYawWeight{0.245f};
         float headPitchWeight{0.245f};
-        float headEngageThresholdDeg{8.0f}; // below this angle, only eyes move
+        float headEngageThresholdDeg{12.0f}; // below this angle, only eyes move
 
         // --- Eye anchor & eye-lead (the eyes ARE the target) ---
         float eyeAnchorForwardCm{10.8f};    // head bone -> eyeline, toward the face
@@ -192,38 +192,43 @@ namespace TrueGaze::Engine
         // developer-oriented: nothing here may affect the kinematics engine, the save game,
         // or a shipped build's appearance unless explicitly enabled.
         bool enableInGameVisuals{false}; // master switch for every in-game visual
-        bool gazeRaysEnabled{false};     // laser-eye beams from the pupil
+        bool gazeRaysEnabled{true};      // gated by enableInGameVisuals
         int rayRenderMode{0}; // 0=Both(branded), 1=LightOnly(bare-bones), 2=GeometryOnly(branded)
-        float gazeRayLengthMeters{10.0f}; // beam length; drives the light radius
-        float gazeRayThicknessCm{0.8f};   // beam cross-section diameter; ~8mm pencil beam
-        int gazeRayColour{0xC9A86A};      // 0xRRGGBB TrueGaze gold (alpha is separate)
+        float gazeRayLengthMeters{2.5f}; // beam length; drives the light radius
+        float gazeRayThicknessCm{0.2f};  // beam cross-section diameter; ~2mm
+        int gazeRayColour{13174890};     // shipped 0xC9086A (alpha is separate)
         float gazeRayOpacity{0.85f};      // 0..1 emitter brightness
         bool gazeRaysOnPlayer{true};
         bool gazeRaysOnNPCs{true};
         bool gazeRaysOnCreatures{true};
         bool gazeRaysAttachHead{true};     // attach emitters under the head bone (vs actor root)
-        bool gazeRaysTerminus{false};      // emit a second glow at the gaze terminus
+        bool gazeRaysTerminus{true};       // emit a second glow at the gaze terminus
         float pupilForwardOffsetCm{10.8f};  // visual socket fallback when eye geometry is unavailable
         float pupilUpOffsetCm{5.4f};
-        float pupilGlowIntensity{0.5f};    // pupil emitter brightness multiplier
+        float pupilGlowIntensity{0.35f};   // pupil emitter brightness multiplier
         float arrowCrossSectionMm{24.0f};  // gaze-arrow widest cross-section (eyeball diameter)
 
         // --- HCEP Floating Diagram Panel ---
         bool showHcepPanel{true};      // master switch for the HCEP diagram panel
+        bool showIncomingAbove{false};
+        bool showIncomingHud{false};
+        bool showIncomingText{false};
+        bool measureIncomingAnatomy{true};
+        bool measureIncomingPanels{true};
         bool hcepPanelAllActors{true}; // true = Player + NPCs + Creatures; false = Player only
         float hcepPanelScale{27.5f};   // panel height in Skyrim units
-        float hcepPanelForwardOffsetCm{70.0f}; // distance in front of head bone (cm)
+        float hcepPanelForwardOffsetCm{10.0f}; // clearance ahead of resolved eye midpoint (cm)
 
         // --- Console commands (~) ---
         //
         // Registers the stg* commands so the game's own console can toggle TrueGaze
         // at runtime. Uses only the vanilla console: no Papyrus, no ESP, no MCM.
         //
-        // DEFAULT OFF. Registration reclaims entries the engine already treats as dead
+        // Registration reclaims entries the engine already treats as dead
         // or empty, so it needs no count and cannot displace a working command - but it
-        // does write into engine memory and has not yet been confirmed in a running
-        // game. See src/Integrations/ConsoleCommands.cpp.
-        bool enableConsoleCommands{false};
+        // does write into engine memory. Registration is all-or-nothing.
+        // See src/Integrations/ConsoleCommands.cpp.
+        bool enableConsoleCommands{true};
 
     private:
         ConfigManager() = default;

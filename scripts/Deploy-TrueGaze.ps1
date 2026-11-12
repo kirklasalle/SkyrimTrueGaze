@@ -17,6 +17,11 @@
 .PARAMETER GamePath
     Skyrim install directory. Auto-detected when omitted.
 
+.PARAMETER ModPath
+    Stage the mod into an isolated MO2/Vortex mod folder instead of the live
+    game's Data directory. Staging never removes existing files or launches
+    the game.
+
 .PARAMETER NoBuild
     Skip the compile step and deploy the existing binary.
 
@@ -55,6 +60,7 @@
 [CmdletBinding()]
 param(
     [string]$GamePath,
+    [string]$ModPath,
     [switch]$NoBuild,
     [switch]$NoLaunch,
     [switch]$Force,
@@ -81,6 +87,34 @@ function Write-Ok { param([string]$t) Write-Host ("  OK   " + $t) -ForegroundCol
 function Write-Bad { param([string]$t) Write-Host ("  FAIL " + $t) -ForegroundColor Red }
 function Write-Info { param([string]$t) Write-Host ("  ..   " + $t) -ForegroundColor DarkGray }
 function Write-Warn { param([string]$t) Write-Host ("  WARN " + $t) -ForegroundColor Yellow }
+
+function Disable-TGEngine {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $encoding = [System.Text.Encoding]::GetEncoding(28591)
+    $text = $encoding.GetString([System.IO.File]::ReadAllBytes($Path))
+    $pattern = '(?im)^(?<prefix>[ \t]*bEnableTrueGaze[ \t]*=[ \t]*)(?<value>true|false|1|0)(?<suffix>[ \t]*(?:;[^\r\n]*)?\r?)$'
+    $matches = [regex]::Matches($text, $pattern)
+
+    if ($matches.Count -ne 1) {
+        throw "Load-only requires exactly one bEnableTrueGaze boolean in [$Path]; found $($matches.Count)."
+    }
+
+    $match = $matches[0]
+    if ($match.Groups['value'].Value -notmatch '^(?i:false|0)$') {
+        $text = [regex]::Replace($text, $pattern, {
+            param($entry)
+            $entry.Groups['prefix'].Value + 'false' + $entry.Groups['suffix'].Value
+        })
+        [System.IO.File]::WriteAllBytes($Path, $encoding.GetBytes($text))
+    }
+
+    $verified = $encoding.GetString([System.IO.File]::ReadAllBytes($Path))
+    $matches = [regex]::Matches($verified, $pattern)
+    if ($matches.Count -ne 1 -or $matches[0].Groups['value'].Value -notmatch '^(?i:false|0)$') {
+        throw "Could not verify bEnableTrueGaze=false in [$Path]."
+    }
+}
 
 # Run a native executable and capture everything it writes.
 #
@@ -128,6 +162,7 @@ Write-Host '============================================================' -Foreg
 # Post-run mode: just read what happened last time.
 # ---------------------------------------------------------------------------
 if ($PostRun) {
+    if ($ModPath) { throw '-ModPath cannot be combined with -PostRun.' }
     $pr = Invoke-TGNative -Exe 'powershell' -Arguments @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $healthScript, '-PostRun')
     $pr.Output | ForEach-Object { Write-Host $_ }
@@ -147,7 +182,23 @@ if (-not $game) {
     exit 1
 }
 
-$pluginsDir = Join-Path $game.Path 'Data\SKSE\Plugins'
+if ($ModPath) {
+    $gameRoot = [System.IO.Path]::GetFullPath($game.Path).TrimEnd('\')
+    $deploymentRoot = [System.IO.Path]::GetFullPath($ModPath).TrimEnd('\')
+    if ($deploymentRoot.Equals($gameRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $deploymentRoot.StartsWith($gameRoot + '\', [System.StringComparison]::OrdinalIgnoreCase) -or
+        $gameRoot.StartsWith($deploymentRoot + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "-ModPath must be an isolated mod folder outside the game directory: $deploymentRoot"
+    }
+
+    $NoLaunch = $true
+    Write-Info "Isolated staging mode: $deploymentRoot (game launch disabled)"
+}
+else {
+    $deploymentRoot = Join-Path $game.Path 'Data'
+}
+
+$pluginsDir = Join-Path $deploymentRoot 'SKSE\Plugins'
 
 # ===========================================================================
 # 1. BUILD
@@ -185,6 +236,10 @@ else {
 if (-not (Test-Path $builtDll)) {
     Write-Bad "No binary at $builtDll"
     exit 1
+}
+$repoUi = Join-Path $projectRoot 'skyrim\Interface\TrueGazeIncoming.swf'
+if (-not (Test-Path $repoUi)) {
+    throw "Incoming UI asset missing: $repoUi. Build the current plugin before deployment."
 }
 
 # ===========================================================================
@@ -257,13 +312,28 @@ else {
     Write-Info 'No packaged INI found; compiled defaults will be used.'
 }
 
+if ($LoadOnly) {
+    if (-not (Test-Path $destIni)) {
+        Write-Bad 'Load-only requested, but no deployed TrueGaze.ini is available to disable the engine.'
+        exit 1
+    }
+
+    Disable-TGEngine -Path $destIni
+    Write-Ok 'Load-only enabled in deployed TrueGaze.ini; user settings and file encoding were preserved.'
+}
+
 # ---------------------------------------------------------------------------
 # Deploy TrueGaze custom visual assets (meshes & textures)
 # ---------------------------------------------------------------------------
+$destUiDir = Join-Path $deploymentRoot 'Interface'
+New-Item -ItemType Directory -Path $destUiDir -Force | Out-Null
+Copy-Item -LiteralPath $repoUi -Destination $destUiDir -Force
+Write-Ok "Incoming UI -> $destUiDir"
+
 $repoMeshes = Join-Path $projectRoot 'skyrim\meshes\TrueGaze'
 $repoTextures = Join-Path $projectRoot 'skyrim\textures\TrueGaze'
-$destMeshes = Join-Path $game.Path 'Data\meshes\TrueGaze'
-$destTextures = Join-Path $game.Path 'Data\textures\TrueGaze'
+$destMeshes = Join-Path $deploymentRoot 'meshes\TrueGaze'
+$destTextures = Join-Path $deploymentRoot 'textures\TrueGaze'
 
 if (Test-Path $repoMeshes) {
     if (-not (Test-Path $destMeshes)) {
@@ -283,52 +353,64 @@ if (Test-Path $repoTextures) {
     Write-Ok "TrueGaze textures -> $destTextures ($texCount files)"
 }
 
+if ($ModPath) {
+    $oarSource = Join-Path $projectRoot 'skyrim\meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze\config.json'
+    if (Test-Path $oarSource) {
+        $oarTarget = Join-Path $deploymentRoot 'meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze'
+        New-Item -ItemType Directory -Path $oarTarget -Force | Out-Null
+        Copy-Item -Path $oarSource -Destination $oarTarget -Force
+        Write-Ok "OAR conditions -> $oarTarget"
+    }
+}
+
 # ---------------------------------------------------------------------------
-# Remove legacy SkyUI / Papyrus / MCM artifacts.
+# Remove legacy SkyUI / Papyrus / MCM artifacts from direct game installs.
 #
 # TrueGaze is deliberately vanilla-UI: configuration is the INI edited through
 # TrueGazeConfig.html. There is no ESP, no Papyrus script, no MCM menu and no
 # SkyUI dependency. Files left over from the abandoned MCM era are actively
 # harmful - a stale TrueGaze.esp in the load order or a TrueGaze_MCM.pex that
 # SkyUI still binds produces confusing in-game behaviour and log noise that
-# looks like a TrueGaze defect. Delete them on every deploy so an upgrade from
-# an old install self-heals.
+# looks like a TrueGaze defect. Never remove unrelated files from a mod staging
+# folder; its contents may be managed by MO2/Vortex or another tool.
 # ---------------------------------------------------------------------------
-$dataDir = Join-Path $game.Path 'Data'
-$legacyPaths = @(
-    @{ Path = (Join-Path $dataDir 'TrueGaze.esp'); Label = 'TrueGaze.esp' }
-    @{ Path = (Join-Path $dataDir 'TrueGaze.esl'); Label = 'TrueGaze.esl' }
-    @{ Path = (Join-Path $dataDir 'TrueGaze_MCM.pex'); Label = 'TrueGaze_MCM.pex' }
-    @{ Path = (Join-Path $dataDir 'TrueGaze.pex'); Label = 'TrueGaze.pex' }
-    @{ Path = (Join-Path $dataDir 'MCM\Config\TrueGaze'); Label = 'MCM\Config\TrueGaze\' }
-    @{ Path = (Join-Path $dataDir 'Interface\MCM\Config\TrueGaze'); Label = 'Interface\MCM\Config\TrueGaze\' }
-)
-
-
-$removed = @()
-foreach ($entry in $legacyPaths) {
-    if (Test-Path $entry.Path) {
-        Remove-Item -Path $entry.Path -Recurse -Force -ErrorAction SilentlyContinue
-        if (-not (Test-Path $entry.Path)) { $removed += $entry.Label }
-    }
-}
-
-# The old MCM shipped six translation files (TrueGaze_<LANG>.txt). None are
-# needed by the vanilla-UI build.
-$transDir = Join-Path $dataDir 'Interface\Translations'
-if (Test-Path $transDir) {
-    $legacyTranslations = @(Get-ChildItem -Path $transDir -Filter 'TrueGaze_*.txt' -File -ErrorAction SilentlyContinue)
-    foreach ($t in $legacyTranslations) {
-        Remove-Item -Path $t.FullName -Force -ErrorAction SilentlyContinue
-        if (-not (Test-Path $t.FullName)) { $removed += ("Interface\Translations\" + $t.Name) }
-    }
-}
-
-if ($removed.Count -gt 0) {
-    Write-Ok ("Removed legacy SkyUI/Papyrus/MCM artifacts: " + ($removed -join ', '))
+if ($ModPath) {
+    Write-Info 'Legacy-file cleanup skipped in isolated staging mode.'
 }
 else {
-    Write-Info 'No legacy SkyUI/Papyrus/MCM artifacts to remove.'
+    $legacyPaths = @(
+        @{ Path = (Join-Path $deploymentRoot 'TrueGaze.esp'); Label = 'TrueGaze.esp' }
+        @{ Path = (Join-Path $deploymentRoot 'TrueGaze.esl'); Label = 'TrueGaze.esl' }
+        @{ Path = (Join-Path $deploymentRoot 'TrueGaze_MCM.pex'); Label = 'TrueGaze_MCM.pex' }
+        @{ Path = (Join-Path $deploymentRoot 'TrueGaze.pex'); Label = 'TrueGaze.pex' }
+        @{ Path = (Join-Path $deploymentRoot 'MCM\Config\TrueGaze'); Label = 'MCM\Config\TrueGaze\' }
+        @{ Path = (Join-Path $deploymentRoot 'Interface\MCM\Config\TrueGaze'); Label = 'Interface\MCM\Config\TrueGaze\' }
+    )
+
+    $removed = @()
+    foreach ($entry in $legacyPaths) {
+        if (Test-Path $entry.Path) {
+            Remove-Item -Path $entry.Path -Recurse -Force -ErrorAction SilentlyContinue
+            if (-not (Test-Path $entry.Path)) { $removed += $entry.Label }
+        }
+    }
+
+    # The old MCM shipped six translation files (TrueGaze_<LANG>.txt).
+    $transDir = Join-Path $deploymentRoot 'Interface\Translations'
+    if (Test-Path $transDir) {
+        $legacyTranslations = @(Get-ChildItem -Path $transDir -Filter 'TrueGaze_*.txt' -File -ErrorAction SilentlyContinue)
+        foreach ($t in $legacyTranslations) {
+            Remove-Item -Path $t.FullName -Force -ErrorAction SilentlyContinue
+            if (-not (Test-Path $t.FullName)) { $removed += ("Interface\Translations\" + $t.Name) }
+        }
+    }
+
+    if ($removed.Count -gt 0) {
+        Write-Ok ("Removed legacy SkyUI/Papyrus/MCM artifacts: " + ($removed -join ', '))
+    }
+    else {
+        Write-Info 'No legacy SkyUI/Papyrus/MCM artifacts to remove.'
+    }
 }
 
 # ===========================================================================
@@ -336,9 +418,13 @@ else {
 # ===========================================================================
 Write-Step '3/4' 'Verify (pre-flight health check)'
 
+$verifyCommand = "& '" + $healthScript.Replace("'", "''") + "' -GamePath '" +
+    $game.Path.Replace("'", "''") + "' -PluginPath '" +
+    $destDll.Replace("'", "''") + "' -DeploymentPath '" +
+    $deploymentRoot.Replace("'", "''") + "'"
+$verifyEncoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($verifyCommand))
 $verify = Invoke-TGNative -Exe 'powershell' -Arguments @(
-    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
-    "& '$healthScript' -GamePath '$($game.Path)' -PluginPath '$builtDll'")
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $verifyEncoded)
 $verifyCode = $verify.ExitCode
 $verify.Output | ForEach-Object { Write-Host $_ }
 
@@ -361,6 +447,12 @@ $loader = Join-Path $game.Path 'skse64_loader.exe'
 if ($NoLaunch) {
     Write-Info 'Skipped (-NoLaunch).'
     Write-Host ''
+    if ($ModPath) {
+        Write-Host 'Isolated mod staged at:' -ForegroundColor Green
+        Write-Host ("  " + $deploymentRoot) -ForegroundColor White
+        Write-Host 'Install or enable this folder through MO2/Vortex; the live game was not modified.' -ForegroundColor DarkGray
+        exit 0
+    }
     Write-Host 'Ready. Launch with:' -ForegroundColor Green
     Write-Host ("  " + $loader) -ForegroundColor White
     Write-Host ''

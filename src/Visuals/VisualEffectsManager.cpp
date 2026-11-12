@@ -1,4 +1,5 @@
 #include "VisualEffectsManager.hpp"
+#include "Visuals/IncomingGazeManager.hpp"
 #include "GazeGeometry.hpp"
 #include "Engine/GazeAnchors.hpp"
 
@@ -320,6 +321,7 @@ namespace TrueGaze::Visuals
     void VisualEffectsManager::SetTuning(const VisualTuning& a_tuning) noexcept
     {
         _tuning = a_tuning;
+        IncomingGazeManager::Get().SetTuning(a_tuning);
 
         if (!_tuning.enableInGameVisuals || (!_tuning.gazeRaysEnabled && !_tuning.showHcepPanel))
         {
@@ -337,6 +339,7 @@ namespace TrueGaze::Visuals
 
     void VisualEffectsManager::Reset() noexcept
     {
+        IncomingGazeManager::Get().Reset();
         for (auto& kv : _emitters)
         {
             DetachAll(kv.second);
@@ -381,7 +384,18 @@ namespace TrueGaze::Visuals
         ++_updateCalls;
         const uint32_t formId = a_actor->GetFormID();
 
-        if (!_tuning.enableInGameVisuals || (!_tuning.gazeRaysEnabled && !_tuning.showHcepPanel))
+        if (_tuning.IncomingActive() && !IncomingGazeManager::DiagnosticsSuppressed() && a_headBone)
+        {
+            RE::NiPoint3 left{}, right{}, direction{};
+            ResolvePupils(a_actor, a_headBone, a_eyeL, a_eyeR, a_headBone,
+                          a_eyeYawDeg, a_eyePitchDeg, left, right, direction);
+            IncomingGazeManager::Get().SubmitEyes(
+                a_actor, (left + right) * 0.5f, direction,
+                a_targetDistanceUnits > 5.0f ? a_targetDistanceUnits : _tuning.LengthUnits());
+        }
+
+        if (!_tuning.enableInGameVisuals || (!_tuning.gazeRaysEnabled && !_tuning.showHcepPanel) ||
+            IncomingGazeManager::DiagnosticsSuppressed())
         {
             RemoveActor(formId);
             return;
@@ -396,9 +410,8 @@ namespace TrueGaze::Visuals
         if (!a_isPlayer && !a_isHumanoid && !_tuning.gazeRaysOnCreatures)
             allowRays = false;
 
-        bool allowPanel = _tuning.showHcepPanel;
-        if (!_tuning.hcepPanelAllActors && !a_isPlayer)
-            allowPanel = false;
+        // Receiving panels are finalized separately after every actor is posed.
+        const bool allowPanel = false;
 
         if (!allowRays && !allowPanel)
         {
@@ -627,69 +640,13 @@ namespace TrueGaze::Visuals
             }
         }
 
-        // --- Phase 2 A7: Ray–Panel Physical Hit Detection & Accuracy Tracking ---
-        namespace G = TrueGaze::Visuals::Geometry;
-        const float panelScaleUnits =
-            (_tuning.hcepPanelScale > 0.1f ? _tuning.hcepPanelScale : 27.5f);
-        constexpr float kDiagramAspect = 2760.0f / 1504.0f; // w:h = 1.835
-        const float halfW = panelScaleUnits * kDiagramAspect * 0.5f;
-        const float halfH = panelScaleUnits * 0.5f;
-
-        const auto hitResult = G::IntersectGazeWithPanel(
-            /*rayOriginRelEyeMid=*/{0.0f, 0.0f, 0.0f},
-            /*rayDir=*/G::Vec3{localDir.x, localDir.y, localDir.z},
-            /*panelForwardOffsetUnits=*/_tuning.HcepPanelForwardOffsetUnits(),
-            /*halfWidthUnits=*/halfW,
-            /*halfHeightUnits=*/halfH);
-
-        emitters.lastHitSuccess = hitResult.hit;
-        emitters.lastHitRegion = hitResult.hitRegion;
-        emitters.lastHitX = hitResult.hitX;
-        emitters.lastHitZ = hitResult.hitZ;
-        if (hitResult.hit)
-        {
-            _accuracyStats.totalEvaluations++;
-            if (hitResult.hitRegion == a_gazeRegion)
-            {
-                _accuracyStats.agreements++;
-                emitters.lastAgreement = true;
-            }
-            else
-            {
-                _accuracyStats.mismatches++;
-                emitters.lastAgreement = false;
-            }
-        }
-        else
-        {
-            _accuracyStats.panelMisses++;
-            emitters.lastAgreement = false;
-        }
-
-        // A7.4: Terminus illumination placed directly at the panel hit point
-        if (emitters.terminusLight && hitResult.hit && allowPanel)
-        {
-            emitters.terminusLight->local.translate =
-                RE::NiPoint3{emitters.eyeMidLocal.x + hitResult.hitX,
-                             emitters.eyeMidLocal.y + _tuning.HcepPanelForwardOffsetUnits(),
-                             emitters.eyeMidLocal.z + hitResult.hitZ};
-            emitters.terminusLight->world = anchor->world * emitters.terminusLight->local;
-            RE::NiUpdateData updateData;
-            updateData.time = 0.0f;
-            updateData.flags = RE::NiUpdateData::Flag::kDirty;
-            emitters.terminusLight->UpdateDownwardPass(updateData, 0);
-        }
-
-        // --- HCEP Floating Diagram Panel ---------------------------------------
-        if (allowPanel)
-        {
-            EnsureHcepPanel(emitters, anchor);
-            UpdateHcepPanel(emitters, anchor, a_gazeRegion);
-        }
-        else if (emitters.hcepPanel)
-        {
+        // Legacy trace fields remain unavailable; incoming IDs are not cognitive IDs.
+        emitters.lastHitSuccess = false;
+        emitters.lastHitRegion = 0xFF;
+        emitters.lastHitX = emitters.lastHitZ = 0;
+        emitters.lastAgreement = false;
+        if (emitters.hcepPanel)
             DetachPanel(emitters);
-        }
 
         emitters.lastGazeRegion = a_gazeRegion;
 
@@ -1250,6 +1207,27 @@ namespace TrueGaze::Visuals
     // ---------------------------------------------------------------------------
     // Geometry helpers
     // ---------------------------------------------------------------------------
+
+    RE::NiPointer<RE::NiNode> VisualEffectsManager::CreateReceivingPanel()
+    {
+        RE::NiPointer<RE::NiNode> model;
+        RE::BSModelDB::DBTraits::ArgsType args;
+        const auto result = RE::BSModelDB::Demand(_tuning.hcepPanelModelPath, model, args);
+        if (result != RE::BSResource::ErrorCode::kNone || !model)
+        {
+            logger::error("[TrueGaze::Incoming] Cannot load panel '{}': {}",
+                          _tuning.hcepPanelModelPath, static_cast<int>(result));
+            return {};
+        }
+        RE::NiPointer<RE::NiObject> object(model->Clone());
+        auto* node = object ? object->AsNode() : nullptr;
+        if (!node || !HasRendererSafeGeometry(node))
+        {
+            logger::error("[TrueGaze::Incoming] Panel clone has no renderer-safe geometry.");
+            return {};
+        }
+        return RE::NiPointer<RE::NiNode>(node);
+    }
 
     void VisualEffectsManager::ResolvePupils(RE::Actor* a_actor, const RE::NiAVObject* a_headBone,
                                              const RE::NiAVObject* a_eyeL,

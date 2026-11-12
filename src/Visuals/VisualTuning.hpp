@@ -30,7 +30,7 @@ namespace TrueGaze::Visuals
         // --- Beam appearance ---
         float gazeRayLengthMeters{2.5f};  // beam reach in metres (~175 Skyrim units)
         float gazeRayThicknessCm{0.2f};   // beam cross-section diameter; ~2mm hair-thin laser
-        uint32_t gazeRayColour{0xC9A86A}; // 0xRRGGBB, TrueGaze gold
+        uint32_t gazeRayColour{13174890}; // shipped 0xC9086A; preserve configured colour
         float gazeRayOpacity{0.85f};
 
         /// Resource path of the visible beam model, relative to the Skyrim Data root.
@@ -60,13 +60,23 @@ namespace TrueGaze::Visuals
 
         // --- HCEP Floating Diagram Panel ---
         bool showHcepPanel{true};       // master switch for the HCEP diagram panel
+        bool showIncomingAbove{false};
+        bool showIncomingHud{false};
+        bool showIncomingText{false};
+        bool measureIncomingAnatomy{true};
+        bool measureIncomingPanels{true};
         bool hcepPanelAllActors{true};  // true = Player + NPCs; false = Player only
-        // Panel quad is authored 1 unit tall; scale 25 -> ~36 cm tall diagram,
-        // readable at the ~35 cm forward offset. (Old default 5 = 7 cm: unreadable.)
+        // Quad height is authored as 1 unit. Keep diagram size independent of
+        // its small eye-anchor clearance; it is not an anatomical face surface.
         float hcepPanelScale{27.5f};           // panel scale factor in Skyrim units
-        float hcepPanelForwardOffsetCm{70.0f}; // ~49.0 Skyrim units forward from head bone
+        float hcepPanelForwardOffsetCm{10.0f}; // ~7 units forward from resolved eye midpoint
         const char* hcepPanelModelPath{"meshes\\TrueGaze\\GazeRegionPanel.nif"};
 
+        [[nodiscard]] bool IncomingActive() const noexcept
+        {
+            return enableInGameVisuals &&
+                   (showHcepPanel || showIncomingAbove || showIncomingHud || showIncomingText);
+        }
 
         // --- Skyrim world constants ---
         static constexpr float kUnitsPerMeter = 70.0f;

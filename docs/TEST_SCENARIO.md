@@ -21,6 +21,153 @@ The protocol is ordered so that each stage isolates one failure mode. **Stop at 
 
 ## Before you start
 
+### Unreleased incoming-panel candidate: controlled field gate
+
+**Font field result:** the first Whiterun tavern screenshot failed readability;
+the next screenshot shows readable target IDs and zero-measurement labels.
+This confirms those glyphs, not a positive incoming hit or full UI acceptance.
+
+**Human-description field result:** the latest tavern screenshot displays readable
+names and a reported eye-area match from one observer, but long captions overlap.
+That is a failed layout gate, not independent proof of anatomical accuracy.
+
+**Grouped-card retest:** close Skyrim before replacing the DLL. Panel labels
+must use the observed actor's display name and "No incoming gaze matches detected"
+when empty. Obtain a camera-to-NPC match and an NPC-to-player match: descriptions
+must identify "Your view" versus the named NPC's gaze, the receiving actor, and
+the estimated body/eye/head area or physical front/above-head panel crossing.
+The first-person HUD identifies its owner as "You"; it never implies visibility
+or attention is proven. "Estimated; visibility not checked" must remain visible.
+
+**Grouped-card field result:** Kirk reports "it worked". The new tavern screenshot
+shows four readable, separated, dark-backed cards, two with reported incoming
+eye-area estimates, and explicit overflow: 4/5 cards placed, one needs inspection.
+Native card output passes this limited scene check. Inspection paging, actual
+anatomical/visibility accuracy and timing budgets are not proven by this image.
+The overlays remain visible over the radial Skills/Magic/Items/Map menu; test
+menu-aware visibility separately before passing full gameplay presentation.
+
+One observer intersecting anatomy and a panel must count as **one observer** but
+multiple measurements. Two observers must count as two, and two identically named
+actors must have distinguishing IDs. Move away and verify matches/names clear or
+update rather than remaining stale. Each receiver has one dark-backed card even
+with both A/B panels enabled. Names head the card; compact colored rows group an
+observer's anatomical estimate and panel crossings without counting twice.
+`o`/`+` remain at the original projected/mapped positions, not on a displaced card.
+Leaders must connect cards to the receiving actor; they are not gaze rays.
+
+Toggle `stgintext` to open the complete non-modal live inspection panel. Technical
+IDs, full names/sentences, coordinates, measurement types and quality remain
+available there. `stginnext`/`stginprev` page through wrapped text, then observations,
+including offscreen and unplaceable cards. Verify wraparound in both directions,
+selected-identity stability and text-page access for long entries. Console paging
+must work after closing the console without intercepting gameplay input.
+
+### Card layout and truth acceptance matrix
+
+**Near-face B retest (November 12):** use `stgoff`, `stgpanel`, `stgintext` and
+`stgstatus` to confirm 10 cm forward clearance. The size stays 27.5 world units.
+Compare against a backed-up 70 cm configuration at the same camera/actor pose,
+then restore 10 cm and `stgreload`. Test frontal/oblique viewing, head yaw/pitch,
+seated/standing actors, helmets, child/adult scales and representative creatures.
+Verify quad markers lie on the visible panel and do not clip faces/helmets;
+changing clearance must not change anatomical results for identical source/pose.
+Keep text-card collision protection unchanged. Panel-region aiming is a diagram
+test, not a calibrated facial-surface test. Physical hits have no anatomical
+region assignment. Record false hits/misses and clipping rather than declaring
+improved accuracy from proximity alone.
+
+Run a fresh `stgstatus` after each transition; startup console scrollback can
+legitimately report SUPPRESSED during loading. The November 12 images show a
+populated inspector, but do not certify every entry/page or menu restoration.
+Capture a full steady-state timing window; the recorded 655 us engine sample
+and 100,504 us session peak are over the declared 150 us budget, not acceptance.
+See [command card](CONSOLE_COMMANDS_CARD.md) and
+[configuration audit](CONFIGURATION_AUDIT.md).
+
+**Development-only menu retest:** enable the desired diagnostics from the console.
+Open the radial menu, then inventory/magic/skills/map and return through nested
+menus: no cards, inspection, leaders, markers, rays, panel meshes or diagnostic
+lights should remain visible. Test journal, container, barter, crafting and book
+menus, and loading/main-menu transitions separately. Check the log for menu
+suppression registration or cleanup errors.
+
+Return to gameplay: only previously enabled channels should reappear on a fresh
+frame, without stale observations or stranded emitters. Toggle diagnostics OFF
+from the console while menus are involved; they must stay OFF afterward. With
+diagnostics already OFF, opening/closing a menu must never turn them on.
+`stgstatus` reports SUPPRESSED/GAMEPLAY separately from saved toggle values.
+Console inspection navigation and ordinary dialogue must remain usable.
+Compare the live INI before/after menu transitions to confirm no implicit writes.
+Record transition/cold timing separately from steady-state UI cost. Mathematical
+menu-generation tests do not prove native task/scene cleanup latency. The log
+records queue delay and cleanup CPU time when 3D diagnostics are removed; this
+work is outside the active-frame finalization/UI timing windows.
+
+| Case | Required evidence / pass condition |
+| --- | --- |
+| Small scene, both A/B enabled | One card per receiving actor; distinct observers match fixtures; separate physical/anatomical measurements retained |
+| Crowded scene (up to 64 receivers) | Zero card-to-card overlaps and zero overlaps with protected template areas; every unplaceable card explicitly counted and accessible in inspection |
+| Long and duplicate display names | Native measured wrapping, distinguishing IDs, no lost name/observer/measurement text; oversized entries accessible by inspection text pages |
+| Bright/dark interiors and supported resolutions | Readable heading/body/footer and colored rows on backings; inspect near all viewport edges |
+| Camera motion / first-third-person transitions | Stable placement where space permits; reflow remains bounded and non-overlapping; correct "Your view"/"You" ownership |
+| Crosshair, dialogue/interaction and lower HUD | Protected template areas remain clear; test actual native HUD and any installed UI mods separately |
+| Unload, save/load, empty/disabled/faulted frames | No stale cards, names, leaders or markers; missing inspection selection updates safely |
+| Known observer/receiver geometry | Compare incoming IDs/coordinates to independently established rig/eye landmarks and ray directions; a rendered `o` is only a diagram mapping, not ground truth |
+| Obstacle / out-of-range / boundary cases | Record false-positive/negative evidence separately; unchecked visibility must remain stated, never reported as confirmed clear |
+| CPU/resource budget | Capture active sample count, median/p95/window peak, session-wide peaks, placed/overflow cards and visible fields; no performance certification from a screenshot or unit fixture |
+
+For each stable crowd/camera/inspection case, collect a full new window of 256
+active-frame samples with `stgstatus`. Hidden/paused UI snapshots and repeated
+frame tokens do not populate the UI window. Capture cold-start/session peaks
+separately from steady-state window peaks; record resolution, actor/ray counts,
+enabled channels and log evidence. Finalization excludes earlier source collection;
+UI timing excludes GPU time. Record total game-frame performance separately.
+Numerical CPU budgets must be agreed from baseline evidence before a budget pass
+is claimed. Mathematical fixture timings are not a substitute for native GFx.
+
+Head boxes and protected UI regions are conservative templates, not proven
+measurements of every facial silhouette or third-party HUD. Native font wrapping,
+inspection scrolling, visual contrast and all actual field layouts remain gates.
+No obstacle raycast or mesh-surface certification was added by this card change.
+
+Historical self-panel calibration is superseded by the
+[receiving contract](INCOMING_GAZE_PANEL_DESIGN.md). The current candidate has
+passed automated/staged checks and was deployed with Kirk's explicit approval,
+without launching Skyrim. Original DLL/INI/assets have a verified rollback backup.
+The existing user INI is preserved except the explicitly requested front-panel
+clearance during the close-panel install. Missing new keys use compiled defaults.
+
+Use a disposable/previously backed-up save and one or two humanoid NPCs first.
+
+1. Launch through `LaunchTrueGaze.bat` or SKSE. Run `stgstatus` and confirm the
+   incoming switches/counters appear. Normal movement, crosshair and console
+   input must remain usable. Stop and inspect the log if the UI does not load.
+2. Use `stgoff` to establish a neutral baseline, then `stgpanel` for front panel
+   B only. The label must identify the **observed** actor, never report its owner's
+   outgoing cognitive region as an incoming result.
+3. Look at NPC B using the camera in third person: the camera observation belongs
+   on **B's** panel, never the player's panel. `o` is mapped approximate anatomy;
+   `+` is a separate actual quad intersection. A physical panel miss is allowed.
+4. Have an NPC face/look at the player. The incoming observation belongs to the
+   **player**. Enable `stgpanela`, `stgintext` and `stghud` independently; switch
+   into first person to inspect the player HUD. HUD must not appear solely
+   because free camera is active.
+5. Toggle `stginanatomy` and `stginpanels` separately, checking states with
+   `stgstatus`. Moving/changing a panel must not alter anatomical intersections
+   or the biological gaze. `stgv` retains the existing combined ray/front view
+   toggle; `stgon` enables every channel for a small-scene diagnostic.
+6. Exercise reciprocal NPC-to-NPC gaze, two coincident observers, aversion into
+   empty space, camera-mode transitions, unloading/reloading a target, and
+   save/load. Stale markers must disappear; identifiers must remain distinguishable.
+7. Capture a screenshot, `TrueGaze.log`, optional `stgtrace` output, and the
+   incoming finalization/UI cost and panel/label counts from `stgstatus`.
+
+Do not treat approximate volumes as visible mesh hits: **occlusion is unverified**.
+Detailed creature eye profiles, obstacles, crowd median/p95/peak and SE/AE/VR
+presentation are subsequent separate gates, not passes from this humanoid smoke
+test. Stop on the first failure and do not overwrite the only good save.
+
 **Back up a save.** The plugin calls `ReleaseBones()` on save specifically so a procedural rotation is never baked into a save file, but that path has never been exercised against a real save. Do not test on your only save.
 
 **Use a clean, low-risk save.** Ideally a new game or a save inside a small interior with one or two NPCs (e.g. Breezehome, or `coc Riverwood` from the main menu). Crowded cities make it harder to attribute an effect to a specific actor.
@@ -243,7 +390,7 @@ The INI is read at startup, so **restart the game** after changing it.
 - Check the log for the `Visual tuning:` line. It prints every visual setting, so a typo shows up immediately.
 - `mode=2` draws nothing at all until the branded assets exist — use mode `1`.
 - If the glow is invisible in daylight but obvious indoors, it is a point light and competes with daylight. That is expected; lower or raise `fGazeRayOpacity`.
-- If the glow sits inside the head, increase `fPupilForwardOffsetCm` (default 7 cm).
+- If the fallback glow sits inside the head, check `fPupilForwardOffsetCm` (default 10.8 cm); FaceGen eye centers take precedence.
 
 > **What this proves:** the visual layer consumes the solver's own state, so a beam that visibly tracks a target is direct evidence that the kinematics are driving bones. It is the cheapest way to confirm Stages 1–2 without squinting at a subtle head turn.
 

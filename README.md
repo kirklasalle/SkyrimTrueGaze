@@ -25,7 +25,40 @@
 
 ---
 
+## What's New
+
+Latest development updates (not a new tagged release):
+
+- **Gaze with clear ownership:** receiving panels show where *others* look at an
+  actor, with readable observer names, grouped cards and collision-aware placement.
+- **Closer diagnostics, cleaner gameplay:** front panels now default to 10 cm
+  ahead of the eye anchor. Development cards stay console-controlled, with
+  full-screen-menu suppression that preserves your settings.
+- **Two eyes, one focus:** the configurator's binocular preview converges on a
+  shared target and holds steady during pointer fixation. This is a simulation,
+  not live game telemetry.
+- **Configuration you can trust:** 109 INI/web settings and five presets are
+  synchronized, with older-file saves preserving comments and unknown settings.
+- **Commands at your fingertips:** all 27 commands are documented in the
+  [Console Commands Card](docs/CONSOLE_COMMANDS_CARD.md) and both guides.
+
+Automated checks pass; anatomical accuracy, occlusion, near-face clipping and
+runtime performance remain field-test gates. See the
+[configuration audit](docs/CONFIGURATION_AUDIT.md),
+[current evidence](docs/STATUS.md) and [full changelog](CHANGELOG.md).
+
+---
+
 ## 📌 Current Project Status
+
+> **Unreleased panel correction:** each panel now receives gaze from **other**
+> actors, rather than showing its owner's outgoing cognitive region. The new
+> receiving pipeline passes standalone checks; tavern screenshots confirm
+> readable cards and populated incoming inspection, not anatomical accuracy.
+> Historical panel verification below does not certify the new receiving geometry.
+> See [receiving design/audit](docs/INCOMING_GAZE_PANEL_DESIGN.md),
+> [current evidence](docs/STATUS.md), and [remaining roadmap](ROADMAP.md).
+> Native UI, creature detail, occlusion and performance need field acceptance.
 
 | | |
 | :--- | :--- |
@@ -538,6 +571,18 @@ Or drive it directly:
 | `TrueGaze.cmd status` | show the detected configuration |
 | `TrueGaze.cmd prereqs` | install SKSE64 + Address Library (the Nexus files) |
 | `TrueGaze.cmd prereqs-all` | install **every** prerequisite, including the toolchain |
+
+For an isolated MO2/Vortex deployment, stage a mod folder instead of writing to
+the game's live `Data` directory:
+
+```powershell
+.\scripts\Deploy-TrueGaze.ps1 -ModPath "C:\ModOrganizer\mods\TrueGaze"
+```
+
+`-ModPath` writes the mod's `SKSE`, `meshes`, and `textures` layout into that
+folder, preserves its existing INI, skips legacy-file cleanup, verifies the
+staged files, and never launches Skyrim. Add the folder as a mod in MO2/Vortex.
+The direct-to-game `TrueGaze.cmd` workflow remains available for manual testing.
 
 Options: `/game "path"` to override detection, `/force` to launch despite failures, `/nopause` for automation.
 

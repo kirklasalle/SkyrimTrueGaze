@@ -1,5 +1,189 @@
 # TrueGaze™ — Project Status & In-Engine Audit
 
+## Unreleased receiving-panel correction: current evidence
+
+**Full incoming accuracy is not in-engine verified.** Historical floating-panel
+verification in this document refers to the retired outgoing/self-panel design.
+The [incoming-gaze contract](INCOMING_GAZE_PANEL_DESIGN.md) now governs panels;
+the [roadmap](../ROADMAP.md) lists the remaining acceptance gates.
+
+- **Unit-verified:** observer-to-target ownership, self-hit rejection, reciprocal
+  and multiple sources, nearest approximate anatomy, independent world quads,
+  rotated bounds, stale-frame clearing, malformed rays, deterministic capacity,
+  and schema-2 trace ownership/filtering.
+- **Implemented / Release compiles:** main-thread receiving pass; camera source
+  in both camera modes; coarse posed receiver anchors; A/B world panels; labelled
+  reticles, projected text/ownership leaders; original non-modal Scaleform movie;
+  independent first-person player HUD and console/configurator switches.
+- **Regression evidence:** six standalone executables passed; the existing local
+  CI gate passed, including configurator/default and packaged-HTML parity.
+- **Staged evidence:** isolated candidate preflight passed 16 checks, failed zero,
+  with one pre-existing OAR warning; generated SWF is byte-reproducible. Staging
+  did not change the live DLL/INI.
+- **Controlled-test deployment:** following Kirk's explicit approval, the current
+  candidate DLL/UI/assets were deployed and hash-verified. The prior files have
+  a verified rollback backup; the original INI is byte-unchanged. Live preflight
+  also passed 16 checks with zero failures and the same OAR warning. Skyrim was
+  not launched; this is not an in-game render test.
+- **Field evidence:** the follow-up Whiterun screenshot shows readable target
+  labels and ownership leaders. Both visible labels have zero measurements.
+- **Not proven:** positive incoming hits/reticles, full projection and diagram
+  mapping, obstacle visibility, scene lifecycle, detailed creature eye
+  profiles, in-headset VR behavior, and incoming/UI performance.
+
+### Whiterun tavern field feedback: text failure
+
+Kirk's screenshot shows projected overlay text and ownership leaders, but letters
+render as boxes. This is a **failed readability gate**, not a successful native UI
+acceptance. Source review found dynamically created fields had no explicit font
+format, while the original empty movie embeds no glyphs. Installed font metadata
+maps `$EverywhereFont` to the game's shared font library.
+
+The correction selects that alias using AS2 `TextFormat`/`setNewTextFormat` and
+embedded-library font lookup; adds GFx-measured field sizing and viewport bounds;
+and shortens default telemetry without changing gaze, incoming trace fields or
+INI values. Release compiles and focused placement/routing tests pass.
+The follow-up screenshot confirms readable target labels after this correction;
+it does not establish positive-hit ownership or full font/marker acceptance.
+The log also reports frame-budget overruns; this does not certify performance.
+
+The text-fix DLL is installed for Kirk's next manual run, without launching Skyrim.
+Live SHA-256: `68E888615B05EDB2F19F9F37BE82C8E719316721341B78C371C3CC7E8220ED16`.
+Preflight: 16 passed, 0 failed, one existing OAR warning. Live INI remains
+byte-unchanged; a separate verified pre-text-fix rollback copy preserves the
+tested candidate, and the original pre-incoming backup remains untouched.
+
+### Human-readable receiving descriptions
+
+Actor display names and ordinary gaze descriptions now supplement the receiving
+panels and first-person HUD. Names are copied on the game thread; duplicated names
+include IDs and missing names are explicit. Human summaries count unique observers;
+technical telemetry retains a separate measurement count, IDs, coordinates,
+measurement type and quality behind `stgintext`. Zero matches do not claim nobody
+is looking; estimates and unchecked visibility remain explicit. Rows use 26-pixel
+spacing rather than the previous 18 pixels.
+
+Release and focused wording/observer-count/identity/stale-frame tests pass.
+An isolated candidate preflight passed 16 checks with zero failures and the same
+existing OAR warning. Skyrim was running during preparation, so this new candidate
+was initially staged without replacing the running DLL. After Kirk confirmed full
+exit to the desktop and authorized installation, the candidate was backed up,
+deployed without launch, and hash-verified; the live INI is byte-unchanged.
+Live human-label SHA-256:
+`47E0AAAD66DAF19DCE2F6BDF27A813431F742A229D92F5A6317B684BFD8AF967`.
+Live preflight also passed 16 checks with zero failures and the existing OAR
+warning. The readable-font candidate has its own verified rollback copy; earlier
+backups remain intact. The next screenshot shows readable names and a reported
+eye-area match, but overlapping sentences fail layout acceptance.
+
+### Grouped-card candidate
+
+One card per receiver now groups names, distinct observers, compact colored
+region/panel rows and a single uncertainty footer. Native wrapped text metrics
+size the whole card; collision-aware placement protects neighboring cards,
+approximate head boxes and HUD templates. Previous placements remain stable when
+valid, and displaced leaders connect to the receiver. Exact markers and incoming
+geometry/trace records are unchanged.
+
+Unplaceable cards are explicitly counted; the non-modal `stgintext` inspector
+retains all resolved target/observer entries and measurements, including offscreen
+ones. `stginnext`/`stginprev` scroll native text pages, then traverse entries.
+`stgstatus` adds rolling active-frame median/p95/window-peak CPU evidence alongside
+separate session-wide peaks. No actual UI budget or anatomical/visibility accuracy
+is certified by implementation or mathematical tests.
+
+Release builds without new compiler warnings. All six standalone regression
+suites and the local CI/configurator-parity gate pass, including collision,
+stable/camera-shift placement, oversized/crowd overflow, identity and paging
+fixtures. Isolated and live preflight each pass 16 checks with zero failures and
+the existing OAR warning. The grouped-card candidate is deployed without launch;
+its live/staged/build DLLs match:
+`89681AED466F39EDF0C7F42904778610C706A88FF67F9CE5B116F68608CEB19C`.
+The live INI is byte-unchanged. A separate verified pre-grouped-card backup retains
+the human-label candidate; earlier backups remain intact. Native card/backing/
+scrolling, crowd layout, and actual CPU/accuracy evidence remain pending beyond
+the limited field result below.
+
+**Grouped-card field result (2026-11-11):** Kirk reports "it worked". The supplied
+tavern screenshot shows four readable, dark-backed, non-overlapping cards and
+"4/5 on-screen cards; 1 need inspection". Mikael and Olfrid Battle-Born display
+named incoming observers and estimated eye-area rows; Lucia and Uthgerd display
+zero-match summaries. This confirms native card/backing/font output, displayed
+incoming annotations and explicit overflow in this scene, not their anatomical
+accuracy or the inspector's paging/accessibility.
+
+The screenshot also shows the overlays remaining over Skyrim's radial
+Skills/Magic/Items/Map menu. Menu-aware suppression remains a presentation
+refinement/gate. Broader crowd/camera behavior, inspection scrolling, actual
+CPU budgets and visibility accuracy remain unverified.
+
+**Menu-visibility correction:** cards remain development-only and console
+controlled. All diagnostics now have a transient menu gate for radial/skills/
+inventory/magic/map and related full-screen menus. Native events queue existing
+3D cleanup onto the game thread; UI callbacks touch only copied values. Nested
+menu generations prevent premature restoration and reject pre-menu snapshots.
+Console flags, INI tuning and biological gaze behavior are unchanged. Console
+and dialogue are deliberately excluded. Source builds and nested/fresh-frame
+policy tests pass; native transition/cleanup behavior still requires a field run.
+
+The menu-suppression candidate passes the Release build and all six standalone
+suites through the local CI/configurator-parity gate. Isolated and live preflight
+each pass 16 checks with zero failures and the existing OAR warning. Deployed
+assets match staging; build/stage/live DLL SHA-256:
+`70274DD50717D532AFA2C096105F90BF532E48A5DBFBBFDCFE889229B8767CB1`.
+The current live INI is byte-unchanged. A separate verified pre-menu-suppression
+rollback backup preserves the grouped-card candidate and all replacement targets;
+earlier backups remain intact. Skyrim was not launched. Native nested-menu
+suppression, cleanup latency and restoration remain pending manual acceptance.
+
+Anatomical spheres (including anchor-based eye/hand volumes) are approximations,
+not triangle-surface hits. Visibility is explicitly **unverified**. Do not infer
+emotion, attention certainty, or occlusion clearance from these locations.
+The old zero-hit calibration "100% agreement" fallback has been removed.
+Outgoing OAR/API cognitive-region meanings remain unchanged.
+
+### November 12 field progression and synchronization audit
+
+Kirk reports continued success. Four new tavern images show readable cards,
+named incoming rows and inspector entry 5/16 containing physical front-panel and
+estimated right-eye observations. This advances presentation evidence, not
+left/right accuracy, visibility, all paging paths or nested-menu acceptance.
+The log records native menu cleanup execution; the apparent SUPPRESSED mismatch
+is earlier startup/loading scrollback. A source defect placed incoming output
+only in auto-status; fresh `stgstatus` now uses the same incoming reporter.
+
+The images/log show engine cost 655 us and a 100,504 us session peak against a
+150 us declared budget. These mixed runtime populations are not a steady-state
+incoming benchmark, but they prevent claiming a performance pass.
+
+Front B default eye-anchor clearance is reduced from 70 to 10 cm with unchanged
+size, shared render/intersection transform, anatomy and text-card layout.
+Compiled fallbacks, shipped INI and webpage now cover the same 109 keys;
+offline-template/save defects and five-preset drift are corrected. All 27
+console commands are documented. See [audit](CONFIGURATION_AUDIT.md),
+[command card](CONSOLE_COMMANDS_CARD.md) and [test protocol](TEST_SCENARIO.md).
+The configurator now renders labeled right/left eyes converging on one target
+at fixed virtual depth in one illustrative simulation loop, following actual
+tuning keys; this is not game telemetry or clinically calibrated eye tracking.
+Near-face clipping/parallax and runtime behavior require another field run.
+
+**Installed candidate verification:** Release build, all six standalone suites
+and enhanced configuration/preview checks pass. Root/packaged HTML match;
+browser checks confirm 109 controls, old-file new-key persistence and numeric
+boolean display. The held-pointer drift regression failed before the correction
+and passes afterward; a browser capture of 45 settled frames measured zero
+horizontal/vertical pupil movement for either eye, with convergence preserved.
+This is a fixed browser test, not an exhaustive animation or clinical guarantee.
+
+Isolated and live preflight each pass 16 checks, zero failures and the existing
+OAR warning. Build/stage/live DLL SHA-256:
+`8D3E4B0746BFE16639BB26FB3E89A34AC3FC1B3D6CAE567A43F8DAE1A79DA95F`.
+Deployed assets match staging and the separate pre-near-face rollback backup
+is hash-verified. The live INI differs from that backup **only** in
+`fHcepPanelForwardOffsetCm=70.000000` becoming `10.000000`; all other bytes and
+console preferences are retained. Earlier backups are intact. Skyrim was not
+launched. No in-game close-panel acceptance is claimed.
+
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
 **Version:** `1.0.8` (Production Release)  
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  

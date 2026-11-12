@@ -24,6 +24,10 @@ Write-Host "=== TrueGaze v$Version - Packaging ===" -ForegroundColor Cyan
 if (-not (Test-Path $relDll)) {
     throw "Release binary not found at $relDll. Build the release preset first."
 }
+$incomingUi = Join-Path $root "skyrim\Interface\TrueGazeIncoming.swf"
+if (-not (Test-Path $incomingUi)) {
+    throw "Incoming UI missing at $incomingUi. Build the current Release target first."
+}
 
 # Clean up old artefacts
 if (Test-Path $stageDir) { Remove-Item $stageDir -Recurse -Force }
@@ -34,11 +38,23 @@ $pluginDir = Join-Path $stageDir "SKSE\Plugins"
 New-Item -ItemType Directory $pluginDir -Force | Out-Null
 Copy-Item $relDll $pluginDir
 Copy-Item (Join-Path $root "skyrim\SKSE\Plugins\TrueGaze.ini") $pluginDir
+New-Item -ItemType Directory (Join-Path $stageDir "Interface") -Force | Out-Null
+Copy-Item $incomingUi (Join-Path $stageDir "Interface")
+foreach ($assetDirectory in @("meshes\TrueGaze", "textures\TrueGaze")) {
+    $target = Join-Path $stageDir $assetDirectory
+    New-Item -ItemType Directory $target -Force | Out-Null
+    Copy-Item (Join-Path $root ("skyrim\" + $assetDirectory + "\*")) $target -Force
+}
 
 # --- Configurator -------------------------------------------------------
 Copy-Item (Join-Path $root "skyrim\TrueGazeConfig.html")             $stageDir
 Copy-Item (Join-Path $root "skyrim\Launch-TrueGazeConfig.cmd")       $stageDir
 Copy-Item (Join-Path $root "skyrim\TrueGaze_Configurator_Guide.txt") $stageDir
+$docsDir = Join-Path $stageDir "docs"
+New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
+foreach ($doc in @("USER_GUIDE.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD.md", "CONFIGURATION_AUDIT.md", "INCOMING_GAZE_PANEL_DESIGN.md", "STATUS.md", "TEST_SCENARIO.md")) {
+    Copy-Item -LiteralPath (Join-Path $root ("docs\" + $doc)) -Destination $docsDir
+}
 
 # --- OAR animation conditions (no hand-crafted NIFs) --------------------
 $oarDst = Join-Path $stageDir "meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze"

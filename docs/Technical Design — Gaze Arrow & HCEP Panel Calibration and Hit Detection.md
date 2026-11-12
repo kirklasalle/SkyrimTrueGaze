@@ -10,6 +10,13 @@
 
 ## 1. Purpose
 
+> **Receiving-panel supersession:** self-panel intersections, whole-panel
+> outgoing-region highlights, and panel-based beam-terminus relocation described
+> below are retired. Panels belong to the **observed** actor. Outgoing kinematics
+> and angular mathematics remain valid in their original scope; incoming anatomy
+> and physical quads are separate measurements. See
+> [the current receiving design/audit](INCOMING_GAZE_PANEL_DESIGN.md).
+
 This document defines the engineering changes required to make the Superman Laser
 Eyes arrows and the HCEP Floating Diagram Panel into an **accurate, calibrated
 development instrument** rather than a rough visual indicator. Specifically:

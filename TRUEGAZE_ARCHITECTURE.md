@@ -13,6 +13,21 @@
 
 ## 1. Executive Summary & Brand Positioning
 
+> **Unreleased diagnostic architecture correction:** panels are target-owned
+> receiving displays. A game-thread observation/receiver pass and immutable
+> UI/trace snapshots replace observer-owned self-panel interpretation.
+> Biological/outgoing cognitive behavior is unchanged. See
+> [the incoming design and audit](docs/INCOMING_GAZE_PANEL_DESIGN.md) and
+> [actual implementation evidence](docs/STATUS.md).
+
+Front B's current default is 10 cm ahead of resolved eyes (creatures: cranial
+anchor), with unchanged diagram size and one transform for rendering/intersection.
+Collision-aware text cards and approximate anatomy are separate. Configuration
+schema/offline defaults/presets and the 27-command library are synchronized by
+regression checks; see [configuration audit](docs/CONFIGURATION_AUDIT.md) and
+[command card](docs/CONSOLE_COMMANDS_CARD.md). These changes do not certify
+anatomical accuracy, occlusion or runtime budgets.
+
 **True Gaze™** is an advanced biomechanical perception and kinematics engine designed to eradicate the "dead-eye zombie syndrome" pervasive in game engines. Developed as a specialized gaming product of Kirk LaSalle's **Human Communication Eye Protocol (HCEP)**, `TrueGaze` bridges 50 years of psycholinguistic and neuroscience research (Argyle & Cook, Kendon, Glenberg) into real-time 3D game characters.
 
 Unlike traditional head-tracking mods that apply rigid spherical interpolation directly to the neck bone, `TrueGaze` models the **human oculomotor system**:

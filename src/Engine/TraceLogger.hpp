@@ -11,6 +11,7 @@
 #include <string_view>
 #include <unordered_set>
 #include <vector>
+#include "Visuals/IncomingGaze.hpp"
 
 namespace TrueGaze::Engine
 {
@@ -125,6 +126,8 @@ namespace TrueGaze::Engine
         /// @brief 3.8 CALIBRATION — Emitted by calibration sweeps.
         void LogCalibration(float ts, const char* command, uint8_t region, float inputYaw,
                             float inputPitch, uint8_t classified, uint8_t hit, bool pass) noexcept;
+
+        void LogIncomingHit(const Visuals::Incoming::Hit& hit) noexcept;
 
     private:
         TraceLogger();

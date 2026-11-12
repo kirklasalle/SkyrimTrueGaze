@@ -10,6 +10,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Near-face panel and configuration/command synchronization
+
+- Reduced front B default eye-anchor clearance from 70 to 10 cm without changing
+  panel size, anatomy, gaze solver or collision-aware text cards.
+- Synchronized compiled missing-key defaults, all 109 INI/web keys, offline
+  template generation and tooltip defaults. Fixed older-INI saves dropping new
+  keys/sections. Root and packaged webpage remain identical.
+- Matched console preset overlays to the existing five webpage presets (including
+  player-only developer panels); preset writes explicitly report failures.
+- Published all 27 commands in user/developer guides and a command card; corrected
+  grouped `stgv`, trace start/status and geometry help. Live `stgstatus` now
+  includes the incoming reporter, not only historical startup auto-status.
+- Added Node.js-based schema/default/preset/command and save-roundtrip regression
+  checks to existing parity gates. See `docs/CONFIGURATION_AUDIT.md`; screenshots
+  confirm presentation progression, not anatomical accuracy or CPU acceptance.
+- Configurator preview now shows labeled anatomical right/left eyes converging
+  independently on one target at fixed virtual depth, with shared simulated head
+  motion/blinking and real tuning keys. Removed the competing legacy animation
+  loop. The preview is illustrative, not live game telemetry or clinically
+  calibrated tracking; rendering and shared-target/depth geometry have regressions.
+- Fixed preview fixation wobble and apparent unilateral drift: exact head
+  counter-rotation, stable held-pointer targets and unamplified/smoothed shared
+  autonomous noise. Held-fixation regressions cover both eyes and high jitter.
+
+### Incoming-gaze panel ownership correction
+
+- Added transient full-screen menu suppression for all development diagnostics:
+  receiving cards/inspection, leaders, markers, rays, panel meshes and lights.
+  Nested menus must all close before fresh-frame restoration. Scene cleanup uses
+  the existing game-thread path; console toggles, INI settings and the biological
+  solver remain unchanged. Console/dialogue stay usable. Native transition
+  acceptance remains pending.
+
+- Replaced overlapping free-form captions with grouped, native-font-measured
+  actor cards, dark backings, protected-area/collision-aware placement and stable
+  ownership leaders. Exact reticle positions and gaze/trace calculations remain
+  unchanged. Card overflow is explicit; `stgintext` opens complete live inspection
+  with `stginnext`/`stginprev` paging and native scrolling for long entries.
+- Added active-frame timing windows (up to 256 samples) with median, p95 and
+  window peak, distinct from session-wide peaks. Layout/paging/crowd/identity tests
+  cover mathematical behavior; native presentation and anatomical/visibility truth
+  remain separate field gates.
+
+- **Whiterun tavern text correction:** dynamic GFx fields now use the installed
+  `$EverywhereFont` alias and explicit AS2 text formatting instead of an unmapped
+  default font. GFx-measured text bounds keep annotations on-screen; compact,
+  opt-in normal counters no longer cover the compass. Incoming trace data and
+  gaze behavior are unchanged. Follow-up Whiterun evidence confirms readable
+  target labels; positive-hit presentation remains pending.
+
+- Added human-readable actor names and gaze descriptions beside receiving
+  panels/HUD. Duplicate names retain distinguishing IDs; detailed telemetry stays
+  available through `stgintext`. Human summaries count distinct observers rather
+  than anatomy/panel measurements. Zero matches and visibility uncertainty are
+  stated explicitly; gaze and incoming trace semantics are unchanged.
+
+- Replaced the owner's self-panel interpretation with a separate observer/target
+  receiving pass. Camera and posed-eye sources are explicit; outgoing cognitive
+  region IDs and OAR/API semantics are unchanged.
+- Added independently controlled above-head/front panels, mapped anatomy and
+  physical-quad markers, observer IDs, ownership leaders, projected text, and an
+  original native first-person player telemetry movie.
+- Added bounded deterministic receiving geometry and versioned incoming trace
+  events. Retired self-panel agreement and panel-based beam-terminus relocation;
+  zero measured hits no longer report 100% calibration success.
+- Added shipped/default/configurator parity and native UI asset deployment and
+  packaging. Existing INI tuning remains preserved.
+- Added the [receiving contract, audit and acceptance gates](docs/INCOMING_GAZE_PANEL_DESIGN.md).
+  **Implementation is not in-game certification:** detailed creature profiles,
+  native UI/render behavior, occlusion and runtime budgets remain pending.
+
 ### Added
 
 - **Combat Tactical Glances & Multi-Target Dynamic Focus Lock** — Implemented an authentic combat gaze state machine in `TargetSelector.cpp` and `GazeEngine.cpp`:

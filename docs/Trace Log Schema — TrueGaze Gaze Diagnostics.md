@@ -10,6 +10,27 @@
 
 ## 1. Purpose
 
+### Incoming ownership supersession (schema 2)
+
+Historical `GAZE_TICK.region` remains **outgoing cognitive**. Current runtime
+emits `hitRegion=255` with `hitSemantics="retiredSelfPanel"`; that is unavailable
+evidence, not a panel miss or 100% agreement. Historical logs without this field
+retain their legacy interpretation. `angularSweep` / `angularStep` calibration
+events are diagnostic overrides, not incoming-hit acceptance.
+
+New `INCOMING_HIT` records contain `schema=2`, engine `frame`, hex `observer`
+and `target` IDs, `source` (`camera` / `posedEyes`), `measurement` (`anatomy`,
+`abovePanel`, `frontPanel`), receiving region name, Skyrim-world `world[3]`,
+world-unit `distance`, panel-local `panel[x,z]`, `quality`
+(`approximate` / `anchoredApproximation`), and `visibilityVerified`.
+All current visibility values are false. Anchored anatomy remains a bounded
+approximation. Region IDs are not reused from cognitive telemetry.
+
+An actor trace filter matches either endpoint for incoming events.
+The analyzer reports incoming measurements separately and returns N/A, never
+success, for absent legacy hit evidence. Its legacy `--strict` agreement gate
+does not certify incoming ownership. See [the receiving contract](INCOMING_GAZE_PANEL_DESIGN.md).
+
 The trace log records every gaze event at per-frame granularity in a machine-
 readable JSONL format. It serves three audiences:
 

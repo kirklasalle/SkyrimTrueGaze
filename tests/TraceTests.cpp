@@ -224,6 +224,39 @@ void TestTraceLoggerActorFiltering()
     std::cout << "[PASS] TestTraceLoggerActorFiltering\n";
 }
 
+void TestIncomingHitSchemaAndReceiverFilter()
+{
+    const std::filesystem::path path = "test_trace_incoming.jsonl";
+    CleanTestFile(path);
+    auto& logger = TraceLogger::Get();
+    logger.StartTracing(path, {2});
+    TrueGaze::Visuals::Incoming::Hit hit{};
+    hit.hit = true;
+    hit.observer = 1;
+    hit.target = 2;
+    hit.frame = 42;
+    hit.source = TrueGaze::Visuals::Incoming::Source::Camera;
+    hit.region = TrueGaze::Visuals::Incoming::Region::LeftEye;
+    hit.quality = TrueGaze::Visuals::Incoming::Quality::Anchored;
+    hit.point = {1, 2, 3};
+    logger.LogIncomingHit(hit);
+    hit.target = 3;
+    logger.LogIncomingHit(hit);
+    logger.StopTracing();
+    const auto lines = ReadLines(path);
+    assert(lines.size() == 1);
+    assert(lines[0].find("\"schema\":2") != std::string::npos);
+    assert(lines[0].find("\"t\":\"INCOMING_HIT\"") != std::string::npos);
+    assert(lines[0].find("\"observer\":\"0x00000001\"") != std::string::npos);
+    assert(lines[0].find("\"target\":\"0x00000002\"") != std::string::npos);
+    assert(lines[0].find("\"source\":\"camera\"") != std::string::npos);
+    assert(lines[0].find("\"measurement\":\"anatomy\"") != std::string::npos);
+    assert(lines[0].find("\"region\":\"LeftEye\"") != std::string::npos);
+    assert(lines[0].find("\"quality\":\"anchoredApproximation\"") != std::string::npos);
+    assert(lines[0].find("\"visibilityVerified\":false") != std::string::npos);
+    CleanTestFile(path);
+}
+
 int main()
 {
     std::cout << "=== Running TraceLogger Unit Tests ===\n";
@@ -232,6 +265,7 @@ int main()
     TestTraceLoggerSaccadeAndRegionEvents();
     TestTraceLoggerCgaBlinkAndMismatchEvents();
     TestTraceLoggerActorFiltering();
-    std::cout << "=== All TraceLogger Unit Tests Passed (5/5) ===\n";
+    TestIncomingHitSchemaAndReceiverFilter();
+    std::cout << "=== All TraceLogger Unit Tests Passed (6/6) ===\n";
     return 0;
 }

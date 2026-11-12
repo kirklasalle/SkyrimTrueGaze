@@ -23,6 +23,10 @@
 .PARAMETER PluginPath
     TrueGaze.dll to inspect. Defaults to the freshly built Release binary.
 
+.PARAMETER DeploymentPath
+    Data directory or isolated mod root to check for deployed TrueGaze files.
+    Defaults to the selected game's Data directory.
+
 .PARAMETER PostRun
     Parse the game log instead of doing static checks.
 
@@ -42,6 +46,7 @@
 param(
     [string]$GamePath,
     [string]$PluginPath,
+    [string]$DeploymentPath,
     [switch]$PostRun,
     [string]$LogPath,
     [switch]$Quiet
@@ -241,7 +246,8 @@ function Get-TGSha256 {
 function Invoke-TGPreFlight {
     param(
         [string]$GamePath,
-        [string]$PluginPath
+        [string]$PluginPath,
+        [string]$DeploymentPath
     )
 
     Write-Host ''
@@ -306,9 +312,9 @@ function Invoke-TGPreFlight {
     Write-Host ''
     Write-Host 'Address Library' -ForegroundColor White
 
-    $pluginsDir = Join-Path $game.Path 'Data\SKSE\Plugins'
+    $gamePluginsDir = Join-Path $game.Path 'Data\SKSE\Plugins'
     $expectedLib = "versionlib-$($game.Dotted).bin"
-    $libPath = Join-Path $pluginsDir $expectedLib
+    $libPath = Join-Path $gamePluginsDir $expectedLib
 
     if (Test-Path $libPath) {
         $mb = [math]::Round((Get-Item $libPath).Length / 1MB, 1)
@@ -318,7 +324,7 @@ function Invoke-TGPreFlight {
     else {
         # A library for a *different* version is worse than none: it looks present
         # but every address lookup silently resolves to the wrong place.
-        $anyLib = @(Get-ChildItem $pluginsDir -Filter 'versionlib-*.bin' -ErrorAction SilentlyContinue)
+        $anyLib = @(Get-ChildItem $gamePluginsDir -Filter 'versionlib-*.bin' -ErrorAction SilentlyContinue)
         if ($anyLib.Count -gt 0) {
             Add-TGResult -Name 'Address Library present and version-matched' -Status 'Fail' `
                 -Detail ("Found " + (($anyLib | ForEach-Object { $_.Name }) -join ', ') + " but need $expectedLib") `
@@ -406,7 +412,25 @@ function Invoke-TGPreFlight {
     Write-Host ''
     Write-Host 'Deployment' -ForegroundColor White
 
-    $deployed = Join-Path $pluginsDir 'TrueGaze.dll'
+    $deploymentRoot = if ($DeploymentPath) { $DeploymentPath } else { Join-Path $game.Path 'Data' }
+    $deploymentPluginsDir = Join-Path $deploymentRoot 'SKSE\Plugins'
+    $incomingUi = Join-Path $deploymentRoot 'Interface\TrueGazeIncoming.swf'
+    if (Test-Path $incomingUi) {
+        $uiBytes = [IO.File]::ReadAllBytes($incomingUi)
+        if ($uiBytes.Length -ge 8 -and
+            [Text.Encoding]::ASCII.GetString($uiBytes, 0, 3) -eq 'FWS' -and
+            [BitConverter]::ToUInt32($uiBytes, 4) -eq $uiBytes.Length) {
+            Add-TGResult -Name 'Incoming native UI asset deployed' -Status 'Pass'
+        }
+        else {
+            Add-TGResult -Name 'Incoming native UI asset deployed' -Status 'Fail' -Detail 'Invalid SWF header or length.'
+        }
+    }
+    else {
+        Add-TGResult -Name 'Incoming native UI asset deployed' -Status 'Fail' `
+            -Detail $incomingUi -Fix 'Build and deploy the matching Interface asset with the current DLL.'
+    }
+    $deployed = Join-Path $deploymentPluginsDir 'TrueGaze.dll'
     if (Test-Path $deployed) {
         $same = (Get-TGSha256 -Path $deployed) -eq (Get-TGSha256 -Path $PluginPath)
         if ($same) {
@@ -427,7 +451,7 @@ function Invoke-TGPreFlight {
             -Fix 'Run Deploy-TrueGaze.ps1.'
     }
 
-    $iniDeployed = Join-Path $pluginsDir 'TrueGaze.ini'
+    $iniDeployed = Join-Path $deploymentPluginsDir 'TrueGaze.ini'
     if (Test-Path $iniDeployed) {
         $iniText = Get-Content $iniDeployed -Raw
         if ($iniText -match '(?im)^\s*bEnableTrueGaze\s*=\s*(true|false|0|1)') {
@@ -480,7 +504,7 @@ function Invoke-TGPreFlight {
     Write-Host ''
     Write-Host 'Known-incomplete features (expected, not failures)' -ForegroundColor White
 
-    $oar = Join-Path $game.Path 'Data\meshes\actors\character\animations\OpenAnimationReplacer'
+    $oar = Join-Path $deploymentRoot 'meshes\actors\character\animations\OpenAnimationReplacer'
     if (Test-Path $oar) {
         Add-TGResult -Name 'OAR conditions will NOT fire' -Status 'Warn' `
             -Detail 'OpenAnimationReplacer is installed, but TrueGaze registration is unimplemented.' `
@@ -491,7 +515,7 @@ function Invoke-TGPreFlight {
     }
 
     # Configuration is INI-only (Data/SKSE/Plugins/TrueGaze.ini).
-    $ini = Join-Path $game.Path 'Data\SKSE\Plugins\TrueGaze.ini'
+    $ini = Join-Path $deploymentPluginsDir 'TrueGaze.ini'
     if (Test-Path $ini) {
         Add-TGResult -Name 'Configuration INI deployed' -Status 'Pass' `
             -Detail 'Data\SKSE\Plugins\TrueGaze.ini present. Edit with TrueGazeConfig.html.'
@@ -515,7 +539,7 @@ function Invoke-TGPreFlight {
     Write-Host ''
     Write-Host 'Legacy SkyUI / Papyrus / MCM artifacts (should be absent)' -ForegroundColor White
 
-    $dataDir = Join-Path $game.Path 'Data'
+    $dataDir = $deploymentRoot
     $legacy = @(
         @{ Path = (Join-Path $dataDir 'TrueGaze.esp'); What = 'plugin (ESP)' }
         @{ Path = (Join-Path $dataDir 'TrueGaze.esl'); What = 'plugin (ESL)' }
@@ -728,7 +752,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     }
     else {
         $script:TGPostRun = $false
-        Invoke-TGPreFlight -GamePath $GamePath -PluginPath $PluginPath
+        Invoke-TGPreFlight -GamePath $GamePath -PluginPath $PluginPath -DeploymentPath $DeploymentPath
     }
     exit $(if (@($script:TGResults | Where-Object { $_.Status -eq 'Fail' }).Count -gt 0) { 1 } else { 0 })
 }
