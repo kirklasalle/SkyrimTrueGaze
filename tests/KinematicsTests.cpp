@@ -129,6 +129,17 @@ namespace
         // Eye must counter-rotate (VOR) as head catches up
         assert(latencyState.eyeLocalYaw < 25.0f);
 
+        // 4. 2nd-order S-curve onset: second frame's displacement must exceed first frame's
+        // (zero initial velocity -> smooth acceleration rather than onset snap).
+        TrueGaze::Kinematics::VorCoordinator::VorState scurveState;
+        scurveState.targetYaw = 30.0f;
+        scurveState.headTrackingSpeed = 6.0f;
+        TrueGaze::Kinematics::VorCoordinator::Update(scurveState, dt);
+        const float step1 = scurveState.headYaw;
+        TrueGaze::Kinematics::VorCoordinator::Update(scurveState, dt);
+        const float step2 = scurveState.headYaw - step1;
+        assert(step1 > 0.0f && step2 > step1);
+
         std::cout << "  -> VorCoordinator passed (including cervical clamping & biological latency "
                      "gap).\n";
     }
@@ -327,6 +338,11 @@ namespace
             TrueGaze::Engine::BoneController::CalculateCgaStrain(18.0f, 15.0f, 35.0f, 25.0f, 0.08f);
         assert(std::abs(cgaStrain.HeadChainYaw()) < 2.0f); // tiny head contribution
         assert(std::abs(cgaStrain.eyeYaw) > 15.0f);        // eyes carry most of the aversion
+
+        // Custom ocular limit must drive IsEyeSaturated() instead of hardcoded 35/25.
+        auto customSat = TrueGaze::Engine::BoneController::CalculateHierarchyStrain(
+            35.0f, 0.0f, 20.0f, 15.0f);
+        assert(customSat.IsEyeSaturated());
 
         std::cout << "  -> BoneController passed.\n";
     }
@@ -1210,6 +1226,6 @@ int main()
     TestHelgenCartCoordinateTransform();
     TestCombatTacticalGlances();
 
-    std::cout << "\n[SUCCESS] ALL 15 BIOMECHANICAL KINEMATICS TESTS PASSED!\n";
+    std::cout << "\n[SUCCESS] ALL 16 BIOMECHANICAL KINEMATICS TESTS PASSED!\n";
     return 0;
 }

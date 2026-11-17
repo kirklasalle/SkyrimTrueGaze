@@ -136,10 +136,18 @@ namespace TrueGaze::Engine
                 }
             }
 
+            static std::atomic<bool> s_capacityWarned{false};
             if (g_touchedCount >= MAX_TOUCHED_BONES)
             {
+                if (!s_capacityWarned.exchange(true, std::memory_order_relaxed))
+                {
+                    logger::warn("[TrueGaze] EyeAimConstraint touched-bone table at capacity ({}). "
+                                 "New bones will be rejected until entries are withdrawn.",
+                                 MAX_TOUCHED_BONES);
+                }
                 return nullptr;
             }
+            s_capacityWarned.store(false, std::memory_order_relaxed);
 
             TouchedBone& slot = g_touched[g_touchedCount++];
             slot.actorFormId = actorFormId;
@@ -167,21 +175,6 @@ namespace TrueGaze::Engine
 
         g_touchedCount = 0;
         ++g_frameGeneration;
-
-        // R14 E7.2 — overflow sentinel. If the table is still full after the
-        // generation bump, FindOrCreate will start rejecting new bones; warn
-        // once per episode so the capacity pressure is visible in the log.
-        static std::atomic<bool> s_capacityWarned{false};
-        if (g_touchedCount >= MAX_TOUCHED_BONES && !s_capacityWarned.exchange(true))
-        {
-            logger::warn("[TrueGaze] EyeAimConstraint touched-bone table at capacity ({}). "
-                         "New bones will be rejected until entries are withdrawn.",
-                         MAX_TOUCHED_BONES);
-        }
-        else if (g_touchedCount < MAX_TOUCHED_BONES)
-        {
-            s_capacityWarned.store(false, std::memory_order_relaxed);
-        }
 #endif
     }
 
@@ -189,7 +182,7 @@ namespace TrueGaze::Engine
                                  float pitchDeg, RE::NiAVObject* rigRoot) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
-        if (!bone)
+        if (!bone || !std::isfinite(yawDeg) || !std::isfinite(pitchDeg))
         {
             return false;
         }

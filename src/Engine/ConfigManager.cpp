@@ -443,26 +443,26 @@ namespace TrueGaze::Engine
                          microJitterIntervalMax);
         }
 
-        // Yaw strain shares should sum to 1.0. If the user's custom split does not,
-        // renormalise so the head chain still covers the full deflection and the eye
-        // residual stays meaningful.
+        // Yaw strain shares may intentionally sum <= 1.0 (compiled default 0.35 =
+        // subtle head share, eyes carry residual). Only restore defaults on <= 0 or
+        // normalise down if a user's custom split exceeds 1.0.
         const float yawSum = spine2YawWeight + neckYawWeight + headYawWeight;
         if (yawSum <= 0.0f)
         {
-            spine2YawWeight = 0.10f;
-            neckYawWeight = 0.25f;
-            headYawWeight = 0.65f;
+            spine2YawWeight = 0.035f;
+            neckYawWeight = 0.070f;
+            headYawWeight = 0.245f;
             logger::warn(
                 "[TrueGaze] SkeletalHierarchy yaw weights sum to zero; restored defaults.");
         }
-        else if (std::abs(yawSum - 1.0f) > 0.001f)
+        else if (yawSum > 1.001f)
         {
             const float inv = 1.0f / yawSum;
             spine2YawWeight *= inv;
             neckYawWeight *= inv;
             headYawWeight *= inv;
             logger::warn(
-                "[TrueGaze] SkeletalHierarchy yaw weights summed to {:.3f}; renormalised to 1.0.",
+                "[TrueGaze] SkeletalHierarchy yaw weights summed to {:.3f} (>1.0); scaled to 1.0.",
                 yawSum);
         }
 

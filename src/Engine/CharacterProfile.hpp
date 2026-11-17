@@ -717,6 +717,17 @@ namespace TrueGaze::Engine
                 {
                     return CharacterProfile::GazeCategory::Elf;
                 }
+                // Check Guard / Child archetypes before falling back to generic HumanoidNPC
+                // so named humanoid races (e.g. NordRace, ImperialRace) still receive
+                // Guard and Child category profiles.
+                if (a_actor->IsChild())
+                {
+                    return CharacterProfile::GazeCategory::Child;
+                }
+                if (a_actor->IsGuard())
+                {
+                    return CharacterProfile::GazeCategory::Guard;
+                }
                 // Nord/Imperial/Breton/Redguard and modded humanoid races:
                 // the temperament axes carry the profile (neutral bundle).
                 return CharacterProfile::GazeCategory::HumanoidNPC;

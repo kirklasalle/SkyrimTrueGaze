@@ -577,6 +577,10 @@ namespace TrueGaze::Engine
             _peakFrameUs = std::max(_peakFrameUs, _lastFrameUs);
             _frameOpen = false;
         }
+        else
+        {
+            _lastFrameUs = 0;
+        }
 
         // A frame that overran its budget is worth knowing about — and is the signal
         // an adaptive LOD would consume. Recorded, not acted on, for now.
@@ -661,6 +665,29 @@ namespace TrueGaze::Engine
                          actor->IsHumanoid() ? "yes" : "no");
         }
 
+        // --- LOD tiering (CULL BEFORE RESOLVE / ALLOCATE — R14 E2.2) -----------
+        // Compute distance & cull BEFORE creating an _actors entry, resetting idleSec,
+        // consuming C-API overrides, or traversing the skeleton.
+        const auto* player = RE::PlayerCharacter::GetSingleton();
+        float distanceMeters = 0.0f;
+
+        if (player)
+        {
+            const float units = actor->GetPosition().GetDistance(player->GetPosition());
+            distanceMeters = units / kUnitsPerMeter;
+        }
+
+        const auto tier = LodManager::GetLodTier(distanceMeters, _tuning.tier1DistanceMeters,
+                                                 _tuning.tier2DistanceMeters);
+
+        if (tier == LodManager::LodTier::Tier3_Culled ||
+            (tier == LodManager::LodTier::Tier2_Proximity &&
+             PerformanceProfiler::ShouldThrottleNonEssentialLod()))
+        {
+            ++_culledTicks;
+            return;
+        }
+
         // --- Resolve or create per-actor state ----------------------------------
         auto [it, inserted] = _actors.try_emplace(formId);
         if (inserted && _actors.size() > MAX_TRACKED_ACTORS)
@@ -685,10 +712,6 @@ namespace TrueGaze::Engine
             state.Reset(0.0f, 0.0f);
             state.rngSeed = formId;
             Kinematics::MicroJitter::Init(state.jitter, formId, _tuning.microJitterAmp);
-            // Seed the scanpath's base fixation duration from the INI once.
-            // The scanpath owns its durations from here on (it multiplies each
-            // draw by cadenceScale); the engine no longer stomps this value
-            // every frame — that stomp defeated the calm cadence lever.
             state.triangle.fixationDurationSec = _tuning.triangleFixationDuration;
         }
 
@@ -710,11 +733,6 @@ namespace TrueGaze::Engine
         // target evaluation and deflection calculation.
         EnsureSkeletonResolved(actor, state);
 
-        // Keep the drift amplitude in step with configuration changes. The mean
-        // reversion rate derives from the configured micro-correction interval:
-        // corrections arrive on average every `interval` seconds, so drift is pulled
-        // back at theta = 1/mean(interval). (0.2-0.45 s -> theta ~ 3.1/s, within the
-        // physiological 2-8/s band for ocular drift correction.)
         state.jitter.amplitudeDeg = _tuning.microJitterAmp;
         {
             const float meanInterval =
@@ -722,63 +740,14 @@ namespace TrueGaze::Engine
             state.jitter.reversionRate =
                 (meanInterval > 0.0f) ? (1.0f / meanInterval) : state.jitter.reversionRate;
         }
-        // CALM/COMBAT SPEED MODEL (Kirk directive, September 26 2026).
-        //
-        // "Slowed down by at least 50% as a baseline. Faster speeds are for
-        // combat scenarios and any high intense action." — then, after the
-        // 15:37 field test: "move the baseline down at least another 50%."
-        //
-        // The tuned INI speeds are the COMBAT speeds. Away from combat the
-        // engine runs the graceful baseline at ONE QUARTER of those speeds:
-        // quarter the head-tracking rate, quarter the saccadic peak velocity,
-        // quarter the ocular pursuit rate, quarter the cervical slew caps —
-        // and (via 1/speedScale) 4x the saccade duration and 4x the scanpath
-        // fixation cadence, so the eyes move slowly and dwell long. The moment
-        // the actor enters combat, full tuned speed returns — fast eyes read
-        // as alert and dangerous in a fight, and as frantic everywhere else.
-        // Computed here (TickActor) so every consumer this frame — head
-        // tracking sync below, saccades and pursuit in ComputeDeflection —
-        // shares one decision. ComputeDeflection receives it as a parameter,
-        // so the two sites can never disagree.
+
         const bool actorInCombat = actor->IsInCombat();
         const float speedScale = actorInCombat ? 1.0f : 0.25f;
 
-        // CALM/COMBAT SPEED MODEL: the head chain tracks at a slightly FASTER
-        // rate than the eyes when calm (Kirk fine-tuning, 2026-09-26: "the head
-        // moves slow and gracefully but it's a little too slow — the head can
-        // catch up to the eyes slightly faster"; then after round 8: "the head
-        // still moves a little bit too slow, it could be increased by 10%").
-        // 1.54x the calm eye rate (1.4 x 1.10) keeps the graceful S-curve while
-        // --- LOD tiering (CULL BEFORE RESOLVE — R14 E2.2) ----------------------
-        //
-        // The distance check and cull decision happen BEFORE ComputeDeflection.
-        // Previously this block sat after the calm/combat speed-model sync but
-        // the target resolution happened inside ComputeDeflection — meaning a
-        // culled actor still paid the full TargetSelector cost (a full
-        // process-list scan with bone lookups per candidate) on the frame it
-        // was culled. With N nearby actors that made the per-frame cost
-        // O(N^2) in crowd scenes: 50 culled actors each paid a 50-candidate
-        // scan they never used. Culling first means culled actors never enter
-        // the solve at all.
-        const auto* player = RE::PlayerCharacter::GetSingleton();
-        float distanceMeters = 0.0f;
-
-        if (player)
-        {
-            const float units = actor->GetPosition().GetDistance(player->GetPosition());
-            distanceMeters = units / kUnitsPerMeter;
-        }
-
-        const auto tier = LodManager::GetLodTier(distanceMeters, _tuning.tier1DistanceMeters,
-                                                 _tuning.tier2DistanceMeters);
-
-        if (tier == LodManager::LodTier::Tier3_Culled)
-        {
-            // Beyond 15 m the eyes are sub-pixel and the engine's own LOD applies.
-            // Early-out BEFORE any speed-model or target-resolution work.
-            ++_culledTicks;
-            return;
-        }
+        // Synchronize VOR coordinator speed & ocular limit with active INI/calm tuning.
+        state.vor.headTrackingSpeed =
+            _tuning.headTrackingSpeed * speedScale * (actorInCombat ? 1.0f : 1.54f);
+        state.vor.eyeMaxAngle = _tuning.maxComfortEyeAngle;
 
         // --- Compute and apply ---------------------------------------------------
         float yawDeg = 0.0f;
@@ -1019,7 +988,7 @@ namespace TrueGaze::Engine
         TraceLogger::Get().LogGazeTick(
             _gameTimeSec, formId, state.trackedTargetFormId, yawDeg, pitchDeg, eyeYaw,
             eyePitch, state.gazeRegion, hitRegion, ModeName(state.hcepMode),
-            actor->IsPlayerRef() ? 0 : 0, state.mutualGazeHoldSec > 0.0f,
+            static_cast<uint8_t>(tier), state.mutualGazeHoldSec > 0.0f,
             state.mutualGazeHoldSec, headPct, deltaSeconds);
 
         if (_calState.active && (_calState.targetActorFormId == 0 || _calState.targetActorFormId == formId))
@@ -1578,14 +1547,18 @@ namespace TrueGaze::Engine
             if (_tuning.enableGazeAversion && state.hcepMode == 4)
             {
                 // THINK mode: Cognitive Gaze Aversion (CGA) using the full HCEP-02
-                // enhanced diagram. Gaze breaks away to peripheral aversion regions
-                // (upper-left, upper-right, lower-left, lower-right) with brief face
-                // returns, modelling cognitive processing and the VOR counter-rotation
-                // arc / saccade vectors from the diagram.
-                // Character profile: aversion rate scales how often CGA engages —
-                // cowardly NPCs avert far more than foolhardy guards.
-                const bool cgaEngages = (_frame.cgaRoll < 0.0f) ||
-                                        (_frame.cgaRoll < state.profile.aversionRateMult * 0.5f);
+                // enhanced diagram. Evaluate entry via a frame-rate-independent hazard
+                // rate when inactive, and hold each aversion episode coherently (~1.5s)
+                // instead of re-rolling every frame.
+                bool cgaEngages = state.cgaActive && (state.cgaDurationSec < 1.5f);
+                if (!state.cgaActive)
+                {
+                    const float rate = std::max(0.0f, state.profile.aversionRateMult) * 0.5f;
+                    const float entryProb = (deltaSeconds > 0.0f)
+                                                ? (1.0f - std::exp(-rate * deltaSeconds))
+                                                : 0.0f;
+                    cgaEngages = (_frame.cgaRoll < entryProb);
+                }
                 if (cgaEngages)
                 {
                     // On CGA activation edge, randomise the dialogue return offset.
@@ -2062,12 +2035,16 @@ namespace TrueGaze::Engine
             : 1.0f;
         state.cgaAversionBlend += (targetCgaBlend - state.cgaAversionBlend) * cgaBlendAlpha;
 
+        const bool calOverride =
+            _calState.active &&
+            (_calState.targetActorFormId == 0 || _calState.targetActorFormId == actor->GetFormID());
+
         const BoneController::StrainWeights weights{
             _tuning.spine2YawWeight, _tuning.neckYawWeight, _tuning.neckPitchWeight,
             _tuning.headYawWeight, _tuning.headPitchWeight};
-        float headCorrectionYaw = state.vor.headYaw;
-        float headCorrectionPitch = state.vor.headPitch;
-        if (state.cachedHead && state.fixationWorldValid)
+        float headCorrectionYaw = calOverride ? yawDeg : state.vor.headYaw;
+        float headCorrectionPitch = calOverride ? pitchDeg : state.vor.headPitch;
+        if (!calOverride && state.cachedHead && state.fixationWorldValid)
         {
             namespace G = Visuals::Geometry;
             const auto vec = [](const RE::NiPoint3& p) { return G::Vec3{p.x, p.y, p.z}; };
@@ -2172,9 +2149,9 @@ namespace TrueGaze::Engine
                                     strain.headPitch * headWeight, rigRoot);
         }
 
-        float eyeYaw = state.vor.eyeLocalYaw + jitterYaw;
-        float eyePitch = state.vor.eyeLocalPitch + jitterPitch;
-        if (head && state.fixationWorldValid)
+        float eyeYaw = calOverride ? normalStrain.eyeYaw : (state.vor.eyeLocalYaw + jitterYaw);
+        float eyePitch = calOverride ? normalStrain.eyePitch : (state.vor.eyeLocalPitch + jitterPitch);
+        if (!calOverride && head && state.fixationWorldValid)
         {
             namespace G = Visuals::Geometry;
             const auto vec = [](const RE::NiPoint3& p) { return G::Vec3{p.x, p.y, p.z}; };

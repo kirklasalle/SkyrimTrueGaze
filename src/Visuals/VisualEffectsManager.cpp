@@ -139,9 +139,11 @@ namespace TrueGaze::Visuals
             m.entry[2][0] = right.z;
             if (a_authoredAlongZ)
             {
-                m.entry[0][1] = ortho.x;
-                m.entry[1][1] = ortho.y;
-                m.entry[2][1] = ortho.z;
+                // Keep right-handed basis (col0 x col1 = col2, det = +1):
+                // right x (-ortho) = -(right x (right x dir)) = +dir.
+                m.entry[0][1] = -ortho.x;
+                m.entry[1][1] = -ortho.y;
+                m.entry[2][1] = -ortho.z;
                 m.entry[0][2] = dir.x;
                 m.entry[1][2] = dir.y;
                 m.entry[2][2] = dir.z;
@@ -875,8 +877,8 @@ namespace TrueGaze::Visuals
             return;
         }
 
-        auto clonedL = model->Clone();
-        auto clonedR = model->Clone();
+        RE::NiPointer<RE::NiObject> clonedL(model->Clone());
+        RE::NiPointer<RE::NiObject> clonedR(model->Clone());
         auto* nodeL = clonedL ? clonedL->AsNode() : nullptr;
         auto* nodeR = clonedR ? clonedR->AsNode() : nullptr;
 
@@ -1010,7 +1012,7 @@ namespace TrueGaze::Visuals
             return;
         }
 
-        auto clonedObject = model->Clone();
+        RE::NiPointer<RE::NiObject> clonedObject(model->Clone());
         auto* clonedNode = clonedObject ? clonedObject->AsNode() : nullptr;
         if (!clonedNode)
         {

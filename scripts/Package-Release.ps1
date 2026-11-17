@@ -45,11 +45,19 @@ foreach ($assetDirectory in @("meshes\TrueGaze", "textures\TrueGaze")) {
     New-Item -ItemType Directory $target -Force | Out-Null
     Copy-Item (Join-Path $root ("skyrim\" + $assetDirectory + "\*")) $target -Force
 }
+$markerArrow = Join-Path $root "skyrim\meshes\marker_arrow.nif"
+if (Test-Path $markerArrow) {
+    Copy-Item $markerArrow (Join-Path $stageDir "meshes\marker_arrow.nif") -Force
+}
 
 # --- Configurator -------------------------------------------------------
-Copy-Item (Join-Path $root "skyrim\TrueGazeConfig.html")             $stageDir
-Copy-Item (Join-Path $root "skyrim\Launch-TrueGazeConfig.cmd")       $stageDir
-Copy-Item (Join-Path $root "skyrim\TrueGaze_Configurator_Guide.txt") $stageDir
+Copy-Item (Join-Path $root "TrueGazeConfig.html")                    $stageDir -Force
+Copy-Item (Join-Path $root "Launch-TrueGazeConfig.cmd")              $stageDir -Force
+Copy-Item (Join-Path $root "TrueGaze_Configurator_Guide.txt")        $stageDir -Force
+$toolsDir = Join-Path $stageDir "tools\TrueGazeConfig"
+New-Item -ItemType Directory -Path $toolsDir -Force | Out-Null
+Copy-Item (Join-Path $root "scripts\Launch-TrueGazeConfig.ps1")      $toolsDir -Force
+Copy-Item (Join-Path $root "scripts\TrueGazeBridgeServer.ps1")       $toolsDir -Force
 $docsDir = Join-Path $stageDir "docs"
 New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
 foreach ($doc in @("USER_GUIDE.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD.md", "CONFIGURATION_AUDIT.md", "INCOMING_GAZE_PANEL_DESIGN.md", "STATUS.md", "TEST_SCENARIO.md")) {
@@ -60,6 +68,39 @@ foreach ($doc in @("USER_GUIDE.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD
 $oarDst = Join-Path $stageDir "meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze"
 New-Item -ItemType Directory $oarDst -Force | Out-Null
 Copy-Item (Join-Path $root "skyrim\meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze\config.json") $oarDst
+
+# --- Licensing & GPL-3.0 Corresponding Source Offer ---------------------
+Copy-Item (Join-Path $root "LICENSE") $stageDir
+$commonLibLicDst = Join-Path $stageDir "licenses\CommonLibSSE-NG"
+New-Item -ItemType Directory $commonLibLicDst -Force | Out-Null
+Copy-Item (Join-Path $root "extern\CommonLibSSE-NG\COPYING.txt") $commonLibLicDst
+Copy-Item (Join-Path $root "extern\CommonLibSSE-NG\EXCEPTIONS.md") $commonLibLicDst
+Copy-Item (Join-Path $root "extern\CommonLibSSE-NG\licenses\LICENSE-MIT.txt") $commonLibLicDst
+
+$oarLicDst = Join-Path $stageDir "licenses\OpenAnimationReplacer-API"
+New-Item -ItemType Directory $oarLicDst -Force | Out-Null
+Copy-Item (Join-Path $root "extern\OpenAnimationReplacer-API\COPYING") $oarLicDst
+Copy-Item (Join-Path $root "extern\OpenAnimationReplacer-API\EXCEPTIONS") $oarLicDst
+Copy-Item (Join-Path $root "extern\OpenAnimationReplacer-API\NOTICE.md") $oarLicDst
+
+$sourceOffer = @"
+TrueGaze v$Version - Licensing & Corresponding Source Offer (GPL-3.0 § 6)
+
+TrueGaze.dll and its associated software components are licensed under the GNU
+General Public License, version 3 (see LICENSE). Third-party license notices and
+exceptions for CommonLibSSE-NG (GPL-3.0 + Modding & Linking Exceptions) and the
+Open Animation Replacer Conditions API (GPL-3.0 + Modding & Linking Exceptions)
+are included under licenses\.
+
+Corresponding Source Code:
+  https://github.com/kirklasalle/SkyrimTrueGaze
+
+Written Offer:
+  In accordance with GPL-3.0 Section 6(b), you may obtain the complete
+  machine-readable Corresponding Source for this binary release from the
+  repository above or by contacting the maintainer via the repository issues page.
+"@
+[System.IO.File]::WriteAllText((Join-Path $stageDir "SOURCE_OFFER.txt"), $sourceOffer, [System.Text.Encoding]::UTF8)
 
 # --- Verify contents ---------------------------------------------------
 Write-Host "`nPackage contents:" -ForegroundColor Yellow

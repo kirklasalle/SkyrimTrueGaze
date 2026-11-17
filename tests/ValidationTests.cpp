@@ -25,6 +25,7 @@
 
 #include "../src/Bridge/TelemetryPacket.h"
 #include "../src/Engine/ConfigParse.hpp"
+#include "../src/Engine/PerformanceProfiler.hpp"
 
 namespace
 {
@@ -314,6 +315,37 @@ namespace
         std::cout << "  -> non-finite rejected, garbage Empty, valid values parsed.\n";
     }
 
+    void TestPerformanceProfilerEmaAndThrottle()
+    {
+        std::cout << "[TEST] PerformanceProfiler EMA & 150 us budget throttling...\n";
+        using TrueGaze::Engine::PerformanceProfiler;
+
+        PerformanceProfiler::Reset();
+        CHECK(PerformanceProfiler::GetAverageFrameTimeUs() == 0, "EMA must reset to 0");
+        CHECK(!PerformanceProfiler::ShouldThrottleNonEssentialLod(), "Should not throttle at 0 us");
+
+        PerformanceProfiler::RecordFrame(80);
+        CHECK(PerformanceProfiler::IsWithinBudget(), "80 us must be within 150 us budget");
+        CHECK(PerformanceProfiler::GetAverageFrameTimeUs() == 80, "Initial EMA seed mismatch");
+        CHECK(!PerformanceProfiler::ShouldThrottleNonEssentialLod(), "Should not throttle at 80 us");
+
+        PerformanceProfiler::RecordFrame(200);
+        CHECK(!PerformanceProfiler::IsWithinBudget(), "200 us must exceed 150 us budget");
+        CHECK(PerformanceProfiler::ShouldThrottleNonEssentialLod(), "Must throttle after budget overrun");
+        CHECK(PerformanceProfiler::GetPeakFrameTimeUs() == 200, "Peak frame time mismatch");
+
+        for (int i = 0; i < 32; ++i)
+        {
+            PerformanceProfiler::RecordFrame(60);
+        }
+        CHECK(PerformanceProfiler::IsWithinBudget(), "60 us must be within budget");
+        CHECK(PerformanceProfiler::GetAverageFrameTimeUs() < 80, "EMA should recover under sustained 60 us frames");
+        CHECK(!PerformanceProfiler::ShouldThrottleNonEssentialLod(), "Throttle should clear once recovered");
+
+        PerformanceProfiler::Reset();
+        std::cout << "  -> EMA & budget throttling invariants hold.\n";
+    }
+
 } // namespace
 
 int main()
@@ -327,6 +359,7 @@ int main()
     TestFuzzLite();
     TestCrcFieldPosition();
     TestConfigFloatParsing();
+    TestPerformanceProfilerEmaAndThrottle();
 
     std::cout << "\nChecks: " << g_checks << ", failures: " << g_failures << "\n";
     if (g_failures > 0)

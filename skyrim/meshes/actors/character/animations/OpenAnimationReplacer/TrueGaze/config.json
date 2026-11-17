@@ -11,7 +11,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMode",
-          "requiredVersion": "1.0.0",
+          "requiredVersion": "1.0.8",
           "arguments": [
             {
               "type": "Numeric",
@@ -31,7 +31,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMode",
-          "requiredVersion": "1.0.0",
+          "requiredVersion": "1.0.8",
           "arguments": [
             {
               "type": "Numeric",
@@ -51,7 +51,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMode",
-          "requiredVersion": "1.0.0",
+          "requiredVersion": "1.0.8",
           "arguments": [
             {
               "type": "Numeric",
@@ -61,15 +61,11 @@
         },
         {
           "condition": "TrueGaze_IsMutualGaze",
-          "requiredVersion": "1.0.0",
+          "requiredVersion": "1.0.8",
           "arguments": [
             {
               "type": "Numeric",
               "value": 2.0
-            },
-            {
-              "type": "Comparison",
-              "value": ">="
             }
           ]
         }
@@ -81,7 +77,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMode",
-          "requiredVersion": "1.0.0",
+          "requiredVersion": "1.0.8",
           "arguments": [
             {
               "type": "Numeric",
@@ -110,7 +106,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMode",
-          "requiredVersion": "1.0.0",
+          "requiredVersion": "1.0.8",
           "arguments": [
             {
               "type": "Numeric",
@@ -130,15 +126,11 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMutualGaze",
-          "requiredVersion": "1.0.0",
+          "requiredVersion": "1.0.8",
           "arguments": [
             {
               "type": "Numeric",
               "value": 3.0
-            },
-            {
-              "type": "Comparison",
-              "value": ">="
             }
           ]
         },
@@ -163,7 +155,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_GetGazeRegion",
-          "requiredVersion": "1.0.0",
+          "requiredVersion": "1.0.8",
           "arguments": [
             {
               "type": "Numeric",

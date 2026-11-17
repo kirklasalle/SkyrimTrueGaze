@@ -70,6 +70,8 @@ namespace TrueGaze::Engine
             float headPitch{0.0f};
             float eyeYaw{0.0f};   // residual, head-relative
             float eyePitch{0.0f}; // residual, head-relative
+            float appliedEyeYawLimit{EYE_YAW_LIMIT};
+            float appliedEyePitchLimit{EYE_PITCH_LIMIT};
 
             /// Total yaw adopted by the head chain (excludes the eyes).
             [[nodiscard]] constexpr float HeadChainYaw() const noexcept
@@ -83,10 +85,11 @@ namespace TrueGaze::Engine
                 return neckPitch + headPitch;
             }
 
-            /// True when the eyes are at their limit and cannot reach the target.
+            /// True when the eyes are at their active limit and cannot reach the target.
             [[nodiscard]] bool IsEyeSaturated() const noexcept
             {
-                return std::abs(eyeYaw) >= EYE_YAW_LIMIT - 0.001f || std::abs(eyePitch) >= EYE_PITCH_LIMIT - 0.001f;
+                return std::abs(eyeYaw) >= appliedEyeYawLimit - 0.001f ||
+                       std::abs(eyePitch) >= appliedEyePitchLimit - 0.001f;
             }
         };
 
@@ -162,6 +165,8 @@ namespace TrueGaze::Engine
             float residualYaw = clampedYaw - dist.HeadChainYaw();
             float residualPitch = clampedPitch - dist.HeadChainPitch();
 
+            dist.appliedEyeYawLimit = eyeYawLimit;
+            dist.appliedEyePitchLimit = eyePitchLimit;
             dist.eyeYaw = std::clamp(residualYaw, -eyeYawLimit, eyeYawLimit);
             dist.eyePitch = std::clamp(residualPitch, -eyePitchLimit, eyePitchLimit);
 
@@ -207,6 +212,10 @@ namespace TrueGaze::Engine
             float residualYaw = clampedYaw - dist.HeadChainYaw();
             float residualPitch = clampedPitch - dist.HeadChainPitch();
 
+            dist.appliedEyeYawLimit = eyeYawLimit;
+            dist.appliedEyePitchLimit = eyePitchLimit;
+            dist.appliedEyeYawLimit = eyeYawLimit;
+            dist.appliedEyePitchLimit = eyePitchLimit;
             dist.eyeYaw = std::clamp(residualYaw, -eyeYawLimit, eyeYawLimit);
             dist.eyePitch = std::clamp(residualPitch, -eyePitchLimit, eyePitchLimit);
 

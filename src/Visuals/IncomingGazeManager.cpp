@@ -186,6 +186,8 @@ namespace TrueGaze::Visuals
             world.translate = Ni(panel.center);
             world.rotate = Basis(panel);
             world.scale = (panel.halfHeight * 2.0f) / 512.0f;
+            if (owner.parent->world.scale <= 1e-4f)
+                return;
             node->local = owner.parent->world.Invert() * world;
             node->world = owner.parent->world * node->local;
             RE::NiUpdateData update;
@@ -706,6 +708,12 @@ namespace TrueGaze::Visuals
         g_receivers.clear();
         g_cost.panels = g_cost.labels = 0;
         g_frame.Begin(g_frameId);
+        if (auto* queue = RE::UIMessageQueue::GetSingleton())
+        {
+            auto* ui = RE::UI::GetSingleton();
+            if (ui && ui->IsMenuOpen(kMenu))
+                queue->AddMessage(RE::BSFixedString(kMenu), RE::UI_MESSAGE_TYPE::kHide, nullptr);
+        }
         std::lock_guard lock(g_uiMutex);
         g_ui = {};
     }

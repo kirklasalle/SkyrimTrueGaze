@@ -246,6 +246,12 @@ namespace TrueGaze::Engine
                 // delta.
                 AnimationHook::TickAllActors(a_delta);
             }
+            else if (!ConfigManager::GetSingleton().enableTrueGaze)
+            {
+                // Restore any previously touched bones immediately when TrueGaze is
+                // toggled off (e.g., via `stg` console command) so poses do not freeze.
+                EyeAimConstraint::Withdraw();
+            }
 
             // Anchoring EndFrame here drives actor eviction, bounds memory,
             // and records accurate frame profiling metrics.
@@ -442,10 +448,6 @@ namespace TrueGaze::Engine
                     continue;
                 }
 
-                if (GazeEngine::DistanceMetersForTier(actor) <=
-                    GazeEngine::Get().Tuning().tier2DistanceMeters)
-                    Visuals::IncomingGazeManager::Get().RegisterReceiver(actor);
-
                 if (!allowCreatures && !actor->IsHumanoid())
                 {
                     continue;
@@ -455,6 +457,10 @@ namespace TrueGaze::Engine
                 {
                     continue;
                 }
+
+                if (GazeEngine::DistanceMetersForTier(actor) <=
+                    GazeEngine::Get().Tuning().tier2DistanceMeters)
+                    Visuals::IncomingGazeManager::Get().RegisterReceiver(actor);
 
                 TickActorSeh(engine, actor, deltaSeconds);
             }

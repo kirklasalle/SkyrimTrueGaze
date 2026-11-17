@@ -4,6 +4,7 @@
 #include "TelemetryPacket.h"
 #include <atomic>
 #include <array>
+#include <memory>
 #include <thread>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -154,9 +155,12 @@ namespace TrueGaze::Bridge
         void DrainOutboundQueue(void *pipeHandle) noexcept;
 
         /// Event reused across DrainOutboundQueue calls (R14 E1.3 / audit C-3).
-        /// Created once on Start, closed on Stop — the old code created and
-        /// destroyed an event every 2 ms while a client was connected.
+        /// Created once on Start, closed on Stop.
         HANDLE _drainEvent{nullptr};
+
+        /// Auto-reset event signaled by SendFeedback() to wake the worker for
+        /// outbound writes without polling.
+        HANDLE _outboundEvent{nullptr};
 
         // --- Configuration (set once by Start, read by the worker) ---
         std::string _pipeName{PIPE_NAME.data()};
@@ -250,13 +254,19 @@ namespace TrueGaze::Bridge
         // --- Overlapped I/O & Shutdown Control ---
         HANDLE _shutdownEvent{nullptr};
         OVERLAPPED _connectOverlapped{};
+        OVERLAPPED _readOverlapped{};
+        OVERLAPPED _writeOverlapped{};
+        TrueGazeTelemetryPacket _incomingPacket{};
 
         /// Set by Stop(JoinPolicy::Abandon) at process exit: the worker is
         /// deliberately left alive and the destructor must never destroy this
         /// object's state. See Stop() for the ownership rationale.
         std::atomic<bool> _abandoned{false};
 
-        std::thread _workerThread;
+        /// Intentionally leaked via .release() in Stop(JoinPolicy::Abandon) so
+        /// ~NamedPipeServer() never calls std::thread::~thread() on a joinable
+        /// thread at process exit.
+        std::unique_ptr<std::thread> _workerThread;
     };
 
 } // namespace TrueGaze::Bridge

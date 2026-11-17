@@ -246,6 +246,18 @@ namespace TrueGaze::Engine
             return result;
         }
 
+        if (distanceUnits < 1e-4f)
+        {
+            result.targetFormId = actor->GetFormID();
+            result.faceAngleDeg = 0.0f;
+            result.headAngularRadiusDeg = 89.0f;
+            result.faceX = facePos.x;
+            result.faceY = facePos.y;
+            result.faceZ = facePos.z;
+            result.onFace = true;
+            return result;
+        }
+
         const float distanceMetersSafe = std::max(distanceMeters, 0.05f);
         const RE::NiPoint3 toFaceDir{toFace.x / distanceUnits, toFace.y / distanceUnits,
                                      toFace.z / distanceUnits};

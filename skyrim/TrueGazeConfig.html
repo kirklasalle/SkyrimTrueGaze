@@ -2028,7 +2028,34 @@
         const $ = id => document.getElementById(id);
 
         function setStatus(msg, cls = 'info') {
-            $('status').innerHTML = `<span class="${cls}">${msg}</span>`;
+            const el = $('status');
+            el.textContent = '';
+            const span = document.createElement('span');
+            span.className = cls;
+            span.textContent = msg;
+            el.appendChild(span);
+        }
+
+        function bridgeHeaders(extra = {}) {
+            const meta = document.querySelector('meta[name="tg-bridge-token"]');
+            const token = meta ? meta.content : '';
+            return token ? { ...extra, 'X-TrueGaze-Token': token } : extra;
+        }
+
+        function appendHighlightLine(parent, parts) {
+            for (const part of parts) {
+                if (typeof part === 'string') {
+                    parent.appendChild(document.createTextNode(part));
+                } else if (part.br) {
+                    parent.appendChild(document.createElement('br'));
+                } else {
+                    const span = document.createElement('span');
+                    if (part.cls) span.className = part.cls;
+                    if (part.mono) span.style.cssText = 'font-family:var(--font-mono); font-size:0.75rem;';
+                    span.textContent = part.text;
+                    parent.appendChild(span);
+                }
+            }
         }
 
         function toast(msg) {
@@ -2570,9 +2597,9 @@
         // Bridge API Integration (Live Scan, Direct INI Sync & Launch)
         // ------------------------------------------------------------------
         async function runSystemScan() {
-            setStatus('Scanning Windows installation, registry &amp; game saves...', 'info');
+            setStatus('Scanning Windows installation, registry & game saves...', 'info');
             try {
-                const resp = await fetch('/api/scan');
+                const resp = await fetch('/api/scan', { headers: bridgeHeaders() });
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 const data = await resp.json();
                 bridgeActive = true;
@@ -2581,10 +2608,15 @@
                 if (data.game && data.game.found) {
                     $('badgeInstall').textContent = `v${data.game.fileVersion || '1.7.104'}`;
                     $('badgeInstall').className = 'hud-badge ok';
-                    $('bodyInstall').innerHTML = `
-                        <span class="hud-highlight">Skyrim Special Edition</span> detected.<br>
-                        Directory: <span style="font-family:var(--font-mono); font-size:0.75rem;">${data.game.path}</span>
-                    `;
+                    const bodyInstall = $('bodyInstall');
+                    bodyInstall.textContent = '';
+                    appendHighlightLine(bodyInstall, [
+                        { cls: 'hud-highlight', text: 'Skyrim Special Edition' },
+                        ' detected.',
+                        { br: true },
+                        'Directory: ',
+                        { mono: true, text: String(data.game.path || '') }
+                    ]);
                     $('footInstall').textContent = data.game.skseLoaderExists ? 'SKSE64 Loader Ready' : 'Standard Launcher';
                 } else {
                     $('badgeInstall').textContent = 'NOT DETECTED';
@@ -2598,10 +2630,17 @@
                     $('badgeSaves').className = 'hud-badge ok';
                     const ls = data.documents.latestSave;
                     if (ls) {
-                        $('bodySaves').innerHTML = `
-                            Hero: <span class="hud-highlight">${ls.character || 'Player'}</span> at <span class="hud-highlight">${ls.location || 'Skyrim'}</span><br>
-                            Latest: <span style="font-family:var(--font-mono); font-size:0.75rem;">${ls.filename}</span>
-                        `;
+                        const bodySaves = $('bodySaves');
+                        bodySaves.textContent = '';
+                        appendHighlightLine(bodySaves, [
+                            'Hero: ',
+                            { cls: 'hud-highlight', text: String(ls.character || 'Player') },
+                            ' at ',
+                            { cls: 'hud-highlight', text: String(ls.location || 'Skyrim') },
+                            { br: true },
+                            'Latest: ',
+                            { mono: true, text: String(ls.filename || '') }
+                        ]);
                         $('footSaves').textContent = `Last write: ${ls.lastWrite}`;
                     } else {
                         $('bodySaves').textContent = 'Save game folder found; no saves recorded yet.';
@@ -2615,10 +2654,15 @@
                 if (data.game && data.game.dllExists) {
                     $('badgeEngine').textContent = 'DEPLOYED';
                     $('badgeEngine').className = 'hud-badge ok';
-                    $('bodyEngine').innerHTML = `
-                        <span class="hud-highlight">TrueGaze.dll</span> (${(data.game.dllSize / 1024).toFixed(0)} KB) active in Plugins.<br>
-                        Status: <span class="hud-highlight">${data.gameRunning ? 'Skyrim Currently Running' : 'Game Idle / Ready'}</span>
-                    `;
+                    const bodyEngine = $('bodyEngine');
+                    bodyEngine.textContent = '';
+                    appendHighlightLine(bodyEngine, [
+                        { cls: 'hud-highlight', text: 'TrueGaze.dll' },
+                        ` (${(data.game.dllSize / 1024).toFixed(0)} KB) active in Plugins.`,
+                        { br: true },
+                        'Status: ',
+                        { cls: 'hud-highlight', text: data.gameRunning ? 'Skyrim Currently Running' : 'Game Idle / Ready' }
+                    ]);
                     $('footEngine').textContent = data.game.iniPath;
                 } else {
                     $('badgeEngine').textContent = 'STANDBY';
@@ -2643,7 +2687,7 @@
 
         async function loadIniFromBridge() {
             try {
-                const resp = await fetch('/api/ini');
+                const resp = await fetch('/api/ini', { headers: bridgeHeaders() });
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 const text = await resp.text();
                 acceptIniText(text, 'Data\\SKSE\\Plugins\\TrueGaze.ini');
@@ -2678,7 +2722,7 @@
                     const resp = await fetch('/api/ini', {
                         method: 'POST',
                         body: updatedText,
-                        headers: { 'Content-Type': 'text/plain; charset=iso-8859-1' }
+                        headers: bridgeHeaders({ 'Content-Type': 'text/plain; charset=iso-8859-1' })
                     });
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     originalText = updatedText;
@@ -2702,7 +2746,7 @@
             }
             setStatus('Requesting SKSE64 launch...', 'info');
             try {
-                const resp = await fetch('/api/launch', { method: 'POST' });
+                const resp = await fetch('/api/launch', { method: 'POST', headers: bridgeHeaders() });
                 const res = await resp.json();
                 if (res.success) {
                     setStatus(`Skyrim launched successfully (PID: ${res.pid}) via ${res.launched}`, 'ok');
@@ -2724,7 +2768,7 @@
         async function refreshLog() {
             $('logConsole').textContent = 'Fetching live tail from SKSE\\TrueGaze.log...';
             try {
-                const resp = await fetch('/api/log?lines=80');
+                const resp = await fetch('/api/log?lines=80', { headers: bridgeHeaders() });
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 const data = await resp.json();
                 if (data.lines) {

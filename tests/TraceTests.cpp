@@ -257,6 +257,53 @@ void TestIncomingHitSchemaAndReceiverFilter()
     CleanTestFile(path);
 }
 
+void TestTraceLoggerSizeCapAutoStopAndTeardown()
+{
+    const std::filesystem::path capFile = "test_trace_cap_stop.jsonl";
+    const std::filesystem::path nextFile = "test_trace_cap_next.jsonl";
+    CleanTestFile(capFile);
+    CleanTestFile(nextFile);
+
+    auto& logger = TraceLogger::Get();
+    // 1 MB cap, small 16-event flush batch so cap triggers quickly
+    logger.SetConfig(true, false, false, false, false, false, 16, 1);
+    logger.StartTracing(capFile);
+
+    for (int i = 0; i < 6500 && logger.IsActive(); ++i)
+    {
+        logger.LogGazeTick(static_cast<float>(i) * 0.016f, 0x000A2C94, 0x00000014,
+                           1.2f, -0.5f, 0.8f, -0.2f, 0, 255, "LOGIC", 0, false, 0.0f, 0.25f, 0.016f);
+        if ((i % 64) == 0)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+
+    // Wait for WorkerLoop to flush and auto-stop on the 1 MB boundary
+    for (int w = 0; w < 200 && logger.IsActive(); ++w)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert(!logger.IsActive());
+
+    // Previously StopTracing() returned early when _active was already false,
+    // leaving _workerThread joinable and calling std::terminate() on StartTracing()
+    // or ~TraceLogger().
+    logger.StopTracing();
+
+    logger.StartTracing(nextFile);
+    assert(logger.IsActive());
+    logger.LogGazeTick(0.1f, 0x000A2C94, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, "LOGIC", 0, false, 0.0f, 0.0f, 0.016f);
+    logger.StopTracing();
+
+    const auto nextLines = ReadLines(nextFile);
+    assert(nextLines.size() == 1);
+
+    CleanTestFile(capFile);
+    CleanTestFile(nextFile);
+    std::cout << "[PASS] TestTraceLoggerSizeCapAutoStopAndTeardown\n";
+}
+
 int main()
 {
     std::cout << "=== Running TraceLogger Unit Tests ===\n";
@@ -266,6 +313,7 @@ int main()
     TestTraceLoggerCgaBlinkAndMismatchEvents();
     TestTraceLoggerActorFiltering();
     TestIncomingHitSchemaAndReceiverFilter();
-    std::cout << "=== All TraceLogger Unit Tests Passed (6/6) ===\n";
+    TestTraceLoggerSizeCapAutoStopAndTeardown();
+    std::cout << "=== All TraceLogger Unit Tests Passed (7/7) ===\n";
     return 0;
 }

@@ -9,9 +9,13 @@ color 0B
 ::  Build:  f2c8e50
 :: ============================================================================
 
-set "SKYRIM=G:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition"
-set "PROJECT=D:\Projects\SkyrimTrueGaze"
-set "PLUGINS=G:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\Data\SKSE\Plugins"
+set "PROJECT=%~dp0"
+if "%PROJECT:~-1%"=="\" set "PROJECT=%PROJECT:~0,-1%"
+set "SKYRIM="
+for /f "usebackq delims=" %%G in (`powershell -NoProfile -Command "foreach ($k in 'HKLM:\SOFTWARE\WOW6432Node\Bethesda Softworks\Skyrim Special Edition','HKLM:\SOFTWARE\Bethesda Softworks\Skyrim Special Edition') { if (Test-Path $k) { $p=(Get-ItemProperty $k -Name 'Installed Path' -EA 0).'Installed Path'; if ($p -and (Test-Path (Join-Path $p 'SkyrimSE.exe'))) { $p.TrimEnd('\'); break } } }" 2^>nul`) do if not defined SKYRIM set "SKYRIM=%%G"
+if not defined SKYRIM if exist "G:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\SkyrimSE.exe" set "SKYRIM=G:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition"
+if not defined SKYRIM if exist "C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\SkyrimSE.exe" set "SKYRIM=C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition"
+set "PLUGINS=%SKYRIM%\Data\SKSE\Plugins"
 set PASS=0
 set FAIL=0
 
@@ -76,6 +80,12 @@ if exist "%SKYRIM%\skse64_1_7_104.dll" (
 echo  [4/9] Address Library...
 if exist "%PLUGINS%\versionlib-1-7-104-0.bin" (
     echo        PASS - versionlib-1-7-104-0.bin found
+    set /a PASS+=1
+) else if exist "%PLUGINS%\versionlib-1-6-1170-0.bin" (
+    echo        PASS - versionlib-1-6-1170-0.bin found
+    set /a PASS+=1
+) else if exist "%PLUGINS%\versionlib-*.bin" (
+    echo        PASS - Address Library bin found
     set /a PASS+=1
 ) else (
     echo        FAIL - Address Library not found
@@ -167,7 +177,8 @@ set "SRC_MESHES=%PROJECT%\skyrim\meshes\TrueGaze"
 set "SRC_TEXTURES=%PROJECT%\skyrim\textures\TrueGaze"
 set "DEST_MESHES=%SKYRIM%\Data\meshes\TrueGaze"
 set "DEST_TEXTURES=%SKYRIM%\Data\textures\TrueGaze"
-set "SRC_ARROW=%PROJECT%\scratch\arrow_extract\meshes\marker_arrow.nif"
+set "SRC_ARROW=%PROJECT%\skyrim\meshes\marker_arrow.nif"
+if not exist "%SRC_ARROW%" set "SRC_ARROW=%PROJECT%\scratch\arrow_extract\meshes\marker_arrow.nif"
 set "DEST_ARROW=%SKYRIM%\Data\meshes\marker_arrow.nif"
 
 if not exist "%DEST_MESHES%" mkdir "%DEST_MESHES%" >nul 2>&1

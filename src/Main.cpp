@@ -69,6 +69,12 @@ namespace
         // destroyed state — a use-after-free. Abandon instead leaves the
         // worker and its handles alive, flags the object so the destructor is
         // a no-op, and lets the OS reclaim everything at process exit.
+        // Ensure GazeEngine (and its NamedPipeServer) is constructed BEFORE registering
+        // the atexit handler: C++ destroys function-local statics in reverse order of
+        // construction, so atexit runs first and marks the bridge abandoned before
+        // ~GazeEngine() executes under Windows Loader Lock.
+        (void)TrueGaze::Engine::GazeEngine::Get();
+
         std::atexit(
             []()
             {

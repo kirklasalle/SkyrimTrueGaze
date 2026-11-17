@@ -13,7 +13,6 @@ $skyrimDir = Join-Path $projectRoot "skyrim"
 $distDir = Join-Path $projectRoot "dist"
 $releaseDll = Join-Path $projectRoot "build\windows-release\Release\TrueGaze.dll"
 $pluginTarget = Join-Path $skyrimDir "SKSE\Plugins\TrueGaze.dll"
-$beamAssetPath = Join-Path $skyrimDir "meshes\effects\fxsoulcairnbeam.nif"
 
 Write-Host "========================================================" -ForegroundColor Cyan
 Write-Host "  TrueGaze Mod Packaging Pipeline                      " -ForegroundColor Cyan
@@ -21,7 +20,7 @@ Write-Host "  An HCEP Product by Kirk LaSalle                      " -Foreground
 Write-Host "========================================================" -ForegroundColor Cyan
 
 # 1. Compile latest Release binary
-Write-Host "`n[1/4] Building latest Release x64 binary..." -ForegroundColor Yellow
+Write-Host "`n[1/5] Building latest Release x64 binary..." -ForegroundColor Yellow
 Set-Location $projectRoot
 if (-not $env:VCPKG_ROOT) { $env:VCPKG_ROOT = 'D:\vcpkg' }
 & cmake --preset windows-release
@@ -34,7 +33,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # 2. Deploy binary and configurator suite to skyrim structure
-Write-Host "`n[2/4] Deploying TrueGaze.dll and Configurator suite to skyrim/..." -ForegroundColor Yellow
+Write-Host "`n[2/5] Deploying TrueGaze.dll and Configurator suite to skyrim/..." -ForegroundColor Yellow
 Copy-Item -Path $releaseDll -Destination $pluginTarget -Force
 if (-not (Test-Path (Join-Path $skyrimDir "Interface\TrueGazeIncoming.swf"))) {
     throw "Generated incoming UI asset missing after build."
@@ -52,6 +51,40 @@ New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
 foreach ($doc in @("USER_GUIDE.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD.md", "CONFIGURATION_AUDIT.md", "INCOMING_GAZE_PANEL_DESIGN.md", "STATUS.md", "TEST_SCENARIO.md")) {
     Copy-Item -LiteralPath (Join-Path $projectRoot ("docs\" + $doc)) -Destination $docsDir -Force
 }
+
+# Stage GPL-3.0 license, third-party notices/exceptions, and source offer in skyrim/
+Copy-Item -LiteralPath (Join-Path $projectRoot "LICENSE") -Destination (Join-Path $skyrimDir "LICENSE") -Force
+$commonLibLicDst = Join-Path $skyrimDir "licenses\CommonLibSSE-NG"
+New-Item -ItemType Directory -Path $commonLibLicDst -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot "extern\CommonLibSSE-NG\COPYING.txt") -Destination $commonLibLicDst -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot "extern\CommonLibSSE-NG\EXCEPTIONS.md") -Destination $commonLibLicDst -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot "extern\CommonLibSSE-NG\licenses\LICENSE-MIT.txt") -Destination $commonLibLicDst -Force
+
+$oarLicDst = Join-Path $skyrimDir "licenses\OpenAnimationReplacer-API"
+New-Item -ItemType Directory -Path $oarLicDst -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot "extern\OpenAnimationReplacer-API\COPYING") -Destination $oarLicDst -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot "extern\OpenAnimationReplacer-API\EXCEPTIONS") -Destination $oarLicDst -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot "extern\OpenAnimationReplacer-API\NOTICE.md") -Destination $oarLicDst -Force
+
+$pkgVersion = & (Join-Path $PSScriptRoot 'Get-TrueGazeVersion.ps1')
+$sourceOffer = @"
+TrueGaze v$pkgVersion - Licensing & Corresponding Source Offer (GPL-3.0 § 6)
+
+TrueGaze.dll and its associated software components are licensed under the GNU
+General Public License, version 3 (see LICENSE). Third-party license notices and
+exceptions for CommonLibSSE-NG (GPL-3.0 + Modding & Linking Exceptions) and the
+Open Animation Replacer Conditions API (GPL-3.0 + Modding & Linking Exceptions)
+are included under licenses\.
+
+Corresponding Source Code:
+  https://github.com/kirklasalle/SkyrimTrueGaze
+
+Written Offer:
+  In accordance with GPL-3.0 Section 6(b), you may obtain the complete
+  machine-readable Corresponding Source for this binary release from the
+  repository above or by contacting the maintainer via the repository issues page.
+"@
+[System.IO.File]::WriteAllText((Join-Path $skyrimDir "SOURCE_OFFER.txt"), $sourceOffer, [System.Text.Encoding]::UTF8)
 
 Write-Host "  OK   TrueGaze Configurator HTML and Launchers staged into skyrim/" -ForegroundColor DarkGray
 

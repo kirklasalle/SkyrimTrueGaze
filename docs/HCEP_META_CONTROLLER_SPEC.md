@@ -96,10 +96,9 @@ The native game engine retains authority over:
 
 ### Tier 1: HCEP Cognitive & Atmospheric Meta-Controller
 The Meta-Controller evaluates the narrative context and assigns appropriate cognitive/emotional modulation:
-* **Scene Sentiment Extraction:** Ingests actor emotion states from the engine:
+* **Facial Morph & Blink Integration:** Drives `BSFaceGenAnimationData::modifierKeyFrame` `BlinkLeft`/`BlinkRight` and `Look*` morphs via `EfmBlinkController`:
   ```cpp
-  RE::Actor::ExpressionType expr = actor->GetExpression();
-  // Neutral (0), Anger (1), Fear (2), Happy (3), Sad (4), Surprise (5), Puzzled (6), Disgusted (7)
+  // GazeEngine -> EfmBlinkController::ApplyToFaceGen(actor, blinkWeight, eyeYaw, eyePitch)
   ```
 * **Cognitive Mode Formulation:** Translates scene sentiment into the 5 core HCEP modes:
   1. **LOGIC (Mode 0):** Objective, cold, analytical assessment. Characterized by stable eye vectors, minimal emotional jitter, and fixed focus.

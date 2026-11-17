@@ -22,6 +22,10 @@ namespace TrueGaze::Kinematics
             float headYaw{0.0f};
             float headPitch{0.0f};
 
+            // Head angular velocity (deg/s) for 2nd-order critically-damped S-curve
+            float headYawVel{0.0f};
+            float headPitchVel{0.0f};
+
             // Eye bone local angles (relative to head)
             float eyeLocalYaw{0.0f};
             float eyeLocalPitch{0.0f};
@@ -53,38 +57,34 @@ namespace TrueGaze::Kinematics
             float prevHeadYaw = state.headYaw;
             float prevHeadPitch = state.headPitch;
 
-            // GRACEFUL HEAD CURVE — critically-damped spring (SmoothDamp).
-            //
-            // The previous pure exponential follower `delta = error * (1 - e^(-k·dt))`
-            // has MAXIMUM velocity at onset: the instant a new target arrives the head
-            // jumps at full speed — the visible "head snap". Real neck motion is
-            // torque-limited, not velocity-limited: it starts from rest, accelerates
-            // smoothly, and decelerates into the target (an S-curve).
-            //
-            // Critically-damped spring-damper (no overshoot, zero initial velocity):
-            //   omega = 2/halflife  (halflife = time for the error to halve)
-            //   expW  = e^(-omega·dt)
-            //   delta = error · (1 - expW)² / (1 - (1-2·omega·dt)·expW)   [stable form]
-            //
-            // This yields zero velocity at onset (no snap), a smooth acceleration
-            // ramp, and graceful deceleration into the target. The halflife is
-            // derived from headTrackingSpeed so existing INI tuning keeps working:
-            // halflife = ln(2) / headTrackingSpeed.
+            // GRACEFUL HEAD CURVE — exact 2nd-order critically-damped spring (SmoothDamp).
+            // ODE: d^2(e)/dt^2 + 2*omega*d(e)/dt + omega^2*e = 0, where e = head - target.
+            // Starts with zero initial velocity (no onset snap), accelerates smoothly,
+            // and settles without overshoot.
             float deltaYaw = 0.0f;
             float deltaPitch = 0.0f;
-            if (!headDelayed && deltaSeconds > 0.0f)
+            if (headDelayed)
             {
-                const float halflife = 0.6931472f / std::max(0.5f, state.headTrackingSpeed);
-                const float omega = 0.6931471805599453f / halflife; // ln2 / halflife
+                state.headYawVel = 0.0f;
+                state.headPitchVel = 0.0f;
+            }
+            else if (deltaSeconds > 0.0f)
+            {
+                const float omega = std::max(0.5f, state.headTrackingSpeed);
                 const float expW = std::exp(-omega * deltaSeconds);
 
-                const float denomY = 1.0f - (1.0f - 2.0f * omega * deltaSeconds) * expW;
-                const float denomP = denomY; // same scalar for both axes
-                if (denomY > 1e-6f)
+                auto stepAxis = [&](float error, float& vel) noexcept -> float
                 {
-                    deltaYaw = headErrorYaw * (1.0f - expW) * (1.0f - expW) / denomY;
-                    deltaPitch = headErrorPitch * (1.0f - expW) * (1.0f - expW) / denomP;
-                }
+                    // e0 = head - target = -error
+                    const float e0 = -error;
+                    const float c2 = vel + omega * e0;
+                    const float eNew = (e0 + c2 * deltaSeconds) * expW;
+                    vel = (vel - omega * c2 * deltaSeconds) * expW;
+                    return eNew - e0; // delta = (target + eNew) - head
+                };
+
+                deltaYaw = stepAxis(headErrorYaw, state.headYawVel);
+                deltaPitch = stepAxis(headErrorPitch, state.headPitchVel);
             }
 
             // BIOMECHANICAL HEAD SLEW-RATE LIMIT:

@@ -10,6 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Due-diligence hardening, kinematics & release-hygiene remediation (2026-11-17)
+
+- **IPC & teardown safety:** Fixed `NamedPipeServer::Stop(Abandon)` latching,
+  `atexit` LIFO construction order in `Main.cpp`, `CloseHandle` ordering after
+  `_workerThread->join()`, member-owned `OVERLAPPED` + `GetOverlappedResult(..., TRUE)`
+  after `CancelIoEx`, event-driven `ReadFile` (removing `PeekNamedPipe` 2 ms polling),
+  `ERROR_MORE_DATA` message draining, and `TraceLogger::StopTracing()` join after
+  hitting the 100 MB cap. Unified `include/TrueGazeBridgeSchema.hpp` and
+  `src/Bridge/TelemetryPacket.h` to one canonical 64 B / 32 B CRC-32 schema.
+- **Security & GPL-3.0 packaging:** Removed wildcard CORS on `TrueGazeBridgeServer.ps1`,
+  added `Host`/`Origin` + per-session `X-TrueGaze-Token` authentication and strict
+  `TrueGaze.ini` path allowlisting, replaced `innerHTML` interpolation in
+  `TrueGazeConfig.html` with safe DOM nodes, switched the pipe DACL to fail-closed
+  `TokenUser` SID, and bundled `LICENSE`, `licenses/`, and `SOURCE_OFFER.txt` in
+  `Package-Release.ps1` and `PackageMod.ps1`.
+- **Kinematics & engine fixes:** Wired `state.vor.headTrackingSpeed`/`eyeMaxAngle`
+  and 2nd-order critically-damped SmoothDamp in `VorCoordinator`, preserved `[0, 1]`
+  `[SkeletalHierarchy]` yaw weights in `ConfigManager::Sanitise()`, moved LOD
+  culling/throttling above `_actors` allocation/override consumption, restored
+  `_lastFrameUs = 0` when `!_frameOpen`, gated `RegisterReceiver` on actor
+  eligibility, wired `_calState` overrides in `ApplyToSkeleton`, fixed `Guard`/`Child`
+  category reachability in `CharacterProfile`, made `IsEyeSaturated()` use active
+  limits, stabilized `THINK`-mode CGA into timed episodes, and guarded `EyeAimConstraint`,
+  `PlayerGazeResolver`, `IncomingGazeManager`, and `VisualEffectsManager` edge cases.
+- **CI & doc alignment:** Added `build-plugin` (`windows-release` `TrueGaze.dll`) to
+  `.github/workflows/build-test.yml`, unified `IncomingGazeTests`/`TraceTests` output in
+  `CMakeLists.txt`, fixed `LaunchTrueGaze.bat` registry/AE `1.6.1170` detection, and
+  aligned OAR `config.json` (`1.0.8`, 1-arg `IsMutualGaze`), `PRD.md`, `ROADMAP.md`,
+  `GOVERNANCE.md`, `LICENSE_RESOLUTION.md`, `HCEP_BRIDGE_SPEC.md`, and
+  `HCEP_META_CONTROLLER_SPEC.md`.
+
 ### Near-face panel and configuration/command synchronization
 
 - Reduced front B default eye-anchor clearance from 70 to 10 cm without changing

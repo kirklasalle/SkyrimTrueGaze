@@ -128,23 +128,27 @@ namespace TrueGaze::Engine
 
     void TraceLogger::StopTracing() noexcept
     {
-        if (!_active.exchange(false, std::memory_order_acq_rel))
-        {
-            return;
-        }
+        const bool wasActive = _active.exchange(false, std::memory_order_acq_rel);
 
         _stopping.store(true, std::memory_order_release);
         _cv.notify_all();
 
-        if (_workerThread.joinable())
+        const bool hadWorker = _workerThread.joinable();
+        if (hadWorker)
         {
             _workerThread.join();
         }
 
-        if (_fileStream.is_open())
+        const bool hadFile = _fileStream.is_open();
+        if (hadFile)
         {
             _fileStream.flush();
             _fileStream.close();
+        }
+
+        if (!wasActive && !hadWorker && !hadFile)
+        {
+            return;
         }
 
 #if __has_include(<spdlog/spdlog.h>)

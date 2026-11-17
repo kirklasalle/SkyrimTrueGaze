@@ -65,16 +65,9 @@ __pycache__/
 .venv/
 venv/
 
-# ---------------------------------------------------------------------------
-# Required shipping artifacts — keep these tracked despite the patterns above.
-# The packaging pipeline (scripts/PackageMod.ps1) depends on TrueGaze.dll
-# being present in skyrim/SKSE/Plugins/.
-# ---------------------------------------------------------------------------
-!skyrim/SKSE/Plugins/TrueGaze.dll
+# Release staging directories (keep dist/ folder tracked, ignore generated archives)
 dist/*/
 !dist/
-!dist/*.zip
-!dist/*.7z
 
 # ---------------------------------------------------------------------------
 # Generated one-click shortcuts.

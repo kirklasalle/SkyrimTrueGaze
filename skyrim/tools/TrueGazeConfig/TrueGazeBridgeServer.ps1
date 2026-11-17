@@ -1,4 +1,4 @@
-# ============================================================================
+﻿# ============================================================================
 #  TrueGazeBridgeServer.ps1
 #  Native PowerShell Automation & Bridge Server for TrueGaze Configurator
 #  Provides REST APIs for:
@@ -226,9 +226,7 @@ function Get-FullSystemScan {
 function Send-JsonResponse($response, $data, [int]$statusCode = 200) {
     $response.StatusCode = $statusCode
     $response.ContentType = 'application/json; charset=utf-8'
-    $response.Headers.Add('Access-Control-Allow-Origin', '*')
-    $response.Headers.Add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    $response.Headers.Add('Access-Control-Allow-Headers', 'Content-Type')
+    $response.Headers.Add('Cache-Control', 'no-store')
     
     $json = $data | ConvertTo-Json -Depth 6
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
@@ -240,9 +238,7 @@ function Send-JsonResponse($response, $data, [int]$statusCode = 200) {
 function Send-TextResponse($response, [string]$text, [string]$contentType = 'text/plain; charset=iso-8859-1', [int]$statusCode = 200) {
     $response.StatusCode = $statusCode
     $response.ContentType = $contentType
-    $response.Headers.Add('Access-Control-Allow-Origin', '*')
-    $response.Headers.Add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    $response.Headers.Add('Access-Control-Allow-Headers', 'Content-Type')
+    $response.Headers.Add('Cache-Control', 'no-store')
 
     # Use Latin-1 (ISO-8859-1) encoding to preserve Skyrim INI byte fidelity (e.g. ™ trademark on line 1)
     $encoding = [System.Text.Encoding]::GetEncoding('iso-8859-1')
@@ -252,19 +248,88 @@ function Send-TextResponse($response, [string]$text, [string]$contentType = 'tex
     $response.OutputStream.Close()
 }
 
-function Send-FileResponse($response, [string]$filePath, [string]$contentType = 'text/html; charset=utf-8') {
+function Send-FileResponse($response, [string]$filePath, [string]$contentType = 'text/html; charset=utf-8', [string]$injectToken = '') {
     if (-not (Test-Path $filePath)) {
         Send-JsonResponse $response @{ error = 'File not found' } 404
         return
     }
     $response.StatusCode = 200
     $response.ContentType = $contentType
-    $response.Headers.Add('Access-Control-Allow-Origin', '*')
-    $bytes = [System.IO.File]::ReadAllBytes($filePath)
+    $response.Headers.Add('Cache-Control', 'no-store')
+    if ($injectToken -and $contentType -like 'text/html*') {
+        $html = [System.IO.File]::ReadAllText($filePath, [System.Text.Encoding]::UTF8)
+        $meta = "<meta name=`"tg-bridge-token`" content=`"$injectToken`">"
+        $html = $html -replace '</head>', "$meta`r`n</head>"
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($html)
+    }
+    else {
+        $bytes = [System.IO.File]::ReadAllBytes($filePath)
+    }
     $response.ContentLength64 = $bytes.Length
     $response.OutputStream.Write($bytes, 0, $bytes.Length)
     $response.OutputStream.Close()
 }
+
+function New-BridgeToken {
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $bytes = New-Object byte[] 32
+    $rng.GetBytes($bytes)
+    $rng.Dispose()
+    return ([System.BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant()
+}
+
+function Test-LocalRequest($request, [int]$listenPort, [string]$expectedToken, [switch]$RequireToken) {
+    $hostHeader = $request.Headers['Host']
+    if ($hostHeader -and ($hostHeader -ne "127.0.0.1:$listenPort" -and $hostHeader -ne "localhost:$listenPort")) {
+        return $false
+    }
+    $origin = $request.Headers['Origin']
+    if ($origin -and ($origin -ne "http://127.0.0.1:$listenPort" -and $origin -ne "http://localhost:$listenPort")) {
+        return $false
+    }
+    if ($RequireToken) {
+        $tok = $request.Headers['X-TrueGaze-Token']
+        if ([string]::IsNullOrEmpty($tok) -or $tok -ne $expectedToken) {
+            return $false
+        }
+    }
+    elseif ($origin) {
+        # Browser-originated requests without -RequireToken must still carry the injected token.
+        $tok = $request.Headers['X-TrueGaze-Token']
+        if ([string]::IsNullOrEmpty($tok) -or $tok -ne $expectedToken) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Resolve-AllowedIniPath([string]$requestedPath, $scan) {
+    $allowed = [System.Collections.Generic.List[string]]::new()
+    if ($scan.game.iniPath) { $allowed.Add([System.IO.Path]::GetFullPath($scan.game.iniPath)) }
+    if ($scan.repo.iniPath) { $allowed.Add([System.IO.Path]::GetFullPath($scan.repo.iniPath)) }
+
+    if (-not $requestedPath) {
+        if ($scan.game.iniExists) { return [System.IO.Path]::GetFullPath($scan.game.iniPath) }
+        if ($scan.game.found -and $scan.game.iniPath) { return [System.IO.Path]::GetFullPath($scan.game.iniPath) }
+        if ($scan.repo.iniPath) { return [System.IO.Path]::GetFullPath($scan.repo.iniPath) }
+        return $null
+    }
+
+    try {
+        $resolved = [System.IO.Path]::GetFullPath($requestedPath)
+    }
+    catch {
+        return $null
+    }
+    foreach ($candidate in $allowed) {
+        if ($resolved.Equals($candidate, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $resolved
+        }
+    }
+    return $null
+}
+
+$script:BridgeToken = New-BridgeToken
 
 # Start HTTP Listener
 $listener = New-Object System.Net.HttpListener
@@ -288,41 +353,46 @@ try {
         $urlPath = $request.Url.AbsolutePath
         $method = $request.HttpMethod
 
-        # Handle CORS preflight
+        # Reject cross-origin preflights outright
         if ($method -eq 'OPTIONS') {
-            $response.StatusCode = 204
-            $response.Headers.Add('Access-Control-Allow-Origin', '*')
-            $response.Headers.Add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-            $response.Headers.Add('Access-Control-Allow-Headers', 'Content-Type')
+            $response.StatusCode = 403
             $response.OutputStream.Close()
             continue
         }
 
         try {
             if ($urlPath -eq '/' -or $urlPath -eq '/index.html' -or $urlPath -eq '/TrueGazeConfig.html') {
-                Send-FileResponse $response $htmlPath 'text/html; charset=utf-8'
+                if (-not (Test-LocalRequest $request $Port $script:BridgeToken)) {
+                    Send-JsonResponse $response @{ error = 'Forbidden' } 403
+                    continue
+                }
+                Send-FileResponse $response $htmlPath 'text/html; charset=utf-8' $script:BridgeToken
             }
             elseif ($urlPath -eq '/truegaze.jpe') {
                 $img = Join-Path $projectRoot 'truegaze.jpe'
                 Send-FileResponse $response $img 'image/jpeg'
             }
             elseif ($urlPath -eq '/api/scan') {
+                if (-not (Test-LocalRequest $request $Port $script:BridgeToken)) {
+                    Send-JsonResponse $response @{ error = 'Forbidden' } 403
+                    continue
+                }
                 $scan = Get-FullSystemScan
                 Send-JsonResponse $response $scan
             }
             elseif ($urlPath -eq '/api/ini' -and $method -eq 'GET') {
+                if (-not (Test-LocalRequest $request $Port $script:BridgeToken -RequireToken)) {
+                    Send-JsonResponse $response @{ error = 'Forbidden' } 403
+                    continue
+                }
                 $scan = Get-FullSystemScan
-                $target = $request.QueryString['path']
+                $target = Resolve-AllowedIniPath $request.QueryString['path'] $scan
                 if (-not $target) {
-                    if ($scan.game.iniExists) {
-                        $target = $scan.game.iniPath
-                    }
-                    elseif ($scan.repo.iniExists) {
-                        $target = $scan.repo.iniPath
-                    }
+                    Send-JsonResponse $response @{ error = 'Forbidden: INI path outside allowlist' } 403
+                    continue
                 }
 
-                if ($target -and (Test-Path $target)) {
+                if (Test-Path $target) {
                     $raw = [System.IO.File]::ReadAllText($target, [System.Text.Encoding]::GetEncoding('iso-8859-1'))
                     Send-TextResponse $response $raw 'text/plain; charset=iso-8859-1'
                 }
@@ -331,19 +401,19 @@ try {
                 }
             }
             elseif ($urlPath -eq '/api/ini' -and $method -eq 'POST') {
+                if (-not (Test-LocalRequest $request $Port $script:BridgeToken -RequireToken)) {
+                    Send-JsonResponse $response @{ error = 'Forbidden' } 403
+                    continue
+                }
                 $reader = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::GetEncoding('iso-8859-1'))
                 $content = $reader.ReadToEnd()
                 $reader.Close()
 
                 $scan = Get-FullSystemScan
-                $target = $request.QueryString['path']
+                $target = Resolve-AllowedIniPath $request.QueryString['path'] $scan
                 if (-not $target) {
-                    if ($scan.game.found) {
-                        $target = $scan.game.iniPath
-                    }
-                    else {
-                        $target = $scan.repo.iniPath
-                    }
+                    Send-JsonResponse $response @{ error = 'Forbidden: INI path outside allowlist' } 403
+                    continue
                 }
 
                 $dir = Split-Path -Parent $target
@@ -366,6 +436,10 @@ try {
                 }
             }
             elseif ($urlPath -eq '/api/deploy' -and $method -eq 'POST') {
+                if (-not (Test-LocalRequest $request $Port $script:BridgeToken -RequireToken)) {
+                    Send-JsonResponse $response @{ error = 'Forbidden' } 403
+                    continue
+                }
                 $scan = Get-FullSystemScan
                 if (-not $scan.game.found) {
                     Send-JsonResponse $response @{ error = "Skyrim installation not detected" } 400
@@ -399,6 +473,10 @@ try {
                 }
             }
             elseif ($urlPath -eq '/api/launch' -and $method -eq 'POST') {
+                if (-not (Test-LocalRequest $request $Port $script:BridgeToken -RequireToken)) {
+                    Send-JsonResponse $response @{ error = 'Forbidden' } 403
+                    continue
+                }
                 $scan = Get-FullSystemScan
                 if (-not $scan.game.found) {
                     Send-JsonResponse $response @{ error = "Skyrim installation not detected" } 400
@@ -456,6 +534,10 @@ try {
                 }
             }
             elseif ($urlPath -eq '/api/log') {
+                if (-not (Test-LocalRequest $request $Port $script:BridgeToken -RequireToken)) {
+                    Send-JsonResponse $response @{ error = 'Forbidden' } 403
+                    continue
+                }
                 $docs = Get-SkyrimDocumentsInfo
                 $tail = 60
                 if ($request.QueryString['lines']) {
@@ -494,6 +576,10 @@ try {
                 }
             }
             elseif ($urlPath -eq '/api/shutdown' -and $method -eq 'POST') {
+                if (-not (Test-LocalRequest $request $Port $script:BridgeToken)) {
+                    Send-JsonResponse $response @{ error = 'Forbidden' } 403
+                    continue
+                }
                 Send-JsonResponse $response @{ success = $true; message = 'Server shutting down' }
                 break
             }

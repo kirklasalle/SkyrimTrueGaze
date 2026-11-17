@@ -90,11 +90,11 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
   When fixating on an object, eyes must execute continuous bounded random-walk drift within a sub-degree cone ($\pm 0.35^\circ$) updating at 2–4 Hz, preventing perceptual freezing.
 
 - **[FR-4] Skeletal Strain Distribution:**
-  Total gaze deflection must be anatomically distributed across the NetImmerse bone hierarchy:
-  - `NPC Spine2`: 10% total yaw (clamped to $\pm 12^\circ$).
-  - `NPC Neck [Neck]`: 25% total yaw/pitch (clamped to $\pm 20^\circ$).
-  - `NPC Head [Head]`: 65% total yaw, 75% pitch (clamped to $\pm 45^\circ$).
-  - `Eye Nodes`: 100% instant ballistic saccade with VOR compensation (clamped to $\pm 35^\circ$).
+  Total gaze deflection must be anatomically distributed across the NetImmerse bone hierarchy (default compiled/INI head-chain shares totaling 35% of yaw / 31.5% of pitch, leaving the residual for eye lead):
+  - `NPC Spine2`: 3.5% total yaw (clamped to $\pm 12^\circ$).
+  - `NPC Neck [Neck]`: 7.0% total yaw/pitch (clamped to $\pm 20^\circ$ yaw / $\pm 15^\circ$ pitch).
+  - `NPC Head [Head]`: 24.5% total yaw/pitch (clamped to $\pm 45^\circ$ yaw / $\pm 35^\circ$ pitch).
+  - `Eye Nodes`: residual ballistic saccade + VOR compensation (clamped to $\pm 35^\circ$ yaw / $\pm 25^\circ$ pitch).
 
 ### 4.2 HCEP Cognitive & Social Modes
 
@@ -123,11 +123,10 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
 ### 4.4 Engine & Modding Ecosystem Integration
 
 - **[FR-10] Open Animation Replacer (OAR) Custom Conditions:**
-  Expose native C++ condition callbacks:
+  Expose native C++ condition callbacks (Conditions API V3):
   - `TrueGaze_IsMode(modeId)`
   - `TrueGaze_IsMutualGaze(thresholdSec)`
   - `TrueGaze_GetGazeRegion(regionId)`
-  - `TrueGaze_IsSaccadeActive()`
 
 - **[FR-11] Configuration (INI + HTML Editor):**
   All tuning exposed through `Data\SKSE\Plugins\TrueGaze.ini`, edited via the self-contained `TrueGazeConfig.html` page (auto-loads the INI; launch via `Launch-TrueGazeConfig.cmd`). Covers saccade speed, jitter amplitude and interval, skeletal strain shares, gaze aversion, HCEP desktop sync, mutual gaze threshold, LOD distances, and debug gaze rays.

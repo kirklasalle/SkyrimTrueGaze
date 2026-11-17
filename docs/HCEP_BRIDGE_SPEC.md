@@ -42,7 +42,7 @@ The **True Gaze™ HCEP Bridge** enables real-time bi-directional telemetry exch
 
 * **Pipe Name:** `\\.\pipe\TrueGazeBridge`
 * **Direction:** Duplex (`PIPE_ACCESS_DUPLEX`)
-* **Mode:** Message-type byte stream (`PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_NOWAIT`)
+* **Mode:** Message-type stream (`PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS`) with overlapped asynchronous I/O
 * **Buffer Size:** 4096 bytes (in / out)
 * **Tick Rate:** 60 Hz – 120 Hz (synchronized with render frame or sensor frame)
 * **Roundtrip Latency:** $< 0.35 \text{ ms}$ on local IPC.
@@ -147,7 +147,7 @@ To guarantee **zero frame drops** in Skyrim:
 | Question | Answer |
 | :--- | :--- |
 | Deployment scope | **Single user, one machine.** The pipe is `\\.\pipe\TrueGazeBridge` — kernel-local, no network namespace. |
-| Who can connect? | Any process running **as the same Windows user** (granted explicitly via the SDDL descriptor `D:(A;;GA;;;OW)` — Owner Rights GENERIC_ALL). Other sessions / other users are denied by the explicit DACL. |
+| Who can connect? | Only the **same Windows logon user** (granted explicitly via the current process `TokenUser` SID DACL `D:(A;;GA;;;<user-sid>)`; pipe creation fails closed if the DACL cannot be built). Other users and remote SMB clients (`PIPE_REJECT_REMOTE_CLIENTS`) are denied. |
 | What can an attacker with same-session code execution do? | Connect to the pipe and **inject fabricated telemetry** (gaze vectors, head pose, cognitive mode). CRC-32 is an integrity check, NOT authentication — a malicious same-session client can compute valid CRCs. |
 | What can't they do? | Cause NaNs or impossible physics: `ValidateTelemetryPacket()` rejects NaN/Inf, out-of-range angles, unsupported modes/states, and reserved-byte violations **before** values reach the gaze solver. Worst case is mis-aimed NPC attention, never a crash (the SEH frame guard also covers the solver). |
 | Is the payload encrypted? | **No.** Plaintext 64-byte POD on a local pipe. Rationale: the data is the user's own, on the user's own machine, readable only by same-session processes already trusted enough to run code in the user's session. Encryption would add key-management complexity for no threat-model gain at this scope. |

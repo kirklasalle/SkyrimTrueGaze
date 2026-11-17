@@ -1,5 +1,17 @@
 # TrueGaze™ — Project Status & In-Engine Audit
 
+## 2026-11-17 Due-Diligence Remediation (Phases 0–3, Unreleased)
+
+- **Verified by build & automated tests:** All 6 standalone CTest suites (`IncomingGazeTests`,
+  `KinematicsTests` [16 suites], `ValidationTests` [161 checks], `GeometryTests`,
+  `TraceTests` [7 suites incl. 1 MB cap auto-stop], `HcepBridgeClientMock` [incl.
+  `TokenUser` pipe DACL, `ERROR_MORE_DATA` drain, `Stop(Abandon)`]), `Invoke-CiGate.ps1`,
+  `TraceAnalysisTests.py`, `verify_charter.py --strict`, `TrueGazeBridgeServer.ps1`
+  HTTP auth/traversal smoke test, and `TrueGaze.dll` (`windows-release`) compilation pass.
+- **Pending manual game verification:** Live in-game Skyrim SE/AE/VR runtime execution of
+  the updated `TrueGaze.dll` (VOR 2nd-order S-curves, `Guard`/`Child` category profiles,
+  `THINK` CGA cadence, calibration override) remains to be field-tested in game.
+
 ## Unreleased receiving-panel correction: current evidence
 
 **Full incoming accuracy is not in-engine verified.** Historical floating-panel

@@ -37,7 +37,7 @@ namespace TrueGaze::Engine
         class ScopedTimer
         {
         public:
-            explicit ScopedTimer(std::atomic<uint64_t> &outAccumulatorUs) noexcept
+            explicit ScopedTimer(std::atomic<uint64_t>& outAccumulatorUs) noexcept
                 : _accumulator(outAccumulatorUs), _startTime(std::chrono::steady_clock::now())
             {
             }
@@ -45,27 +45,37 @@ namespace TrueGaze::Engine
             ~ScopedTimer() noexcept
             {
                 auto endTime = std::chrono::steady_clock::now();
-                auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(endTime - _startTime).count();
+                auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
+                                      endTime - _startTime)
+                                      .count();
                 // ACCUMULATE, not overwrite (the original .store() here kept only
                 // the last measurement — the audit's P2-1 accumulation bug).
-                _accumulator.fetch_add(static_cast<uint64_t>(durationUs), std::memory_order_relaxed);
+                _accumulator.fetch_add(static_cast<uint64_t>(durationUs),
+                                       std::memory_order_relaxed);
             }
 
         private:
-            std::atomic<uint64_t> &_accumulator;
+            std::atomic<uint64_t>& _accumulator;
             std::chrono::steady_clock::time_point _startTime;
         };
 
         static inline std::atomic<uint64_t> s_lastFrameTimeUs{0};
+        static inline std::atomic<uint64_t> s_emaFrameTimeUs{0};
         static inline std::atomic<uint32_t> s_activeActorCount{0};
 
-        /// @brief Records one frame measurement (game thread). Tracks last + peak.
+        /// @brief Records one frame measurement (game thread). Tracks last, EMA, and peak.
         static void RecordFrame(uint64_t durationUs) noexcept
         {
             s_lastFrameTimeUs.store(durationUs, std::memory_order_relaxed);
+            const uint64_t prevEma = s_emaFrameTimeUs.load(std::memory_order_relaxed);
+            const uint64_t nextEma =
+                (prevEma == 0) ? durationUs : ((prevEma * 7 + durationUs) / 8);
+            s_emaFrameTimeUs.store(nextEma, std::memory_order_relaxed);
+
             uint64_t prev = s_peakFrameUs.load(std::memory_order_relaxed);
             while (durationUs > prev &&
-                   !s_peakFrameUs.compare_exchange_weak(prev, durationUs, std::memory_order_relaxed))
+                   !s_peakFrameUs.compare_exchange_weak(prev, durationUs,
+                                                        std::memory_order_relaxed))
             {
                 // compare_exchange_weak reloaded prev on failure; loop exits once
                 // the stored peak is >= this measurement.
@@ -76,6 +86,28 @@ namespace TrueGaze::Engine
         static bool IsWithinBudget() noexcept
         {
             return s_lastFrameTimeUs.load(std::memory_order_relaxed) <= kFrameBudgetUs;
+        }
+
+        /// @brief Returns the smoothed EMA frame processing time in microseconds.
+        static uint64_t GetAverageFrameTimeUs() noexcept
+        {
+            return s_emaFrameTimeUs.load(std::memory_order_relaxed);
+        }
+
+        /// @brief Returns true when last frame breached budget or EMA > 85% of kFrameBudgetUs.
+        static bool ShouldThrottleNonEssentialLod() noexcept
+        {
+            const uint64_t ema = s_emaFrameTimeUs.load(std::memory_order_relaxed);
+            return !IsWithinBudget() || ema > (kFrameBudgetUs * 85 / 100);
+        }
+
+        /// @brief Resets all atomic profiler accumulators (primarily for unit tests).
+        static void Reset() noexcept
+        {
+            s_lastFrameTimeUs.store(0, std::memory_order_relaxed);
+            s_emaFrameTimeUs.store(0, std::memory_order_relaxed);
+            s_peakFrameUs.store(0, std::memory_order_relaxed);
+            s_activeActorCount.store(0, std::memory_order_relaxed);
         }
 
         /// @brief Returns the last recorded frame processing time in microseconds.

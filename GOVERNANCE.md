@@ -152,7 +152,7 @@ implemented, rather than asserting compliance.
 
 | Requirement | Status |
 | :--- | :--- |
-| Access control on the named pipe | ✅ Explicit user-only DACL (`D:(A;;GA;;;OW)`). If it cannot be built, the pipe falls back to the default DACL with a logged warning. |
+| Access control on the named pipe | ✅ Explicit current-user `TokenUser` SID DACL (`D:(A;;GA;;;S-1-5-...)`). Fails closed (no pipe created) if the DACL cannot be built. |
 | Data minimisation | ✅ `trackedPersonId` is **zeroed on receipt**, before the game thread can see it, unless `[Bridge] bRetainTrackedPersonId=true`. Covered by a test in `tests/HcepBridgeClientMock.cpp`. |
 | Audit of who connected | ✅ Each connection is logged with PID, session ID, executable file name and ACL state. Each disconnect logs accepted and rejected frame counts. Packet contents are never logged. |
 | Stale-data rejection | ✅ Telemetry older than 500 ms is ignored. |
@@ -253,7 +253,7 @@ em-dash spacing) were corrected on September 11, 2026.
 
 | Component | Location | License | Status |
 | :--- | :--- | :--- | :--- |
-| CommonLibSSE-NG | `extern/CommonLibSSE-NG` (submodule) | MIT | ✅ Compatible with GPL-3.0 |
+| CommonLibSSE-NG | `extern/CommonLibSSE-NG` (submodule, `alandtse/CommonLibVR`) | GPL-3.0 + Modding & Linking Exceptions (derived from MIT) | ✅ Compatible with GPL-3.0 |
 | Open Animation Replacer Conditions API | `extern/OpenAnimationReplacer-API` (vendored, unmodified) | GPL-3.0 + OAR Modding Exception | ✅ Compatible: TrueGaze's software is itself GPL-3.0 |
 
 `LICENSE` puts TrueGaze's software under GPL-3.0 (see `docs/LICENSE_RESOLUTION.md`).

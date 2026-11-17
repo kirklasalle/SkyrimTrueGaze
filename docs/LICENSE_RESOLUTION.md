@@ -55,7 +55,7 @@ Restore a custom license: all rights reserved, but with a grant permitting (a) e
 - ❌ Contradicts the existing GPLv3 file and any GPL-claimed dependencies (check: does CommonLibSSE-NG's license permit proprietary linking? CommonLibSSE-NG is **GPLv3** — a closed-source TrueGaze DLL that statically/compile-time depends on it **cannot legally ship without GPL-compatible terms**. This is the decisive technical fact.)
 - ❌ Reinstantiates the exact contradiction the audit flagged (D-7).
 
-> **Critical fact:** `extern/CommonLibSSE-NG` is licensed GPLv3. **A TrueGaze DLL that links CommonLibSSE-NG is legally a derivative work and must be distributed under GPL-compatible terms regardless of what the LICENSE file says.** Option B is therefore not genuinely available unless TrueGaze drops CommonLibSSE-NG (a rewrite) or adopts a GPL-compatible license. This makes the decision nearly automatic.
+> **Critical fact:** `extern/CommonLibSSE-NG` (`alandtse/CommonLibVR`) is licensed **GPLv3 with the Modding Exception and GPL-3.0 Linking Exception** (`COPYING.txt` / `EXCEPTIONS.md`, derived from Ryan-rsm-McKenzie's MIT codebase). **A TrueGaze DLL that links CommonLibSSE-NG is legally a derivative work and must be distributed under GPL-compatible terms regardless of what the LICENSE file says.** Option B is therefore not genuinely available unless TrueGaze drops CommonLibSSE-NG (a rewrite) or adopts a GPL-compatible license. This makes the decision nearly automatic.
 
 ### Option C — Dual license (recommended if Kirk wants commercial flexibility)
 

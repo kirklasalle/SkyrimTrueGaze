@@ -96,6 +96,8 @@ if(TRUEGAZE_BUILD_TESTS)
     add_executable(IncomingGazeTests "${CMAKE_CURRENT_SOURCE_DIR}/tests/IncomingGazeTests.cpp")
     target_link_libraries(IncomingGazeTests PRIVATE TrueGazeKinematics)
     truegaze_force_asserts(IncomingGazeTests)
+    set_target_properties(IncomingGazeTests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
     add_test(NAME IncomingGazeTests COMMAND IncomingGazeTests)
 endif()
 
@@ -344,6 +346,18 @@ if(TRUEGAZE_BUILD_TESTS)
     set_target_properties(GeometryTests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
     add_test(NAME GeometryTests COMMAND GeometryTests)
+
+    # Structured JSONL Trace Logger tests (SDK-free).
+    add_executable(TraceTests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/TraceTests.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/TraceLogger.cpp"
+    )
+    target_include_directories(TraceTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(TraceTests PRIVATE TrueGazeKinematics)
+    truegaze_force_asserts(TraceTests)
+    set_target_properties(TraceTests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+    add_test(NAME TraceTests COMMAND TraceTests)
 
     add_executable(HcepBridgeClientMock
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/HcepBridgeClientMock.cpp"

@@ -107,7 +107,7 @@ do not publish this as a verified release.
 - [x] **Vestibulo-Ocular Reflex (VOR)**: Implement eye-head decoupling and counter-rotation compensation.
 - [x] **Micro-Saccadic Brownian Drift**: Implement 1–3 Hz physiological jitter to eradicate frozen fixations.
 - [x] **Social Triangle Geometry**: Implement Argyle & Cook cyclical scanning (Left Eye $\rightarrow$ Right Eye $\rightarrow$ Mouth).
-- [x] **Anatomical Strain Distribution**: Implement Spine2 (10%), Neck (25%), Head (65%) bone weighting with comfort clamps.
+- [x] **Anatomical Strain Distribution**: Implement Spine2 (3.5%), Neck (7.0%), Head (24.5%) bone weighting with comfort clamps and eye residual.
 - [x] **Spatial LOD Manager**: Implement 3-tier distance culling (< 5m, 5–15m, > 15m).
 - [x] **Automated Kinematics Test Suite**: Standalone C++20 verification executable (`tests/KinematicsTests.cpp`) with 8 passing test suites.
 

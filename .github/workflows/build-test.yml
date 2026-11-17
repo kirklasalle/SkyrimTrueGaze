@@ -79,3 +79,28 @@ jobs:
             - name: CI gate (configure, build, ctest, charter, docs, parity)
               shell: pwsh
               run: ./scripts/Invoke-CiGate.ps1 -Preset standalone
+
+    build-plugin:
+        runs-on: windows-latest
+        steps:
+            - name: Checkout (with CommonLibSSE-NG submodule)
+              uses: actions/checkout@v4
+              with:
+                  submodules: recursive
+
+            - name: Restore vcpkg packages
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      vcpkg_installed
+                      ~/.cache/vcpkg/archives
+                  key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+
+            - name: Configure & build TrueGaze.dll (windows-release)
+              shell: pwsh
+              run: |
+                  if (-not $env:VCPKG_ROOT) { $env:VCPKG_ROOT = "C:\vcpkg" }
+                  cmake --preset windows-release
+                  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+                  cmake --build --preset release --target TrueGaze
+                  exit $LASTEXITCODE

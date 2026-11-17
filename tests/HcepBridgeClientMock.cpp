@@ -363,6 +363,76 @@ int main()
         std::cout << "  Opt-in: trackedPersonId retained (observed 0xDEADBEEF).\n";
     }
 
+    // -------------------------------------------------------------------
+    // 10. Oversize message framing (ERROR_MORE_DATA) & Stop(Abandon) safety.
+    // -------------------------------------------------------------------
+    std::cout << "\n[ROBUSTNESS] Oversize message drain & Stop(Abandon)...\n";
+    {
+        auto* s = new TrueGaze::Bridge::NamedPipeServer();
+        s->Start(R"(\\.\pipe\TrueGazeBridgePhase0Test)", 0.2f);
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+        HANDLE pipe = INVALID_HANDLE_VALUE;
+        for (int retry = 0; retry < 20 && pipe == INVALID_HANDLE_VALUE; ++retry)
+        {
+            pipe = CreateFileA(R"(\\.\pipe\TrueGazeBridgePhase0Test)", GENERIC_READ | GENERIC_WRITE, 0,
+                               nullptr, OPEN_EXISTING, 0, nullptr);
+            if (pipe == INVALID_HANDLE_VALUE)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+        }
+        if (pipe == INVALID_HANDLE_VALUE)
+        {
+            s->Stop();
+            delete s;
+            std::cout << "  [FAIL] Could not connect for oversize message test.\n";
+            return 1;
+        }
+
+        // Write an oversize 300-byte message first; server must drain ERROR_MORE_DATA
+        // and still accept the next valid 64-byte frame cleanly.
+        uint8_t oversize[300]{};
+        DWORD w = 0;
+        WriteFile(pipe, oversize, sizeof(oversize), &w, nullptr);
+
+        TrueGaze::Bridge::TrueGazeTelemetryPacket valid{};
+        valid.magic = 0x48434550;
+        valid.version = 0x0100;
+        valid.sequenceId = 77;
+        valid.gazeConvergence = 2.0f;
+        valid.gazeConfidence = 0.95f;
+        valid.crc32 = ComputeCrc32(reinterpret_cast<const uint8_t*>(&valid),
+                                   sizeof(valid) - sizeof(uint32_t));
+        WriteFile(pipe, &valid, sizeof(valid), &w, nullptr);
+
+        bool gotValidAfterOversize = false;
+        for (int i = 0; i < 60 && !gotValidAfterOversize; ++i)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            TrueGaze::Bridge::TrueGazeTelemetryPacket got{};
+            if (s->TryGetLatestTelemetry(got) && got.sequenceId == 77)
+            {
+                gotValidAfterOversize = true;
+            }
+        }
+
+        CloseHandle(pipe);
+        if (!gotValidAfterOversize)
+        {
+            s->Stop();
+            delete s;
+            std::cout << "  [FAIL] Valid packet after oversize message was lost.\n";
+            return 1;
+        }
+        std::cout << "  Oversize ERROR_MORE_DATA drained cleanly; subsequent frame received.\n";
+
+        // Test Abandon while active: must latch _abandoned and release worker
+        // without std::terminate() (mirrors process-exit singleton teardown).
+        s->Stop(TrueGaze::Bridge::NamedPipeServer::JoinPolicy::Abandon);
+    }
+    std::cout << "  Stop(Abandon) completed without std::terminate().\n";
+
     std::cout << "\n[SUCCESS] HCEP Desktop <-> TrueGaze Bridge verification passed 100%!\n";
     return 0;
 }

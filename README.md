@@ -29,6 +29,12 @@
 
 Latest development updates (not a new tagged release):
 
+- **Hardening, stability & CI coverage (Nov 2026):** Fixed named-pipe teardown
+  and overlapped I/O lifetime, aligned the public `TrueGazeBridgeSchema.hpp` ABI,
+  hardened the localhost configurator bridge with per-session token/origin/path
+  checks and DOM-XSS fixes, switched the pipe DACL to fail-closed `TokenUser`
+  SID, wired 2nd-order VOR S-curves + LOD/calibration/strain fixes, added GPL-3.0
+  license/source-offer packaging, and added `TrueGaze.dll` compilation to CI.
 - **Gaze with clear ownership:** receiving panels show where *others* look at an
   actor, with readable observer names, grouped cards and collision-aware placement.
 - **Closer diagnostics, cleaner gameplay:** front panels now default to 10 cm
