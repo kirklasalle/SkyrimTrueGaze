@@ -26,7 +26,7 @@
 Evaluates whether the actor's current HCEP cognitive-emotional mode matches the specified mode index.
 
 * **Condition Name:** `TrueGaze_IsMode`
-* **Required Version:** `1.0.8`
+* **Required Version:** `1.1.0`
 * **Components:**
   * `Mode` (`Numeric`, range 0–4):
     * `0` = **LOGIC** (Analytical, structured, steady on-face fixation)
@@ -39,7 +39,7 @@ Evaluates whether the actor's current HCEP cognitive-emotional mode matches the 
 Evaluates whether the actor has held direct mutual eye contact with the player for at least the specified duration.
 
 * **Condition Name:** `TrueGaze_IsMutualGaze`
-* **Required Version:** `1.0.8`
+* **Required Version:** `1.1.0`
 * **Components:**
   * `Minimum seconds` (`Numeric`, float seconds >= threshold): Minimum duration of unbroken mutual gaze required to evaluate to `true` (e.g. `2.0` seconds).
 * **Negation:** To trigger animations when mutual gaze is broken or less than the threshold, check the OAR **Negated** toggle.
@@ -48,7 +48,7 @@ Evaluates whether the actor has held direct mutual eye contact with the player f
 Evaluates whether the actor's current classified 3D focal gaze target matches the specified region index (0–12, defined in `src/Engine/GazeRegion.hpp`).
 
 * **Condition Name:** `TrueGaze_GetGazeRegion`
-* **Required Version:** `1.0.8`
+* **Required Version:** `1.1.0`
 * **Components:**
   * `Region` (`Numeric`, range 0–12):
     * `0` = **Left Eye** (Social Triangle vertex)
@@ -106,7 +106,7 @@ meshes/actors/character/animations/OpenAnimationReplacer/
     {
       "condition": "TrueGaze_IsMode",
       "requiredPlugin": "TrueGaze.dll",
-      "requiredVersion": "1.0.8",
+      "requiredVersion": "1.1.0",
       "Mode": {
         "value": 4.0
       }
@@ -128,7 +128,7 @@ meshes/actors/character/animations/OpenAnimationReplacer/
     {
       "condition": "TrueGaze_IsMutualGaze",
       "requiredPlugin": "TrueGaze.dll",
-      "requiredVersion": "1.0.8",
+      "requiredVersion": "1.1.0",
       "Minimum seconds": {
         "value": 2.5
       }

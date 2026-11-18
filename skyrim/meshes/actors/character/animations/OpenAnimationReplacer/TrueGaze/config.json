@@ -11,7 +11,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMode",
-          "requiredVersion": "1.0.8",
+          "requiredVersion": "1.1.0",
           "arguments": [
             {
               "type": "Numeric",
@@ -31,7 +31,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMode",
-          "requiredVersion": "1.0.8",
+          "requiredVersion": "1.1.0",
           "arguments": [
             {
               "type": "Numeric",
@@ -51,7 +51,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMode",
-          "requiredVersion": "1.0.8",
+          "requiredVersion": "1.1.0",
           "arguments": [
             {
               "type": "Numeric",
@@ -61,7 +61,7 @@
         },
         {
           "condition": "TrueGaze_IsMutualGaze",
-          "requiredVersion": "1.0.8",
+          "requiredVersion": "1.1.0",
           "arguments": [
             {
               "type": "Numeric",
@@ -77,7 +77,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMode",
-          "requiredVersion": "1.0.8",
+          "requiredVersion": "1.1.0",
           "arguments": [
             {
               "type": "Numeric",
@@ -106,7 +106,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMode",
-          "requiredVersion": "1.0.8",
+          "requiredVersion": "1.1.0",
           "arguments": [
             {
               "type": "Numeric",
@@ -126,7 +126,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_IsMutualGaze",
-          "requiredVersion": "1.0.8",
+          "requiredVersion": "1.1.0",
           "arguments": [
             {
               "type": "Numeric",
@@ -155,7 +155,7 @@
       "conditions": [
         {
           "condition": "TrueGaze_GetGazeRegion",
-          "requiredVersion": "1.0.8",
+          "requiredVersion": "1.1.0",
           "arguments": [
             {
               "type": "Numeric",

@@ -5,7 +5,7 @@
 ### A First-Party Product of the Human Communication Eye Protocol (HCEP) Architecture
 
 [![Status](https://img.shields.io/badge/status-Production%20Release-brightgreen)](#-current-project-status)
-[![Version](https://img.shields.io/badge/version-1.0.8-blue)](#)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue)](#)
 [![Platform](https://img.shields.io/badge/platform-Skyrim%20SE%20%7C%20AE%20%7C%20VR-4b5563)](#)
 [![C++](https://img.shields.io/badge/C%2B%2B-23-00599C)](#)
 [![SDK](https://img.shields.io/badge/SDK-CommonLibSSE--NG-8b5cf6)](#)
@@ -21,13 +21,13 @@
 </p>
 
 > [!IMPORTANT]
-> **Production Release v1.0.8 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, organic social triangle cycling with weighted-random scanpaths), resolves eye-dominant gaze with a head engagement threshold, times Cognitive Gaze Aversion returns to dialogue onset with per-actor ±2s offsets, dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, and provides the in-engine developer arrow visual milestone verified in a running Skyrim session.
+> **Production Release v1.1.0 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, organic social triangle cycling with weighted-random scanpaths), resolves eye-dominant gaze with a head engagement threshold, times Cognitive Gaze Aversion returns to dialogue onset with per-actor ±2s offsets, dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, and provides the in-engine developer arrow visual milestone verified in a running Skyrim session.
 
 ---
 
 ## What's New
 
-Latest development updates (not a new tagged release):
+Latest updates in **v1.1.0** (released 2026-11-17):
 
 - **Hardening, stability & CI coverage (Nov 2026):** Fixed named-pipe teardown
   and overlapped I/O lifetime, aligned the public `TrueGazeBridgeSchema.hpp` ABI,
@@ -68,7 +68,7 @@ runtime performance remain field-test gates. See the
 
 | | |
 | :--- | :--- |
-| **Maturity** | 🟢 **Production Release v1.0.8** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
+| **Maturity** | 🟢 **Production Release v1.1.0** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
 | **Builds & links the SDK?** | ✅ Yes — unified multi-target Release x64 DLL (`CommonLibSSE-NG`, `OpenVR`, `spdlog`, `fmt`, `/O2`) |
 | **Drives bones?** | ✅ Yes — procedural saccadic, VOR, and cervical hierarchy bone manipulation live |
 | **In-Engine Verification** | ✅ **Verified in Skyrim AE & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, eye-to-eye targeting, and telemetry confirmed |

@@ -74,8 +74,8 @@ do not publish this as a verified release.
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
-**Current Milestone:** v1.0.8 — OAR Conditions API V3, Biometric Privacy Hardening & Charter Realignment (audit 2026-10-15 remediation in `[Unreleased]`)
-**Last Updated:** October 15, 2026
+**Current Milestone:** v1.1.0 — Kinematics, Security Hardening & Incoming Gaze Diagnostics
+**Last Updated:** November 17, 2026
 
 **Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)  
 **Current engineering plan:** [`docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md`](docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md)  

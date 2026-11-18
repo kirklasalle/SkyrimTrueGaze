@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-17 - Kinematics, Security Hardening & Incoming Gaze Diagnostics
+
 ### Due-diligence hardening, kinematics & release-hygiene remediation (2026-11-17)
 
 - **IPC & teardown safety:** Fixed `NamedPipeServer::Stop(Abandon)` latching,

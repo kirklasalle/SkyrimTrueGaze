@@ -197,9 +197,9 @@ console preferences are retained. Earlier backups are intact. Skyrim was not
 launched. No in-game close-panel acceptance is claimed.
 
 **Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
-**Version:** `1.0.8` (Production Release)  
+**Version:** `1.1.0` (Production Release)  
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Status date:** October 4, 2026  
+**Status date:** November 17, 2026  
 **Owner & Architect:** Kirk LaSalle
 
 > **Document role:** this is the single source of truth for what is *implemented
