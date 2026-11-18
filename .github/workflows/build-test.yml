@@ -58,7 +58,7 @@ on:
 
 jobs:
     build-test:
-        runs-on: windows-latest
+        runs-on: windows-2022
         steps:
             - name: Checkout
               uses: actions/checkout@v4
@@ -81,7 +81,7 @@ jobs:
               run: ./scripts/Invoke-CiGate.ps1 -Preset standalone
 
     build-plugin:
-        runs-on: windows-latest
+        runs-on: windows-2022
         steps:
             - name: Checkout (with CommonLibSSE-NG submodule)
               uses: actions/checkout@v4
