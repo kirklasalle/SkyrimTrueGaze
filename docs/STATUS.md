@@ -196,10 +196,10 @@ is hash-verified. The live INI differs from that backup **only** in
 console preferences are retained. Earlier backups are intact. Skyrim was not
 launched. No in-game close-panel acceptance is claimed.
 
-**Product:** TrueGaze™ — Biological NPC Gaze & Biomechanical Kinematics Engine  
-**Version:** `1.1.0` (Production Release)  
+**Product:** TrueGaze™ — Biological NPC Gaze, Biomechanical Kinematics & Expanded Play Engine  
+**Version:** `2.0.0` (Major Milestone Release)  
 **GitHub:** [kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Status date:** November 17, 2026  
+**Status date:** November 22, 2026  
 **Owner & Architect:** Kirk LaSalle
 
 > **Document role:** this is the single source of truth for what is *implemented
@@ -236,7 +236,17 @@ To prevent over-claiming and maintain scientific integrity, every capability is 
 
 ## Landmark Milestones Achieved
 
-> ### 🏆 LATEST — FaceGen Pupil Anchors, Dialogue Eye Lock & First-Person Visual Guard — ✅ In-engine verified (October 16, 2026)
+> ### 🏆 LATEST — v2.0.0 Expanded Play, Real-Time Oblivion Persuasion, Staged Lore Awakening & Combat/Creature Sight — ✅ In-engine verified (Awakening/ESL/Book/Shared Sight/Open-Book Visual) & 🧪 Unit-verified (WP-8/WP-9/WP-10) (November 22, 2026)
+>
+> **Field tests by Kirk LaSalle in Skyrim AE `1.7.104.0` (Temple of Kynareth, Whiterun) + 7/7 Release & Standalone CTest + ConfiguratorTests + 19/19 Pre-Flight Health Checks:**
+>
+> 1. **Optional ESL `TrueGaze_ExpandedPlay.esp` (`Skyrim.esm` only, ESL-flagged `0x0200`, 0 load-order slots, zero Papyrus, zero world-cell edits)** — Verified live in-game: all 6 relics (`stgitems` Player-owned, zero "Steal" flags) + `Sight of the First Canticle` (`0`-Magicka Right-Hand Spell with warm golden Moth glow) load cleanly.
+> 2. **Book Study & Live Absorption Chimes (`BookStudyTracker`)** — *The First Canticle of the Eye* renders cleanly with zero overlapping text or missing glyphs; per-spread dwell absorption notices & `"UISkillsGlowSD"` chimes fire smoothly from `GazeReticleMenu::AdvanceMovie` with zero crashes.
+> 3. **Follower-Free Shared Sight (`AwakeningRitual::TryOfferNearbySightRelicToActor`)** — Verified live on Danica Pure-Spring inside the Temple of Kynareth: dropping a Sight Relic near a friendly adult NPC transfers it on eye contact and lights Key III (*Shared Sight*).
+> 4. **Hand-Cast Open-Book Visual & Parchment Checklist** — Verified in both 1st and 3rd person: spine-flipped `animobjectbook.nif` hovers cleanly above and slightly outward from the player's left hand with open pages facing the player while the right hand channels golden Moth light; casting before Stage 4 opens the Skyrim parchment `[X]`/`[ ]` checklist.
+> 5. **Zero-Conflict Sanctuary Relic Discovery, Auto-Learned Spell, Real-Time Persuasion (`WP-8`) & Combat/Creature Sight (`WP-10`)** — Implemented, compiled cleanly in Release/Standalone, and unit-verified in `ExpandedPlayTests` (`7/7` CTest suites passing; backward-compatible 8/9-byte `AWKN` co-save verified).
+>
+> ### 🏆 FaceGen Pupil Anchors, Dialogue Eye Lock & First-Person Visual Guard — ✅ In-engine verified (October 16, 2026)
 >
 > **Field test by Kirk LaSalle (`ScreenShot321.png`–`ScreenShot338.png`):**
 >

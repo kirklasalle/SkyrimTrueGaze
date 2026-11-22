@@ -74,9 +74,12 @@ do not publish this as a verified release.
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
-**Current Milestone:** v1.1.0 — Kinematics, Security Hardening & Incoming Gaze Diagnostics
-**Last Updated:** November 17, 2026
+**Current Milestone:** v2.0.0 — Expanded Play, Real-Time Oblivion Persuasion, Staged Lore Awakening & Combat/Creature Sight  
+**Last Updated:** November 22, 2026
 
+**Expanded Play & Awakening plan:** [`docs/IMPLEMENTATION_PLAN_EXPANDED_PLAY_G0_G3.md`](docs/IMPLEMENTATION_PLAN_EXPANDED_PLAY_G0_G3.md)  
+**Lore & Pilgrimage Chronicle:** [`docs/TRUEGAZE_LORE_AND_STORY.md`](docs/TRUEGAZE_LORE_AND_STORY.md)  
+**Real-Time Persuasion GDD:** [`docs/REALTIME_PERSUASION_AND_TRANSACTIONS_GDD.md`](docs/REALTIME_PERSUASION_AND_TRANSACTIONS_GDD.md)  
 **Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)  
 **Current engineering plan:** [`docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md`](docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md)  
 **Latest audit:** [`docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md`](docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md) (configurator) · [`docs/AUDIT_REPORT_2026-09-26.md`](docs/AUDIT_REPORT_2026-09-26.md) (codebase)

@@ -240,6 +240,48 @@ namespace TrueGaze::Engine
         // Console commands
         enableConsoleCommands =
             ReadBool("Console", "bEnableConsoleCommands", enableConsoleCommands, p);
+
+        // Expanded Play ([ExpandedPlay], default off)
+        expandedPlayEnabled = ReadBool("ExpandedPlay", "bEnabled", expandedPlayEnabled, p);
+        {
+            char unlockBuf[32]{0};
+            GetPrivateProfileStringA("ExpandedPlay", "sUnlockMode", unlockMode.c_str(),
+                                     unlockBuf, sizeof(unlockBuf), p);
+            unlockMode = unlockBuf;
+        }
+        {
+            char modeBuf[32]{0};
+            GetPrivateProfileStringA("ExpandedPlay", "sDemeanorMode", demeanorMode.c_str(),
+                                     modeBuf, sizeof(modeBuf), p);
+            demeanorMode = modeBuf;
+        }
+        activeDemeanor = GetPrivateProfileIntA("ExpandedPlay", "iActiveDemeanor", activeDemeanor, p);
+        moduleSocialReactions =
+            ReadBool("ExpandedPlay", "bModuleSocialReactions", moduleSocialReactions, p);
+        moduleRelationshipMemory =
+            ReadBool("ExpandedPlay", "bModuleRelationshipMemory", moduleRelationshipMemory, p);
+        moduleBookStudy = ReadBool("ExpandedPlay", "bModuleBookStudy", moduleBookStudy, p);
+        moduleMatureReactions =
+            ReadBool("ExpandedPlay", "bModuleMatureReactions", moduleMatureReactions, p);
+        modulePresenceProgression =
+            ReadBool("ExpandedPlay", "bModulePresenceProgression", modulePresenceProgression, p);
+        enableKindredSight =
+            ReadBool("ExpandedPlay", "bEnableKindredSight", enableKindredSight, p);
+        enableReticle = ReadBool("ExpandedPlay", "bEnableReticle", enableReticle, p);
+        reticleOpacity = ReadFloat("ExpandedPlay", "fReticleOpacity", reticleOpacity, p);
+        reticleMagnetismStrength =
+            ReadFloat("ExpandedPlay", "fReticleMagnetismStrength", reticleMagnetismStrength, p);
+        colorBlindMode = GetPrivateProfileIntA("ExpandedPlay", "iColorBlindMode", colorBlindMode, p);
+        immersiveHideReticle =
+            ReadBool("ExpandedPlay", "bImmersiveHideReticle", immersiveHideReticle, p);
+        enableEyeContactInitiate =
+            ReadBool("ExpandedPlay", "bEnableEyeContactInitiate", enableEyeContactInitiate, p);
+        enableImpressionWhispers =
+            ReadBool("ExpandedPlay", "bEnableImpressionWhispers", enableImpressionWhispers, p);
+        thirdPersonEfficacy =
+            ReadFloat("ExpandedPlay", "fThirdPersonEfficacy", thirdPersonEfficacy, p);
+        emitAiNpcBridgeEvents =
+            ReadBool("ExpandedPlay", "bEmitAiNpcBridgeEvents", emitAiNpcBridgeEvents, p);
     }
 
     void ConfigManager::Load(const std::string& customPath) noexcept
@@ -525,6 +567,52 @@ namespace TrueGaze::Engine
         // Colour is stored as 0xRRGGBB. Mask off any stray high bits so the
         // per-channel extraction in the renderer is always in range.
         gazeRayColour &= 0x00FFFFFF;
+
+        // --- Expanded Play -----------------------------------------------------
+        {
+            bool validUnlock = false;
+            const auto parsedUnlock = ExpandedPlay::ParseUnlockMode(unlockMode, &validUnlock);
+            if (!validUnlock)
+            {
+                logger::warn("[TrueGaze] [ExpandedPlay] sUnlockMode '{}' is not "
+                             "Ritual/Sandbox; using Ritual.",
+                             unlockMode);
+            }
+            unlockMode = ExpandedPlay::UnlockModeName(parsedUnlock);
+        }
+        {
+            bool validMode = false;
+            const auto parsedMode = ExpandedPlay::ParseDemeanorMode(demeanorMode, &validMode);
+            if (!validMode)
+            {
+                logger::warn("[TrueGaze] [ExpandedPlay] sDemeanorMode '{}' is not "
+                             "Manual/Auto/Hybrid; using Hybrid.",
+                             demeanorMode);
+            }
+            demeanorMode = ExpandedPlay::DemeanorModeName(parsedMode);
+        }
+
+        constexpr int kMaxDemeanor = static_cast<int>(ExpandedPlay::Demeanor::Count) - 1;
+        if (activeDemeanor < 0 || activeDemeanor > kMaxDemeanor)
+        {
+            logger::warn("[TrueGaze] [ExpandedPlay] iActiveDemeanor {} out of range [0,{}]; "
+                         "clamped.",
+                         activeDemeanor, kMaxDemeanor);
+            activeDemeanor = std::clamp(activeDemeanor, 0, kMaxDemeanor);
+        }
+
+        if (colorBlindMode < 0 || colorBlindMode > 3)
+        {
+            logger::warn("[TrueGaze] [ExpandedPlay] iColorBlindMode {} out of range [0,3]; "
+                         "clamped.",
+                         colorBlindMode);
+            colorBlindMode = std::clamp(colorBlindMode, 0, 3);
+        }
+
+        reticleOpacity = clampReport("fReticleOpacity", reticleOpacity, 0.0f, 1.0f);
+        reticleMagnetismStrength =
+            clampReport("fReticleMagnetismStrength", reticleMagnetismStrength, 0.0f, 1.0f);
+        thirdPersonEfficacy = clampReport("fThirdPersonEfficacy", thirdPersonEfficacy, 0.50f, 1.00f);
     }
 
     void ConfigManager::Save(const std::string& customPath) noexcept
@@ -708,6 +796,35 @@ namespace TrueGaze::Engine
         WriteFloat("Visuals", "fHcepPanelForwardOffsetCm", hcepPanelForwardOffsetCm);
 
         WriteBool("Console", "bEnableConsoleCommands", enableConsoleCommands);
+
+        // Expanded Play
+        WriteBool("ExpandedPlay", "bEnabled", expandedPlayEnabled);
+        WritePrivateProfileStringA("ExpandedPlay", "sUnlockMode", unlockMode.c_str(), p);
+        WritePrivateProfileStringA("ExpandedPlay", "sDemeanorMode", demeanorMode.c_str(), p);
+        {
+            char buf[16]{0};
+            snprintf(buf, sizeof(buf), "%d", activeDemeanor);
+            WritePrivateProfileStringA("ExpandedPlay", "iActiveDemeanor", buf, p);
+        }
+        WriteBool("ExpandedPlay", "bModuleSocialReactions", moduleSocialReactions);
+        WriteBool("ExpandedPlay", "bModuleRelationshipMemory", moduleRelationshipMemory);
+        WriteBool("ExpandedPlay", "bModuleBookStudy", moduleBookStudy);
+        WriteBool("ExpandedPlay", "bModuleMatureReactions", moduleMatureReactions);
+        WriteBool("ExpandedPlay", "bModulePresenceProgression", modulePresenceProgression);
+        WriteBool("ExpandedPlay", "bEnableKindredSight", enableKindredSight);
+        WriteBool("ExpandedPlay", "bEnableReticle", enableReticle);
+        WriteFloat("ExpandedPlay", "fReticleOpacity", reticleOpacity);
+        WriteFloat("ExpandedPlay", "fReticleMagnetismStrength", reticleMagnetismStrength);
+        {
+            char buf[16]{0};
+            snprintf(buf, sizeof(buf), "%d", colorBlindMode);
+            WritePrivateProfileStringA("ExpandedPlay", "iColorBlindMode", buf, p);
+        }
+        WriteBool("ExpandedPlay", "bImmersiveHideReticle", immersiveHideReticle);
+        WriteBool("ExpandedPlay", "bEnableEyeContactInitiate", enableEyeContactInitiate);
+        WriteBool("ExpandedPlay", "bEnableImpressionWhispers", enableImpressionWhispers);
+        WriteFloat("ExpandedPlay", "fThirdPersonEfficacy", thirdPersonEfficacy);
+        WriteBool("ExpandedPlay", "bEmitAiNpcBridgeEvents", emitAiNpcBridgeEvents);
 
         logger::info("[TrueGaze] Configuration saved to '{}'.", path);
     }

@@ -9,6 +9,8 @@ if (Get-Process SkyrimSE -ErrorAction SilentlyContinue) {
 
 $installFiles = @(
     @{ Source = "$project\skyrim\SKSE\Plugins\TrueGaze.dll"; Destination = "$gameData\SKSE\Plugins\TrueGaze.dll" },
+    @{ Source = "$project\skyrim\Interface\TrueGazeIncoming.swf"; Destination = "$gameData\Interface\TrueGazeIncoming.swf" },
+    @{ Source = "$project\skyrim\Interface\TrueGazeReticle.swf"; Destination = "$gameData\Interface\TrueGazeReticle.swf" },
     @{ Source = "$project\scratch\arrow_extract\meshes\marker_arrow.nif"; Destination = "$gameData\meshes\marker_arrow.nif" },
     @{ Source = "$project\skyrim\meshes\TrueGaze\GazeRegionPanel.nif"; Destination = "$gameData\meshes\TrueGaze\GazeRegionPanel.nif" },
     @{ Source = "$project\skyrim\meshes\TrueGaze\GazeBeam.nif"; Destination = "$gameData\meshes\TrueGaze\GazeBeam.nif" },

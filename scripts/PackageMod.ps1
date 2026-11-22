@@ -38,6 +38,9 @@ Copy-Item -Path $releaseDll -Destination $pluginTarget -Force
 if (-not (Test-Path (Join-Path $skyrimDir "Interface\TrueGazeIncoming.swf"))) {
     throw "Generated incoming UI asset missing after build."
 }
+if (-not (Test-Path (Join-Path $skyrimDir "Interface\TrueGazeReticle.swf"))) {
+    throw "Generated reticle UI asset missing after build."
+}
 
 # Stage Configurator files for Mod Organizer 2, Vortex, and manual modders
 Copy-Item -Path (Join-Path $projectRoot "TrueGazeConfig.html") -Destination (Join-Path $skyrimDir "TrueGazeConfig.html") -Force
@@ -48,8 +51,25 @@ Copy-Item -Path (Join-Path $projectRoot "scripts\Launch-TrueGazeConfig.ps1") -De
 Copy-Item -Path (Join-Path $projectRoot "scripts\TrueGazeBridgeServer.ps1") -Destination (Join-Path $toolsDir "TrueGazeBridgeServer.ps1") -Force
 $docsDir = Join-Path $skyrimDir "docs"
 New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
-foreach ($doc in @("USER_GUIDE.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD.md", "CONFIGURATION_AUDIT.md", "INCOMING_GAZE_PANEL_DESIGN.md", "STATUS.md", "TEST_SCENARIO.md")) {
-    Copy-Item -LiteralPath (Join-Path $projectRoot ("docs\" + $doc)) -Destination $docsDir -Force
+foreach ($doc in @("USER_GUIDE.md", "EXPANDED_PLAY_GUIDE.md", "TRUEGAZE_LORE_AND_STORY.md", "REALTIME_PERSUASION_AND_TRANSACTIONS_GDD.md", "GAMEPLAY_DESIGN_DOCUMENT.md", "IMPLEMENTATION_PLAN_EXPANDED_PLAY_G0_G3.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD.md", "CONFIGURATION_AUDIT.md", "INCOMING_GAZE_PANEL_DESIGN.md", "STATUS.md", "TEST_SCENARIO.md")) {
+    $docPath = Join-Path $projectRoot ("docs\" + $doc)
+    if (Test-Path -LiteralPath $docPath) {
+        Copy-Item -LiteralPath $docPath -Destination $docsDir -Force
+    }
+}
+$loreImgSrc = Join-Path $projectRoot "docs\images\lore"
+if (Test-Path $loreImgSrc) {
+    $loreImgDst = Join-Path $docsDir "images\lore"
+    New-Item -ItemType Directory -Path $loreImgDst -Force | Out-Null
+    Copy-Item (Join-Path $loreImgSrc "*") $loreImgDst -Force
+}
+foreach ($img in @("truegaze_hero_v200.png", "expanded_play_architecture_and_switches.png", "expanded_play_hud_and_regions.png", "expanded_play_moth_stillness_and_mechanics.png", "promo_plate_01_realtime_oblivion_persuasion.png", "promo_plate_02_two_layer_feature_poster.png")) {
+    $imgPath = Join-Path $projectRoot ("docs\images\" + $img)
+    if (Test-Path -LiteralPath $imgPath) {
+        $imgDst = Join-Path $docsDir "images"
+        New-Item -ItemType Directory -Path $imgDst -Force | Out-Null
+        Copy-Item -LiteralPath $imgPath -Destination $imgDst -Force
+    }
 }
 
 # Stage GPL-3.0 license, third-party notices/exceptions, and source offer in skyrim/

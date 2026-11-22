@@ -28,6 +28,10 @@ $incomingUi = Join-Path $root "skyrim\Interface\TrueGazeIncoming.swf"
 if (-not (Test-Path $incomingUi)) {
     throw "Incoming UI missing at $incomingUi. Build the current Release target first."
 }
+$reticleUi = Join-Path $root "skyrim\Interface\TrueGazeReticle.swf"
+if (-not (Test-Path $reticleUi)) {
+    throw "Reticle UI missing at $reticleUi. Build the current Release target first."
+}
 
 # Clean up old artefacts
 if (Test-Path $stageDir) { Remove-Item $stageDir -Recurse -Force }
@@ -40,6 +44,7 @@ Copy-Item $relDll $pluginDir
 Copy-Item (Join-Path $root "skyrim\SKSE\Plugins\TrueGaze.ini") $pluginDir
 New-Item -ItemType Directory (Join-Path $stageDir "Interface") -Force | Out-Null
 Copy-Item $incomingUi (Join-Path $stageDir "Interface")
+Copy-Item $reticleUi (Join-Path $stageDir "Interface")
 foreach ($assetDirectory in @("meshes\TrueGaze", "textures\TrueGaze")) {
     $target = Join-Path $stageDir $assetDirectory
     New-Item -ItemType Directory $target -Force | Out-Null
@@ -48,6 +53,10 @@ foreach ($assetDirectory in @("meshes\TrueGaze", "textures\TrueGaze")) {
 $markerArrow = Join-Path $root "skyrim\meshes\marker_arrow.nif"
 if (Test-Path $markerArrow) {
     Copy-Item $markerArrow (Join-Path $stageDir "meshes\marker_arrow.nif") -Force
+}
+$expandedEsl = Join-Path $root "skyrim\TrueGaze_ExpandedPlay.esp"
+if (Test-Path $expandedEsl) {
+    Copy-Item $expandedEsl (Join-Path $stageDir "TrueGaze_ExpandedPlay.esp") -Force
 }
 
 # --- Configurator -------------------------------------------------------
@@ -60,8 +69,25 @@ Copy-Item (Join-Path $root "scripts\Launch-TrueGazeConfig.ps1")      $toolsDir -
 Copy-Item (Join-Path $root "scripts\TrueGazeBridgeServer.ps1")       $toolsDir -Force
 $docsDir = Join-Path $stageDir "docs"
 New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
-foreach ($doc in @("USER_GUIDE.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD.md", "CONFIGURATION_AUDIT.md", "INCOMING_GAZE_PANEL_DESIGN.md", "STATUS.md", "TEST_SCENARIO.md")) {
-    Copy-Item -LiteralPath (Join-Path $root ("docs\" + $doc)) -Destination $docsDir
+foreach ($doc in @("USER_GUIDE.md", "EXPANDED_PLAY_GUIDE.md", "TRUEGAZE_LORE_AND_STORY.md", "REALTIME_PERSUASION_AND_TRANSACTIONS_GDD.md", "GAMEPLAY_DESIGN_DOCUMENT.md", "IMPLEMENTATION_PLAN_EXPANDED_PLAY_G0_G3.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD.md", "CONFIGURATION_AUDIT.md", "INCOMING_GAZE_PANEL_DESIGN.md", "STATUS.md", "TEST_SCENARIO.md")) {
+    $docPath = Join-Path $root ("docs\" + $doc)
+    if (Test-Path -LiteralPath $docPath) {
+        Copy-Item -LiteralPath $docPath -Destination $docsDir
+    }
+}
+$loreImgSrc = Join-Path $root "docs\images\lore"
+if (Test-Path $loreImgSrc) {
+    $loreImgDst = Join-Path $docsDir "images\lore"
+    New-Item -ItemType Directory -Path $loreImgDst -Force | Out-Null
+    Copy-Item (Join-Path $loreImgSrc "*") $loreImgDst -Force
+}
+foreach ($img in @("truegaze_hero_v200.png", "expanded_play_architecture_and_switches.png", "expanded_play_hud_and_regions.png", "expanded_play_moth_stillness_and_mechanics.png", "promo_plate_01_realtime_oblivion_persuasion.png", "promo_plate_02_two_layer_feature_poster.png")) {
+    $imgPath = Join-Path $root ("docs\images\" + $img)
+    if (Test-Path -LiteralPath $imgPath) {
+        $imgDst = Join-Path $docsDir "images"
+        New-Item -ItemType Directory -Path $imgDst -Force | Out-Null
+        Copy-Item -LiteralPath $imgPath -Destination $imgDst -Force
+    }
 }
 
 # --- OAR animation conditions (no hand-crafted NIFs) --------------------

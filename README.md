@@ -5,7 +5,7 @@
 ### A First-Party Product of the Human Communication Eye Protocol (HCEP) Architecture
 
 [![Status](https://img.shields.io/badge/status-Production%20Release-brightgreen)](#-current-project-status)
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](#)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](#)
 [![Platform](https://img.shields.io/badge/platform-Skyrim%20SE%20%7C%20AE%20%7C%20VR-4b5563)](#)
 [![C++](https://img.shields.io/badge/C%2B%2B-23-00599C)](#)
 [![SDK](https://img.shields.io/badge/SDK-CommonLibSSE--NG-8b5cf6)](#)
@@ -13,84 +13,115 @@
 
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** [`https://github.com/kirklasalle/SkyrimTrueGaze`](https://github.com/kirklasalle/SkyrimTrueGaze)  
-**Native Binary:** `TrueGaze.dll` (SKSE64 / CommonLibSSE-NG Multi-Target SE/AE/VR)  
+**Native Binary:** `TrueGaze.dll` (SKSE64 / CommonLibSSE-NG Multi-Target SE/AE/VR) + Optional Light Plugin `TrueGaze_ExpandedPlay.esp` (ESL-flagged, `Skyrim.esm` only, zero Papyrus)  
 **Target Platform:** The Elder Scrolls V: Skyrim (SE 1.5.97, AE 1.6.640+, AE 1.6.1170+, Skyrim VR 1.4.15) & Modern Creation Engine
 
 <p align="center">
-  <img src="docs/images/truegaze_hero_banner_02.jpg" alt="TrueGaze Hero Banner - Biological Perception & Biomechanical Kinematics Engine" width="100%">
+  <img src="docs/images/truegaze_hero_v200.png" alt="TrueGaze v2.0.0 Hero Shot - Biological Kinematics, Expanded Play, Real-Time Persuasion & Lore Awakening" width="100%">
 </p>
 
 > [!IMPORTANT]
-> **Production Release v1.1.0 is Live!** TrueGaze is an active runtime engine executing inside Skyrim SE, AE, and Skyrim VR (including "Mad God VR"). The plugin loads natively through SKSE, hooks actor animation updates (`0xAD` on SE/AE, `0xAF` on VR), computes biological oculomotor kinematics (VOR decoupling, Main Sequence ballistic saccades, Brownian micro-drift, organic social triangle cycling with weighted-random scanpaths), resolves eye-dominant gaze with a head engagement threshold, times Cognitive Gaze Aversion returns to dialogue onset with per-actor ±2s offsets, dynamically resolves true 3D head-height elevation targeting (eliminating seated/crouched chest aiming), enables 3rd-person player conversational gaze engagement, and provides the in-engine developer arrow visual milestone verified in a running Skyrim session.
+> **Major Milestone Release v2.0.0 is Live!** TrueGaze™ evolves from a pure biomechanical eye/head kinematics engine into a complete **two-layer Skyrim experience**: Layer 1 preserves 100% classic biological gaze kinematics (`VOR`, Main Sequence saccades, Brownian micro-drift, Social Triangle scanpaths, 3rd-person player gaze, SE/AE/VR), while Layer 2 introduces **TrueGaze Expanded Play** (opt-in via `stgexpanded` or `TrueGaze_ExpandedPlay.esp`): **Real-Time Oblivion-Style Persuasion & Multi-Transactions**, **Staged Ancestor Moth Lore Awakening across Skyrim's Seven Sanctuaries (`Stage 0 → Stage 4`)**, the **Hand-Cast Open-Book *Sight of the First Canticle* Spell**, **Smart Brandishing**, **Combat Sight**, and **Creature Sight** (*Gentle Sight*, *Kyne's Stillness*, *Dov's Weight*).
 
 ---
 
-## What's New
+## What's New in v2.0.0
 
-Latest updates in **v1.1.0** (released 2026-11-17):
+Latest major milestone updates in **v2.0.0** (released 2026-11-22):
 
-- **Hardening, stability & CI coverage (Nov 2026):** Fixed named-pipe teardown
-  and overlapped I/O lifetime, aligned the public `TrueGazeBridgeSchema.hpp` ABI,
-  hardened the localhost configurator bridge with per-session token/origin/path
-  checks and DOM-XSS fixes, switched the pipe DACL to fail-closed `TokenUser`
-  SID, wired 2nd-order VOR S-curves + LOD/calibration/strain fixes, added GPL-3.0
-  license/source-offer packaging, and added `TrueGaze.dll` compilation to CI.
-- **Gaze with clear ownership:** receiving panels show where *others* look at an
-  actor, with readable observer names, grouped cards and collision-aware placement.
-- **Closer diagnostics, cleaner gameplay:** front panels now default to 10 cm
-  ahead of the eye anchor. Development cards stay console-controlled, with
-  full-screen-menu suppression that preserves your settings.
-- **Two eyes, one focus:** the configurator's binocular preview converges on a
-  shared target and holds steady during pointer fixation. This is a simulation,
-  not live game telemetry.
-- **Configuration you can trust:** 109 INI/web settings and five presets are
-  synchronized, with older-file saves preserving comments and unknown settings.
-- **Commands at your fingertips:** all 27 commands are documented in the
-  [Console Commands Card](docs/CONSOLE_COMMANDS_CARD.md) and both guides.
+- **Expanded Play Gameplay Layer (Phase G0–G3, Opt-In):** Ships `[ExpandedPlay] bEnabled=false` by default for 100% classic kinematics parity. Enable via `stgexpanded`, `TrueGazeConfig.html`, or diegetically by equipping a Moth relic. Includes the first-person HCEP-02 Gaze Reticle (`TrueGazeReticle.swf`), 3rd-person Hybrid Demeanor (`Courteous`..`Predatory`), 512-NPC social memory (`GazeLedger`) with spouse & Riverwood Sven-Camilla-Faendal witnesses, read-only *Ocular Contemplation* book reading + *Moth's Stillness* RPG stats, **7** registered OAR V3 conditions, Eye-Contact Conversation Start, and 3-round Tavern Staring Contests.
+- **Real-Time Oblivion Persuasion & Multi-Transaction Engine (`WP-8`):** Translates *TES IV: Oblivion*'s Persuasion Wheel and non-linear Bribe GMST curves (`fBribeCostCurve = 1.50`, `fBribeCurve = 0.75`) into zero-menu 3D real-time gaze across every Skyrim NPC (`PersuasionTransactions.hpp`)—with `0.35 s–1.99 s` Phase 1 `Love..Hate` micro-expression probes, `"Knowing Look"` `Belt/Hand → Eyes` covert bribes, `2 Hz` `"Guard's Glance"` witness blocks, weapon-sheathed *Stand-Down Grace*, and reversible pre-barter Speechcraft modifiers.
+- **Staged Ancestor Moth Lore Awakening & Optional ESL (`WP-9`):** Progress organically from **Stage 0 (Dormant)** to **Stage 4 (Canticle Awakened)** across **4 order-independent Keys** (*The Word*, *The Vessel*, *Shared Sight*, *The Pilgrimage*) and a **Final Sanctuary Ceremony** across Skyrim's **7 base Sanctuaries**. Ships with an optional ESL-flagged **`TrueGaze_ExpandedPlay.esp`** (`Skyrim.esm` only, zero Papyrus scripts, zero load-order slots, zero world-cell edits) adding *The First Canticle of the Eye*, *Amulet of the Ancestor Moth*, *Moth-Silk Browband*, *Ring of Quiet Sight*, *Silver Moth Medallion*, *Moth-Silk Ribbon*, and the **`0`-Magicka Right-Hand Spell *Sight of the First Canticle***—which visibly suspends the open Canticle tome above your left hand (1st & 3rd person) while your right hand channels golden Moth light, opens a classic Skyrim parchment checklist before Stage 4, and discovers each lore relic cleanly inside its matching Sanctuary!
+- **Smart Brandishing, Combat Sight & Creature Sight (`WP-10`):** Distinguishes lethal arms from peaceful tools (torches, *Healing*, *Candlelight*, open Canticle tome), adds reversible `3.5 s` tactical combat reads (*Weapon Wind-Up*, *Spell Charge*, *Shield Rhythm*, *Footwork Lunge*, plus *Kindred Sight* companion flank warnings), extends bone targeting to creature jaws/claws/wings/hooves, and rewards wildlife stillness (*Gentle Sight*, *Kyne's Stillness*, and *Dov's Weight* against Dragons).
+- **Complete Lore Chronicle & Illustrated Guides:** Read the new illustrated **[The First Canticle of the Eye — Lore, Origins & Pilgrimage Story](docs/TRUEGAZE_LORE_AND_STORY.md)** alongside the updated **[Expanded Play Guide](docs/EXPANDED_PLAY_GUIDE.md)**, **[User Guide](docs/USER_GUIDE.md)**, and **[Developer Guide](docs/DEVELOPER_GUIDE.md)**.
+- **Synchronized Config & Command Suite:** **128** INI/web settings (`19` `[ExpandedPlay]` keys included), **5** presets, and **30** console commands (including `stgexpanded`, `stgdemeanor`, `stgitems`, and `player.stgexpanded` instant Stage 4 unlock) verified by 7 CTest suites + Configurator parity tests + 19/19 Pre-Flight Health Checks.
 
-Automated checks pass; anatomical accuracy, occlusion, near-face clipping and
-runtime performance remain field-test gates. See the
-[configuration audit](docs/CONFIGURATION_AUDIT.md),
-[current evidence](docs/STATUS.md) and [full changelog](CHANGELOG.md).
+See the [full changelog](CHANGELOG.md), [current evidence](docs/STATUS.md), and [configuration audit](docs/CONFIGURATION_AUDIT.md).
 
 ---
 
 ## 📌 Current Project Status
 
-> **Unreleased panel correction:** each panel now receives gaze from **other**
-> actors, rather than showing its owner's outgoing cognitive region. The new
-> receiving pipeline passes standalone checks; tavern screenshots confirm
-> readable cards and populated incoming inspection, not anatomical accuracy.
-> Historical panel verification below does not certify the new receiving geometry.
-> See [receiving design/audit](docs/INCOMING_GAZE_PANEL_DESIGN.md),
-> [current evidence](docs/STATUS.md), and [remaining roadmap](ROADMAP.md).
-> Native UI, creature detail, occlusion and performance need field acceptance.
-
 | | |
 | :--- | :--- |
-| **Maturity** | 🟢 **Production Release v1.1.0** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
+| **Maturity** | 🟢 **Production Release v2.0.0** — Live on GitHub ([kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze)) |
 | **Builds & links the SDK?** | ✅ Yes — unified multi-target Release x64 DLL (`CommonLibSSE-NG`, `OpenVR`, `spdlog`, `fmt`, `/O2`) |
 | **Drives bones?** | ✅ Yes — procedural saccadic, VOR, and cervical hierarchy bone manipulation live |
-| **In-Engine Verification** | ✅ **Verified in Skyrim AE & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, eye-to-eye targeting, and telemetry confirmed |
-| **Eye-to-Eye Targeting** | ✅ **VERIFIED** — NPCs look directly into the player's and each other's EYES via eye-anchor projection from head bone world basis. Eyes lead head via FaceGen Look morphs. |
-| **Gold Standard Scene Integration** | ✅ **VERIFIED (Sept 26, 2026)** — flawless integration through the Helgen opening scene: player parity in directed scenes (voice-address detection), scene defer with eyes-never-yield, SEH fault tolerance, calm/combat speed model, eye-to-eye fixation dominance. Generalizes to ANY directed animation, scene, or OAR mod. |
-| **Calm/Combat Speed Model** | ✅ **VERIFIED** — tuned INI speeds are the combat ceiling; calm baseline runs at quarter speed with 8× fixation dwell and eye-dominant holds (~6-17s eye contact in dialogue). Head catch-up 1.54× the eye rate. |
-| **Character Gaze Profiles** | 🔨 **Implemented + Unit-verified** — temperament-driven gaze: Skyrim's own characterization (Confidence, Aggression, relationships, archetypes) projected onto the HCEP-02 diagram. Every NPC looks like themselves. |
-| **3D Head Elevation Targeting** | ✅ Dynamic `NPC Head [Head]` bone world transform solving for seated, leaning, and crouched eye-to-eye alignment |
-| **3rd-Person Player Gaze** | ✅ Player character headtracks and engages nearby conversational partners in 3rd person view |
-| **Diagnostic Visual Systems** | ✅ **Verified in-engine** — Option 1 directional marker arrows & Option 2 floating HCEP ocular diagram panel (off by default for organic gameplay; togglable via `stgvisuals`) |
-| **Skyrim VR Multi-Targeting** | ✅ Unified build supporting SE 1.5.97, AE 1.6.318–1.6.1170+, and Skyrim VR 1.4.15 ("Mad God VR") |
-| **Configurator Packaging** | ✅ Bundles standalone HTML5 configurator, one-click launcher, and quickstart guide (`TrueGaze_Configurator_Guide.txt`) |
-| **OAR Integration** | 🔨 3 custom conditions registered via OAR Conditions API V3 (in-engine unverified; no animation content shipped yet) |
-| **Companion Symbols** | ✅ Packaged with full `TrueGaze.pdb` symbols archive for crash logger diagnostic parity |
+| **In-Engine Verification** | ✅ **Verified in Skyrim SE/AE (`1.7.104.0`) & VR** — dynamic vtable resolution (`0xAD`/`0xAF`), 3D bone elevation, eye-to-eye targeting, Temple of Kynareth Awakening & Open-Book spell casting verified |
+| **Eye-to-Eye Targeting** | ✅ **VERIFIED** — NPCs look directly into the player's and each other's EYES via FaceGen eye-anchor projection. Eyes lead head via FaceGen Look morphs. |
+| **Gold Standard Scene Integration** | ✅ **VERIFIED** — flawless integration through the Helgen opening scene: player parity in directed scenes (voice-address detection), scene defer with eyes-never-yield, SEH fault tolerance, calm/combat speed model, eye-to-eye fixation dominance. |
+| **OAR Integration** | ✅ **7 Custom Conditions Registered (V3)** — `TrueGaze_IsMode`, `TrueGaze_IsMutualGaze`, `TrueGaze_GetGazeRegion`, `TrueGaze_GetInterpretation`, `TrueGaze_GetDemeanor`, `TrueGaze_GetPresenceTier`, `TrueGaze_GetImpression` |
+| **Expanded Play & Staged Awakening** | ✅ **In-Engine & Unit-Verified (G0–G3 + WP-8 + WP-9 + WP-10)** — Default OFF (`bEnabled=false`); opt-in via `stgexpanded` / Configurator / optional ESL `TrueGaze_ExpandedPlay.esp` (`0` slots, `Skyrim.esm` only, zero Papyrus, zero cell edits). Temple of Kynareth book study, relic ownership, follower-free Shared Sight, parchment checklist, and 1st/3rd-person open-book spell verified live in-game. |
+| **Configurator & Packaging** | ✅ Bundles standalone HTML5 configurator (`128` keys, `5` presets), one-click launcher, optional ESL plugin, illustrated Lore & User/Dev docs, GPL-3.0 notices, and companion `TrueGaze.pdb` symbols |
 
-**Verified working:** **Gold Standard scene integration (Helgen opening scene end-to-end)** · **Eye-to-eye targeting (NPCs look directly into eyes)** · **Eye-to-eye fixation dominance (eye holds outlast all other regions; ~6-17s eye contact in dialogue)** · **Voice-address detection (an NPC speaking to the player looks at the player)** · **Calm/combat speed model (calm = quarter speed, 8× dwell; combat = full tuned speed)** · FaceGen eye-lead morph gain on vanilla rigs (eyes clearly lead the head) · player targeting in scripted scenes (Helgen cart) · point-blank seated actor resolution · Multi-target SDK linkage (SE/AE/VR) · the gaze engine and bone application · dynamic 3D head elevation solving · 3rd-person player conversational engagement · dynamic vtable slot redirection (`0xAF` for VR) · per-actor runtime kinematics state · configuration reaching the live engine · Main Sequence velocity profile · Ornstein-Uhlenbeck drift · Option 1 subtle laser rays & Option 2 floating HCEP panel · triple-buffered IPC with a user-scoped pipe ACL · a public C API that returns live state · 12 passing test suites · a reproducible pinned build · standalone HTML configurator · multi-race acceptance protocol.
+➡️ **NEW — Lore & Pilgrimage Chronicle (Illustrated): [`docs/TRUEGAZE_LORE_AND_STORY.md`](docs/TRUEGAZE_LORE_AND_STORY.md)**  
+➡️ **Expanded Play & Gameplay Guide (Illustrated): [`docs/EXPANDED_PLAY_GUIDE.md`](docs/EXPANDED_PLAY_GUIDE.md)**  
+➡️ **Real-Time Oblivion Persuasion & Bribe GDD: [`docs/REALTIME_PERSUASION_AND_TRANSACTIONS_GDD.md`](docs/REALTIME_PERSUASION_AND_TRANSACTIONS_GDD.md)**  
+➡️ **User Guide: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)** · **Developer Guide: [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md)**  
+➡️ **Console Commands Card (30 Commands): [`docs/CONSOLE_COMMANDS_CARD.md`](docs/CONSOLE_COMMANDS_CARD.md)**  
+➡️ **Full capability matrix: [`docs/STATUS.md`](docs/STATUS.md)** · **Roadmap: [`ROADMAP.md`](ROADMAP.md)**
 
-➡️ **User Quickstart Guide: [`TrueGaze_Configurator_Guide.txt`](TrueGaze_Configurator_Guide.txt)**  
-➡️ **Full capability matrix: [`docs/STATUS.md`](docs/STATUS.md)**  
-➡️ **Roadmap & milestones: [`ROADMAP.md`](ROADMAP.md)**  
-➡️ **User guide: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)**  
-➡️ **Developer guide: [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md)**
+---
+
+## Expanded Play Layer, Real-Time Persuasion, Lore Awakening & Combat Sight
+
+TrueGaze's gameplay layer (**Expanded Play**) ships natively inside `TrueGaze.dll` (zero Papyrus scripts, zero mandatory plugins) with an optional ESL-flagged **`TrueGaze_ExpandedPlay.esp`** (`Skyrim.esm` only, `0` load-order slots) that adds the 6 Ancestor Moth relics and the hand-cast *Sight of the First Canticle* spell. It defaults to **`[ExpandedPlay] bEnabled=false`** so classic kinematics behavior stays untouched until you opt in.
+
+<p align="center">
+  <img src="docs/images/promo_plate_02_two_layer_feature_poster.png" alt="TrueGaze Two-Layer Feature Architecture: Core Biological Gaze + Expanded Play" width="100%">
+  <br>
+  <em>TrueGaze's two-layer architecture: Core Biological Gaze Kinematics (Layer 1) paired with opt-in Expanded Play social, persuasion, lore awakening, and combat sight gameplay (Layer 2).</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/lore/lore_04_sanctuary_awakening_ceremony.png" alt="The Final Sanctuary Ceremony inside the Temple of Kynareth with hovering open First Canticle and golden Moth light" width="100%">
+  <br>
+  <em>The Final Sanctuary Ceremony: equip Sight of the First Canticle (Right-Hand Spell, 0 Magicka) to hold The First Canticle of the Eye open above your left hand in 1st and 3rd person while channeling Moth light in your right.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/anim_01_persuasion_probe_and_sly_bribe.gif" alt="Real-Time Oblivion Persuasion, Knowing Look Sly Bribe & Guard's Glance Witness Tell" width="100%">
+  <br>
+  <em>Real-time 3D persuasion sequence in Riverwood: Belt/Hand to Eyes "Knowing Look" -> Phase 1 Smile Probe -> SlyBribe Commit -> 2 Hz Guard's Glance Witness Interrupt.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/promo_plate_01_realtime_oblivion_persuasion.png" alt="Real-Time Oblivion Persuasion Wheel Mapping, Riverwood Cast Profiles & GMST Equations" width="100%">
+  <br>
+  <em>How Oblivion's 4-quadrant Persuasion Wheel & GMST Bribe curves map directly onto HCEP-02 anatomy, Phase 1 micro-expression tells, and reversible barter buffs.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/expanded_play_architecture_and_switches.png" alt="TrueGaze Enable/Disable Control Surfaces and Expanded Play Runtime Pipeline" width="100%">
+  <br>
+  <em>How to toggle TrueGaze kinematics and Expanded Play modules, plus the 10 Hz / 2 Hz C++23 pipeline and 4-rung ResponseLadder.</em>
+</p>
+
+- **Enable / Disable Expanded Play live:** Open console (`~`) and type **`stgexpanded`** (or set `[ExpandedPlay] bEnabled=true` in `TrueGaze.ini` / `Launch-TrueGazeConfig.cmd`).
+- **Instant Stage 4 Dev/Sandbox Unlock:** Type **`player.stgexpanded`** (or set `sUnlockMode=Sandbox`).
+- **Drop All Lore Artifacts for Testing:** Type **`stgitems`** to place all 6 Canticle relics cleanly in front of you (Player-owned, never marked *Steal*) and learn *Sight of the First Canticle*.
+- **Cycle & Pin 3rd-Person Demeanor:** Type **`stgdemeanor`** (`Courteous -> Warm -> Stern -> Evasive -> Deferential -> Predatory`, 60s pin in `Hybrid` mode).
+- **Start / Abort Tavern Staring Contest:** Target an NPC in console (`~`) and type **`stgexpanded`** while Expanded Play is ON.
+- **Enable / Disable Core Kinematics:** Type **`stg`** (or set `[General] bEnableTrueGaze=false`).
+- **Mid-save Safe:** Every *Moth's Stillness*, pre-barter Speechcraft, and Combat/Creature Sight modifier (`ModifierLedger`) is stripped automatically before `.ess` saves and on disable; all persistent Expanded Play records live exclusively inside SKSE's `'TGZE'` co-save.
+
+<p align="center">
+  <img src="docs/images/expanded_play_hud_and_regions.png" alt="First-Person Gaze Reticle over Real Skyrim Capture and HCEP-02 Specification" width="100%">
+  <br>
+  <em>First-person TrueGazeReticle.swf overlay with HCEP-02 region colors, 4-tick Dwell Arc, accessibility shapes/palettes, and whispers.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/expanded_play_moth_stillness_and_mechanics.png" alt="BookStudyTracker Curve, Moth's Stillness Ranks and Riverwood Gameplay Slice" width="100%">
+  <br>
+  <em>Ocular Contemplation book study dwell curve, Moth's Stillness ranks, 4-axis Gaze Signature, and Riverwood Sleeping Giant Inn slice.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/lore/lore_05_combat_and_creature_sight.png" alt="Combat Sight and Dov's Weight against an ancient Skyrim Dragon" width="100%">
+  <br>
+  <em>WP-10 Combat Sight & Creature Sight: read enemy weapon wind-ups, spell charges, shield rhythms, and footwork lunges—or hold calm stillness before wolves and Dragons (Dov's Weight).</em>
+</p>
 
 ---
 

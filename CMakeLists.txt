@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.23)
 
 project(
     TrueGaze
-    VERSION 1.1.0
-    DESCRIPTION "True Gaze - Biological NPC Gaze & Kinematics Engine for Skyrim SE/AE/VR (An HCEP Product)"
+    VERSION 2.0.0
+    DESCRIPTION "True Gaze - Biological NPC Gaze, Biomechanical Kinematics & Expanded Play Engine for Skyrim SE/AE/VR (An HCEP Product)"
     LANGUAGES CXX
 )
 
@@ -99,6 +99,13 @@ if(TRUEGAZE_BUILD_TESTS)
     set_target_properties(IncomingGazeTests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
     add_test(NAME IncomingGazeTests COMMAND IncomingGazeTests)
+
+    add_executable(ExpandedPlayTests "${CMAKE_CURRENT_SOURCE_DIR}/tests/ExpandedPlayTests.cpp")
+    target_link_libraries(ExpandedPlayTests PRIVATE TrueGazeKinematics)
+    truegaze_force_asserts(ExpandedPlayTests)
+    set_target_properties(ExpandedPlayTests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+    add_test(NAME ExpandedPlayTests COMMAND ExpandedPlayTests)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -222,6 +229,13 @@ set(TRUEGAZE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/TraceLogger.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/TrueGazeAPI.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/VrController.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/AwakeningRitual.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/BookStudyTracker.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/CoSaveSerializer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/ExpandedPlayManager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/ExpandedPlayModifiers.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/GazeReticle.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/ResponseLadder.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/ConsoleCommands.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/EfmBlinkController.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/OarConditions.cpp"
@@ -244,15 +258,21 @@ add_library(${PROJECT_NAME} SHARED ${TRUEGAZE_SOURCES})
 
 set(INCOMING_UI "${CMAKE_CURRENT_BINARY_DIR}/assets/Interface/TrueGazeIncoming.swf")
 set(PACKAGED_INCOMING_UI "${CMAKE_CURRENT_SOURCE_DIR}/skyrim/Interface/TrueGazeIncoming.swf")
-add_custom_command(OUTPUT "${INCOMING_UI}" "${PACKAGED_INCOMING_UI}"
+set(RETICLE_UI "${CMAKE_CURRENT_BINARY_DIR}/assets/Interface/TrueGazeReticle.swf")
+set(PACKAGED_RETICLE_UI "${CMAKE_CURRENT_SOURCE_DIR}/skyrim/Interface/TrueGazeReticle.swf")
+add_custom_command(OUTPUT "${INCOMING_UI}" "${PACKAGED_INCOMING_UI}" "${RETICLE_UI}" "${PACKAGED_RETICLE_UI}"
     COMMAND powershell -NoProfile -ExecutionPolicy Bypass
         -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Build-IncomingUi.ps1"
         -OutputPath "${INCOMING_UI}"
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+        -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Build-IncomingUi.ps1"
+        -OutputPath "${RETICLE_UI}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/skyrim/Interface"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INCOMING_UI}" "${PACKAGED_INCOMING_UI}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RETICLE_UI}" "${PACKAGED_RETICLE_UI}"
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Build-IncomingUi.ps1"
     VERBATIM)
-add_custom_target(TrueGazeIncomingUi DEPENDS "${INCOMING_UI}" "${PACKAGED_INCOMING_UI}")
+add_custom_target(TrueGazeIncomingUi DEPENDS "${INCOMING_UI}" "${PACKAGED_INCOMING_UI}" "${RETICLE_UI}" "${PACKAGED_RETICLE_UI}")
 add_dependencies(${PROJECT_NAME} TrueGazeIncomingUi)
 
 # AUDIT 2026-10-15 F-07 — single-source the version. project(VERSION) above is

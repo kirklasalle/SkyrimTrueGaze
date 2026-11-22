@@ -114,10 +114,20 @@ namespace TrueGaze::Engine
         /// Retrieve the true 3D world position of an actor's EYES (eye anchor projected
         /// from the head bone transform when available). "The eyes are the target."
         /// Dynamically tracks seated postures, counter-leaning idles, crouching, and race scales.
+        /// For the player in 1st person, returns the active 1st-person camera position directly
+        /// so NPCs and creatures make true eye contact into the player's camera lens.
         RE::NiPoint3 GetActorHeadPosition(RE::Actor* actor) noexcept
         {
             if (!actor)
                 return RE::NiPoint3{0.0f, 0.0f, 0.0f};
+            if (TrueGaze::Anchors::IsFirstPersonPlayer(actor))
+            {
+                RE::NiPoint3 camPos{};
+                if (TrueGaze::Anchors::ResolveFirstPersonCameraPoint(camPos))
+                {
+                    return camPos;
+                }
+            }
             if (auto* root = actor->Get3D())
             {
                 static const char* kHeadCandidates[] = {"NPC Head [Head]", "Head", "Head1",
@@ -191,9 +201,19 @@ namespace TrueGaze::Engine
                         }
                     }
 
-                    if (isSeated || diff > 0.5236f)
+                    if (isSeated)
                     {
                         return spineHeading;
+                    }
+                    // Smooth Hermite blend between 20 deg and 50 deg instead of a hard 30 deg
+                    // cliff so idle torso twists (eating, drinking, sweeping) never flip heading.
+                    constexpr float kLowRad = 0.3491f;  // 20 deg
+                    constexpr float kHighRad = 0.8727f; // 50 deg
+                    if (diff > kLowRad)
+                    {
+                        const float t = std::clamp((diff - kLowRad) / (kHighRad - kLowRad), 0.0f, 1.0f);
+                        const float blend = t * t * (3.0f - 2.0f * t);
+                        return WrapPi(rootYaw + WrapPi(spineHeading - rootYaw) * blend);
                     }
                 }
             }
@@ -232,8 +252,8 @@ namespace TrueGaze::Engine
             return rootYaw;
         }
 
-        /// Retrieve the 3D world position of an actor's weapon or shield/hand.
-        /// Used for tactical combat action glances (strikes, parries, blocks).
+        /// Retrieve the 3D world position of an actor's weapon, shield, hand, or creature strike limb.
+        /// Used for tactical combat action glances (strikes, parries, blocks, jaws/claws).
         RE::NiPoint3 GetActorWeaponOrHandPosition(RE::Actor* actor, bool preferShield) noexcept
         {
             if (!actor)
@@ -245,7 +265,10 @@ namespace TrueGaze::Engine
                 {
                     static const char* kShieldCandidates[] = {
                         "SHIELD", "Shield", "NPC L Hand [LHnd]", "NPC L Forearm [LLar]",
-                        "NPC L Hand", "LeftHand"
+                        "NPC L Hand", "LeftHand",
+                        // Creature off-side limbs / wings / claws
+                        "NPC L Claw", "NPC L FrontPaw", "NPC L Wing", "Troll_LHand",
+                        "Giant_LHand", "NPC L Foreleg"
                     };
                     for (const auto* name : kShieldCandidates)
                     {
@@ -259,7 +282,11 @@ namespace TrueGaze::Engine
                 {
                     static const char* kWeaponCandidates[] = {
                         "WEAPON", "Weapon", "NPC R Hand [RHnd]", "NPC R Forearm [RLar]",
-                        "NPC R Hand", "RightHand"
+                        "NPC R Hand", "RightHand",
+                        // Creature primary strike limbs / jaws / claws
+                        "NPC Jaw", "Jaw", "Dragon_Jaw", "Canine_Jaw", "Sabrecat_Jaw", "Bear_Jaw",
+                        "NPC R Claw", "NPC R FrontPaw", "NPC R Wing", "Troll_RHand",
+                        "Giant_RHand", "NPC R Foreleg"
                     };
                     for (const auto* name : kWeaponCandidates)
                     {
@@ -280,7 +307,7 @@ namespace TrueGaze::Engine
             return RE::NiPoint3{pos.x, pos.y, pos.z + kEyeHeightOffsetUnits * 0.60f};
         }
 
-        /// Retrieve the 3D world position of an actor's feet / footwork.
+        /// Retrieve the 3D world position of an actor's feet / paws / hooves / footwork.
         /// Used for combat movement glances.
         RE::NiPoint3 GetActorFeetPosition(RE::Actor* actor) noexcept
         {
@@ -291,7 +318,10 @@ namespace TrueGaze::Engine
             {
                 static const char* kFeetCandidates[] = {
                     "NPC L Foot [Lft ]", "NPC R Foot [Rft ]", "NPC L Foot [Lft]", "NPC R Foot [Rft]",
-                    "NPC L Calf [LClf]", "NPC R Calf [RClf]"
+                    "NPC L Calf [LClf]", "NPC R Calf [RClf]",
+                    // Creature paws, claws, hooves, and dragon feet
+                    "NPC L FrontFoot", "NPC R FrontFoot", "NPC L RearFoot", "NPC R RearFoot",
+                    "NPC L Toe", "NPC R Toe", "Horse_LFrontHoof", "Dragon_LFoot"
                 };
                 for (const auto* name : kFeetCandidates)
                 {

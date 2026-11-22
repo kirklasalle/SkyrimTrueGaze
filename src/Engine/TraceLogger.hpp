@@ -129,6 +129,24 @@ namespace TrueGaze::Engine
 
         void LogIncomingHit(const Visuals::Incoming::Hit& hit) noexcept;
 
+        /// @brief 3.9 EXPANDED_PLAY — Emitted on Expanded Play state transitions
+        /// (focus/region change, dwell band crossing, persuasion probe/commit, expression
+        /// ramp/reset, witness trigger, greeting, staring contest, demeanor, book study, reticle).
+        void LogExpandedPlayEvent(float ts, const char* action, uint32_t actorId,
+                                  const char* actorName, uint8_t regionId, float dwellSec,
+                                  const char* detail) noexcept;
+
+        /// @brief 3.10 VISUAL_EYE_SYNC — Emitted to compare TrueGaze's solved eye angles,
+        /// Skyrim FaceGen's live rendered pupil morphs/heading, final visual arrow angles,
+        /// and smoothed head-chain correction for visual alignment and head-jitter diagnostics.
+        void LogVisualEyeSync(float ts, uint32_t actorId, uint32_t targetId, uint8_t priority,
+                              float solvedEyeYaw, float solvedEyePitch,
+                              float fgHeadingDeg, float fgPitchDeg,
+                              float fgMod3L, float fgMod3R, float fgMod3U, float fgMod3D,
+                              float arrowYaw, float arrowPitch,
+                              float rawHeadCorrYaw, float smoothHeadCorrYaw,
+                              float refHeadingDeg, bool isSeated) noexcept;
+
     private:
         TraceLogger();
         ~TraceLogger();

@@ -2,6 +2,7 @@
 #include "ApiTelemetryCache.hpp"
 #include "BoneController.hpp"
 #include "ConfigManager.hpp"
+#include "ExpandedPlay/ExpandedPlayManager.hpp"
 #include "EyeAimConstraint.hpp"
 #include "GazeAnchors.hpp"
 #include "GazeRegion.hpp"
@@ -11,9 +12,10 @@
 #include "PlayerGazeResolver.hpp"
 #include "TargetSelector.hpp"
 #include "TraceLogger.hpp"
-#include "Visuals/VisualEffectsManager.hpp"
 #include "Visuals/GazeGeometry.hpp"
 #include "Visuals/IncomingGazeManager.hpp"
+#include "Visuals/VisualEffectsManager.hpp"
+
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/B/BSVisit.h>
@@ -72,18 +74,12 @@ namespace TrueGaze::Engine
         };
 
         constexpr RegionCalibrationSpec kCalibrationSweepSpecs[] = {
-            {0, "LeftEye", -1.8f, 0.5f},
-            {1, "RightEye", 1.8f, 0.5f},
-            {5, "Torso", 0.0f, -4.5f},
-            {2, "Mouth", 5.5f, -4.5f},
-            {3, "Forehead", 0.0f, 7.0f},
-            {4, "Chin", 0.0f, -9.0f},
-            {8, "Ground", 0.0f, -18.0f},
-            {9, "ULPeripheral", -15.0f, 18.0f},
-            {10, "URPeripheral", 15.0f, 18.0f},
-            {11, "LLPeripheral", -15.0f, -18.0f},
-            {12, "LRPeripheral", 15.0f, -18.0f}
-        };
+            {0, "LeftEye", -1.8f, 0.5f},        {1, "RightEye", 1.8f, 0.5f},
+            {5, "Torso", 0.0f, -4.5f},          {2, "Mouth", 5.5f, -4.5f},
+            {3, "Forehead", 0.0f, 7.0f},        {4, "Chin", 0.0f, -9.0f},
+            {8, "Ground", 0.0f, -18.0f},        {9, "ULPeripheral", -15.0f, 18.0f},
+            {10, "URPeripheral", 15.0f, 18.0f}, {11, "LLPeripheral", -15.0f, -18.0f},
+            {12, "LRPeripheral", 15.0f, -18.0f}};
 
 #if __has_include(<RE/Skyrim.h>)
 
@@ -167,9 +163,8 @@ namespace TrueGaze::Engine
         /// observerEyePos is the world position of the observer's head/eyes.
         /// targetPos is the true 3D world position of the target's head/eyes.
         void WorldTargetToLocalGaze(const RE::NiPoint3& observerEyePos,
-                                    const ReferenceOrientation& ref,
-                                    const RE::NiPoint3& targetPos, float& outYawDeg,
-                                    float& outPitchDeg) noexcept
+                                    const ReferenceOrientation& ref, const RE::NiPoint3& targetPos,
+                                    float& outYawDeg, float& outPitchDeg) noexcept
         {
             const float dx = targetPos.x - observerEyePos.x;
             const float dy = targetPos.y - observerEyePos.y;
@@ -208,12 +203,15 @@ namespace TrueGaze::Engine
 
         /// Get the actor's anatomical reference heading and pitch in radians.
         ///
-        /// - Standing actors: root orientation (`actor->GetAngleZ()`) is the true horizontal facing.
-        ///   Pitch is strictly 0.0f (level horizon) to prevent idle posture / spine tilt from injecting
-        ///   upward skyward gaze offsets.
-        /// - Seated / vehicle / cart actors: samples the upper torso bone (NPC Spine2 / Spine1) world basis
+        /// - Standing actors: root orientation (`actor->GetAngleZ()`) is the true horizontal
+        /// facing.
+        ///   Pitch is strictly 0.0f (level horizon) to prevent idle posture / spine tilt from
+        ///   injecting upward skyward gaze offsets.
+        /// - Seated / vehicle / cart actors: samples the upper torso bone (NPC Spine2 / Spine1)
+        /// world basis
         ///   vector Y when torso diverges from the root capsule (e.g. Helgen cart benches at ~90°),
-        ///   cleanly decoupling cervical tracking from vehicle trajectory while keeping pitch strictly level.
+        ///   cleanly decoupling cervical tracking from vehicle trajectory while keeping pitch
+        ///   strictly level.
         ReferenceOrientation GetActorReferenceOrientation(RE::Actor* actor,
                                                           const ActorGazeRuntime& state) noexcept
         {
@@ -256,14 +254,24 @@ namespace TrueGaze::Engine
                         }
                     }
 
-                    // Decouple seated / vehicle actors: if seated, on furniture, or if torso diverges
-                    // by > 30° (0.5236 rad) from root capsule (e.g. Helgen cart benches at ~90°),
-                    // adopt the spine's true horizontal forward direction.
-                    // Level Pitch Invariant: pitchRad is STRICTLY 0.0f to prevent idle spine tilt
-                    // from shifting gaze elevation upward into the sky.
-                    if (isSeated || diff > 0.5236f)
+                    // Decouple seated / vehicle actors cleanly, and for standing actors running
+                    // torso-twisting idle animations (eating, drinking, sweeping) apply a smooth
+                    // Hermite blend between 20 deg and 50 deg instead of a discontinuous 30 deg
+                    // cliff that would otherwise snap ref.headingRad back and forth.
+                    if (isSeated)
                     {
                         ref.headingRad = spineHeading;
+                        ref.pitchRad = 0.0f;
+                        return ref;
+                    }
+                    constexpr float kLowRad = 0.3491f;  // 20 deg
+                    constexpr float kHighRad = 0.8727f; // 50 deg
+                    if (diff > kLowRad)
+                    {
+                        const float t =
+                            std::clamp((diff - kLowRad) / (kHighRad - kLowRad), 0.0f, 1.0f);
+                        const float blend = t * t * (3.0f - 2.0f * t);
+                        ref.headingRad = WrapPi(rootYaw + WrapPi(spineHeading - rootYaw) * blend);
                         ref.pitchRad = 0.0f;
                         return ref;
                     }
@@ -508,8 +516,8 @@ namespace TrueGaze::Engine
         }
         else
         {
-            _calState.currentRegionIndex =
-                (_calState.currentRegionIndex + 1) % static_cast<int>(std::size(kCalibrationSweepSpecs));
+            _calState.currentRegionIndex = (_calState.currentRegionIndex + 1) %
+                                           static_cast<int>(std::size(kCalibrationSweepSpecs));
         }
         _calState.targetActorFormId = targetActorFormId;
         _calState.overrideYawDeg = kCalibrationSweepSpecs[_calState.currentRegionIndex].yawDeg;
@@ -534,7 +542,8 @@ namespace TrueGaze::Engine
     {
         try
         {
-            if (ConfigManager::GetSingleton().enableTrueGaze && deltaSeconds > 0 && deltaSeconds < 0.5f)
+            if (ConfigManager::GetSingleton().enableTrueGaze && deltaSeconds > 0 &&
+                deltaSeconds < 0.5f)
                 Visuals::IncomingGazeManager::Get().EndFrame();
             else
                 Visuals::IncomingGazeManager::Get().Reset();
@@ -543,6 +552,11 @@ namespace TrueGaze::Engine
         {
             logger::error("[TrueGaze::Incoming] Frame finalization failed: {}", e.what());
             Visuals::IncomingGazeManager::Get().AbandonFrame();
+        }
+
+        if (deltaSeconds > 0.0f && deltaSeconds < 0.5f)
+        {
+            ExpandedPlay::ExpandedPlayManager::Get().Tick(deltaSeconds);
         }
 
         // Retire actors the hook did not touch this frame. Without this the map grows
@@ -755,7 +769,8 @@ namespace TrueGaze::Engine
         ComputeDeflection(actor, state, deltaSeconds, yawDeg, pitchDeg, speedScale, actorInCombat);
 
         // --- Calibration Mode Override (A8 / Technical Design §8) ---
-        if (_calState.active && (_calState.targetActorFormId == 0 || _calState.targetActorFormId == formId))
+        if (_calState.active &&
+            (_calState.targetActorFormId == 0 || _calState.targetActorFormId == formId))
         {
             yawDeg = _calState.overrideYawDeg;
             pitchDeg = _calState.overridePitchDeg;
@@ -772,18 +787,24 @@ namespace TrueGaze::Engine
                 {
                     _calState.sweepTimerSec = 0.0f;
                     ++_calState.currentRegionIndex;
-                    if (_calState.currentRegionIndex < static_cast<int>(std::size(kCalibrationSweepSpecs)))
+                    if (_calState.currentRegionIndex <
+                        static_cast<int>(std::size(kCalibrationSweepSpecs)))
                     {
-                        _calState.overrideYawDeg = kCalibrationSweepSpecs[_calState.currentRegionIndex].yawDeg;
-                        _calState.overridePitchDeg = kCalibrationSweepSpecs[_calState.currentRegionIndex].pitchDeg;
-                        logger::info("[TrueGaze::Cal] Sweep advancing to [{}/{}]: {} (yaw={:+.1f}, pitch={:+.1f})",
-                                     _calState.currentRegionIndex + 1, std::size(kCalibrationSweepSpecs),
+                        _calState.overrideYawDeg =
+                            kCalibrationSweepSpecs[_calState.currentRegionIndex].yawDeg;
+                        _calState.overridePitchDeg =
+                            kCalibrationSweepSpecs[_calState.currentRegionIndex].pitchDeg;
+                        logger::info("[TrueGaze::Cal] Sweep advancing to [{}/{}]: {} (yaw={:+.1f}, "
+                                     "pitch={:+.1f})",
+                                     _calState.currentRegionIndex + 1,
+                                     std::size(kCalibrationSweepSpecs),
                                      kCalibrationSweepSpecs[_calState.currentRegionIndex].name,
                                      _calState.overrideYawDeg, _calState.overridePitchDeg);
                     }
                     else
                     {
-                        logger::info("[TrueGaze::Cal] Angular sweep finished; incoming geometry and ownership are NOT evaluated.");
+                        logger::info("[TrueGaze::Cal] Angular sweep finished; incoming geometry "
+                                     "and ownership are NOT evaluated.");
                         StopCalibration();
                     }
                 }
@@ -808,17 +829,16 @@ namespace TrueGaze::Engine
         {
             state.wasInBallisticSaccade = true;
             state.saccadeFromRegion = state.gazeRegion;
-            TraceLogger::Get().LogSaccadeOnset(
-                _gameTimeSec, formId, state.gazeRegion,
-                static_cast<uint8_t>(state.triangle.currentVertex),
-                state.saccade.amplitudeDeg, state.saccade.totalDurationSec);
+            TraceLogger::Get().LogSaccadeOnset(_gameTimeSec, formId, state.gazeRegion,
+                                               static_cast<uint8_t>(state.triangle.currentVertex),
+                                               state.saccade.amplitudeDeg,
+                                               state.saccade.totalDurationSec);
         }
         else if (!state.saccade.isBallistic && state.wasInBallisticSaccade)
         {
             state.wasInBallisticSaccade = false;
-            TraceLogger::Get().LogSaccadeComplete(
-                _gameTimeSec, formId, state.gazeRegion,
-                state.saccade.elapsedSec, 0.0f);
+            TraceLogger::Get().LogSaccadeComplete(_gameTimeSec, formId, state.gazeRegion,
+                                                  state.saccade.elapsedSec, 0.0f);
         }
 
         // Trace Telemetry: Debounced region transitions
@@ -826,10 +846,10 @@ namespace TrueGaze::Engine
         {
             if (state.lastClassifiedRegion != 0xFF)
             {
-                TraceLogger::Get().LogRegionChange(
-                    _gameTimeSec, formId, state.lastClassifiedRegion, state.gazeRegion,
-                    state.currentRegionDwellSec, RegionName(state.lastClassifiedRegion),
-                    RegionName(state.gazeRegion));
+                TraceLogger::Get().LogRegionChange(_gameTimeSec, formId, state.lastClassifiedRegion,
+                                                   state.gazeRegion, state.currentRegionDwellSec,
+                                                   RegionName(state.lastClassifiedRegion),
+                                                   RegionName(state.gazeRegion));
             }
             state.lastClassifiedRegion = state.gazeRegion;
             state.currentRegionDwellSec = 0.0f;
@@ -848,7 +868,8 @@ namespace TrueGaze::Engine
                                       ? "MUTUAL_THRESHOLD"
                                       : "COGNITIVE_BURDEN";
             const uint8_t vert = static_cast<uint8_t>(state.triangle.currentVertex);
-            const uint8_t quadrant = (vert == 5 ? 9 : (vert == 6 ? 10 : (vert == 7 ? 11 : (vert == 8 ? 12 : 9))));
+            const uint8_t quadrant =
+                (vert == 5 ? 9 : (vert == 6 ? 10 : (vert == 7 ? 11 : (vert == 8 ? 12 : 9))));
             TraceLogger::Get().LogCgaEnter(_gameTimeSec, formId, trigger, quadrant,
                                            RegionName(quadrant));
         }
@@ -950,8 +971,8 @@ namespace TrueGaze::Engine
             else if (const auto other = _actors.find(state.trackedTargetFormId);
                      other != _actors.end())
             {
-                mutualGazeNow = other->second.trackedTargetFormId == formId &&
-                                other->second.eyeContactHit;
+                mutualGazeNow =
+                    other->second.trackedTargetFormId == formId && other->second.eyeContactHit;
             }
         }
         if (mutualGazeNow)
@@ -980,23 +1001,21 @@ namespace TrueGaze::Engine
         const float eyePitch = state.appliedEyePitchDeg;
         const float totalDeflection = std::sqrt(yawDeg * yawDeg + pitchDeg * pitchDeg);
         const float eyeDeflection = std::sqrt(eyeYaw * eyeYaw + eyePitch * eyePitch);
-        const float headPct =
-            (totalDeflection > 0.001f)
-                ? std::clamp(1.0f - (eyeDeflection / totalDeflection), 0.0f, 1.0f)
-                : 0.0f;
+        const float headPct = (totalDeflection > 0.001f)
+                                  ? std::clamp(1.0f - (eyeDeflection / totalDeflection), 0.0f, 1.0f)
+                                  : 0.0f;
 
         TraceLogger::Get().LogGazeTick(
-            _gameTimeSec, formId, state.trackedTargetFormId, yawDeg, pitchDeg, eyeYaw,
-            eyePitch, state.gazeRegion, hitRegion, ModeName(state.hcepMode),
-            static_cast<uint8_t>(tier), state.mutualGazeHoldSec > 0.0f,
-            state.mutualGazeHoldSec, headPct, deltaSeconds);
+            _gameTimeSec, formId, state.trackedTargetFormId, yawDeg, pitchDeg, eyeYaw, eyePitch,
+            state.gazeRegion, hitRegion, ModeName(state.hcepMode), static_cast<uint8_t>(tier),
+            state.mutualGazeHoldSec > 0.0f, state.mutualGazeHoldSec, headPct, deltaSeconds);
 
-        if (_calState.active && (_calState.targetActorFormId == 0 || _calState.targetActorFormId == formId))
+        if (_calState.active &&
+            (_calState.targetActorFormId == 0 || _calState.targetActorFormId == formId))
         {
             TraceLogger::Get().LogCalibration(
-                _gameTimeSec, _calState.sweepActive ? "angularSweep" : "angularStep", state.gazeRegion,
-                yawDeg, pitchDeg, state.gazeRegion, hitRegion,
-                false);
+                _gameTimeSec, _calState.sweepActive ? "angularSweep" : "angularStep",
+                state.gazeRegion, yawDeg, pitchDeg, state.gazeRegion, hitRegion, false);
         }
 
         PublishState(actor, state);
@@ -1032,7 +1051,8 @@ namespace TrueGaze::Engine
         const bool dialogueJustStarted =
             target.priority == TargetSelector::TargetPriority::DialoguePartner &&
             state.lastTargetPriority != TargetSelector::TargetPriority::DialoguePartner;
-        const bool attentionAcquired = target.targetFormId != 0 &&
+        const bool attentionAcquired =
+            target.targetFormId != 0 &&
             (target.targetFormId != state.trackedTargetFormId || dialogueJustStarted ||
              (target.priority == TargetSelector::TargetPriority::CrosshairFocus &&
               state.lastTargetPriority != TargetSelector::TargetPriority::CrosshairFocus));
@@ -1092,9 +1112,10 @@ namespace TrueGaze::Engine
                 if (units > 28.0f && units <= 280.0f)
                 {
                     state.targetDistanceUnits = units;
-                    state.eyeVergenceYawDeg = std::clamp(
-                        std::atan2(2.2f, std::max(state.targetDistanceUnits, 3.5f)) * (180.0f / 3.14159265f),
-                        0.0f, 35.0f);
+                    state.eyeVergenceYawDeg =
+                        std::clamp(std::atan2(2.2f, std::max(state.targetDistanceUnits, 3.5f)) *
+                                       (180.0f / 3.14159265f),
+                                   0.0f, 35.0f);
 
                     RE::NiPoint3 observerEyePos = actor->GetPosition();
                     if (state.cachedHead)
@@ -1107,11 +1128,15 @@ namespace TrueGaze::Engine
                         observerEyePos.z += kEyeHeightUnits;
                     }
 
-                    // The player's eye line, not their origin: the glance lands
-                    // on the face, the same eye-to-eye standard as every other
-                    // target in the engine.
+                    // The player's eye line, not their origin: in 1st person aim directly
+                    // into the active 1st-person camera lens; in 3rd person aim at the head/eyes.
                     RE::NiPoint3 playerEye = player->GetPosition();
-                    if (auto* playerRoot = player->Get3D())
+                    if (TrueGaze::Anchors::IsFirstPersonPlayer(player) &&
+                        TrueGaze::Anchors::ResolveFirstPersonCameraPoint(playerEye))
+                    {
+                        // Aimed directly into the 1st-person camera lens.
+                    }
+                    else if (auto* playerRoot = player->Get3D())
                     {
                         playerEye = RE::NiPoint3{playerRoot->world.translate.x,
                                                  playerRoot->world.translate.y,
@@ -1194,20 +1219,22 @@ namespace TrueGaze::Engine
             }
 
             const auto ref = GetActorReferenceOrientation(actor, state);
-            WorldTargetToLocalGaze(observerEyePos, ref, targetPos, desiredYaw,
-                                   desiredPitch);
+            WorldTargetToLocalGaze(observerEyePos, ref, targetPos, desiredYaw, desiredPitch);
 
             const float dx = targetPos.x - observerEyePos.x;
             const float dy = targetPos.y - observerEyePos.y;
             const float dz = targetPos.z - observerEyePos.z;
             const float distUnits = std::sqrt(dx * dx + dy * dy + dz * dz);
-            state.targetDistanceUnits = (distUnits > 1.0f) ? distUnits : (target.distanceMeters * 70.0f);
-            state.eyeVergenceYawDeg = std::clamp(
-                std::atan2(2.2f, std::max(state.targetDistanceUnits, 3.5f)) * (180.0f / 3.14159265f),
-                0.0f, 35.0f);
+            state.targetDistanceUnits =
+                (distUnits > 1.0f) ? distUnits : (target.distanceMeters * 70.0f);
+            state.eyeVergenceYawDeg =
+                std::clamp(std::atan2(2.2f, std::max(state.targetDistanceUnits, 3.5f)) *
+                               (180.0f / 3.14159265f),
+                           0.0f, 35.0f);
 
             // Anatomical cervical yaw clamp for seated / vehicle postures (Helgen cart, benches).
-            // Prevents unnatural neck-twisting beyond biological limits (±70°) relative to the seated spine.
+            // Prevents unnatural neck-twisting beyond biological limits (±70°) relative to the
+            // seated spine.
             const float yawDiff = std::abs(WrapPi(ref.headingRad - actor->GetAngleZ()));
             const auto sitState = actor->GetSitSleepState();
             const bool isSeated = (sitState != RE::SIT_SLEEP_STATE::kNormal || yawDiff > 0.5236f);
@@ -1268,10 +1295,11 @@ namespace TrueGaze::Engine
         // --- Focal Point & Eye Contact Detection (Magnetic Attractor) ------------
         // Evaluate whether the observer's gaze is directed at the target's eye contact region.
         // During conversation, social candidate tracking, or crosshair gaze,
-        // when the vertex is an eye (LeftEye / RightEye) or within foveal capture angle (< 2.8 deg),
-        // eyeContactHit is true.
+        // when the vertex is an eye (LeftEye / RightEye) or within foveal capture angle (< 2.8
+        // deg), eyeContactHit is true.
         bool isEyeContactZone = false;
-        if (target.priority >= TargetSelector::TargetPriority::NearbyActor && target.targetFormId != 0)
+        if (target.priority >= TargetSelector::TargetPriority::NearbyActor &&
+            target.targetFormId != 0)
         {
             // When in a combat tactical glance to hands, weapon, shield, or feet,
             // ocular attention is directed at the tactical action point rather than the pupils.
@@ -1283,10 +1311,12 @@ namespace TrueGaze::Engine
             }
             else
             {
-                const bool isEyeVertex = (state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::LeftEye ||
-                                          state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::RightEye);
-                const float offsetMagSq = state.triangle.vertexOffsetXDeg * state.triangle.vertexOffsetXDeg +
-                                          state.triangle.vertexOffsetYDeg * state.triangle.vertexOffsetYDeg;
+                const bool isEyeVertex =
+                    (state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::LeftEye ||
+                     state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::RightEye);
+                const float offsetMagSq =
+                    state.triangle.vertexOffsetXDeg * state.triangle.vertexOffsetXDeg +
+                    state.triangle.vertexOffsetYDeg * state.triangle.vertexOffsetYDeg;
                 if (isEyeVertex || offsetMagSq < 8.0f)
                 {
                     isEyeContactZone = true;
@@ -1554,9 +1584,8 @@ namespace TrueGaze::Engine
                 if (!state.cgaActive)
                 {
                     const float rate = std::max(0.0f, state.profile.aversionRateMult) * 0.5f;
-                    const float entryProb = (deltaSeconds > 0.0f)
-                                                ? (1.0f - std::exp(-rate * deltaSeconds))
-                                                : 0.0f;
+                    const float entryProb =
+                        (deltaSeconds > 0.0f) ? (1.0f - std::exp(-rate * deltaSeconds)) : 0.0f;
                     cgaEngages = (_frame.cgaRoll < entryProb);
                 }
                 if (cgaEngages)
@@ -1630,18 +1659,23 @@ namespace TrueGaze::Engine
                 }
             }
 
-            const bool eyeVertex = _tuning.enableSocialTriangle && _frame.triangleEnabled && (
-                state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::LeftEye ||
-                state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::RightEye);
+            const bool eyeVertex =
+                _tuning.enableSocialTriangle && _frame.triangleEnabled &&
+                (state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::LeftEye ||
+                 state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::RightEye);
             bool aimedAtPupil = false;
             if (eyeVertex && state.combatGlance == ActorGazeRuntime::CombatGlanceType::None)
             {
                 auto* form = RE::TESForm::LookupByID(target.targetFormId);
                 auto* partner = form ? form->As<RE::Actor>() : nullptr;
-                auto* partnerRoot = partner ? partner->Get3D() : nullptr;
-                auto* partnerHead = partnerRoot ? FindFirstBone(
-                    partnerRoot, kHeadCandidates, std::size(kHeadCandidates)) : nullptr;
-                if (partnerHead)
+                const bool partnerIsFirstPersonPlayer =
+                    TrueGaze::Anchors::IsFirstPersonPlayer(partner);
+                auto* partnerRoot =
+                    (!partnerIsFirstPersonPlayer && partner) ? partner->Get3D() : nullptr;
+                auto* partnerHead = partnerRoot ? FindFirstBone(partnerRoot, kHeadCandidates,
+                                                                std::size(kHeadCandidates))
+                                                : nullptr;
+                if (partnerIsFirstPersonPlayer || partnerHead)
                 {
                     const auto eyes = TrueGaze::Anchors::ResolvePupilsForward(
                         partner, partnerHead, g_eyeAnchorForwardCm, g_eyeAnchorUpCm);
@@ -1653,8 +1687,8 @@ namespace TrueGaze::Engine
                     float yawA = 0.0f, pitchA = 0.0f, yawB = 0.0f, pitchB = 0.0f;
                     WorldTargetToLocalGaze(origin, reference, eyes.left, yawA, pitchA);
                     WorldTargetToLocalGaze(origin, reference, eyes.right, yawB, pitchB);
-                    const bool wantObserverLeft = state.triangle.currentVertex ==
-                                                  Kinematics::SocialTriangle::Vertex::LeftEye;
+                    const bool wantObserverLeft =
+                        state.triangle.currentVertex == Kinematics::SocialTriangle::Vertex::LeftEye;
                     const bool aIsObserverLeft = yawA <= yawB;
                     const bool useA = (wantObserverLeft == aIsObserverLeft);
                     desiredYaw = useA ? yawA : yawB;
@@ -1669,7 +1703,7 @@ namespace TrueGaze::Engine
                 desiredPitch += state.triangle.vertexOffsetYDeg;
             }
             state.eyeContactHit = eyeVertex && !state.cgaActive &&
-                state.combatGlance == ActorGazeRuntime::CombatGlanceType::None;
+                                  state.combatGlance == ActorGazeRuntime::CombatGlanceType::None;
         }
 
         // --- Target classification & saccade ------------------------------------
@@ -1765,7 +1799,8 @@ namespace TrueGaze::Engine
 
                 // Magnetic attractor: when eyeContactHit is true and the glide has brought
                 // the gaze close to the target eye (< 2.5 degrees), magnetic lock engages,
-                // rapidly and firmly settling the ocular fixation on the target eye pupil like a magnet!
+                // rapidly and firmly settling the ocular fixation on the target eye pupil like a
+                // magnet!
                 const float remDistSq = glideYaw * glideYaw + glidePitch * glidePitch;
                 if (state.eyeContactHit && remDistSq < 6.25f)
                 {
@@ -1827,18 +1862,18 @@ namespace TrueGaze::Engine
                 actor, state.cachedHead, g_eyeAnchorForwardCm, g_eyeAnchorUpCm);
             const auto ref = GetActorReferenceOrientation(actor, state);
             const float damping = state.eyeContactHit ? 0.3f : 1.0f;
-            const float yaw = ref.headingRad +
-                (state.saccade.currentYaw + jitterYaw * damping) / kRadToDeg;
-            const float pitch = ref.pitchRad +
-                (state.saccade.currentPitch + jitterPitch * damping) / kRadToDeg;
+            const float yaw =
+                ref.headingRad + (state.saccade.currentYaw + jitterYaw * damping) / kRadToDeg;
+            const float pitch =
+                ref.pitchRad + (state.saccade.currentPitch + jitterPitch * damping) / kRadToDeg;
             const RE::NiPoint3 direction{std::sin(yaw) * std::cos(pitch),
                                          std::cos(yaw) * std::cos(pitch), std::sin(pitch)};
             const auto fixation = origin + direction * state.targetDistanceUnits;
             state.fixationWorld = {fixation.x, fixation.y, fixation.z};
             state.fixationWorldValid = true;
-            state.eyeAimErrorDeg = std::hypot(
-                desiredYaw - state.saccade.currentYaw - jitterYaw * damping,
-                desiredPitch - state.saccade.currentPitch - jitterPitch * damping);
+            state.eyeAimErrorDeg =
+                std::hypot(desiredYaw - state.saccade.currentYaw - jitterYaw * damping,
+                           desiredPitch - state.saccade.currentPitch - jitterPitch * damping);
         }
         else
         {
@@ -1955,10 +1990,12 @@ namespace TrueGaze::Engine
             // documented, first-class fallback when a rig exposes no eye bones.
             const bool hasEyeNode = (eyeL != nullptr || eyeR != nullptr);
             TrueGaze::Anchors::EyePair faceGenEyes{};
-            const bool hasFaceGenEyes = TrueGaze::Anchors::FaceGenEyeCenters(actor, head, faceGenEyes);
+            const bool hasFaceGenEyes =
+                TrueGaze::Anchors::FaceGenEyeCenters(actor, head, faceGenEyes);
             const char* originMode =
-                head ? (hasFaceGenEyes ? "FaceGenEyeCenters" :
-                        (hasEyeNode ? "EyeNode" : "GeometricHeadSocket")) : "Unavailable";
+                head ? (hasFaceGenEyes ? "FaceGenEyeCenters"
+                                       : (hasEyeNode ? "EyeNode" : "GeometricHeadSocket"))
+                     : "Unavailable";
 
             // Record the outcome for the stgstatus rig-capability summary.
             RecordRigProbe(originMode, head != nullptr, hasEyeNode);
@@ -2030,42 +2067,112 @@ namespace TrueGaze::Engine
         // Exponential approach with rate 8.0/s (~125ms smooth transition) eliminates
         // the instantaneous 6°-8° head jerk when entering or leaving THINK mode / CGA.
         const float targetCgaBlend = isCgaAversion ? 1.0f : 0.0f;
-        const float cgaBlendAlpha = (deltaSeconds > 0.0f)
-            ? (1.0f - std::exp(-8.0f * deltaSeconds))
-            : 1.0f;
+        const float cgaBlendAlpha =
+            (deltaSeconds > 0.0f) ? (1.0f - std::exp(-8.0f * deltaSeconds)) : 1.0f;
         state.cgaAversionBlend += (targetCgaBlend - state.cgaAversionBlend) * cgaBlendAlpha;
 
         const bool calOverride =
             _calState.active &&
             (_calState.targetActorFormId == 0 || _calState.targetActorFormId == actor->GetFormID());
 
-        const BoneController::StrainWeights weights{
-            _tuning.spine2YawWeight, _tuning.neckYawWeight, _tuning.neckPitchWeight,
-            _tuning.headYawWeight, _tuning.headPitchWeight};
+        const bool isSeatedOrFurniture = [&]() noexcept
+        {
+            const auto sit = actor->GetSitSleepState();
+            if (sit != RE::SIT_SLEEP_STATE::kNormal)
+            {
+                return true;
+            }
+            if (auto* proc = actor->GetActorRuntimeData().currentProcess)
+            {
+                if (proc->GetOccupiedFurniture())
+                {
+                    return true;
+                }
+            }
+            return false;
+        }();
+
+        const BoneController::StrainWeights weights{_tuning.spine2YawWeight, _tuning.neckYawWeight,
+                                                    _tuning.neckPitchWeight, _tuning.headYawWeight,
+                                                    _tuning.headPitchWeight};
         float headCorrectionYaw = calOverride ? yawDeg : state.vor.headYaw;
         float headCorrectionPitch = calOverride ? pitchDeg : state.vor.headPitch;
+        float rawHeadCorrYawLog = headCorrectionYaw;
+        float refHeadingDegLog = actor->GetAngleZ() * kRadToDeg;
         if (!calOverride && state.cachedHead && state.fixationWorldValid)
         {
             namespace G = Visuals::Geometry;
-            const auto vec = [](const RE::NiPoint3& p) { return G::Vec3{p.x, p.y, p.z}; };
-            const auto ref = GetActorReferenceOrientation(actor, state);
-            const float yaw = ref.headingRad + state.vor.headYaw / kRadToDeg;
-            const float pitch = ref.pitchRad + state.vor.headPitch / kRadToDeg;
+            const auto vec = [](const RE::NiPoint3& p)
+            {
+                return G::Vec3{p.x, p.y, p.z};
+            };
+            const auto rawRef = GetActorReferenceOrientation(actor, state);
+            if (!state.refHeadingInitialised || deltaSeconds <= 0.0f)
+            {
+                state.smoothedRefHeadingRad = rawRef.headingRad;
+                state.refHeadingInitialised = true;
+            }
+            else
+            {
+                const float refAlpha =
+                    1.0f - std::exp(-(actor->IsInCombat() ? 12.0f : 4.5f) * deltaSeconds);
+                state.smoothedRefHeadingRad =
+                    WrapPi(state.smoothedRefHeadingRad +
+                           WrapPi(rawRef.headingRad - state.smoothedRefHeadingRad) * refAlpha);
+            }
+            refHeadingDegLog = state.smoothedRefHeadingRad * kRadToDeg;
+
+            const float yaw = state.smoothedRefHeadingRad + state.vor.headYaw / kRadToDeg;
+            const float pitch = rawRef.pitchRad + state.vor.headPitch / kRadToDeg;
             const G::Vec3 direction{std::sin(yaw) * std::cos(pitch),
-                                     std::cos(yaw) * std::cos(pitch), std::sin(pitch)};
+                                    std::cos(yaw) * std::cos(pitch), std::sin(pitch)};
             const auto& basis = state.cachedHead->world.rotate;
             const auto correction = G::AimInBasis(direction, vec(basis.GetVectorX()),
-                vec(basis.GetVectorY()), vec(basis.GetVectorZ()));
-            headCorrectionYaw = correction.yawDeg;
-            headCorrectionPitch = correction.pitchDeg;
+                                                  vec(basis.GetVectorY()), vec(basis.GetVectorZ()));
+
+            // Temporally damp + deadband + slew-limit the live head-basis correction so
+            // idle/furniture animations or Havok animation-LOD skips on peripheral NPCs
+            // can NEVER excite a rapid left/right head/neck oscillation ("demon shake").
+            const float rawCorrYaw = std::clamp(correction.yawDeg, -BoneController::CHAIN_YAW_LIMIT,
+                                                BoneController::CHAIN_YAW_LIMIT);
+            const float rawCorrPitch =
+                std::clamp(correction.pitchDeg, -BoneController::CHAIN_PITCH_LIMIT_DOWN,
+                           BoneController::CHAIN_PITCH_LIMIT_UP);
+            rawHeadCorrYawLog = rawCorrYaw;
+            if (!state.headCorrInitialised || deltaSeconds <= 0.0f)
+            {
+                state.smoothedHeadCorrYaw = rawCorrYaw;
+                state.smoothedHeadCorrPitch = rawCorrPitch;
+                state.headCorrInitialised = true;
+            }
+            else
+            {
+                const bool inCombat = actor->IsInCombat();
+                const float rate = inCombat ? 14.0f : 5.5f;
+                const float alpha = 1.0f - std::exp(-rate * deltaSeconds);
+                const float maxStep =
+                    std::min(inCombat ? 8.0f : 1.5f, (inCombat ? 160.0f : 45.0f) * deltaSeconds);
+                const float errYaw = rawCorrYaw - state.smoothedHeadCorrYaw;
+                const float errPitch = rawCorrPitch - state.smoothedHeadCorrPitch;
+                if (std::abs(errYaw) > 1.0f)
+                {
+                    state.smoothedHeadCorrYaw += std::clamp(errYaw * alpha, -maxStep, maxStep);
+                }
+                if (std::abs(errPitch) > 1.0f)
+                {
+                    state.smoothedHeadCorrPitch += std::clamp(errPitch * alpha, -maxStep, maxStep);
+                }
+            }
+            headCorrectionYaw = state.smoothedHeadCorrYaw;
+            headCorrectionPitch = state.smoothedHeadCorrPitch;
         }
         const auto normalStrain = BoneController::CalculateHierarchyStrain(
-            headCorrectionYaw, headCorrectionPitch, state.vor.eyeMaxAngle,
-            state.vor.eyeMaxAngle, weights, _tuning.headEngageThresholdDeg);
+            headCorrectionYaw, headCorrectionPitch, state.vor.eyeMaxAngle, state.vor.eyeMaxAngle,
+            weights, _tuning.headEngageThresholdDeg);
 
         const auto cgaStrain = BoneController::CalculateCgaStrain(
-            headCorrectionYaw, headCorrectionPitch, state.vor.eyeMaxAngle,
-            state.vor.eyeMaxAngle, _tuning.cgaHeadInvolvement);
+            headCorrectionYaw, headCorrectionPitch, state.vor.eyeMaxAngle, state.vor.eyeMaxAngle,
+            _tuning.cgaHeadInvolvement);
 
         const float cgaB = state.cgaAversionBlend;
         BoneController::StrainDistribution strain;
@@ -2121,11 +2228,15 @@ namespace TrueGaze::Engine
         // 1.0 = vanilla scene direction) at rate 8.0/s (~125ms) so transitioning into
         // or out of scene deferral does NOT produce a visual snap or jump!
         const float targetYieldAlpha = (!isPlayer && state.sceneDeferActive) ? 1.0f : 0.0f;
-        const float yieldBlendAlpha = (deltaSeconds > 0.0f)
-            ? (1.0f - std::exp(-8.0f * deltaSeconds))
-            : 1.0f;
-        state.headChainYieldAlpha += (targetYieldAlpha - state.headChainYieldAlpha) * yieldBlendAlpha;
-        const float headWeight = 1.0f - state.headChainYieldAlpha;
+        const float yieldBlendAlpha =
+            (deltaSeconds > 0.0f) ? (1.0f - std::exp(-8.0f * deltaSeconds)) : 1.0f;
+        state.headChainYieldAlpha +=
+            (targetYieldAlpha - state.headChainYieldAlpha) * yieldBlendAlpha;
+        // During seated / furniture animations (eating bread, drinking, leaning), keep head-chain
+        // deflection gentle so TrueGaze never fights the idle animation while eyes remain 100%
+        // live.
+        const float animRestraint = (!isPlayer && isSeatedOrFurniture) ? 0.35f : 1.0f;
+        const float headWeight = (1.0f - state.headChainYieldAlpha) * animRestraint;
 
         // Audit F-06b: the rig root the bones are posed under, recorded by identity
         // so the next restore can refuse to write through a rebuilt skeleton.
@@ -2150,18 +2261,22 @@ namespace TrueGaze::Engine
         }
 
         float eyeYaw = calOverride ? normalStrain.eyeYaw : (state.vor.eyeLocalYaw + jitterYaw);
-        float eyePitch = calOverride ? normalStrain.eyePitch : (state.vor.eyeLocalPitch + jitterPitch);
+        float eyePitch =
+            calOverride ? normalStrain.eyePitch : (state.vor.eyeLocalPitch + jitterPitch);
         if (!calOverride && head && state.fixationWorldValid)
         {
             namespace G = Visuals::Geometry;
-            const auto vec = [](const RE::NiPoint3& p) { return G::Vec3{p.x, p.y, p.z}; };
-            const auto origin = TrueGaze::Anchors::EyeMidpoint(
-                actor, head, g_eyeAnchorForwardCm, g_eyeAnchorUpCm);
+            const auto vec = [](const RE::NiPoint3& p)
+            {
+                return G::Vec3{p.x, p.y, p.z};
+            };
+            const auto origin =
+                TrueGaze::Anchors::EyeMidpoint(actor, head, g_eyeAnchorForwardCm, g_eyeAnchorUpCm);
             const auto& basis = head->world.rotate;
-            const RE::NiPoint3 fixation{
-                state.fixationWorld.x, state.fixationWorld.y, state.fixationWorld.z};
-            const auto aim = G::AimInBasis(vec(fixation - origin),
-                vec(basis.GetVectorX()), vec(basis.GetVectorY()), vec(basis.GetVectorZ()));
+            const RE::NiPoint3 fixation{state.fixationWorld.x, state.fixationWorld.y,
+                                        state.fixationWorld.z};
+            const auto aim = G::AimInBasis(vec(fixation - origin), vec(basis.GetVectorX()),
+                                           vec(basis.GetVectorY()), vec(basis.GetVectorZ()));
             eyeYaw = aim.yawDeg;
             eyePitch = aim.pitchDeg;
             state.targetDistanceUnits = origin.GetDistance(fixation);
@@ -2216,13 +2331,51 @@ namespace TrueGaze::Engine
             actor->GetFormID(), state.blink.eyelidCloseWeight, eyeYaw, eyePitch,
             _tuning.eyeMorphFullScaleDeg, _tuning.eyeMorphGain);
 
+        // Read Skyrim FaceGen's live rendered pupil state (`modifier3` final blended Look*
+        // morphs and `eyesHeading`/`eyesPitch`). When FaceGen pupils are visibly deflected
+        // (including morph gain or vanilla eye-heading contributions), align diagnostic arrows
+        // and incoming eye rays directly to where the rendered FaceGen pupils are actually
+        // pointing so the visual beams match the eyes on screen.
+        const auto fgSnap = Integrations::EfmBlinkController::ReadRenderedFaceGenEyes(
+            actor->GetFormID(), _tuning.eyeMorphFullScaleDeg, _tuning.eyeMorphGain);
+        float visualEyeYaw = eyeYaw;
+        float visualEyePitch = eyePitch;
+        if (!calOverride && fgSnap.valid && fgSnap.hasRenderedMorphs)
+        {
+            visualEyeYaw = std::clamp(fgSnap.renderedYawDeg, -_tuning.maxComfortEyeAngle,
+                                      _tuning.maxComfortEyeAngle);
+            visualEyePitch = std::clamp(fgSnap.renderedPitchDeg, -_tuning.maxComfortEyeAngle,
+                                        _tuning.maxComfortEyeAngle);
+        }
+
+        // Emit structured VISUAL_EYE_SYNC telemetry (throttled to ~6.7 Hz per Tier-1 actor, or
+        // immediately on significant FaceGen-vs-solved divergence) for troubleshooting visual
+        // arrow alignment and head/neck stability.
+        if (TraceLogger::Get().IsActive() &&
+            DistanceMetersForTier(actor) <= _tuning.tier1DistanceMeters)
+        {
+            state.visualSyncLogTimerSec += deltaSeconds;
+            const bool bigDivergence = std::abs(visualEyeYaw - eyeYaw) > 4.0f ||
+                                       std::abs(rawHeadCorrYawLog - headCorrectionYaw) > 6.0f;
+            if (state.visualSyncLogTimerSec >= 0.15f ||
+                (bigDivergence && state.visualSyncLogTimerSec >= 0.05f))
+            {
+                state.visualSyncLogTimerSec = 0.0f;
+                TraceLogger::Get().LogVisualEyeSync(
+                    _gameTimeSec, actor->GetFormID(), state.trackedTargetFormId,
+                    static_cast<uint8_t>(state.lastTargetPriority), eyeYaw, eyePitch,
+                    fgSnap.eyesHeadingDeg, fgSnap.eyesPitchDeg, fgSnap.mod3LookLeft,
+                    fgSnap.mod3LookRight, fgSnap.mod3LookUp, fgSnap.mod3LookDown, visualEyeYaw,
+                    visualEyePitch, rawHeadCorrYawLog, headCorrectionYaw, refHeadingDegLog,
+                    isSeatedOrFurniture);
+            }
+        }
+
         // In-game 3D visualisation of the solved gaze. Runs after the skeleton is
         // posed so the head bone's world transform is current, and is driven by the
-        // *eye residual* - what the eyes carry beyond the already-turned head. Passing
-        // the total deflection here would double-count the head's share and the beam
-        // would overshoot the true gaze direction. Player-attached visuals are hidden
-        // in first person because the head rig is not the camera and its offset makes
-        // the beams appear detached from the view.
+        // *eye residual* synced to FaceGen's rendered pupils. Player-attached visuals
+        // are hidden in first person because the head rig is not the camera and its
+        // offset makes the beams appear detached from the view.
         if (isPlayer && !allowHeadtrack)
         {
             Visuals::VisualEffectsManager::Get().RemoveActor(actor->GetFormID());
@@ -2232,12 +2385,14 @@ namespace TrueGaze::Engine
             try
             {
                 Visuals::VisualEffectsManager::Get().UpdateActor(
-                    actor, state.cachedHead, state.cachedEyeL, state.cachedEyeR, eyeYaw, eyePitch,
-                    state.gazeRegion, isPlayer, actor->IsHumanoid(), state.targetDistanceUnits);
+                    actor, state.cachedHead, state.cachedEyeL, state.cachedEyeR, visualEyeYaw,
+                    visualEyePitch, state.gazeRegion, isPlayer, actor->IsHumanoid(),
+                    state.targetDistanceUnits);
             }
             catch (const std::exception& e)
             {
-                logger::error("[TrueGaze] VisualEffectsManager::UpdateActor exception: {}", e.what());
+                logger::error("[TrueGaze] VisualEffectsManager::UpdateActor exception: {}",
+                              e.what());
             }
             catch (...)
             {
@@ -2270,7 +2425,8 @@ namespace TrueGaze::Engine
             snap.hcepMode = state.hcepMode;
             snap.gazeRegion = state.gazeRegion;
             snap.isBlinking = state.blink.isBlinking;
-            snap.lodTier = static_cast<uint8_t>(LodManager::GetLodTier(DistanceMetersForTier(actor)));
+            snap.lodTier =
+                static_cast<uint8_t>(LodManager::GetLodTier(DistanceMetersForTier(actor)));
             API::Internal::PublishTelemetry(actor->GetFormID(), snap);
         }
 

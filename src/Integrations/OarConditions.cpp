@@ -1,8 +1,10 @@
 #include "OarConditions.hpp"
-#include <unordered_map>
-#include <shared_mutex>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
+#include <shared_mutex>
+#include <unordered_map>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -21,10 +23,14 @@ namespace TrueGaze::Integrations
 
         struct ActorGazeInfo
         {
-            uint8_t mode{0};               // HCEP Mode 0..4
-            float mutualGazeHoldSec{0.0f}; // Duration of continuous mutual gaze
-            uint8_t regionId{0};           // Region ID 0..12
-            Clock::time_point updatedAt{}; // Last PublishActorState for this actor
+            uint8_t mode{0};                // HCEP Mode 0..4
+            float mutualGazeHoldSec{0.0f};  // Duration of continuous mutual gaze
+            uint8_t regionId{0};            // Region ID 0..12
+            uint8_t interpretation{0};      // ExpandedPlay::Interpretation 0..11
+            uint8_t demeanor{0};            // ExpandedPlay::Demeanor 0..5
+            uint8_t presenceTier{0};        // ExpandedPlay::PresenceTier 0..4
+            float dominantImpression{0.0f}; // Signed dominant GazeLedger score [-100..100]
+            Clock::time_point updatedAt{};  // Last PublishActorState / PublishExpandedPlayState
         };
 
         std::shared_mutex g_cacheMutex;
@@ -69,6 +75,33 @@ namespace TrueGaze::Integrations
         entry.updatedAt = now;
     }
 
+    void OarConditions::PublishExpandedPlayState(uint32_t actorFormId,
+                                                 uint8_t interpretation,
+                                                 uint8_t demeanor,
+                                                 uint8_t presenceTier,
+                                                 float dominantImpression) noexcept
+    {
+        if (actorFormId == 0)
+        {
+            return;
+        }
+
+        const uint8_t clampedInterp = interpretation > 11 ? 0 : interpretation;
+        const uint8_t clampedDemeanor = demeanor > 5 ? 0 : demeanor;
+        const uint8_t clampedTier = presenceTier > 4 ? 4 : presenceTier;
+        const float clampedImp =
+            std::isfinite(dominantImpression) ? std::clamp(dominantImpression, -100.0f, 100.0f) : 0.0f;
+        const auto now = Clock::now();
+
+        std::unique_lock lock(g_cacheMutex);
+        auto &entry = g_actorGazeCache[actorFormId];
+        entry.interpretation = clampedInterp;
+        entry.demeanor = clampedDemeanor;
+        entry.presenceTier = clampedTier;
+        entry.dominantImpression = clampedImp;
+        entry.updatedAt = now;
+    }
+
     void OarConditions::ClearCache() noexcept
     {
         std::unique_lock lock(g_cacheMutex);
@@ -97,6 +130,10 @@ namespace TrueGaze::Integrations
         out.hcepMode = it->second.mode;
         out.gazeRegion = it->second.regionId;
         out.mutualGazeHoldSec = it->second.mutualGazeHoldSec;
+        out.interpretation = it->second.interpretation;
+        out.demeanor = it->second.demeanor;
+        out.presenceTier = it->second.presenceTier;
+        out.dominantImpression = it->second.dominantImpression;
         return true;
     }
 
@@ -128,6 +165,37 @@ namespace TrueGaze::Integrations
     {
         ActorState state;
         return TryGetActorState(actorFormId, state) && state.gazeRegion == targetRegionId;
+    }
+
+    bool OarConditions::EvaluateInterpretation(uint32_t actorFormId,
+                                               uint8_t targetInterpretation) noexcept
+    {
+        ActorState state;
+        return TryGetActorState(actorFormId, state) && state.interpretation == targetInterpretation;
+    }
+
+    bool OarConditions::EvaluateDemeanor(uint32_t actorFormId, uint8_t targetDemeanor) noexcept
+    {
+        ActorState state;
+        return TryGetActorState(actorFormId, state) && state.demeanor == targetDemeanor;
+    }
+
+    bool OarConditions::EvaluatePresenceTier(uint32_t actorFormId, uint8_t minPresenceTier) noexcept
+    {
+        ActorState state;
+        return TryGetActorState(actorFormId, state) && state.presenceTier >= minPresenceTier;
+    }
+
+    bool OarConditions::EvaluateImpression(uint32_t actorFormId,
+                                           float minImpressionThreshold) noexcept
+    {
+        if (!std::isfinite(minImpressionThreshold))
+        {
+            return false;
+        }
+        ActorState state;
+        return TryGetActorState(actorFormId, state) &&
+               state.dominantImpression >= minImpressionThreshold;
     }
 
     // ---------------------------------------------------------------------------

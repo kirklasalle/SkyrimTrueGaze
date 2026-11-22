@@ -199,12 +199,13 @@ namespace TrueGaze::Visuals
         bool Project(RE::NiCamera* camera, G::Vec3 position, float& x, float& y)
         {
             float z = 0;
-            if (!camera || !I::Finite(position) ||
-                G::Dot(position - Vec(camera->world.translate),
-                       Vec(camera->world.rotate.GetVectorY()) * -1) <= 0 ||
+            Anchors::CameraBasis cam{};
+            if (!camera || !I::Finite(position) || !Anchors::ResolveCameraBasis(cam) ||
+                G::Dot(position - Vec(cam.pos), Vec(cam.forward)) <= 0 ||
                 !camera->WorldPtToScreenPt3(Ni(position), x, y, z, 0.0001f) ||
                 !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
-                x < 0 || x > 1 || y < 0 || y > 1)
+                z <= 0.0f || z >= 1.0f ||
+                x < 0.02f || x > 0.98f || y < 0.02f || y > 0.98f)
                 return false;
             x *= 1280;
             y = (1 - y) * 720;
@@ -225,8 +226,11 @@ namespace TrueGaze::Visuals
 
             IncomingMenu()
             {
-                menuFlags.set(RE::UI_MENU_FLAGS::kRequiresUpdate);
+                menuFlags.set(RE::UI_MENU_FLAGS::kAlwaysOpen,
+                              RE::UI_MENU_FLAGS::kRequiresUpdate,
+                              RE::UI_MENU_FLAGS::kAllowSaving);
                 depthPriority = 5;
+                inputContext = Context::kNone;
                 auto* manager = RE::BSScaleformManager::GetSingleton();
                 if (!manager || !manager->LoadMovie(this, uiMovie, kMenu))
                 {
@@ -733,12 +737,11 @@ namespace TrueGaze::Visuals
             return;
         auto* player = RE::PlayerCharacter::GetSingleton();
         RegisterReceiver(player);
-        auto* camera = RE::Main::WorldRootCamera();
-        if (camera && player)
+        Anchors::CameraBasis cam{};
+        if (player && Anchors::ResolveCameraBasis(cam))
         {
-            const auto forward = camera->world.rotate.GetVectorY() * -1.0f;
             g_frame.AddRay({player->GetFormID(), I::Source::Camera,
-                            Vec(RE::PlayerCamera::GetActiveCameraPosition()), Vec(forward),
+                            Vec(cam.pos), Vec(cam.forward),
                             g_tuning.LengthUnits(), frame});
         }
     }
@@ -884,13 +887,11 @@ namespace TrueGaze::Visuals
             const auto frontPos = mid + forward * (g_tuning.HcepPanelForwardOffsetUnits() * scale);
             receiver.front = {Vec(frontPos), Vec(right * -1.0f), Vec(up), Vec(forward * -1.0f),
                                height * kAspect * 0.5f, height * 0.5f, allow && g_tuning.showHcepPanel};
-            if (camera)
+            Anchors::CameraBasis camBasis{};
+            if (camera && Anchors::ResolveCameraBasis(camBasis))
             {
-                const auto cameraRight = camera->world.rotate.GetVectorX();
-                const auto cameraUp = camera->world.rotate.GetVectorZ();
-                const auto cameraForward = camera->world.rotate.GetVectorY();
                 receiver.above = {Vec(mid + RE::NiPoint3{0, 0, height * 0.5f + 12.0f * scale}),
-                                   Vec(cameraRight), Vec(cameraUp), Vec(cameraForward),
+                                   Vec(camBasis.right), Vec(camBasis.up), Vec(camBasis.forward * -1.0f),
                                    height * kAspect * 0.5f, height * 0.5f,
                                    allow && g_tuning.showIncomingAbove};
             }
@@ -936,9 +937,22 @@ namespace TrueGaze::Visuals
             card.active = !count.observers.empty();
             card.hud = hud && id == playerId;
             const bool headOnScreen = Project(camera, headPositions.at(id), card.x, card.y);
-            if (headOnScreen)
+            bool inFrameVisible = headOnScreen;
+            if (inFrameVisible && player && id != playerId)
+            {
+                if (auto* targetActor = RE::TESForm::LookupByID<RE::Actor>(id))
+                {
+                    bool losArg = false;
+                    inFrameVisible = player->HasLineOfSight(targetActor, losArg);
+                }
+                else
+                {
+                    inFrameVisible = false;
+                }
+            }
+            if (inFrameVisible)
                 snapshot.faces.push_back({card.x - 40, card.y - 48, 80, 96});
-            card.onScreen = headOnScreen && (pose.above.enabled || pose.front.enabled || snapshot.inspect);
+            card.onScreen = inFrameVisible && (pose.above.enabled || pose.front.enabled || snapshot.inspect);
             if (card.hud)
             {
                 card.onScreen = true;

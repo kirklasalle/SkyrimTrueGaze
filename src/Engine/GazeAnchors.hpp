@@ -59,6 +59,195 @@ namespace TrueGaze::Anchors
         RE::NiPoint3 right{};
     };
 
+    /// True when `actor` is the player currently viewing through the 1st-person camera.
+    /// In 1st person, `player->Get3D()` is the floating arms rig (`skeleton_1stperson.nif`),
+    /// whose origin/head bone does not coincide with the active viewpoint. NPCs and creatures
+    /// looking at the player in 1st person must aim directly into the 1st-person camera lens.
+    inline bool IsFirstPersonPlayer(const RE::Actor* actor) noexcept
+    {
+        if (!actor || !actor->IsPlayerRef())
+        {
+            return false;
+        }
+        auto* camera = RE::PlayerCamera::GetSingleton();
+        return camera && camera->IsInFirstPerson();
+    }
+
+    /// World position of the player's active 1st-person camera viewpoint.
+    inline bool ResolveFirstPersonCameraPoint(RE::NiPoint3& out) noexcept
+    {
+        RE::NiPoint3 pos = RE::PlayerCamera::GetActiveCameraPosition();
+        const bool activeValid =
+            std::isfinite(pos.x) && std::isfinite(pos.y) && std::isfinite(pos.z) &&
+            (pos.x * pos.x + pos.y * pos.y + pos.z * pos.z) > 1.0f;
+        if (activeValid)
+        {
+            out = pos;
+            return true;
+        }
+        if (auto* worldCam = RE::Main::WorldRootCamera())
+        {
+            pos = worldCam->world.translate;
+            if (std::isfinite(pos.x) && std::isfinite(pos.y) && std::isfinite(pos.z) &&
+                (pos.x * pos.x + pos.y * pos.y + pos.z * pos.z) > 1.0f)
+            {
+                out = pos;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// Self-verified world-space camera frame (`pos`, `forward`, `right`, `up`).
+    ///
+    /// In NetImmerse / Gamebryo (`RE::NiCamera`), `world.rotate` stores:
+    ///   col 0 (`GetVectorX`) = Forward (look direction)
+    ///   col 1 (`GetVectorY`) = Up
+    ///   col 2 (`GetVectorZ`) = Right
+    /// Previously several call sites assumed `-GetVectorY()` was forward, which pointed
+    /// straight down into the floor (~90 deg off) and broke crosshair gaze & region aiming.
+    /// This helper self-verifies the exact axis mapping once via `WorldPtToScreenPt3` so
+    /// the camera frame is mathematically guaranteed exact on SE, AE, 1.7.104, and VR.
+    struct CameraBasis
+    {
+        RE::NiPoint3 pos{0.0f, 0.0f, 0.0f};
+        RE::NiPoint3 forward{0.0f, 1.0f, 0.0f};
+        RE::NiPoint3 right{1.0f, 0.0f, 0.0f};
+        RE::NiPoint3 up{0.0f, 0.0f, 1.0f};
+        bool valid{false};
+    };
+
+    inline bool ResolveCameraBasis(CameraBasis& out) noexcept
+    {
+        out = {};
+        auto* worldCam = RE::Main::WorldRootCamera();
+        if (!worldCam)
+        {
+            return false;
+        }
+
+        RE::NiPoint3 camPos = RE::PlayerCamera::GetActiveCameraPosition();
+        if (!std::isfinite(camPos.x) || !std::isfinite(camPos.y) || !std::isfinite(camPos.z) ||
+            (camPos.x * camPos.x + camPos.y * camPos.y + camPos.z * camPos.z) <= 1.0f)
+        {
+            camPos = worldCam->world.translate;
+        }
+        out.pos = camPos;
+
+        const RE::NiPoint3 cols[3] = {
+            worldCam->world.rotate.GetVectorX(),
+            worldCam->world.rotate.GetVectorY(),
+            worldCam->world.rotate.GetVectorZ()
+        };
+        auto unitize = [](RE::NiPoint3 v) noexcept {
+            const float l = v.Length();
+            return (l > 1e-4f) ? (v / l) : RE::NiPoint3{0.0f, 0.0f, 0.0f};
+        };
+        const RE::NiPoint3 ucols[3] = {unitize(cols[0]), unitize(cols[1]), unitize(cols[2])};
+
+        // Cached axis indices + signs verified once via WorldPtToScreenPt3.
+        // Defaults to standard NetImmerse NiCamera: fwd=+col0, up=+col1, right=+col2.
+        static bool s_verified = false;
+        static int s_fwdIdx = 0;
+        static float s_fwdSign = 1.0f;
+        static int s_rightIdx = 2;
+        static float s_rightSign = 1.0f;
+        static int s_upIdx = 1;
+        static float s_upSign = 1.0f;
+
+        if (!s_verified)
+        {
+            const RE::NiPoint3 origin = worldCam->world.translate;
+            float bestCenterErr = 1e9f;
+            int foundFwdIdx = -1;
+            float foundFwdSign = 1.0f;
+            for (int c = 0; c < 3; ++c)
+            {
+                if (ucols[c].SqrLength() < 0.5f)
+                    continue;
+                for (float sgn : {1.0f, -1.0f})
+                {
+                    float sx = 0.0f, sy = 0.0f, sz = 0.0f;
+                    const RE::NiPoint3 pt = origin + ucols[c] * (100.0f * sgn);
+                    if (worldCam->WorldPtToScreenPt3(pt, sx, sy, sz, 0.0001f) &&
+                        std::isfinite(sx) && std::isfinite(sy) && std::isfinite(sz) && sz > 0.0f)
+                    {
+                        const float err = std::hypot(sx - 0.5f, sy - 0.5f);
+                        if (err < bestCenterErr)
+                        {
+                            bestCenterErr = err;
+                            foundFwdIdx = c;
+                            foundFwdSign = sgn;
+                        }
+                    }
+                }
+            }
+
+            if (foundFwdIdx >= 0 && bestCenterErr < 0.05f)
+            {
+                s_fwdIdx = foundFwdIdx;
+                s_fwdSign = foundFwdSign;
+                const RE::NiPoint3 fwdVec = ucols[s_fwdIdx] * s_fwdSign;
+
+                // Identify Right (+sx) and Up (+sy) among the other two orthogonal columns
+                for (int c = 0; c < 3; ++c)
+                {
+                    if (c == s_fwdIdx)
+                        continue;
+                    float sx = 0.0f, sy = 0.0f, sz = 0.0f;
+                    const RE::NiPoint3 pt = origin + fwdVec * 100.0f + ucols[c] * 20.0f;
+                    if (worldCam->WorldPtToScreenPt3(pt, sx, sy, sz, 0.0001f) &&
+                        std::isfinite(sx) && std::isfinite(sy) && sz > 0.0f)
+                    {
+                        const float dx = sx - 0.5f;
+                        const float dy = sy - 0.5f;
+                        if (std::abs(dx) >= std::abs(dy))
+                        {
+                            s_rightIdx = c;
+                            s_rightSign = (dx >= 0.0f) ? 1.0f : -1.0f;
+                        }
+                        else
+                        {
+                            s_upIdx = c;
+                            s_upSign = (dy >= 0.0f) ? 1.0f : -1.0f;
+                        }
+                    }
+                }
+                s_verified = true;
+                logger::info("[TrueGaze] Verified NiCamera basis: fwd=(col{},{:+.0f}) "
+                             "right=(col{},{:+.0f}) up=(col{},{:+.0f})",
+                             s_fwdIdx, s_fwdSign, s_rightIdx, s_rightSign, s_upIdx, s_upSign);
+            }
+        }
+
+        out.forward = ucols[s_fwdIdx] * s_fwdSign;
+        out.right = ucols[s_rightIdx] * s_rightSign;
+        out.up = ucols[s_upIdx] * s_upSign;
+        out.valid = (out.forward.SqrLength() > 0.5f);
+        return out.valid;
+    }
+
+    /// Synthesise binocular left/right eye anchors around the 1st-person camera lens
+    /// using the verified camera right axis and canonical half-IPD (±2.4 units).
+    inline bool ResolveFirstPersonCameraEyes(EyePair& out) noexcept
+    {
+        CameraBasis cam{};
+        if (ResolveCameraBasis(cam))
+        {
+            out.left = cam.pos - cam.right * kHalfIpdUnits;
+            out.right = cam.pos + cam.right * kHalfIpdUnits;
+            return true;
+        }
+        RE::NiPoint3 camPos{};
+        if (!ResolveFirstPersonCameraPoint(camPos))
+        {
+            return false;
+        }
+        out.left = camPos - RE::NiPoint3{kHalfIpdUnits, 0.0f, 0.0f};
+        out.right = camPos + RE::NiPoint3{kHalfIpdUnits, 0.0f, 0.0f};
+        return true;
+    }
+
     /// Read the eye shader's globe centres in the head-part skin coordinate frame.
     /// Vanilla eyesmale.nif stores these at (+/-2.397, 7.572, 3.751), not at
     /// either of the independently guessed targeting/visual socket offsets.
@@ -126,6 +315,8 @@ namespace TrueGaze::Anchors
                                       float forwardCm, float upCm) noexcept
     {
         EyePair eyes{};
+        if (IsFirstPersonPlayer(actor) && ResolveFirstPersonCameraEyes(eyes))
+            return eyes;
         if (FaceGenEyeCenters(actor, head, eyes))
             return eyes;
         const float scale = head && head->world.scale > 0.0f ? head->world.scale : 1.0f;
@@ -151,7 +342,10 @@ namespace TrueGaze::Anchors
     inline EyePair ResolvePupilsForward(RE::Actor* actor, const RE::NiAVObject* head,
                                         float forwardCm, float upCm) noexcept
     {
-        auto eyes = ResolveEyeCenters(actor, head, nullptr, nullptr, forwardCm, upCm);
+        EyePair eyes{};
+        if (IsFirstPersonPlayer(actor) && ResolveFirstPersonCameraEyes(eyes))
+            return eyes;
+        eyes = ResolveEyeCenters(actor, head, nullptr, nullptr, forwardCm, upCm);
         if (head)
         {
             const RE::NiPoint3 forward = head->world.rotate.GetVectorY();
@@ -164,6 +358,12 @@ namespace TrueGaze::Anchors
     inline RE::NiPoint3 EyeMidpoint(RE::Actor* actor, const RE::NiAVObject* head,
                                     float forwardCm, float upCm) noexcept
     {
+        if (IsFirstPersonPlayer(actor))
+        {
+            RE::NiPoint3 camPos{};
+            if (ResolveFirstPersonCameraPoint(camPos))
+                return camPos;
+        }
         const auto eyes = ResolveEyeCenters(actor, head, nullptr, nullptr, forwardCm, upCm);
         return (eyes.left + eyes.right) * 0.5f;
     }

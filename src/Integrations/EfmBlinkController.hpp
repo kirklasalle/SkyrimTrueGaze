@@ -49,6 +49,31 @@ namespace TrueGaze::Integrations
             state.eyelidCloseWeight = 4.0f * t * (1.0f - t);
         }
 
+        struct FaceGenEyeSnapshot
+        {
+            bool valid{false};
+            float eyesHeadingDeg{0.0f};
+            float eyesPitchDeg{0.0f};
+            float mod3LookLeft{0.0f};
+            float mod3LookRight{0.0f};
+            float mod3LookUp{0.0f};
+            float mod3LookDown{0.0f};
+            /// Effective rendered pupil deflection (head-relative degrees, +Right/+Up)
+            /// derived from FaceGen's live `modifier3` final blended Look* morphs.
+            float renderedYawDeg{0.0f};
+            float renderedPitchDeg{0.0f};
+            bool hasRenderedMorphs{false};
+        };
+
+        /// @brief Reads Skyrim FaceGen's live rendered eye state (`modifier3` final Look*
+        /// morphs and `eyesHeading`/`eyesPitch`) under `BSFaceGenAnimationData::lock`.
+        /// Pass the active `fullScaleDeg` and `gain` used by `ApplyGazeMorphs` so TrueGaze-
+        /// driven morphs map back cleanly to physical degrees without gain overshoot, while
+        /// vanilla FaceGen deflections remain accurately represented.
+        static FaceGenEyeSnapshot ReadRenderedFaceGenEyes(uint32_t actorFormId,
+                                                          float fullScaleDeg = 20.0f,
+                                                          float gain = 1.7f) noexcept;
+
         /// @brief Applies eyelid morph weights and eye-direction morphs (EFA / EFM / Vanilla)
         /// to an actor's FaceGen modifier keyframes.
         ///

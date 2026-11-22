@@ -460,4 +460,74 @@ namespace TrueGaze::Engine
         Enqueue(std::string(line));
     }
 
+    void TraceLogger::LogExpandedPlayEvent(float ts, const char* action, uint32_t actorId,
+                                           const char* actorName, uint8_t regionId, float dwellSec,
+                                           const char* detail) noexcept
+    {
+        if (!_active.load(std::memory_order_relaxed))
+        {
+            return;
+        }
+        if (actorId != 0u && !ShouldLogActor(actorId))
+        {
+            return;
+        }
+
+        const auto escapeJson = [](const char* raw) -> std::string
+        {
+            if (!raw)
+            {
+                return {};
+            }
+            std::string out;
+            for (const char* p = raw; *p != '\0'; ++p)
+            {
+                if (*p == '"' || *p == '\\')
+                {
+                    out.push_back('\\');
+                }
+                if (static_cast<unsigned char>(*p) >= 0x20u)
+                {
+                    out.push_back(*p);
+                }
+            }
+            return out;
+        };
+
+        const std::string actorStr =
+            (actorId != 0u) ? std::format("0x{:08X}", actorId) : "null";
+        std::string line = std::format(
+            R"({{"t":"EXPANDED_PLAY","ts":{:.3f},"action":"{}","actor":"{}","name":"{}","region":{},"dwellSec":{:.2f},"detail":"{}"}})",
+            ts, escapeJson(action ? action : "UNKNOWN"), actorStr,
+            escapeJson(actorName ? actorName : ""), regionId, dwellSec, escapeJson(detail));
+
+        Enqueue(std::move(line));
+    }
+
+    void TraceLogger::LogVisualEyeSync(float ts, uint32_t actorId, uint32_t targetId,
+                                       uint8_t priority, float solvedEyeYaw, float solvedEyePitch,
+                                       float fgHeadingDeg, float fgPitchDeg,
+                                       float fgMod3L, float fgMod3R, float fgMod3U, float fgMod3D,
+                                       float arrowYaw, float arrowPitch,
+                                       float rawHeadCorrYaw, float smoothHeadCorrYaw,
+                                       float refHeadingDeg, bool isSeated) noexcept
+    {
+        if (!_active.load(std::memory_order_relaxed) || !ShouldLogActor(actorId))
+        {
+            return;
+        }
+
+        const std::string targetStr =
+            (targetId != 0u) ? std::format("0x{:08X}", targetId) : "null";
+        std::string line = std::format(
+            R"({{"t":"VISUAL_EYE_SYNC","ts":{:.3f},"actor":"0x{:08X}","target":"{}","prio":{},"solvedYaw":{:.2f},"solvedPitch":{:.2f},"fgHeadDeg":{:.2f},"fgPitchDeg":{:.2f},"fgMod3":[{:.3f},{:.3f},{:.3f},{:.3f}],"arrowYaw":{:.2f},"arrowPitch":{:.2f},"headRawCorr":{:.2f},"headSmoothCorr":{:.2f},"refDeg":{:.1f},"seated":{}}})",
+            ts, actorId, targetStr, static_cast<unsigned>(priority),
+            solvedEyeYaw, solvedEyePitch, fgHeadingDeg, fgPitchDeg,
+            fgMod3L, fgMod3R, fgMod3U, fgMod3D,
+            arrowYaw, arrowPitch, rawHeadCorrYaw, smoothHeadCorrYaw,
+            refHeadingDeg, isSeated ? "true" : "false");
+
+        Enqueue(std::move(line));
+    }
+
 } // namespace TrueGaze::Engine

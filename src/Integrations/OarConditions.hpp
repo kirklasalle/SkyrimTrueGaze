@@ -52,6 +52,10 @@ namespace TrueGaze::Integrations
             uint8_t hcepMode{0};
             uint8_t gazeRegion{0};
             float mutualGazeHoldSec{0.0f};
+            uint8_t interpretation{0};      // ExpandedPlay::Interpretation (0..11)
+            uint8_t demeanor{0};            // ExpandedPlay::Demeanor (0..5)
+            uint8_t presenceTier{0};        // ExpandedPlay::PresenceTier (0..4)
+            float dominantImpression{0.0f}; // Signed dominant GazeLedger score [-100..100]
         };
 
         /// @brief Writes an actor's live gaze state into the condition cache.
@@ -63,6 +67,13 @@ namespace TrueGaze::Integrations
                                       uint8_t hcepMode,
                                       uint8_t gazeRegion,
                                       float mutualGazeHoldSec) noexcept;
+
+        /// @brief Writes an actor's Expanded Play condition state into the cache.
+        static void PublishExpandedPlayState(uint32_t actorFormId,
+                                             uint8_t interpretation,
+                                             uint8_t demeanor,
+                                             uint8_t presenceTier,
+                                             float dominantImpression) noexcept;
 
         /// @brief Drops all cached actor state. Call on cell change and game load.
         static void ClearCache() noexcept;
@@ -86,12 +97,24 @@ namespace TrueGaze::Integrations
         /// @brief Evaluates whether the actor's current gaze region matches the requested region ID (0-12).
         static bool EvaluateGazeRegion(uint32_t actorFormId, uint8_t targetRegionId) noexcept;
 
-        /// @brief Registers TrueGaze_IsMode, TrueGaze_IsMutualGaze and TrueGaze_GetGazeRegion
-        /// as OAR custom conditions.
+        /// @brief Evaluates whether the actor's current Expanded Play Interpretation matches (0-11).
+        static bool EvaluateInterpretation(uint32_t actorFormId,
+                                           uint8_t targetInterpretation) noexcept;
+
+        /// @brief Evaluates whether the active player Demeanor observed by this actor matches (0-5).
+        static bool EvaluateDemeanor(uint32_t actorFormId, uint8_t targetDemeanor) noexcept;
+
+        /// @brief Evaluates whether the player's PresenceTier meets or exceeds the minimum tier (0-4).
+        static bool EvaluatePresenceTier(uint32_t actorFormId, uint8_t minPresenceTier) noexcept;
+
+        /// @brief Evaluates whether this actor's dominant GazeLedger impression meets or exceeds threshold.
+        static bool EvaluateImpression(uint32_t actorFormId, float minImpressionThreshold) noexcept;
+
+        /// @brief Registers TrueGaze OAR custom conditions during SKSE `kPostLoad`.
         ///
-        /// Call during SKSE `kPostLoad`. After that point OAR has built its condition-factory
-        /// map and later registrations have no effect. Idempotent once it has succeeded.
-        /// @return true only if OAR accepted all three conditions.
+        /// After `kPostLoad`, OAR has built its condition-factory map and later
+        /// registrations have no effect. Idempotent once it has succeeded.
+        /// @return true only if OAR accepted every condition.
         static bool RegisterWithOar() noexcept;
     };
 

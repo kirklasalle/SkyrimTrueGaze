@@ -158,12 +158,17 @@ void TestTraceLoggerCgaBlinkAndMismatchEvents()
     logger.LogBlink(106.0f, 0x000A2C94, 180.0f, 3.2f);
     logger.LogHitMismatch(107.0f, 0x000A2C94, 3, 0, 0.5f, 4.2f, 0.43f, 3.60f, "BOUNDARY");
     logger.LogCalibration(108.0f, "sweep", 9, -15.0f, 18.0f, 9, 9, true);
+    logger.LogExpandedPlayEvent(109.25f, "TX_COMMIT", 0x0001347Bu, "Camilla", 0u, 2.20f,
+                                "type=RapportBarter vec=Admire aff=Love speech=+5.0");
+    logger.LogVisualEyeSync(109.50f, 0x0002C90Fu, 0x00000014u, 4u, -12.0f, 1.5f,
+                            -28.0f, 0.5f, 0.95f, 0.0f, 0.05f, 0.0f,
+                            -30.4f, 1.2f, -15.0f, -11.2f, 92.5f, true);
 
     logger.Flush();
     logger.StopTracing();
 
     auto lines = ReadLines(testFile);
-    assert(lines.size() == 5);
+    assert(lines.size() == 7);
 
     // 1. CGA_ENTER
     assert(lines[0].find("\"t\":\"CGA_ENTER\"") != std::string::npos);
@@ -194,6 +199,19 @@ void TestTraceLoggerCgaBlinkAndMismatchEvents()
     assert(lines[4].find("\"t\":\"CALIBRATION\"") != std::string::npos);
     assert(lines[4].find("\"command\":\"sweep\"") != std::string::npos);
     assert(lines[4].find("\"pass\":true") != std::string::npos);
+
+    // 6. EXPANDED_PLAY
+    assert(lines[5].find("\"t\":\"EXPANDED_PLAY\"") != std::string::npos);
+    assert(lines[5].find("\"action\":\"TX_COMMIT\"") != std::string::npos);
+    assert(lines[5].find("\"actor\":\"0x0001347B\"") != std::string::npos);
+    assert(lines[5].find("\"name\":\"Camilla\"") != std::string::npos);
+    assert(lines[5].find("RapportBarter") != std::string::npos);
+
+    // 7. VISUAL_EYE_SYNC
+    assert(lines[6].find("\"t\":\"VISUAL_EYE_SYNC\"") != std::string::npos);
+    assert(lines[6].find("\"actor\":\"0x0002C90F\"") != std::string::npos);
+    assert(lines[6].find("\"arrowYaw\":-30.40") != std::string::npos);
+    assert(lines[6].find("\"seated\":true") != std::string::npos);
 
     CleanTestFile(testFile);
     std::cout << "[PASS] TestTraceLoggerCgaBlinkAndMismatchEvents\n";

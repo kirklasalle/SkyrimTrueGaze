@@ -191,6 +191,22 @@ namespace TrueGaze::Engine
         /// Eliminates head snapping when scene deferral starts or stops.
         float headChainYieldAlpha{0.0f};
 
+        /// Temporally smoothed head-chain correction angles (deg) computed relative to the
+        /// live posed head basis. Prevents single-frame Havok/idle perturbations or threshold
+        /// crossings from causing rapid left/right head oscillation.
+        float smoothedHeadCorrYaw{0.0f};
+        float smoothedHeadCorrPitch{0.0f};
+        bool headCorrInitialised{false};
+
+        /// Temporally smoothed anatomical reference heading (radians). Eliminates
+        /// discontinuous 30-degree snaps when an idle/eating/drinking torso animation
+        /// twists Spine2 across the root-vs-spine threshold.
+        float smoothedRefHeadingRad{0.0f};
+        bool refHeadingInitialised{false};
+
+        /// Throttle timer for VISUAL_EYE_SYNC diagnostic trace events (seconds).
+        float visualSyncLogTimerSec{0.0f};
+
         /// Reset the kinematics runtime to a known state, e.g. after a cell change.
         void Reset(float startYaw, float startPitch) noexcept
         {
@@ -263,6 +279,12 @@ namespace TrueGaze::Engine
             cachedClavicleR = nullptr;
             cgaAversionBlend = 0.0f;
             headChainYieldAlpha = 0.0f;
+            smoothedHeadCorrYaw = 0.0f;
+            smoothedHeadCorrPitch = 0.0f;
+            headCorrInitialised = false;
+            smoothedRefHeadingRad = 0.0f;
+            refHeadingInitialised = false;
+            visualSyncLogTimerSec = 0.0f;
             initialised = true;
         }
     };

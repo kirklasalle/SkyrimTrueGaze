@@ -248,6 +248,248 @@ namespace TrueGaze::Integrations::OarCustomConditions
             ::Conditions::INumericConditionComponent *_region{nullptr};
         };
 
+        // -------------------------------------------------------------------
+        // TrueGaze_GetInterpretation: true while actor interprets the player's
+        // look as the given Interpretation enum (0-11).
+        // -------------------------------------------------------------------
+        class GetInterpretationCondition : public ::Conditions::CustomCondition
+        {
+        public:
+            static constexpr std::string_view CONDITION_NAME = "TrueGaze_GetInterpretation"sv;
+
+            GetInterpretationCondition()
+            {
+                _interpretation =
+                    static_cast<::Conditions::INumericConditionComponent *>(AddBaseComponent(
+                        ::Conditions::ConditionComponentType::kNumeric, "Interpretation",
+                        "Expanded Play interpretation ID to match (0=None, 1=Respect, 2=Warmth, "
+                        "3=Attraction, 4=Challenge, 5=IntrusionLeer, 6=Suspicion, 7=Deference, "
+                        "8=Contempt, 9=Compassion, 10=Deceit, 11=Recognition)."));
+            }
+
+            RE::BSString GetName() const override { return CONDITION_NAME.data(); }
+
+            RE::BSString GetDescription() const override
+            {
+                return "True while TrueGaze Expanded Play reports this actor holding the given interpretation."sv
+                    .data();
+            }
+
+            REL::Version GetRequiredVersion() const override { return kFirstRealVersion; }
+
+            RE::BSString GetArgument() const override
+            {
+                return std::format("Interpretation == {}", _interpretation->GetArgument().data())
+                    .data();
+            }
+
+            RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
+            {
+                OarConditions::ActorState state;
+                if (!TryGetState(a_refr, state))
+                {
+                    return kNoState.data();
+                }
+                return std::format("{}", state.interpretation).data();
+            }
+
+        protected:
+            bool EvaluateImpl(RE::TESObjectREFR *a_refr,
+                              [[maybe_unused]] RE::hkbClipGenerator *a_clipGenerator,
+                              [[maybe_unused]] void *a_subMod) const override
+            {
+                uint8_t target = 0;
+                if (!a_refr || !ToIndex(_interpretation->GetNumericValue(a_refr), 11, target))
+                {
+                    return false;
+                }
+                return OarConditions::EvaluateInterpretation(a_refr->GetFormID(), target);
+            }
+
+        private:
+            ::Conditions::INumericConditionComponent *_interpretation{nullptr};
+        };
+
+        // -------------------------------------------------------------------
+        // TrueGaze_GetDemeanor: true while the player's active Demeanor (0-5)
+        // observed by this actor matches the target value.
+        // -------------------------------------------------------------------
+        class GetDemeanorCondition : public ::Conditions::CustomCondition
+        {
+        public:
+            static constexpr std::string_view CONDITION_NAME = "TrueGaze_GetDemeanor"sv;
+
+            GetDemeanorCondition()
+            {
+                _demeanor =
+                    static_cast<::Conditions::INumericConditionComponent *>(AddBaseComponent(
+                        ::Conditions::ConditionComponentType::kNumeric, "Demeanor",
+                        "Player Demeanor ID to match (0=Courteous, 1=Warm, 2=Stern, 3=Evasive, "
+                        "4=Deferential, 5=Predatory)."));
+            }
+
+            RE::BSString GetName() const override { return CONDITION_NAME.data(); }
+
+            RE::BSString GetDescription() const override
+            {
+                return "True while TrueGaze Expanded Play reports the player bearing the given Demeanor."sv
+                    .data();
+            }
+
+            REL::Version GetRequiredVersion() const override { return kFirstRealVersion; }
+
+            RE::BSString GetArgument() const override
+            {
+                return std::format("Demeanor == {}", _demeanor->GetArgument().data()).data();
+            }
+
+            RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
+            {
+                OarConditions::ActorState state;
+                if (!TryGetState(a_refr, state))
+                {
+                    return kNoState.data();
+                }
+                return std::format("{}", state.demeanor).data();
+            }
+
+        protected:
+            bool EvaluateImpl(RE::TESObjectREFR *a_refr,
+                              [[maybe_unused]] RE::hkbClipGenerator *a_clipGenerator,
+                              [[maybe_unused]] void *a_subMod) const override
+            {
+                uint8_t target = 0;
+                if (!a_refr || !ToIndex(_demeanor->GetNumericValue(a_refr), 5, target))
+                {
+                    return false;
+                }
+                return OarConditions::EvaluateDemeanor(a_refr->GetFormID(), target);
+            }
+
+        private:
+            ::Conditions::INumericConditionComponent *_demeanor{nullptr};
+        };
+
+        // -------------------------------------------------------------------
+        // TrueGaze_GetPresenceTier: true once the player's PresenceTier >= min
+        // -------------------------------------------------------------------
+        class GetPresenceTierCondition : public ::Conditions::CustomCondition
+        {
+        public:
+            static constexpr std::string_view CONDITION_NAME = "TrueGaze_GetPresenceTier"sv;
+
+            GetPresenceTierCondition()
+            {
+                _tier = static_cast<::Conditions::INumericConditionComponent *>(AddBaseComponent(
+                    ::Conditions::ConditionComponentType::kNumeric, "Minimum tier",
+                    "Minimum PresenceTier required (0=Unnoticed, 1=Noticed, 2=Steady, "
+                    "3=Commanding, 4=Legendary)."));
+            }
+
+            RE::BSString GetName() const override { return CONDITION_NAME.data(); }
+
+            RE::BSString GetDescription() const override
+            {
+                return "True when the player's TrueGaze PresenceTier meets or exceeds the threshold."sv
+                    .data();
+            }
+
+            REL::Version GetRequiredVersion() const override { return kFirstRealVersion; }
+
+            RE::BSString GetArgument() const override
+            {
+                return std::format("PresenceTier >= {}", _tier->GetArgument().data()).data();
+            }
+
+            RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
+            {
+                OarConditions::ActorState state;
+                if (!TryGetState(a_refr, state))
+                {
+                    return kNoState.data();
+                }
+                return std::format("{}", state.presenceTier).data();
+            }
+
+        protected:
+            bool EvaluateImpl(RE::TESObjectREFR *a_refr,
+                              [[maybe_unused]] RE::hkbClipGenerator *a_clipGenerator,
+                              [[maybe_unused]] void *a_subMod) const override
+            {
+                uint8_t minTier = 0;
+                if (!a_refr || !ToIndex(_tier->GetNumericValue(a_refr), 4, minTier))
+                {
+                    return false;
+                }
+                return OarConditions::EvaluatePresenceTier(a_refr->GetFormID(), minTier);
+            }
+
+        private:
+            ::Conditions::INumericConditionComponent *_tier{nullptr};
+        };
+
+        // -------------------------------------------------------------------
+        // TrueGaze_GetImpression: true when dominant GazeLedger impression >= min
+        // -------------------------------------------------------------------
+        class GetImpressionCondition : public ::Conditions::CustomCondition
+        {
+        public:
+            static constexpr std::string_view CONDITION_NAME = "TrueGaze_GetImpression"sv;
+
+            GetImpressionCondition()
+            {
+                _threshold =
+                    static_cast<::Conditions::INumericConditionComponent *>(AddBaseComponent(
+                        ::Conditions::ConditionComponentType::kNumeric, "Minimum impression",
+                        "Signed dominant GazeLedger impression threshold (-100 to +100)."));
+            }
+
+            RE::BSString GetName() const override { return CONDITION_NAME.data(); }
+
+            RE::BSString GetDescription() const override
+            {
+                return "True when this actor's dominant TrueGaze GazeLedger impression meets or exceeds threshold."sv
+                    .data();
+            }
+
+            REL::Version GetRequiredVersion() const override { return kFirstRealVersion; }
+
+            RE::BSString GetArgument() const override
+            {
+                return std::format("Impression >= {}", _threshold->GetArgument().data()).data();
+            }
+
+            RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
+            {
+                OarConditions::ActorState state;
+                if (!TryGetState(a_refr, state))
+                {
+                    return kNoState.data();
+                }
+                return std::format("{:.1f}", state.dominantImpression).data();
+            }
+
+        protected:
+            bool EvaluateImpl(RE::TESObjectREFR *a_refr,
+                              [[maybe_unused]] RE::hkbClipGenerator *a_clipGenerator,
+                              [[maybe_unused]] void *a_subMod) const override
+            {
+                if (!a_refr)
+                {
+                    return false;
+                }
+                const float threshold = _threshold->GetNumericValue(a_refr);
+                if (!std::isfinite(threshold))
+                {
+                    return false;
+                }
+                return OarConditions::EvaluateImpression(a_refr->GetFormID(), threshold);
+            }
+
+        private:
+            ::Conditions::INumericConditionComponent *_threshold{nullptr};
+        };
+
         /// Registers one condition and logs OAR's answer.
         template <class T>
         bool Register()
@@ -289,15 +531,21 @@ namespace TrueGaze::Integrations::OarCustomConditions
         accepted += Register<IsModeCondition>() ? 1 : 0;
         accepted += Register<IsMutualGazeCondition>() ? 1 : 0;
         accepted += Register<GetGazeRegionCondition>() ? 1 : 0;
+        accepted += Register<GetInterpretationCondition>() ? 1 : 0;
+        accepted += Register<GetDemeanorCondition>() ? 1 : 0;
+        accepted += Register<GetPresenceTierCondition>() ? 1 : 0;
+        accepted += Register<GetImpressionCondition>() ? 1 : 0;
 
-        if (accepted == 3)
+        if (accepted == 7)
         {
-            logger::info("[TrueGaze] OAR integration active: 3/3 conditions registered "
-                         "(TrueGaze_IsMode, TrueGaze_IsMutualGaze, TrueGaze_GetGazeRegion).");
+            logger::info("[TrueGaze] OAR integration active: 7/7 conditions registered "
+                         "(TrueGaze_IsMode, TrueGaze_IsMutualGaze, TrueGaze_GetGazeRegion, "
+                         "TrueGaze_GetInterpretation, TrueGaze_GetDemeanor, "
+                         "TrueGaze_GetPresenceTier, TrueGaze_GetImpression).");
             return true;
         }
 
-        logger::warn("[TrueGaze] OAR integration incomplete: {}/3 conditions registered. OAR rules "
+        logger::warn("[TrueGaze] OAR integration incomplete: {}/7 conditions registered. OAR rules "
                      "that use the rejected conditions will not fire.",
                      accepted);
         return false;

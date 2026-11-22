@@ -111,22 +111,11 @@ namespace TrueGaze::Engine
         CameraFrame GetCameraFrame() noexcept
         {
             CameraFrame frame;
-
-            auto* camera = RE::Main::WorldRootCamera();
-            if (!camera)
+            TrueGaze::Anchors::CameraBasis cam{};
+            if (TrueGaze::Anchors::ResolveCameraBasis(cam))
             {
-                return frame;
-            }
-
-            frame.pos = RE::PlayerCamera::GetActiveCameraPosition();
-
-            // Camera forward: NetImmerse cameras look down their local -Y axis.
-            // world.rotate.GetVectorY() is the +Y basis column; negate it.
-            const RE::NiPoint3 basisY = camera->world.rotate.GetVectorY();
-            const float len = basisY.Length();
-            if (len > 0.0001f)
-            {
-                frame.forward = RE::NiPoint3{-basisY.x / len, -basisY.y / len, -basisY.z / len};
+                frame.pos = cam.pos;
+                frame.forward = cam.forward;
                 frame.valid = true;
             }
             return frame;
@@ -200,36 +189,128 @@ namespace TrueGaze::Engine
         PlayerGaze result{};
 
 #if __has_include(<RE/Skyrim.h>)
-        // 1. The game's own crosshair pick. This is the same data the HUD uses
-        //    for the activation prompt, so "the crosshair is on X" is the game's
-        //    own answer, not our approximation of it.
-        auto* pick = RE::CrosshairPickData::GetSingleton();
-        if (!pick)
-        {
-            return result;
-        }
-
-        const auto handle = pick->GetActiveTarget();
-        auto* target = handle.get().get();
-        if (!target)
-        {
-            return result;
-        }
-
-        auto* actor = target->As<RE::Actor>();
-        if (!actor || actor->IsDead())
-        {
-            return result;
-        }
-
-        // 2. The camera ray. Without a valid camera frame there is no "looking".
+        // 1. The camera ray. Without a valid camera frame there is no "looking".
         const CameraFrame frame = GetCameraFrame();
         if (!frame.valid)
         {
             return result;
         }
+        const RE::NiPoint3 gazeDir = FusedForward(frame);
+        auto* player = RE::PlayerCharacter::GetSingleton();
 
-        // 3. The target's face position and the ray to it.
+        // 2. Primary source: Skyrim's own CrosshairPickData (preferring target, then targetActor
+        //    so seated NPCs whose furniture intercepts `target` still resolve).
+        RE::Actor* actor = nullptr;
+        if (auto* pick = RE::CrosshairPickData::GetSingleton())
+        {
+            const auto handle = pick->GetActiveTarget();
+            if (auto* target = handle.get().get())
+            {
+                if (auto* pickedActor = target->As<RE::Actor>();
+                    pickedActor && !pickedActor->IsDead() && !pickedActor->IsPlayerRef())
+                {
+                    actor = pickedActor;
+                }
+            }
+#if defined(EXCLUSIVE_SKYRIM_FLAT)
+            if (!actor)
+            {
+                if (auto actorPtr = pick->targetActor.get())
+                {
+                    if (auto* pickedActor = actorPtr->As<RE::Actor>();
+                        pickedActor && !pickedActor->IsDead() && !pickedActor->IsPlayerRef())
+                    {
+                        actor = pickedActor;
+                    }
+                }
+            }
+#endif
+        }
+
+        // 3. Geometric camera-ray fallback across nearby high-process actors.
+        //    Skyrim's CrosshairPickData only picks within ~2.5 m activation range and can
+        //    miss seated NPCs or return null on newer runtimes (e.g. 1.7.104.0). Intersecting
+        //    the live camera ray against each nearby actor's face & upper-body cylinder
+        //    (with line-of-sight check) keeps both mutual gaze and Expanded Play reliable
+        //    out to params.maxRangeMeters across every Skyrim version.
+        if (!actor)
+        {
+            if (auto* processLists = RE::ProcessLists::GetSingleton())
+            {
+                float bestScore = 1e9f;
+                const float maxRangeUnits = std::max(1.0f, params.maxRangeMeters) * kUnitsPerMeter;
+                for (auto& handle : processLists->highActorHandles)
+                {
+                    auto actorPtr = handle.get();
+                    auto* cand = actorPtr.get();
+                    if (!cand || cand == player || cand->IsPlayerRef() || cand->IsDead() ||
+                        cand->IsDisabled() || !cand->Get3D())
+                    {
+                        continue;
+                    }
+
+                    RE::NiPoint3 candFace{};
+                    if (!GetFacePosition(cand, candFace))
+                    {
+                        continue;
+                    }
+
+                    const RE::NiPoint3 toHead = candFace - frame.pos;
+                    const float tHead = toHead.Dot(gazeDir);
+                    if (tHead <= 5.0f || tHead > maxRangeUnits)
+                    {
+                        continue;
+                    }
+
+                    // Test closest approach to the vertical head-to-waist segment [faceZ-55 .. faceZ+14]
+                    const RE::NiPoint3 rayAtActor = frame.pos + gazeDir * tHead;
+                    const float dx = rayAtActor.x - candFace.x;
+                    const float dy = rayAtActor.y - candFace.y;
+                    const float horizErr = std::hypot(dx, dy);
+                    const float dz = rayAtActor.z - candFace.z;
+
+                    // Allow head/face (~20u) or torso/waist (~24u) hits along the crosshair ray
+                    const bool inVerticalBody = (dz >= -55.0f && dz <= 16.0f);
+                    const float bodyRadiusUnits = (dz >= -14.0f) ? 20.0f : 24.0f;
+                    const float distMeters = std::max(tHead / kUnitsPerMeter, 0.25f);
+                    const float angularFaceErr = AngleBetweenDeg(
+                        gazeDir, toHead * (1.0f / std::max(toHead.Length(), 1e-4f)));
+                    const float headAngRad = AngularRadiusDeg(kHeadRadiusMeters, distMeters);
+                    const bool hitByAngle =
+                        angularFaceErr <= (params.baseToleranceDeg + headAngRad);
+                    const bool hitByBody = inVerticalBody && (horizErr <= bodyRadiusUnits);
+
+                    if (!hitByAngle && !hitByBody)
+                    {
+                        continue;
+                    }
+
+                    if (player)
+                    {
+                        bool losArg = false;
+                        if (!player->HasLineOfSight(cand, losArg))
+                        {
+                            continue;
+                        }
+                    }
+
+                    // Prefer actors closest to the ray axis, breaking ties by distance
+                    const float score = horizErr + distMeters * 1.5f;
+                    if (score < bestScore)
+                    {
+                        bestScore = score;
+                        actor = cand;
+                    }
+                }
+            }
+        }
+
+        if (!actor)
+        {
+            return result;
+        }
+
+        // 4. The target's face position and the ray to it.
         RE::NiPoint3 facePos{0.0f, 0.0f, 0.0f};
         if (!GetFacePosition(actor, facePos))
         {
@@ -262,8 +343,8 @@ namespace TrueGaze::Engine
         const RE::NiPoint3 toFaceDir{toFace.x / distanceUnits, toFace.y / distanceUnits,
                                      toFace.z / distanceUnits};
 
-        // 4. The sweet-spot test: angular error vs the face's angular size.
-        const float faceAngleDeg = AngleBetweenDeg(FusedForward(frame), toFaceDir);
+        // 5. The sweet-spot test: angular error vs the face's angular size.
+        const float faceAngleDeg = AngleBetweenDeg(gazeDir, toFaceDir);
         const float headAngularRadiusDeg = AngularRadiusDeg(kHeadRadiusMeters, distanceMetersSafe);
 
         const bool pointBlank = distanceMeters <= params.pointBlankMeters;
@@ -323,8 +404,8 @@ namespace TrueGaze::Engine
         }
 
 #if __has_include(<RE/Skyrim.h>)
-        auto* camera = RE::Main::WorldRootCamera();
-        if (!camera)
+        TrueGaze::Anchors::CameraBasis cam{};
+        if (!TrueGaze::Anchors::ResolveCameraBasis(cam))
         {
             return;
         }
@@ -333,10 +414,9 @@ namespace TrueGaze::Engine
         const float sy = std::sin(packet.gazeYaw);
         const float cp = std::cos(packet.gazePitch);
         const float sp = std::sin(packet.gazePitch);
-        const auto right = camera->world.rotate.GetVectorX();
-        const auto basisY = camera->world.rotate.GetVectorY();
-        const auto up = camera->world.rotate.GetVectorZ();
-        const RE::NiPoint3 forward{-basisY.x, -basisY.y, -basisY.z};
+        const auto& right = cam.right;
+        const auto& up = cam.up;
+        const auto& forward = cam.forward;
         RE::NiPoint3 direction{forward.x * cy * cp + right.x * sy * cp + up.x * sp,
                                forward.y * cy * cp + right.y * sy * cp + up.y * sp,
                                forward.z * cy * cp + right.z * sy * cp + up.z * sp};

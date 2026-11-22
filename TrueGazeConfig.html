@@ -1277,6 +1277,27 @@
             },
             'Console': {
                 bEnableConsoleCommands: ['bool', true, 'Register the stg* commands in the game console (~). Vanilla only - no Papyrus, ESP or MCM. Type stgstatus to check state, stgon/stgoff for visuals.']
+            },
+            'ExpandedPlay': {
+                bEnabled: ['bool', false, 'Master switch for Expanded Play (opt-in gameplay layer; false = visual-only classic TrueGaze)'],
+                sUnlockMode: ['choice', 'Ritual', 'Progression unlock mode (Ritual = staged 4-tumbler lore awakening + Sanctuary Ceremony; Sandbox = immediate Stage 4)', ['Ritual', 'Sandbox']],
+                sDemeanorMode: ['choice', 'Hybrid', '3rd-person Demeanor control mode (Manual / Auto / Hybrid)', ['Manual', 'Auto', 'Hybrid']],
+                iActiveDemeanor: ['choice', '0', 'Active/pinned 3rd-person Demeanor (0=Courteous 1=Warm 2=Stern 3=Evasive 4=Deferential 5=Predatory)', ['0', '1', '2', '3', '4', '5']],
+                bModuleSocialReactions: ['bool', true, 'Enable NPC eye, facial, posture and bark reactions to player gaze'],
+                bModuleRelationshipMemory: ['bool', true, 'Enable per-NPC Gaze Ledger memory and relationship impression tracking'],
+                bModuleBookStudy: ['bool', true, 'Enable Ocular Contemplation quantified page-dwell book reading and Moth\'s Stillness progression'],
+                bModuleMatureReactions: ['bool', false, 'Opt-in mature social boundary reactions to intrusive stares (default off)'],
+                bModulePresenceProgression: ['bool', true, 'Enable Presence and 4-axis Gaze Signature progression'],
+                bEnableKindredSight: ['bool', true, 'Enable Kindred Sight follower/NPC relic resonance and Second Pair of Eyes guard warnings'],
+                bEnableReticle: ['bool', true, 'Show subtle 1st-person Gaze Reticle region glow, dwell ring and reciprocity pulse'],
+                fReticleOpacity: ['float', 0.22, '1st-person Gaze Reticle base opacity (0..1)', 0.0, 1.0, 0.02, '{v}'],
+                fReticleMagnetismStrength: ['float', 0.35, 'Soft social-triangle reticle magnetism in 1st person (0..1)', 0.0, 1.0, 0.05, '{v}'],
+                iColorBlindMode: ['choice', '0', 'Color-blind palette for Gaze Reticle (0=Normal 1=Deuteranopia 2=Protanopia 3=Tritanopia)', ['0', '1', '2', '3']],
+                bImmersiveHideReticle: ['bool', false, 'Hide the 1st-person Gaze Reticle completely (diegetic NPC feedback only)'],
+                bEnableEyeContactInitiate: ['bool', true, 'Allow initiating NPC greetings by holding mutual eye contact (>= 2.0 s at Noticed Presence+)'],
+                bEnableImpressionWhispers: ['bool', true, 'Show subtle one-line impression whisper notifications on notable gaze events'],
+                fThirdPersonEfficacy: ['float', 0.8, '3rd-person automated gaze outcome scaling relative to 1st-person manual aim', 0.5, 1.0, 0.05, '{v}x'],
+                bEmitAiNpcBridgeEvents: ['bool', true, 'Emit SKSE ModEvents and HCEP bridge context strings for AI-NPC mods (Mantella / CHIM)']
             }
         };
 
@@ -1293,7 +1314,8 @@
             'LOD': 'Levels of Detail',
             'Debug': 'Diagnostics',
             'Visuals': 'In-Game Visuals',
-            'Console': 'Console Commands'
+            'Console': 'Console Commands',
+            'ExpandedPlay': 'Expanded Play (Gameplay Layer)'
         };
 
         const TOOLTIPS = {

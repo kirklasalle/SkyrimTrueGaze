@@ -78,7 +78,26 @@ namespace TrueGaze::Engine
         {
         };
 
+        struct FirstPersonCamTag {};
+        struct ThirdPersonCamTag {};
+        struct FurnitureCamTag {};
+        struct HorseCamTag {};
+        struct AutoVanityCamTag {};
+        struct FreeCamTag {};
+        struct BleedoutCamTag {};
+        struct DragonCamTag {};
+        struct TransitionCamTag {};
+        struct VatsCamTag {};
+        struct IronSightsCamTag {};
+
         static inline std::atomic<uint32_t> s_mainThreadId{0};
+        // Main-thread synchronization between PlayerCharacter::Update (which provides the
+        // frame delta) and post-animation TESCameraState::Update (which runs strictly AFTER
+        // ProcessLists::UpdateActors + BSTaskPool Havok worker jobs finish and BEFORE render).
+        static inline std::atomic<uint64_t> s_playerUpdateSeq{0};
+        static inline std::atomic<uint64_t> s_lastGazeExecSeq{0};
+        static inline std::atomic<bool> s_cameraDriverActive{false};
+        static inline float s_pendingDeltaSec{0.016f};
 
         // ---------------------------------------------------------------------
         // AUDIT 2026-10-15 F-05 — SEH filter scope + circuit breaker.
@@ -346,7 +365,26 @@ namespace TrueGaze::Engine
                         HandleSehBreakerTripped();
                         return;
                     }
-                    RunGazeFrameSeh(a_actor, a_delta);
+
+                    // Publish the current frame's delta and sequence number on the main thread.
+                    // The actual post-animation bone write runs in CameraStateUpdateHook below,
+                    // strictly AFTER ProcessLists::UpdateActors + BSTaskPool Havok worker jobs
+                    // finish updating NPC skeletons and strictly BEFORE Main::RenderWorld().
+                    // Running NPC bone writes inside PlayerCharacter::Update raced against
+                    // worker-thread Character::Update / Havok animation sync (observed +2 ms
+                    // later on worker threads), causing rapid left/right head oscillation.
+                    s_mainThreadId.store(GetCurrentThreadId(), std::memory_order_relaxed);
+                    s_pendingDeltaSec = a_delta;
+                    const uint64_t seq = s_playerUpdateSeq.fetch_add(1, std::memory_order_acq_rel) + 1;
+
+                    // Safety fallback: if an unhooked/exotic camera state skips our camera
+                    // hooks for >= 3 consecutive frames, still drive TrueGaze so gaze never stalls.
+                    const uint64_t lastExec = s_lastGazeExecSeq.load(std::memory_order_acquire);
+                    if (seq >= lastExec + 3u)
+                    {
+                        s_lastGazeExecSeq.store(seq, std::memory_order_release);
+                        RunGazeFrameSeh(a_actor, a_delta);
+                    }
                     return;
                 }
                 else
@@ -355,7 +393,7 @@ namespace TrueGaze::Engine
                     // across Havok animation worker threads (where delta is 0.0f). Mutating the
                     // NetImmerse scene graph or querying singletons on worker threads causes race
                     // conditions. All NPC gaze updates are driven cleanly and deterministically on
-                    // the main game thread in PlayerTag via AnimationHook::TickAllActors.
+                    // the main game thread after Havok animation sync via CameraStateUpdateHook.
                     return;
                 }
             }
@@ -385,6 +423,58 @@ namespace TrueGaze::Engine
         using ActorHook = ActorUpdateHook<ActorTag>;
         using CharacterHook = ActorUpdateHook<CharacterTag>;
         using PlayerHook = ActorUpdateHook<PlayerTag>;
+
+        template <class Tag> struct CameraStateUpdateHook
+        {
+            static void Hook(RE::TESCameraState* a_this,
+                             RE::BSTSmartPointer<RE::TESCameraState>& a_nextState)
+            {
+                _original(a_this, a_nextState);
+
+                if (s_sehBreakerTripped.load(std::memory_order_relaxed))
+                {
+                    HandleSehBreakerTripped();
+                    return;
+                }
+
+                const uint64_t seq = s_playerUpdateSeq.load(std::memory_order_acquire);
+                const uint64_t lastExec = s_lastGazeExecSeq.load(std::memory_order_acquire);
+                if (seq == 0u || seq == lastExec)
+                {
+                    return;
+                }
+
+                auto* player = RE::PlayerCharacter::GetSingleton();
+                if (!player)
+                {
+                    return;
+                }
+
+                if (!s_cameraDriverActive.exchange(true, std::memory_order_relaxed))
+                {
+                    logger::info("[TrueGaze] Post-animation camera gaze driver active "
+                                 "(thread={} stateId={}).",
+                                 GetCurrentThreadId(),
+                                 a_this ? static_cast<uint32_t>(a_this->id) : 0xFFFFFFFFu);
+                }
+
+                s_lastGazeExecSeq.store(seq, std::memory_order_release);
+                RunGazeFrameSeh(player, s_pendingDeltaSec);
+            }
+
+            static inline REL::Relocation<decltype(Hook)> _original;
+        };
+
+        template <class Tag>
+        void InstallCameraStateHook(const REL::VariantID& vtable, const char* name)
+        {
+            REL::Relocation<std::uintptr_t> table{vtable};
+            const std::size_t updateSlot = REL::Module::IsVR() ? 0x04 : 0x03;
+            CameraStateUpdateHook<Tag>::_original =
+                table.write_vfunc(updateSlot, CameraStateUpdateHook<Tag>::Hook);
+            logger::debug("[TrueGaze] Post-animation gaze hook installed on {}::Update (slot 0x{:02X}).",
+                          name, updateSlot);
+        }
 
         template <class Hook>
         void InstallActorUpdateHook(const REL::VariantID& vtable, const char* name)
@@ -487,6 +577,25 @@ namespace TrueGaze::Engine
         InstallActorUpdateHook<ActorHook>(RE::VTABLE_Actor[0], "Actor");
         InstallActorUpdateHook<CharacterHook>(RE::VTABLE_Character[0], "Character");
         InstallActorUpdateHook<PlayerHook>(RE::VTABLE_PlayerCharacter[0], "PlayerCharacter");
+
+        // Post-animation main-thread hooks on TESCameraState::Update (slot 0x03 SE/AE, 0x04 VR).
+        // Runs once per frame strictly AFTER ProcessLists::UpdateActors + BSTaskPool Havok
+        // animation jobs have completed for all NPCs, and strictly BEFORE Main::RenderWorld(),
+        // eliminating worker-thread races on NiAVObject bone transforms.
+        InstallCameraStateHook<FirstPersonCamTag>(RE::VTABLE_FirstPersonState[0], "FirstPersonState");
+        InstallCameraStateHook<ThirdPersonCamTag>(RE::VTABLE_ThirdPersonState[0], "ThirdPersonState");
+        InstallCameraStateHook<FurnitureCamTag>(RE::VTABLE_FurnitureCameraState[0], "FurnitureCameraState");
+        InstallCameraStateHook<HorseCamTag>(RE::VTABLE_HorseCameraState[0], "HorseCameraState");
+        InstallCameraStateHook<AutoVanityCamTag>(RE::VTABLE_AutoVanityState[0], "AutoVanityState");
+        InstallCameraStateHook<FreeCamTag>(RE::VTABLE_FreeCameraState[0], "FreeCameraState");
+        InstallCameraStateHook<BleedoutCamTag>(RE::VTABLE_BleedoutCameraState[0], "BleedoutCameraState");
+        InstallCameraStateHook<DragonCamTag>(RE::VTABLE_DragonCameraState[0], "DragonCameraState");
+        InstallCameraStateHook<TransitionCamTag>(RE::VTABLE_PlayerCameraTransitionState[0],
+                                                 "PlayerCameraTransitionState");
+        InstallCameraStateHook<VatsCamTag>(RE::VTABLE_VATSCameraState[0], "VATSCameraState");
+        InstallCameraStateHook<IronSightsCamTag>(RE::VTABLE_IronSightsState[0], "IronSightsState");
+        logger::info("[TrueGaze] Post-animation camera-state gaze hooks installed (11 states).");
+
         installed = true;
 
         logger::info("[TrueGaze] Gaze driver installed.");

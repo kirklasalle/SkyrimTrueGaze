@@ -1,7 +1,7 @@
 # TrueGaze Console Commands Card
 
-Current source: `src/Integrations/ConsoleCommands.cpp`, `kCommands` (27 commands).
-Open Skyrim's vanilla console with `~`. Commands take **no arguments**.
+Current source: `src/Integrations/ConsoleCommands.cpp`, `kCommands` (30 commands).
+Open Skyrim's vanilla console with `~`. Commands take **no arguments** (`stgexpanded` also checks whether an actor reference is selected in the console).
 Set `[Console] bEnableConsoleCommands=true` before startup; changing registration
 requires a restart. No Papyrus, ESP, SkyUI or MCM is required.
 
@@ -36,14 +36,26 @@ requires a restart. No Papyrus, ESP, SkyUI or MCM is required.
 | `stgcalsweep` | Sweep 11 angular deflections, 2 seconds each; selected actor or all tracked actors. |
 | `stgcaloff` | Stop calibration and restore autonomous gaze. |
 | `stgcalaxes` | Print head-axis convention and selected actor's 3D availability; not geometric accuracy certification. |
+| `stgexpanded` | Toggle Expanded Play (`[ExpandedPlay] bEnabled`) on/off and print status, unlock Stage 4 (`player.stgexpanded`), OR start/abort a Tavern Staring Contest when an NPC ref is selected while Expanded Play is ON. |
+| `stgdemeanor` | Cycle 3rd-person Expanded Play Demeanor (`Courteous`..`Predatory`) and pin for 60s in Hybrid mode. |
+| `stgitems` | Drop all TrueGaze Expanded Play relics & book in front of the player (Player-owned, never marked Steal) and teach the `Sight of the First Canticle` right-hand spell (`0` Magicka) when the optional ESL is active. |
 
 ## Safe test sequence
 
-1. `stgstatus` - check kinematics, visual master and actor filters.
+1. `stgstatus` - check kinematics, Expanded Play flags, visual master and engine counters.
 2. `stgoff` then `stgpanel` - isolate front panel B and associated receiving cards.
 3. `stgintext` - inspect named observations; `stginnext` / `stginprev` page.
 4. `stgtrace` - optionally select an actor first to filter the new trace.
 5. `stgtraceoff`, `stgcaloff`, `stgoff` - stop test instruments for ordinary play.
+
+## Expanded Play test sequence
+
+1. Run **stgexpanded** (no selection) to turn `[ExpandedPlay] bEnabled` ON and print Presence, Signature Title, Book Scholarship, and GazeLedger counts.
+2. In 3rd person, run **stgdemeanor** to pin a posture (auto-clears after 60s or on cell/combat/dialogue change in `Hybrid` mode).
+3. In console with Expanded Play ON, click an adult NPC (e.g., Orgnar in Riverwood) and run **stgexpanded** to start/abort the 3-round Staring Contest.
+4. Run **stgexpanded** (no selection) again at any time to disable Expanded Play cleanly and revert all temporary *Moth's Stillness* stat modifiers.
+
+See [Expanded Play Guide](EXPANDED_PLAY_GUIDE.md) for INI module toggles and mechanics details.
 
 **Persistence:** settings toggles attempt to save the effective INI and refresh
 live tuning. Presets intentionally replace their listed keys, not the entire

@@ -1,10 +1,10 @@
 # TrueGaze Developer Guide
 
-**Project:** TrueGaze - Biological NPC Gaze and Biomechanical Kinematics Engine
-**Audience:** Contributors, engine programmers, mod authors, HCEP integrators, and release engineers
-**Status date:** November 12, 2026
-**Current validation runtime:** Skyrim AE `1.7.104.0`, SE `1.5.97`, Skyrim VR `1.4.15` ("Mad God VR")
-**Primary language:** C++23/C++20-compatible project code with MSVC
+**Project:** TrueGaze™ v2.0.0 — Biological NPC Gaze, Biomechanical Kinematics & Expanded Play Engine  
+**Audience:** Contributors, engine programmers, mod authors, HCEP integrators, and release engineers  
+**Status date:** November 22, 2026  
+**Current validation runtime:** Skyrim AE `1.7.104.0`, SE `1.5.97`, Skyrim VR `1.4.15` ("Mad God VR")  
+**Primary language:** C++23 with MSVC (v143 / VS 2022)  
 **Game SDK:** CommonLibSSE-NG v7.5.4 (Multi-target SE/AE/VR, OpenVR)
 
 > This guide describes the implemented repository as it exists today. It intentionally separates implemented code, standalone-tested code, and in-engine evidence. The project has real Skyrim runtime evidence for loading, actor updates, target resolution, skeleton probing, light emitter attachment, and visual geometry. The unified multi-target binary dynamically routes `Actor::Update` (`0xAD` on SE/AE, `0xAF` on VR), avoiding vtable corruption on Skyrim VR. True 3D Head-Height Elevation dynamically resolves `NPC Head [Head]` bone transforms for seated, leaning, and crouched eye-to-eye alignment. 3rd-person player conversational gaze engagement allows the player character to track nearby dialogue partners. Both Option 1 (discreet ~2mm subtle laser rays: pupil-offset, eye line-of-sight tracking) and Option 2 (HCEP floating diagram panel: `GazeRegionPanel.nif` / `GazeRegionPanel.dds` chroma-keyed quad with real-time region highlight) are implemented and operational.
@@ -51,8 +51,9 @@ Do not upgrade a feature's state because a build succeeds. A build proves compil
 - `AnimationHook` owns the post-update actor hook and safety boundary.
 - `VisualEffectsManager` consumes solved gaze state and owns diagnostic emitters.
 - `NamedPipeServer` owns HCEP IPC, packet validation, buffering, and feedback transport.
-- `ConsoleCommands` owns vanilla-console registration and status output.
-- `OarConditions` owns the evaluator/cache surface; OAR API registration is still incomplete.
+- `ConsoleCommands` owns vanilla-console registration (`30` commands including `stgexpanded`, `stgdemeanor`, `stgitems`) and status output.
+- `OarConditions` & `OarCustomConditions` own the state cache and register `7` custom OAR conditions via OAR Conditions API V3 during `kPostLoad` (`TrueGaze_IsMode`, `TrueGaze_IsMutualGaze`, `TrueGaze_GetGazeRegion`, `TrueGaze_GetInterpretation`, `TrueGaze_GetDemeanor`, `TrueGaze_GetPresenceTier`, `TrueGaze_GetImpression`).
+- `ExpandedPlay` (`ExpandedPlayManager`, `DemeanorController`, `PerceptionGate`, `InterpretationEngine`, `PersuasionTransactions`, `CombatAndCreatureSight`, `AwakeningRitual`, `GazeLedger`, `PresenceSignature`, `BookStudyTracker`, `ResponseLadder`, `GazeReticle`, `CoSaveSerializer`, `ExpandedPlayModifiers`) owns the optional `10 Hz` / `2 Hz` social, persuasion, staged awakening, and combat/creature sight gameplay layer, `'TGZE'` co-save serialization (`SIGN`/`LEDG`/`BOOK`/`AWKN`), zero-cell-conflict Sanctuary Relic Discovery, 1st/3rd-person `AnimObjectL` open-book casting visuals, and reversible ActorValue ledger.
 
 Avoid duplicating decisions across these boundaries. In particular, visual code must consume the solved gaze state rather than recomputing target or kinematics math.
 
@@ -62,12 +63,13 @@ Avoid duplicating decisions across these boundaries. In particular, visual code 
 src/
   Bridge/              HCEP packet definitions and named-pipe server
   Engine/              Config, gaze engine, target selection, hooks, kinematics integration
-  Integrations/        Console, OAR, blink, public API integrations
-  Visuals/             VisualTuning and VisualEffectsManager
+  ExpandedPlay/        Optional Expanded Play gameplay layer (10 Hz / 2 Hz, HUD reticle, 'TGZE' co-save)
+  Integrations/        Console, 7 OAR V3 conditions, blink, public API integrations
+  Visuals/             VisualTuning and VisualEffectsManager / IncomingGazeManager
 include/               Public headers and exported API declarations
-skyrim/                Mod-layout files copied into a release package
-scripts/               Configure, build, deploy, health, launch, and package scripts
-tests/                 Standalone kinematics and HCEP bridge tests
+skyrim/                Mod-layout files copied into a release package (incl. Interface/*.swf)
+scripts/               Configure, build, deploy, health, illustration, launch, and package scripts
+tests/                 7 standalone + Configurator parity test targets
 extern/CommonLibSSE-NG/ Vendored Skyrim SDK dependency
 config/                Project metadata and charter files
 docs/                  Audits, architecture, implementation plans, and guides
@@ -139,33 +141,13 @@ Do not use `-NoBuild` after changing source unless the intended Release binary h
 
 ## 5. Test Targets
 
-### Kinematics suite
+### Test targets (7 CTest suites + Configurator Parity)
 
-```powershell
-.\bin\Debug\KinematicsTests.exe
-```
+Run all 7 automated C++ unit test suites via `ctest --preset standalone --output-on-failure` (or `.\scripts\Invoke-CiGate.ps1 -Preset windows-release` for the full 6-stage build + test + doc/schema gate):
 
-The suite currently covers:
-
-- Saccade generation.
-- VOR coordination.
-- Micro-jitter bounds and seeding.
-- Social triangle behavior.
-- Bone-controller hierarchy strain.
-- Eye residual allocation.
-- Main Sequence profile fidelity.
-- LOD behavior.
-- Blink controller behavior.
-- Packet layout and CRC.
-- HCEP semantic validation.
-
-### HCEP bridge mock
-
-```powershell
-.\bin\Debug\HcepBridgeClientMock.exe
-```
-
-This starts the named-pipe server, streams telemetry frames, receives them through the engine exchange, and verifies feedback. It does not prove that a running Skyrim actor visibly moves.
+- `ExpandedPlayTests.exe` — covers `[ExpandedPlay]` defaults/clamping, `'TGZE'` binary codec round-trips & truncation/NaN guards, `ModifierLedger`, `DemeanorController` 60s pin, `GazeReticle` HCEP-02 palettes/magnetism, `PerceptionGate`, `InterpretationEngine` + hard Child Safety Gate, `GazeLedger` 512-LRU & 14-day decay, `PresenceSignature` caps, `BookStudyTracker` read-only dwell math, and `ResponseLadder` Rungs 1–4 / Staring Contest / Greeting gates.
+- `IncomingGazeTests.exe`, `KinematicsTests.exe`, `ValidationTests.exe`, `GeometryTests.exe`, `TraceTests.exe`, `HcepBridgeClientMock.exe`.
+- Node.js 22+ `tests/ConfiguratorTests.js` verifies all **126** INI/web/C++ keys, **5** presets, and **29** console commands across `USER_GUIDE.md`, `DEVELOPER_GUIDE.md`, and `CONSOLE_COMMANDS_CARD.md`.
 
 ### Editor diagnostics
 
@@ -463,6 +445,9 @@ and calibration are session actions. See the printable
 | `stgcalsweep` | Start 11-region angular sweep, 2 s per region; requires calibration flag. |
 | `stgcaloff` | Stop override; restore autonomous gaze. |
 | `stgcalaxes` | Print axis convention/selected 3D availability; not geometric accuracy certification. |
+| `stgexpanded` | Toggle `[ExpandedPlay] bEnabled`, persist INI, print module/Progression status, unlock Stage 4 (`player.stgexpanded`), OR start/abort a Staring Contest when an actor reference is targeted. |
+| `stgdemeanor` | Cycle `[ExpandedPlay] iActiveDemeanor` (`Courteous`..`Predatory`), persist INI, pin 60s in Hybrid mode, and refresh tuning. |
+| `stgitems` | Drop all TrueGaze Expanded Play relics & Canticle book in front of the player (ESL bespoke items + Lesser Power when loaded, or vanilla `Skyrim.esm` fallback) and log every spawn. |
 
 Presets are partial overlays, not full resets. Web and console preset key/value
 sets must match; developer uses player-only panels. A failed preset write reports
@@ -511,9 +496,8 @@ Do not assume the repository INI is the live INI. Deployment preserves user conf
 The local CI gate and `scripts/Test-ConfiguratorParity.ps1` require Node.js 22+
 for `tests/ConfiguratorTests.js` (no npm dependencies). This executes the actual
 webpage offline-template and serializer functions, checks complete key/default
-coverage including runtime reads/compiled numeric defaults, all five preset
-tables, and all 27 commands in both guides and the command card. Root and packaged
-HTML must remain identical. Tooltip default values derive from the same schema.
+coverage (**126 keys** including `[ExpandedPlay]`) across INI/web/C++ compiled
+defaults, all five preset tables, and all **29 commands** in both guides and the command card. Root and packaged HTML must remain identical. Tooltip default values derive from the same schema.
 The binocular preview uses one animation loop and one renderer for both labeled
 eyes, with shared simulated target/blink state. It reads actual schema keys rather
 than nonexistent preview-only tuning names. Each eye derives yaw/elevation from
@@ -620,17 +604,54 @@ cmake --build --preset debug
 .\bin\Debug\HcepBridgeClientMock.exe
 ```
 
-## 19. Current Open Work
+## 19. Expanded Play, Optional ESL & Staged Awakening Architecture (`v2.0.0`)
 
-The asset-reuse research and support decision tree are maintained in [`TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md`](TRUEGAZE_SUPPORT_KNOWLEDGE_BASE.md). Use that document before changing resource paths or attaching another guessed NIF.
+<p align="center">
+  <img src="images/expanded_play_architecture_and_switches.png" alt="Expanded Play 10 Hz / 2 Hz C++23 Architecture & Switchboard" width="100%">
+  <br>
+  <em>Expanded Play runtime pipeline: default-OFF zero-overhead gate, 10 Hz perception/interpretation/persuasion/combat ticks, 2 Hz witness sweep, 4-rung ResponseLadder, and SKSE 'TGZE' co-save.</em>
+</p>
 
-The highest-priority open work is the visible in-game illustration asset:
+### 19.1 Module Layout (`src/ExpandedPlay/`)
 
-1. Obtain an exact, verified Skyrim resource path from model/form data or a reliable BSA tool.
-2. Confirm `BSModelDB::Demand` resolves it.
-3. Confirm `NiNode::AttachChild` succeeds on the game thread.
-4. Confirm the model is visible and correctly oriented.
-5. Tune origin, axis, scale, colour, opacity, and length.
-6. Package only original assets, or rely on the user's existing Skyrim archives without redistributing Bethesda content.
+| Header / Source | Responsibility | SDK-Free Testable? |
+| :--- | :--- | :---: |
+| `ExpandedPlayTypes.hpp` | Core enums (`Demeanor`, `GazeInterpretation`, `PresenceTier`, `ScholarshipRank`, `Region`) & dwell thresholds | Yes |
+| `PerceptionGate.hpp` | Distance (`15 m` / `8 m`), LOS, hemisphere, lighting/Night-Eye, helmet/hood scaling | Yes |
+| `InterpretationEngine.hpp` | Semantic matrix, 10 Skyrim cultural norms, unconditional Line-1 & Exit Child/Consent Safety Gate | Yes |
+| `PersuasionTransactions.hpp` | `WP-8` Real-Time Oblivion 6-vector wheel, `0.35 s–1.99 s` Phase 1 probes, GMST Bribe curves (`1.50` / `0.75`), `"Knowing Look"` & `StandDownGrace` cadence trackers, saturation decay | Yes |
+| `AwakeningRitual.hpp` / `.cpp` | `WP-9` Stage 0–4 state machine, 4 order-independent Keys, 7 base-Skyrim Sanctuaries, Sanctuary Relic Discovery (`GetSanctuaryRelicSpec`), auto-learned `Sight of the First Canticle`, Skyrim parchment checklist (`FormatRitualStatusChecklist`), follower-free relic drop offering (`TES::ForEachReferenceInRange`), `AnimObjectL` spine-flipped open-book visual (1st & 3rd person), and `stgitems` dev drop | Pure logic in `.hpp` (Yes); RE bridge in `.cpp` |
+| `CombatAndCreatureSight.hpp` | `WP-10` Smart Brandishing (`HeldItemThreat`, `ActorHeldPosture`), Combat Sight (`WeaponWindup`, `SpellCharge`, `ShieldOpening`, `FootworkLunge`, `PreCombatBrandish`), Creature Sight (`Prey`, `Predator`, `Dragon`) | Yes |
+| `GazeLedger.hpp` & `PresenceSignature.hpp` | 512-entry LRU social memory with 14-day exponential decay, 2 Hz witness events, `0..100` Presence & 4-axis Signature titles | Yes |
+| `BookStudyTracker.hpp` / `.cpp` | Read-only `RE::BookMenu` & `BSInputDeviceManager` observer + safe per-frame `TickLiveStudy()` driven from `GazeReticleMenu::AdvanceMovie` (never self-re-enqueues `SKSE::TaskInterface::AddTask`) | Pure clock/parsing in `.hpp` (Yes) |
+| `CoSaveSerializer.hpp` / `.cpp` | SKSE `'TGZE'` v1 serialization (`SIGN`, `LEDG`, `BOOK`, and backward-compatible 8/9-byte `AWKN`) with `ResolveFormID` remap and NaN/truncation sanitization | Yes |
+| `ExpandedPlayModifiers.hpp` / `.cpp` | `ModifierLedger` reversible ActorValue deltas (`MagickaRateMult`, `Speechcraft`, `Illusion`, `Block`, `ResistMagic`, `OneHanded`/`TwoHanded`/`Marksman`, `DamageResist`, `StaminaRateMult`, `SneakingModifier`) — stripped on `kSaveGame` and disable | Pure ledger in `.hpp` (Yes) |
+| `GazeReticle.hpp` / `.cpp` | `TrueGazeReticle.swf` Scaleform bridge, 4-tick dwell arc, color-blind palettes, HUD milestone whispers & audio cues | Pure palette/arc in `.hpp` (Yes) |
+| `ResponseLadder.hpp` / `.cpp` | 4-rung world reaction dispatcher (HCEP override, FaceGen morphs, 7 OAR V3 conditions, ModEvent / AI-NPC bridge) | Pure ladder in `.hpp` (Yes) |
+| `ExpandedPlayManager.hpp` / `.cpp` | Orchestrates 10 Hz focus tick, 2 Hz witness sweep, Combat/Creature Sight, Sanctuary Discovery, and Ceremony casting | Runtime orchestrator |
 
-After that, the next release work is documentation/status correction, clean-profile verification, packaging audit, and final publication review.
+### 19.2 Optional ESL Builder (`scripts/Build-ExpandedPlayEsl.py`)
+- Generates `skyrim/TrueGaze_ExpandedPlay.esp` deterministically from Python with full binary round-trip verification:
+  - **Flags:** `0x00000200` (ESL light plugin, `0` load-order slots), SSE Form Version `44`.
+  - **Masters:** `Skyrim.esm` **only** (zero DLC dependencies).
+  - **Zero Papyrus (`VMAD`) & Zero World-Cell (`CELL`/`REFR`) Edits:** All 8 forms live strictly in `0x01000801..0x01000808` (`MGEF`, `SPEL`, 4 `ARMO`, 1 `BOOK`, 1 `MISC`). Sanctuary placement is handled at runtime in `AwakeningRitual.cpp` (`PlaceObjectAtMe` + `SetOwner(playerBase)` + `AWKN` co-save bitmask) so the plugin never conflicts with city or interior overhauls.
+  - **Right-Hand Open-Book Casting Visual:** When `Sight of the First Canticle` (`ETYP = 0x00013F42`) is equipped with hands raised and left hand empty, `AwakeningRitual::UpdateLeftHandBookVisual` clones vanilla `meshes\animobjects\animobjectbook.nif` onto `AnimObjectL` on both 1st- and 3rd-person skeletons, negates columns `0` and `2` of `BookAnimObject->local.rotate` (exact right-handed 180° flip around the book's spine so the open parchment pages face the player), and offsets `wrapper->local.translate` cleanly above and outward from the left hand (`{-1.5, +8.0, -5.0}` 1P / `{+1.0, +9.5, -6.5}` 3P).
+
+### 19.3 Build, Test & Packaging Pipeline
+- **Single Version Source of Truth:** `project(TrueGaze VERSION 2.0.0)` in `CMakeLists.txt` drives `TrueGazeVersion.h`, `scripts/Get-TrueGazeVersion.ps1`, `scripts/Package-Release.ps1`, and `scripts/PackageMod.ps1`.
+- **Full Verification Gate:**
+  1. `cmake --build build/windows-release --config Release --parallel`
+  2. `cmake --build build/standalone --config Release --parallel`
+  3. `ctest --test-dir build/windows-release -C Release --output-on-failure` (7/7 suites)
+  4. `ctest --test-dir build/standalone -C Release --output-on-failure` (7/7 suites)
+  5. `node tests/ConfiguratorTests.js` (`128` keys, `5` presets, `30` commands)
+  6. `powershell -ExecutionPolicy Bypass -File scripts/Test-TrueGazeHealth.ps1` (19/19 checks)
+  7. `powershell -ExecutionPolicy Bypass -File scripts/Package-Release.ps1` (creates `.zip`, `.7z`, and `-Symbols.zip` with `TrueGaze_ExpandedPlay.esp`, Configurator, GPL-3.0 notices, and illustrated docs).
+
+---
+
+## 20. Current Open Work
+
+- Continued multi-race and Skyrim VR HMD field acceptance sweeps.
+- Optional community OAR `.hkx` animation packs consuming TrueGaze's 7 registered V3 conditions.
+- Extended live field testing of `WP-10` Combat Sight & Creature Sight across varied dragon/wildlife encounters and high-crowd incoming-panel occlusion budgets.

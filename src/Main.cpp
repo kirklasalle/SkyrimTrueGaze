@@ -2,6 +2,12 @@
 #include "Engine/AnimationHook.hpp"
 #include "Engine/ConfigManager.hpp"
 #include "Engine/GazeEngine.hpp"
+#include "ExpandedPlay/AwakeningRitual.hpp"
+#include "ExpandedPlay/BookStudyTracker.hpp"
+#include "ExpandedPlay/CoSaveSerializer.hpp"
+#include "ExpandedPlay/ExpandedPlayManager.hpp"
+#include "ExpandedPlay/ExpandedPlayModifiers.hpp"
+#include "ExpandedPlay/GazeReticle.hpp"
 #include "Integrations/ConsoleCommands.hpp"
 #include "Integrations/OarConditions.hpp"
 #include "PCH.h"
@@ -214,6 +220,9 @@ namespace
 
             engine.RefreshTuning();
             TrueGaze::Visuals::IncomingGazeManager::Get().InstallUi();
+            TrueGaze::ExpandedPlay::GazeReticle::Get().InstallUi();
+            TrueGaze::ExpandedPlay::AwakeningRitual::Get().Install();
+            TrueGaze::ExpandedPlay::BookStudyTracker::Get().Install();
             engine.StartBridge();
             TrueGaze::Engine::AnimationHook::Install();
 
@@ -234,6 +243,12 @@ namespace
             engine.RefreshTuning();
             engine.ResetAll();
             TrueGaze::Integrations::OarConditions::ClearCache();
+            TrueGaze::ExpandedPlay::BookStudyTracker::Get().Reset();
+            TrueGaze::ExpandedPlay::AwakeningRitual::Get().Reset();
+            TrueGaze::ExpandedPlay::GazeReticle::Get().Reset();
+            TrueGaze::ExpandedPlay::ExpandedPlayManager::Get().ResetSession();
+            TrueGaze::ExpandedPlay::ExpandedPlayModifiers::Get().RevertInMemory();
+            TrueGaze::ExpandedPlay::CoSaveSerializer::Get().ResetState();
             logger::info("[TrueGaze] Session reset; actor gaze state cleared.");
             break;
 
@@ -246,6 +261,12 @@ namespace
             engine.RefreshTuning();
             engine.ResetAll();
             TrueGaze::Integrations::OarConditions::ClearCache();
+            TrueGaze::ExpandedPlay::BookStudyTracker::Get().Reset();
+            TrueGaze::ExpandedPlay::AwakeningRitual::Get().Reset();
+            TrueGaze::ExpandedPlay::GazeReticle::Get().Reset();
+            TrueGaze::ExpandedPlay::ExpandedPlayManager::Get().ResetSession();
+            TrueGaze::ExpandedPlay::ExpandedPlayModifiers::Get().RevertInMemory();
+            TrueGaze::ExpandedPlay::CoSaveSerializer::Get().ResetState();
             logger::info("[TrueGaze] Session reset; actor gaze state cleared.");
             // Kirk directive (2026-10-01): background status log at session start.
             TrueGaze::Integrations::ConsoleCommands::LogStatusToLog();
@@ -257,6 +278,9 @@ namespace
             config.Load();
             ApplyLogLevel(config.logLevel);
             engine.RefreshTuning();
+            TrueGaze::ExpandedPlay::ExpandedPlayManager::Get().OnGameLoaded();
+            TrueGaze::ExpandedPlay::ExpandedPlayModifiers::Get().SyncFromPersistentState(
+                config.expandedPlayEnabled);
             // Kirk directive (2026-10-01): background status log at session start
             // — every run's log is self-describing without opening the console.
             TrueGaze::Integrations::ConsoleCommands::LogStatusToLog();
@@ -265,6 +289,21 @@ namespace
         case SKSE::MessagingInterface::kSaveGame:
             // Never let a procedural deflection be baked into a save.
             engine.ReleaseBones();
+            TrueGaze::ExpandedPlay::ExpandedPlayManager::Get().OnBeforeSave();
+            TrueGaze::ExpandedPlay::ExpandedPlayModifiers::Get().StripAllActiveModifiers();
+            if (config.expandedPlayEnabled)
+            {
+                if (auto* tasks = SKSE::GetTaskInterface())
+                {
+                    tasks->AddTask(
+                        []()
+                        {
+                            const auto& cfg = TrueGaze::Engine::ConfigManager::GetSingleton();
+                            TrueGaze::ExpandedPlay::ExpandedPlayModifiers::Get()
+                                .SyncFromPersistentState(cfg.expandedPlayEnabled);
+                        });
+                }
+            }
             // Kirk directive (2026-10-01): background status log at session end
             // (save = the player is leaving a play session; capture final counters).
             TrueGaze::Integrations::ConsoleCommands::LogStatusToLog();
@@ -346,6 +385,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
         logger::error("[TrueGaze] Failed to register SKSE messaging listener.");
         return false;
     }
+
+    TrueGaze::ExpandedPlay::CoSaveSerializer::RegisterWithSkse();
 
     logger::info("[TrueGaze] SKSE plugin loaded successfully.");
     return true;

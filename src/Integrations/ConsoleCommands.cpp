@@ -5,6 +5,15 @@
 #include "Engine/PerformanceProfiler.hpp"
 #include "Engine/PlayerGazeResolver.hpp"
 #include "Engine/TraceLogger.hpp"
+#include "ExpandedPlay/AwakeningRitual.hpp"
+#include "ExpandedPlay/BookStudyTracker.hpp"
+#include "ExpandedPlay/CoSaveSerializer.hpp"
+#include "ExpandedPlay/ExpandedPlayManager.hpp"
+#include "ExpandedPlay/ExpandedPlayModifiers.hpp"
+#include "ExpandedPlay/ExpandedPlayTypes.hpp"
+#include "ExpandedPlay/GazeReticle.hpp"
+#include "ExpandedPlay/PresenceSignature.hpp"
+#include "ExpandedPlay/ResponseLadder.hpp"
 #include "Visuals/VisualEffectsManager.hpp"
 #include "Visuals/IncomingGazeManager.hpp"
 
@@ -274,6 +283,136 @@ namespace TrueGaze::Integrations
             return true;
         }
 
+        bool CmdExpanded(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR* a_thisObj,
+                         RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                         std::uint32_t&) noexcept
+        {
+            auto& cfg = Engine::ConfigManager::GetSingleton();
+            auto& mgr = ExpandedPlay::ExpandedPlayManager::Get();
+
+            if (a_thisObj && a_thisObj->IsPlayerRef())
+            {
+                // player.stgexpanded — instant console unlock for players & devs anytime
+                cfg.expandedPlayEnabled = true;
+                cfg.unlockMode = "Sandbox";
+                PersistQuietly();
+                mgr.ForceConsoleAwakeningUnlock();
+                const auto aw = mgr.CurrentAwakening();
+                ConsolePrint("TrueGaze: Console Awakening UNLOCKED -> Stage 4 (%s) %s | "
+                             "unlockMode=Sandbox | ESL=%s",
+                             ExpandedPlay::AwakeningStageName(mgr.CurrentAwakeningStage()),
+                             ExpandedPlay::FormatTumblerGlyphs(aw).c_str(),
+                             ExpandedPlay::AwakeningRitual::Get().IsEslPluginLoaded() ? "loaded"
+                                                                                      : "vanilla");
+                return true;
+            }
+
+            if (cfg.expandedPlayEnabled && a_thisObj &&
+                a_thisObj->GetFormType() == RE::FormType::ActorCharacter)
+            {
+                const bool started =
+                    mgr.StartOrAbortStaringContest(static_cast<uint32_t>(a_thisObj->GetFormID()));
+                ConsolePrint("TrueGaze: Staring Contest %s (target=0x%08X).",
+                             started ? "STARTED" : "ABORTED",
+                             static_cast<uint32_t>(a_thisObj->GetFormID()));
+                return true;
+            }
+
+            cfg.expandedPlayEnabled = !cfg.expandedPlayEnabled;
+            PersistQuietly();
+            ApplyAndReport("ExpandedPlay (bEnabled)", cfg.expandedPlayEnabled);
+            ExpandedPlay::ExpandedPlayModifiers::Get().SyncFromPersistentState(
+                cfg.expandedPlayEnabled);
+            if (!cfg.expandedPlayEnabled)
+            {
+                ExpandedPlay::GazeReticle::Get().Reset();
+                ExpandedPlay::ResponseLadder::ClearAllTransientExpressions();
+            }
+            const auto ep = cfg.SnapshotExpandedPlay();
+            const auto pres = mgr.CurrentPresence();
+            const auto sig = mgr.CurrentSignature();
+            const auto aw = mgr.CurrentAwakening();
+            const auto stage = mgr.CurrentAwakeningStage();
+            const auto studied = ExpandedPlay::CoSaveSerializer::Get().BooksFullyStudiedCount();
+            ConsolePrint("TrueGaze: ExpandedPlay unlock=%s stage=%u (%s) %s | ESL=%s | "
+                         "tip: 'player.stgexpanded' unlocks Stage 4",
+                         ExpandedPlay::UnlockModeName(ep.unlockMode),
+                         static_cast<unsigned>(stage), ExpandedPlay::AwakeningStageName(stage),
+                         ExpandedPlay::FormatTumblerGlyphs(aw).c_str(),
+                         ExpandedPlay::AwakeningRitual::Get().IsEslPluginLoaded() ? "loaded"
+                                                                                  : "vanilla");
+            ConsolePrint("TrueGaze: ExpandedPlay mode=%s demeanor=%s (%s) | modules: social=%s mem=%s "
+                         "book=%s mature=%s prog=%s kindred=%s",
+                         ExpandedPlay::DemeanorModeName(ep.demeanorMode),
+                         ExpandedPlay::DemeanorName(mgr.ActiveDemeanor()),
+                         mgr.IsDemeanorPinned() ? "pinned" : "auto",
+                         ep.moduleSocialReactions ? "ON" : "OFF",
+                         ep.moduleRelationshipMemory ? "ON" : "OFF",
+                         ep.moduleBookStudy ? "ON" : "OFF",
+                         ep.moduleMatureReactions ? "ON" : "OFF",
+                         ep.modulePresenceProgression ? "ON" : "OFF",
+                         ep.enableKindredSight ? "ON" : "OFF");
+            ConsolePrint("TrueGaze: Presence=%.1f/%.1f (%s) | Title=%s (W%.0f/D%.0f/C%.0f/R%.0f) | "
+                         "Books=%u (%s) | Ledger=%zu",
+                         pres.current, pres.maximum,
+                         ExpandedPlay::PresenceTierName(
+                             ExpandedPlay::ClassifyPresenceTier(pres.maximum)),
+                         ExpandedPlay::SignatureTitleName(mgr.CurrentSignatureTitle()),
+                         sig.warmth, sig.dominance, sig.candour, sig.restraint,
+                         studied,
+                         ExpandedPlay::ScholarshipRankName(
+                             ExpandedPlay::ClassifyScholarshipRank(studied)),
+                         mgr.LedgerEntryCount());
+            ConsolePrint("TrueGaze: Persuasion=%s (%s) | BribeEst=%dg | SpeechMod=%+.1f | "
+                         "LawWitnesses=%u",
+                         ExpandedPlay::PersuasionVectorName(mgr.LastPersuasionVector()),
+                         ExpandedPlay::AffinityTierName(mgr.LastAffinityTier()),
+                         mgr.LastBribeCostGold(), mgr.ActiveRapportSpeechBonus(),
+                         mgr.ActiveLawWitnessCount());
+            return true;
+        }
+
+        bool CmdDemeanor(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                         RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                         std::uint32_t&) noexcept
+        {
+            auto& cfg = Engine::ConfigManager::GetSingleton();
+            constexpr int kCount = static_cast<int>(ExpandedPlay::Demeanor::Count);
+            cfg.activeDemeanor = (cfg.activeDemeanor + 1) % kCount;
+            if (cfg.activeDemeanor < 0)
+            {
+                cfg.activeDemeanor = 0;
+            }
+            PersistQuietly();
+            Engine::GazeEngine::Get().RefreshTuning();
+            const auto ep = cfg.SnapshotExpandedPlay();
+            if (ep.demeanorMode == ExpandedPlay::DemeanorMode::Hybrid)
+            {
+                ExpandedPlay::ExpandedPlayManager::Get().PinManualDemeanor(ep.activeDemeanor);
+            }
+            ConsolePrint("TrueGaze: Demeanor = %s (mode=%s)",
+                         ExpandedPlay::DemeanorName(ep.activeDemeanor),
+                         ExpandedPlay::DemeanorModeName(ep.demeanorMode));
+            return true;
+        }
+
+        bool CmdItems(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
+                      RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double&,
+                      std::uint32_t&) noexcept
+        {
+            const auto res = ExpandedPlay::AwakeningRitual::Get().DropAllDevItemsInFrontOfPlayer();
+            ConsolePrint(
+                "TrueGaze: Dropped %u Expanded Play relic item(s) in front of player (source=%s%s).",
+                res.itemsDropped, res.usedEslItems ? "TrueGaze_ExpandedPlay.esp" : "Skyrim.esm vanilla",
+                res.spellGranted ? ", Lesser Power 'Sight of the First Canticle' learned" : "");
+            if (!res.usedEslItems)
+            {
+                ConsolePrint("TrueGaze: Optional ESL 'TrueGaze_ExpandedPlay.esp' not active; "
+                             "vanilla Skyrim.esm relics dropped instead.");
+            }
+            return true;
+        }
+
         /// Print the effective state of every TrueGaze switch. The most useful command
         /// in the set: it answers "is it actually on?" without reading a file.
         bool CmdStatus(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*, RE::TESObjectREFR*,
@@ -306,6 +445,23 @@ namespace TrueGaze::Integrations
             logger::info("[TrueGaze] === AUTO STATUS (session log) ===");
             logger::info("[TrueGaze]   kinematics       {}  bEnableTrueGaze",
                          onOff(cfg.enableTrueGaze));
+            {
+                const auto ep = cfg.SnapshotExpandedPlay();
+                const auto& serde = ExpandedPlay::CoSaveSerializer::Get();
+                const auto& mods = ExpandedPlay::ExpandedPlayModifiers::Get();
+                const auto& epm = ExpandedPlay::ExpandedPlayManager::Get();
+                const auto aw = epm.CurrentAwakening();
+                const auto stage = epm.CurrentAwakeningStage();
+                logger::info("[TrueGaze]   expanded play    {}  [ExpandedPlay] bEnabled (unlock={}, "
+                             "stage={} {}, {}, mode={}, demeanor={}, ledger={}, studied={}, "
+                             "modifiers={})",
+                             onOff(ep.enabled), ExpandedPlay::UnlockModeName(ep.unlockMode),
+                             static_cast<unsigned>(stage), ExpandedPlay::AwakeningStageName(stage),
+                             ExpandedPlay::FormatTumblerGlyphs(aw),
+                             ExpandedPlay::DemeanorModeName(ep.demeanorMode),
+                             ExpandedPlay::DemeanorName(ep.activeDemeanor), serde.LedgerCount(),
+                             serde.BooksFullyStudiedCount(), mods.ActiveModifierCount());
+            }
             logger::info("[TrueGaze]   in-game visuals  {}  bEnableInGameVisuals",
                          onOff(cfg.enableInGameVisuals));
             logger::info("[TrueGaze]   gaze rays        {}  bGazeRaysEnabled",
@@ -419,6 +575,35 @@ namespace TrueGaze::Integrations
             ConsolePrint("TrueGaze - status");
             ConsolePrint("  kinematics       %s  bEnableTrueGaze", onOff(cfg.enableTrueGaze));
             ConsolePrint("  creatures        %s  bEnableCreatures", onOff(cfg.enableCreatures));
+            {
+                const auto ep = cfg.SnapshotExpandedPlay();
+                const auto& serde = ExpandedPlay::CoSaveSerializer::Get();
+                const auto& mods = ExpandedPlay::ExpandedPlayModifiers::Get();
+                const auto& epm = ExpandedPlay::ExpandedPlayManager::Get();
+                const auto aw = epm.CurrentAwakening();
+                const auto stage = epm.CurrentAwakeningStage();
+                ConsolePrint("  expanded play    %s  [ExpandedPlay] bEnabled (unlock=%s, mode=%s, demeanor=%s)",
+                             onOff(ep.enabled), ExpandedPlay::UnlockModeName(ep.unlockMode),
+                             ExpandedPlay::DemeanorModeName(ep.demeanorMode),
+                             ExpandedPlay::DemeanorName(ep.activeDemeanor));
+                ConsolePrint("  awakening        Stage %u (%s) %s | ESL=%s | kindredAllies=%u",
+                             static_cast<unsigned>(stage), ExpandedPlay::AwakeningStageName(stage),
+                             ExpandedPlay::FormatTumblerGlyphs(aw).c_str(),
+                             ExpandedPlay::AwakeningRitual::Get().IsEslPluginLoaded() ? "loaded"
+                                                                                      : "vanilla",
+                             epm.ActiveKindredAllyCount());
+                ConsolePrint("  expanded state   ledger %zu, books %zu, studied %u, active modifiers %zu",
+                             serde.LedgerCount(), serde.BookCount(), serde.BooksFullyStudiedCount(),
+                             mods.ActiveModifierCount());
+                {
+                    ConsolePrint("  persuasion/tx    vector=%s (%s), bribeEst=%dg, speechMod=%+.1f, "
+                                 "lawWitnesses=%u",
+                                 ExpandedPlay::PersuasionVectorName(epm.LastPersuasionVector()),
+                                 ExpandedPlay::AffinityTierName(epm.LastAffinityTier()),
+                                 epm.LastBribeCostGold(), epm.ActiveRapportSpeechBonus(),
+                                 epm.ActiveLawWitnessCount());
+                }
+            }
             ConsolePrint("  in-game visuals  %s  bEnableInGameVisuals",
                          onOff(cfg.enableInGameVisuals));
             ConsolePrint("  gaze rays        %s  bGazeRaysEnabled", onOff(cfg.gazeRaysEnabled));
@@ -774,6 +959,13 @@ namespace TrueGaze::Integrations
             const auto path = cfg.LoadedPath();
             cfg.Load(path);
             Engine::GazeEngine::Get().RefreshTuning();
+            ExpandedPlay::ExpandedPlayModifiers::Get().SyncFromPersistentState(
+                cfg.expandedPlayEnabled);
+            if (!cfg.expandedPlayEnabled)
+            {
+                ExpandedPlay::GazeReticle::Get().Reset();
+                ExpandedPlay::ResponseLadder::ClearAllTransientExpressions();
+            }
             ConsolePrint("TrueGaze: configuration reloaded from '%s'",
                          path.empty() ? "(compiled defaults)" : path.c_str());
             return true;
@@ -1017,6 +1209,10 @@ namespace TrueGaze::Integrations
             {"stgcalsweep", "Automated 11-region calibration sweep (2s per region)", &CmdCalSweep},
             {"stgcaloff", "Stop calibration override and restore normal gaze", &CmdCalOff},
             {"stgcalaxes", "Verify head bone local axes convention (X=Right, Y=Fwd, Z=Up)", &CmdCalAxes},
+            {"stgexpanded", "Toggle TrueGaze Expanded Play gameplay layer on/off", &CmdExpanded},
+            {"stgdemeanor", "Cycle third-person Expanded Play Demeanor", &CmdDemeanor},
+            {"stgitems", "Drop all TrueGaze Expanded Play lore items in front of the player (dev)",
+             &CmdItems},
         };
 
         bool CmdHelp(RE::SCRIPT_PARAMETER*, RE::SCRIPT_FUNCTION::ScriptData*,

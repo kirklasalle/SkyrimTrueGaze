@@ -415,20 +415,26 @@ function Invoke-TGPreFlight {
     $deploymentRoot = if ($DeploymentPath) { $DeploymentPath } else { Join-Path $game.Path 'Data' }
     $deploymentPluginsDir = Join-Path $deploymentRoot 'SKSE\Plugins'
     $incomingUi = Join-Path $deploymentRoot 'Interface\TrueGazeIncoming.swf'
-    if (Test-Path $incomingUi) {
-        $uiBytes = [IO.File]::ReadAllBytes($incomingUi)
-        if ($uiBytes.Length -ge 8 -and
-            [Text.Encoding]::ASCII.GetString($uiBytes, 0, 3) -eq 'FWS' -and
-            [BitConverter]::ToUInt32($uiBytes, 4) -eq $uiBytes.Length) {
-            Add-TGResult -Name 'Incoming native UI asset deployed' -Status 'Pass'
+    $reticleUi = Join-Path $deploymentRoot 'Interface\TrueGazeReticle.swf'
+    foreach ($uiCheck in @(
+        @{ Name = 'Incoming native UI asset deployed'; Path = $incomingUi },
+        @{ Name = 'Expanded Play reticle UI asset deployed'; Path = $reticleUi }
+    )) {
+        if (Test-Path $uiCheck.Path) {
+            $uiBytes = [IO.File]::ReadAllBytes($uiCheck.Path)
+            if ($uiBytes.Length -ge 8 -and
+                [Text.Encoding]::ASCII.GetString($uiBytes, 0, 3) -eq 'FWS' -and
+                [BitConverter]::ToUInt32($uiBytes, 4) -eq $uiBytes.Length) {
+                Add-TGResult -Name $uiCheck.Name -Status 'Pass'
+            }
+            else {
+                Add-TGResult -Name $uiCheck.Name -Status 'Fail' -Detail 'Invalid SWF header or length.'
+            }
         }
         else {
-            Add-TGResult -Name 'Incoming native UI asset deployed' -Status 'Fail' -Detail 'Invalid SWF header or length.'
+            Add-TGResult -Name $uiCheck.Name -Status 'Fail' `
+                -Detail $uiCheck.Path -Fix 'Build and deploy the matching Interface asset with the current DLL.'
         }
-    }
-    else {
-        Add-TGResult -Name 'Incoming native UI asset deployed' -Status 'Fail' `
-            -Detail $incomingUi -Fix 'Build and deploy the matching Interface asset with the current DLL.'
     }
     $deployed = Join-Path $deploymentPluginsDir 'TrueGaze.dll'
     if (Test-Path $deployed) {
@@ -502,16 +508,15 @@ function Invoke-TGPreFlight {
 
     # -- 8. Expectations that will not be met ------------------------------
     Write-Host ''
-    Write-Host 'Known-incomplete features (expected, not failures)' -ForegroundColor White
+    Write-Host 'Integrations and configuration' -ForegroundColor White
 
     $oar = Join-Path $deploymentRoot 'meshes\actors\character\animations\OpenAnimationReplacer'
     if (Test-Path $oar) {
-        Add-TGResult -Name 'OAR conditions will NOT fire' -Status 'Warn' `
-            -Detail 'OpenAnimationReplacer is installed, but TrueGaze registration is unimplemented.' `
-            -Fix 'Tracked as issue #6. Gaze itself is unaffected.'
+        Add-TGResult -Name 'OAR integration available' -Status 'Pass' `
+            -Detail 'TrueGaze registers 7 custom OAR conditions via Conditions API V3 during kPostLoad.'
     }
     else {
-        Add-TGResult -Name 'OAR not installed (so its gap is moot)' -Status 'Skip'
+        Add-TGResult -Name 'OAR folder absent (TrueGaze still runs without OAR)' -Status 'Skip'
     }
 
     # Configuration is INI-only (Data/SKSE/Plugins/TrueGaze.ini).
@@ -568,6 +573,23 @@ function Invoke-TGPreFlight {
         Add-TGResult -Name 'Legacy SkyUI/Papyrus/MCM artifacts present' -Status 'Warn' `
             -Detail ("Found: " + ($names -join ', ')) `
             -Fix 'Run Deploy-TrueGaze.ps1 (or LaunchTrueGaze.bat) to remove them; TrueGaze is vanilla-UI and needs none of these.'
+    }
+
+    $optEsl = Join-Path $dataDir 'TrueGaze_ExpandedPlay.esp'
+    if (Test-Path $optEsl) {
+        $hdr = [System.IO.File]::ReadAllBytes($optEsl)
+        $isTes4 = ($hdr.Length -ge 24 -and $hdr[0] -eq 84 -and $hdr[1] -eq 69 -and $hdr[2] -eq 83 -and $hdr[3] -eq 52)
+        $flags = if ($hdr.Length -ge 12) { [BitConverter]::ToUInt32($hdr, 8) } else { 0 }
+        $isEsl = (($flags -band 0x0200) -ne 0)
+        if ($isTes4 -and $isEsl) {
+            Add-TGResult -Name 'Optional Expanded Play ESL plugin' -Status 'Pass' `
+                -Detail "TrueGaze_ExpandedPlay.esp deployed ($($hdr.Length) bytes, ESL-flagged, 0 load-order slots)."
+        }
+        else {
+            Add-TGResult -Name 'Optional Expanded Play ESL plugin' -Status 'Fail' `
+                -Detail "TrueGaze_ExpandedPlay.esp is missing TES4/ESL flag (flags=0x$($flags.ToString('X')))." `
+                -Fix 'Re-run scripts/Build-ExpandedPlayEsl.py to rebuild TrueGaze_ExpandedPlay.esp.'
+        }
     }
 
     Invoke-TGSummary

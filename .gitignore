@@ -58,6 +58,7 @@ vcpkg_installed/
 *.log
 tmp/
 temp/
+tmp_promo_dev/
 
 # Python
 __pycache__/

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ExpandedPlay/ExpandedPlayConfig.hpp"
+#include <algorithm>
 #include <cstdint>
 #include <string>
 
@@ -229,6 +231,56 @@ namespace TrueGaze::Engine
         // does write into engine memory. Registration is all-or-nothing.
         // See src/Integrations/ConsoleCommands.cpp.
         bool enableConsoleCommands{true};
+
+        // --- Expanded Play ([ExpandedPlay], opt-in gameplay layer, default off) ---
+        bool expandedPlayEnabled{false};
+        std::string unlockMode{"Ritual"};
+        std::string demeanorMode{"Hybrid"};
+        int activeDemeanor{0}; // 0=Courteous .. 5=Predatory
+        bool moduleSocialReactions{true};
+        bool moduleRelationshipMemory{true};
+        bool moduleBookStudy{true};
+        bool moduleMatureReactions{false};
+        bool modulePresenceProgression{true};
+        bool enableKindredSight{true};
+        bool enableReticle{true};
+        float reticleOpacity{0.22f};
+        float reticleMagnetismStrength{0.35f};
+        int colorBlindMode{0};
+        bool immersiveHideReticle{false};
+        bool enableEyeContactInitiate{true};
+        bool enableImpressionWhispers{true};
+        float thirdPersonEfficacy{0.80f};
+        bool emitAiNpcBridgeEvents{true};
+
+        /// @brief Captures a validated snapshot of [ExpandedPlay] tuning.
+        [[nodiscard]] ExpandedPlay::ExpandedPlayConfig SnapshotExpandedPlay() const noexcept
+        {
+            ExpandedPlay::ExpandedPlayConfig out{};
+            out.enabled = expandedPlayEnabled;
+            out.unlockMode = ExpandedPlay::ParseUnlockMode(unlockMode);
+            out.demeanorMode = ExpandedPlay::ParseDemeanorMode(demeanorMode);
+            const int clampedDemeanor = std::clamp(
+                activeDemeanor, 0, static_cast<int>(ExpandedPlay::Demeanor::Count) - 1);
+            out.activeDemeanor = static_cast<ExpandedPlay::Demeanor>(clampedDemeanor);
+            out.moduleSocialReactions = moduleSocialReactions;
+            out.moduleRelationshipMemory = moduleRelationshipMemory;
+            out.moduleBookStudy = moduleBookStudy;
+            out.moduleMatureReactions = moduleMatureReactions;
+            out.modulePresenceProgression = modulePresenceProgression;
+            out.enableKindredSight = enableKindredSight;
+            out.enableReticle = enableReticle;
+            out.reticleOpacity = reticleOpacity;
+            out.reticleMagnetismStrength = reticleMagnetismStrength;
+            out.colorBlindMode = colorBlindMode;
+            out.immersiveHideReticle = immersiveHideReticle;
+            out.enableEyeContactInitiate = enableEyeContactInitiate;
+            out.enableImpressionWhispers = enableImpressionWhispers;
+            out.thirdPersonEfficacy = thirdPersonEfficacy;
+            out.emitAiNpcBridgeEvents = emitAiNpcBridgeEvents;
+            out.Sanitise();
+            return out;
+        }
 
     private:
         ConfigManager() = default;

@@ -32,8 +32,25 @@ namespace TrueGaze::Engine
             RE::NiAVObject* bone{nullptr};
             RE::NiAVObject* root{nullptr}; // identity only - never dereferenced
             RE::NiMatrix3 originalRotate{};
+            RE::NiMatrix3 appliedRotate{};
             bool active{false};
         };
+
+        [[nodiscard]] bool MatricesNearEqual(const RE::NiMatrix3& a, const RE::NiMatrix3& b,
+                                             float eps = 1e-3f) noexcept
+        {
+            for (int r = 0; r < 3; ++r)
+            {
+                for (int c = 0; c < 3; ++c)
+                {
+                    if (std::abs(a.entry[r][c] - b.entry[r][c]) > eps)
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
 
         /// Fixed capacity: an actor has at most six gaze joints of interest.
         /// Sized to support up to 85 simultaneously tracked actors per frame.
@@ -205,8 +222,11 @@ namespace TrueGaze::Engine
         }
 
         // Always compose from the cached animated pose, never from the modified one,
-        // so repeated calls within a frame are idempotent.
-        slot->bone->local.rotate = MakeGazeRotation(yawDeg, pitchDeg) * slot->originalRotate;
+        // so repeated calls within a frame are idempotent. Record `appliedRotate`
+        // so the next frame's BeginFrame/Withdraw only restores bones that Havok
+        // did NOT already overwrite with a fresh animated pose.
+        slot->appliedRotate = MakeGazeRotation(yawDeg, pitchDeg) * slot->originalRotate;
+        slot->bone->local.rotate = slot->appliedRotate;
 
         // The world transform is stale until this is recomputed; without it the
         // bone's skinned vertices use last frame's matrix.
@@ -235,7 +255,10 @@ namespace TrueGaze::Engine
             if (slot.active && slot.actorFormId == actorFormId)
             {
                 // Audit F-06b: only write through `bone` if its rig is still live.
-                if (slot.bone && RigStillLive(actor, slot))
+                // Also preserve fresh Havok animation poses: only restore `originalRotate`
+                // if `local.rotate` still holds our own previous-frame `appliedRotate`.
+                if (slot.bone && RigStillLive(actor, slot) &&
+                    MatricesNearEqual(slot.bone->local.rotate, slot.appliedRotate))
                 {
                     slot.bone->local.rotate = slot.originalRotate;
                     RefreshWorldTransform(slot.bone);
@@ -273,7 +296,10 @@ namespace TrueGaze::Engine
                 auto* form = RE::TESForm::LookupByID(slot.actorFormId);
                 auto* actor = form ? form->As<RE::Actor>() : nullptr;
                 // Audit F-06b: only write through `bone` if its rig is still live.
-                if (RigStillLive(actor, slot))
+                // Preserve fresh Havok poses written since last frame; only restore
+                // `originalRotate` when the bone still carries our previous-frame rotation.
+                if (RigStillLive(actor, slot) &&
+                    MatricesNearEqual(slot.bone->local.rotate, slot.appliedRotate))
                 {
                     slot.bone->local.rotate = slot.originalRotate;
                     RefreshWorldTransform(slot.bone);

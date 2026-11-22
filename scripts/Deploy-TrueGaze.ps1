@@ -241,6 +241,10 @@ $repoUi = Join-Path $projectRoot 'skyrim\Interface\TrueGazeIncoming.swf'
 if (-not (Test-Path $repoUi)) {
     throw "Incoming UI asset missing: $repoUi. Build the current plugin before deployment."
 }
+$repoReticleUi = Join-Path $projectRoot 'skyrim\Interface\TrueGazeReticle.swf'
+if (-not (Test-Path $repoReticleUi)) {
+    throw "Reticle UI asset missing: $repoReticleUi. Build the current plugin before deployment."
+}
 
 # ===========================================================================
 # 2. DEPLOY
@@ -328,7 +332,8 @@ if ($LoadOnly) {
 $destUiDir = Join-Path $deploymentRoot 'Interface'
 New-Item -ItemType Directory -Path $destUiDir -Force | Out-Null
 Copy-Item -LiteralPath $repoUi -Destination $destUiDir -Force
-Write-Ok "Incoming UI -> $destUiDir"
+Copy-Item -LiteralPath $repoReticleUi -Destination $destUiDir -Force
+Write-Ok "Interface UI (Incoming + Reticle) -> $destUiDir"
 
 $repoMeshes = Join-Path $projectRoot 'skyrim\meshes\TrueGaze'
 $repoTextures = Join-Path $projectRoot 'skyrim\textures\TrueGaze'
@@ -353,13 +358,39 @@ if (Test-Path $repoTextures) {
     Write-Ok "TrueGaze textures -> $destTextures ($texCount files)"
 }
 
-if ($ModPath) {
-    $oarSource = Join-Path $projectRoot 'skyrim\meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze\config.json'
-    if (Test-Path $oarSource) {
-        $oarTarget = Join-Path $deploymentRoot 'meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze'
-        New-Item -ItemType Directory -Path $oarTarget -Force | Out-Null
-        Copy-Item -Path $oarSource -Destination $oarTarget -Force
-        Write-Ok "OAR conditions -> $oarTarget"
+$oarSource = Join-Path $projectRoot 'skyrim\meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze\config.json'
+if (Test-Path $oarSource) {
+    $oarTarget = Join-Path $deploymentRoot 'meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze'
+    New-Item -ItemType Directory -Path $oarTarget -Force | Out-Null
+    Copy-Item -Path $oarSource -Destination $oarTarget -Force
+    Write-Ok "OAR conditions -> $oarTarget"
+}
+
+$eslSource = Join-Path $projectRoot 'skyrim\TrueGaze_ExpandedPlay.esp'
+if (Test-Path $eslSource) {
+    $eslDest = Join-Path $deploymentRoot 'TrueGaze_ExpandedPlay.esp'
+    Copy-Item -LiteralPath $eslSource -Destination $eslDest -Force
+    $eslBytes = (Get-Item $eslDest).Length
+    Write-Ok "Optional ESL plugin -> $eslDest ($eslBytes bytes, ESL-flagged, Skyrim.esm only)"
+
+    if (-not $ModPath) {
+        $pluginsTxt = Join-Path $env:LOCALAPPDATA 'Skyrim Special Edition\plugins.txt'
+        if (Test-Path $pluginsTxt) {
+            $lines = @(Get-Content -LiteralPath $pluginsTxt)
+            $alreadyListed = $false
+            for ($idx = 0; $idx -lt $lines.Count; $idx++) {
+                if ($lines[$idx].Trim() -match '^\*?TrueGaze_ExpandedPlay\.esp$') {
+                    $lines[$idx] = '*TrueGaze_ExpandedPlay.esp'
+                    $alreadyListed = $true
+                    break
+                }
+            }
+            if (-not $alreadyListed) {
+                $lines += '*TrueGaze_ExpandedPlay.esp'
+            }
+            Set-Content -LiteralPath $pluginsTxt -Value $lines -Encoding ASCII
+            Write-Ok "Activated *TrueGaze_ExpandedPlay.esp in $pluginsTxt"
+        }
     }
 }
 
