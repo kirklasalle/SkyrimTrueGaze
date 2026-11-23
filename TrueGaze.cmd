@@ -44,7 +44,9 @@ title TrueGaze
 REM ---------------------------------------------------------------------------
 REM Configuration
 REM ---------------------------------------------------------------------------
-if not defined VCPKG_ROOT set "VCPKG_ROOT=D:\vcpkg"
+if not defined VCPKG_ROOT if exist "C:\vcpkg\scripts\buildsystems\vcpkg.cmake" set "VCPKG_ROOT=C:\vcpkg"
+if not defined VCPKG_ROOT if exist "D:\vcpkg\scripts\buildsystems\vcpkg.cmake" set "VCPKG_ROOT=D:\vcpkg"
+if not defined VCPKG_ROOT if exist "%USERPROFILE%\vcpkg\scripts\buildsystems\vcpkg.cmake" set "VCPKG_ROOT=%USERPROFILE%\vcpkg"
 
 set "PROJECT_ROOT=%~dp0"
 if "%PROJECT_ROOT:~-1%"=="\" set "PROJECT_ROOT=%PROJECT_ROOT:~0,-1%"

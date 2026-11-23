@@ -17,13 +17,13 @@ namespace TrueGaze::ExpandedPlay
     /// @brief Semantic classification of what an actor holds in a hand (or has raised).
     enum class HeldItemThreat : uint8_t
     {
-        None              = 0, // Empty or sheathed
+        None = 0,              // Empty or sheathed
         UtilityOrPeaceful = 1, // Torch, open Canticle book, Healing/Candlelight/utility spell
-        UnarmedFists      = 2, // Bare fists raised
-        ShieldOnly        = 3, // Defensive shield / ward
-        MeleeWeapon       = 4, // Sword, axe, mace, dagger, greatsword, battleaxe, warhammer
-        RangedWeapon      = 5, // Bow, crossbow, offensive staff
-        HostileSpell      = 6  // Destruction or hostile spell equipped/charging
+        UnarmedFists = 2,      // Bare fists raised
+        ShieldOnly = 3,        // Defensive shield / ward
+        MeleeWeapon = 4,       // Sword, axe, mace, dagger, greatsword, battleaxe, warhammer
+        RangedWeapon = 5,      // Bow, crossbow, offensive staff
+        HostileSpell = 6       // Destruction or hostile spell equipped/charging
     };
 
     struct ActorHeldPosture
@@ -58,7 +58,8 @@ namespace TrueGaze::ExpandedPlay
 
         [[nodiscard]] constexpr bool HasShield() const noexcept
         {
-            return leftHand == HeldItemThreat::ShieldOnly || rightHand == HeldItemThreat::ShieldOnly;
+            return leftHand == HeldItemThreat::ShieldOnly ||
+                   rightHand == HeldItemThreat::ShieldOnly;
         }
 
         [[nodiscard]] constexpr bool HasHostileSpell() const noexcept
@@ -68,7 +69,7 @@ namespace TrueGaze::ExpandedPlay
         }
     };
 
-    /// @brief Reversible transient tactical bonuses granted by Combat Sight & Creature Sight.
+    /// @brief Reversible transient tactical bonuses granted by Combat, Creature & Faction Sight.
     /// Every delta is tracked symmetrically through ModifierLedger and stripped on expiry/save.
     struct TacticalSightBuffs
     {
@@ -78,22 +79,25 @@ namespace TrueGaze::ExpandedPlay
         float armorBonus{0.0f};
         float staminaRegenBonus{0.0f};
         float sneakBonus{0.0f};
+        float pickpocketBonus{0.0f};
+        float magickaRegenBonus{0.0f};
         float durationSec{0.0f};
 
         [[nodiscard]] constexpr bool HasAny() const noexcept
         {
             return blockBonus > 0.01f || resistMagicBonus > 0.01f || offenseBonus > 0.01f ||
-                   armorBonus > 0.01f || staminaRegenBonus > 0.01f || sneakBonus > 0.01f;
+            armorBonus > 0.01f || staminaRegenBonus > 0.01f || sneakBonus > 0.01f ||
+                pickpocketBonus > 0.01f || magickaRegenBonus > 0.01f;
         }
     };
 
     enum class CombatSightKind : uint8_t
     {
-        None             = 0,
-        WeaponWindup     = 1,
-        SpellCharge      = 2,
-        ShieldOpening    = 3,
-        FootworkLunge    = 4,
+        None = 0,
+        WeaponWindup = 1,
+        SpellCharge = 2,
+        ShieldOpening = 3,
+        FootworkLunge = 4,
         PreCombatBrandish = 5
     };
 
@@ -124,8 +128,8 @@ namespace TrueGaze::ExpandedPlay
 
     /// @brief Evaluates Stage 2+ Combat Sight when reading an adversary's weapon hand, shield,
     ///        casting hand, or footwork — plus pre-combat brandishing awareness.
-    [[nodiscard]] inline CombatSightResult EvaluateCombatSight(
-        const CombatSightInput& in, std::string_view targetName)
+    [[nodiscard]] inline CombatSightResult EvaluateCombatSight(const CombatSightInput& in,
+                                                               std::string_view targetName)
     {
         CombatSightResult out{};
         if (in.stage < AwakeningStage::SteadySight || !std::isfinite(in.dwellSec) ||
@@ -134,10 +138,9 @@ namespace TrueGaze::ExpandedPlay
             return out;
         }
 
-        const float stageScalar =
-            (in.stage >= AwakeningStage::CanticleAwakened)
-                ? 1.35f
-                : ((in.stage >= AwakeningStage::LivingGlyph) ? 1.10f : 0.70f);
+        const float stageScalar = (in.stage >= AwakeningStage::CanticleAwakened)
+                                      ? 1.35f
+                                      : ((in.stage >= AwakeningStage::LivingGlyph) ? 1.10f : 0.70f);
         const std::string_view name = targetName.empty() ? std::string_view("Foe") : targetName;
 
         // Pre-combat brandishing read (non-combat NPC drawing lethal steel near player)
@@ -167,9 +170,8 @@ namespace TrueGaze::ExpandedPlay
              in.regionId == Region::LeftEye || in.regionId == Region::RightEye);
         const bool lookingAtShieldSide =
             (in.regionId == Region::LeftHand || in.regionId == Region::Torso);
-        const bool lookingAtFeet =
-            (in.regionId == Region::Ground || in.regionId == Region::Chin ||
-             in.regionId == Region::Torso);
+        const bool lookingAtFeet = (in.regionId == Region::Ground || in.regionId == Region::Chin ||
+                                    in.regionId == Region::Torso);
 
         // 1. Spell charge read (highest priority when caster charges hostile magic)
         if ((in.targetCasting || in.targetPosture.HasHostileSpell()) && lookingAtWeaponSide &&
@@ -228,10 +230,10 @@ namespace TrueGaze::ExpandedPlay
 
     enum class CreatureArchetype : uint8_t
     {
-        Humanoid      = 0,
-        Prey          = 1,
-        Predator      = 2,
-        Dragon        = 3,
+        Humanoid = 0,
+        Prey = 1,
+        Predator = 2,
+        Dragon = 3,
         OtherCreature = 4
     };
 
@@ -292,13 +294,15 @@ namespace TrueGaze::ExpandedPlay
         uint32_t colorRgb{0xA6D8FFu};
     };
 
-    /// @brief Evaluates Creature Sight: Prey Gentle Sight, Predator Kyne's Stillness, Dragon Dov's Weight.
-    [[nodiscard]] inline CreatureSightResult EvaluateCreatureSight(
-        const CreatureSightInput& in, std::string_view creatureName)
+    /// @brief Evaluates Creature Sight: Prey Gentle Sight, Predator Kyne's Stillness, Dragon Dov's
+    /// Weight.
+    [[nodiscard]] inline CreatureSightResult EvaluateCreatureSight(const CreatureSightInput& in,
+                                                                   std::string_view creatureName)
     {
         CreatureSightResult out{};
-        if (in.archetype == CreatureArchetype::Humanoid || in.stage < AwakeningStage::FirstGlimmer ||
-            !std::isfinite(in.dwellSec) || !std::isfinite(in.distanceMeters))
+        if (in.archetype == CreatureArchetype::Humanoid ||
+            in.stage < AwakeningStage::FirstGlimmer || !std::isfinite(in.dwellSec) ||
+            !std::isfinite(in.distanceMeters))
         {
             return out;
         }
@@ -309,19 +313,18 @@ namespace TrueGaze::ExpandedPlay
         // 1. Prey (Deer, Elk, Fox, Horse): Gentle / averted unarmed gaze quiets your step
         if (in.archetype == CreatureArchetype::Prey)
         {
-            const bool gentleGaze =
-                !in.playerLethalBrandish &&
-                (in.activeDemeanor == Demeanor::Deferential ||
-                 in.activeDemeanor == Demeanor::Courteous || in.regionId == Region::Ground ||
-                 in.regionId == Region::Chin);
+            const bool gentleGaze = !in.playerLethalBrandish &&
+                                    (in.activeDemeanor == Demeanor::Deferential ||
+                                     in.activeDemeanor == Demeanor::Courteous ||
+                                     in.regionId == Region::Ground || in.regionId == Region::Chin);
             if (gentleGaze && in.dwellSec >= 1.2f && in.distanceMeters <= 16.0f)
             {
                 out.triggered = true;
                 out.buffs.sneakBonus = 12.0f;
                 out.buffs.durationSec = 4.0f;
                 out.colorRgb = 0x33FF59u;
-                out.whisper = std::format(
-                    "Gentle Sight - your quiet gaze does not startle the {}.", name);
+                out.whisper =
+                    std::format("Gentle Sight - your quiet gaze does not startle the {}.", name);
             }
             return out;
         }
@@ -351,8 +354,8 @@ namespace TrueGaze::ExpandedPlay
                 }
                 else
                 {
-                    out.whisper = std::format(
-                        "Kyne's Stillness - your eyes stay steady on the {}.", name);
+                    out.whisper =
+                        std::format("Kyne's Stillness - your eyes stay steady on the {}.", name);
                 }
             }
             return out;

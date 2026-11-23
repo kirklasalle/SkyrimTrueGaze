@@ -6,9 +6,9 @@
 **Workspace:** `D:\Projects\SkyrimTrueGaze`  
 **Parent Ecosystem:** Kirk LaSalle's Human Communication Eye Protocol (HCEP) (`D:\Projects\HCEP`)  
 **Author & Product Owner:** Kirk LaSalle  
-**Version:** 1.1.0  
-**Status:** Production Release ([GitHub — kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze))  
-**Target Games:** The Elder Scrolls V: Skyrim (Special Edition 1.5.97, Anniversary Edition 1.6.318–1.6.1170+, Skyrim VR 1.4.15)
+**Version:** 2.1.0  
+**Status:** Release Candidate ([GitHub — kirklasalle/SkyrimTrueGaze](https://github.com/kirklasalle/SkyrimTrueGaze))  
+**Target Games:** The Elder Scrolls V: Skyrim (Special Edition 1.5.97, AE 1.6.318–1.6.1170+, Skyrim VR 1.4.15 — First-Party HCEP VR Flagship Target)
 
 ---
 
@@ -61,11 +61,17 @@ For over two decades, real-time 3D game engines have suffered from what cognitiv
   - Address Library for SKSE Plugins (for multi-version memory offsets)
   - *Optional:* Open Animation Replacer (OAR) >= 2.0.0
   - *Optional:* Expressive Facegen Morphs (EFM) / Expressive Facial Animation (EFA)
-- **Explicit non-dependencies (vanilla-UI design):**
-  - **SkyUI is NOT required.** TrueGaze ships no MCM menu, no ESP/ESL, no Papyrus
-    (`.psc`/`.pex`) script, and no translation files. It does not modify any game
-    menu. All configuration is the INI at `Data\SKSE\Plugins\TrueGaze.ini`, edited
-    through the standalone `TrueGazeConfig.html` page.
+- **Explicit non-dependencies & optional light plugin (vanilla-UI design):**
+  - **SkyUI is NOT required.** TrueGaze ships no MCM menu, no mandatory ESP, and no Papyrus
+    (`.psc`/`.pex`) script files. Core biological kinematics runs 100% inside `TrueGaze.dll`
+    configured via `Data\SKSE\Plugins\TrueGaze.ini` and the standalone `TrueGazeConfig.html` UI.
+  - **Optional Light Plugin (`TrueGaze_ExpandedPlay.esp`):** Opt-in Expanded Play (`bEnabled=false`
+    by default) ships an ESL-flagged light plugin (`0` load-order slots, `Skyrim.esm` only, zero
+    Papyrus `VMAD` scripts, zero vanilla `CELL` edits) plus `SEQ\TrueGaze_ExpandedPlay.seq` and
+    clean-room programmatic timing `.wav` dialogue assets.
+  - **Skyrim VR (`1.4.15`) First-Party HCEP Target:** TrueGaze natively reads Skyrim VR's live
+    6DOF `VR_NODE_DATA::HmdNode` pose and uses VR-safe virtual/VM dispatch so VR players receive
+    full first-party HCEP immersion alongside SE/AE.
 - **Host OS:** Windows 10 / Windows 11 (x64)
 - **Compiler / Toolchain:** MSVC 19.40+ (Visual Studio 2022 / 2026), C++23 standard, CMake >= 3.23.
 

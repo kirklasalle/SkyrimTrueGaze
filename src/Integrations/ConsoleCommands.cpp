@@ -19,12 +19,17 @@
 
 #if __has_include(<RE/Skyrim.h>)
 #include <RE/C/CommandTable.h>
+#include <RE/C/Console.h>
 #include <RE/C/ConsoleLog.h>
+#include <RE/F/FxDelegateArgs.h>
+#include <RE/F/FxDelegateHandler.h>
+#include <RE/G/GString.h>
 #include <RE/S/Script.h>
 #include <RE/Skyrim.h>
 #include <RE/T/TESObjectREFR.h>
 #endif
 
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 
@@ -1229,145 +1234,109 @@ namespace TrueGaze::Integrations
         }
 
         // -----------------------------------------------------------------------
-        // Finding a slot to reclaim
+        // CRIT-01: Zero-Clobber Scaleform Console Interception (SE / AE / VR)
         // -----------------------------------------------------------------------
         //
-        // ## There is no count. That was the bug.
+        // Previously this file overwrote 30 entries in Skyrim's RE::SCRIPT_FUNCTION
+        // console command table based on an erroneous heuristic about `helpString`
+        // (empty string or trailing '0'), silently clobbering live vanilla console
+        // commands and colliding with other SKSE console plugins.
         //
-        // An earlier revision of this file assumed a "number of commands" counter sat
-        // immediately after the command array, and tried to append past it. Running it
-        // in-game produced:
-        //
-        //     Console command table validation FAILED (count is at or beyond the
-        //     declared table length). No commands were registered and no memory was
-        //     written.
-        //
-        // That was the guard doing its job - it refused to write on a wrong assumption
-        // rather than corrupting engine memory. The assumption itself was the defect.
-        //
-        // **There is no count.** The SDK's own `LocateConsoleCommand` proves it: it
-        // scans the whole array and relies on a per-entry marker to tell a live command
-        // from an empty one. A table with no count cannot be appended to.
-        //
-        // ## How the SDK identifies a real command
-        //
-        // From the documented scan semantics:
-        //
-        //   * An entry is EMPTY when `helpString` is null or empty.
-        //   * Otherwise the help string ENDS with '1' (a live command) or '0' (a dead
-        //     one - a command that once existed and no longer does).
-        //
-        // So the array holds live commands, dead commands, and empty entries, and the
-        // engine's parser does not care about order. Filling a dead entry is therefore
-        // equivalent to adding a command, and needs no count at all.
-        //
-        // ## Why this is safe
-        //
-        //   * We never write past the end of the array - we only scan within it.
-        //   * We only ever overwrite an entry the engine *already* treats as
-        //     not-a-command, so no working vanilla command is displaced. A live command
-        //     (marker '1') is never a candidate.
-        //   * Every field is written, so nothing stale is left for the parser to read.
-        //   * If fewer free slots exist than commands to register, we register NOTHING
-        //     rather than registering a partial set that would be confusing to use.
-        struct SlotSet
-        {
-            RE::SCRIPT_FUNCTION* slots[std::size(kCommands)]{};
-            size_t found{0};
-            const char* reason{"not probed"};
+        // Instead, we hook RE::Console::Accept (RE::VTABLE_Console[0] slot 0x01 —
+        // identical across Skyrim SE 1.5.97, AE 1.6+, and VR 1.4.15) with a
+        // lightweight FxDelegateHandler::CallbackProcessor proxy that wraps the
+        // Scaleform "Execute" callback. When the player submits a line matching any
+        // of our 30 `stg*` tokens, we dispatch directly to the handler with
+        // RE::Console::GetSelectedRef() as `a_thisObj`; all other console input
+        // passes straight through to Skyrim untouched. Zero vanilla commands are
+        // modified or displaced.
+        RE::FxDelegateHandler::CallbackFn* g_originalConsoleExecute{nullptr};
 
-            // Scan statistics. Reported on install so that a future in-game run is
-            // self-diagnosing: if registration is refused, these numbers say whether the
-            // table was reachable at all and what it contained.
-            std::uint16_t scanned{0};
-            std::uint16_t emptyEntries{0};
-            std::uint16_t deadEntries{0};
-            std::uint16_t liveEntries{0};
+        void InterceptConsoleExecute(const RE::FxDelegateArgs& a_params)
+        {
+            if (a_params.GetArgCount() >= 1 && a_params[0].IsString())
+            {
+                const char* raw = a_params[0].GetString();
+                if (raw)
+                {
+                    // Skip leading whitespace.
+                    while (*raw && std::isspace(static_cast<unsigned char>(*raw)))
+                    {
+                        ++raw;
+                    }
+                    // Extract the first command token (case-insensitive).
+                    const char* end = raw;
+                    while (*end && !std::isspace(static_cast<unsigned char>(*end)) && *end != ';')
+                    {
+                        ++end;
+                    }
+                    const size_t tokenLen = static_cast<size_t>(end - raw);
+                    if (tokenLen > 0)
+                    {
+                        for (const auto& def : kCommands)
+                        {
+                            if (std::strlen(def.name) == tokenLen &&
+                                _strnicmp(raw, def.name, tokenLen) == 0)
+                            {
+                                auto selectedRef = RE::Console::GetSelectedRef();
+                                double dummyResult = 0.0;
+                                std::uint32_t dummyOffset = 0u;
+                                def.handler(nullptr, nullptr, selectedRef.get(), nullptr, nullptr,
+                                            nullptr, dummyResult, dummyOffset);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (g_originalConsoleExecute)
+            {
+                g_originalConsoleExecute(a_params);
+            }
+        }
+
+        class ConsoleCallbackProxy final : public RE::FxDelegateHandler::CallbackProcessor
+        {
+        public:
+            explicit ConsoleCallbackProxy(RE::FxDelegateHandler::CallbackProcessor* a_inner) noexcept
+                : _inner(a_inner)
+            {
+            }
+
+            void Process(const RE::GString& a_methodName,
+                         RE::FxDelegateHandler::CallbackFn* a_method) override
+            {
+                if (!_inner)
+                {
+                    return;
+                }
+                const char* name = a_methodName.c_str();
+                if (name &&
+                    (_stricmp(name, "Execute") == 0 || _stricmp(name, "ExecuteCommand") == 0))
+                {
+                    g_originalConsoleExecute = a_method;
+                    _inner->Process(a_methodName, &InterceptConsoleExecute);
+                    return;
+                }
+                _inner->Process(a_methodName, a_method);
+            }
+
+        private:
+            RE::FxDelegateHandler::CallbackProcessor* _inner;
         };
 
-        constexpr std::uint16_t kTableCapacity =
-            static_cast<std::uint16_t>(RE::SCRIPT_FUNCTION::Commands::kConsoleCommandsEnd);
-
-        /// Persistent storage for the help strings actually handed to the engine.
-        ///
-        /// A live command's help string must END with '1' - that trailing marker is how
-        /// the engine's scan distinguishes a live command ('1') from a dead one ('0').
-        /// Appending it to the source literals would make the human-readable help text
-        /// read like a typo, so the marker is added here instead, into storage that
-        /// outlives the call. One string per command, formatted once at install.
-        std::array<std::string, std::size(kCommands)> g_helpStrings{};
-
-        /// Build the engine-facing help string: the readable text plus the live-command
-        /// marker the engine's scan requires.
-        const char* MakeLiveHelpString(size_t a_index, const char* a_help) noexcept
+        struct ConsoleAcceptHook
         {
-            auto& buffer = g_helpStrings[a_index];
-            buffer.assign(a_help);
-            buffer.push_back(' '); // keep the marker visually separate if shown
-            buffer.push_back('1'); // '1' = live command
-            return buffer.c_str();
-        }
-
-        /// Classify an entry exactly as the engine's own scan does, then record it.
-        ///
-        /// The decision is made purely from the marker the SDK documents - an empty
-        /// `helpString` means the entry is empty, and otherwise the terminal character is
-        /// '1' for a live command or '0' for a dead one. Reading a field whose meaning is
-        /// already known, through the struct the SDK itself defines, is what makes this
-        /// safe; nothing here depends on an offset the engine does not document.
-        SlotSet FindReclaimableSlots() noexcept
-        {
-            SlotSet set{};
-
-            auto* first = RE::SCRIPT_FUNCTION::GetFirstConsoleCommand();
-            if (!first)
+            static void Hook(RE::Console* a_this,
+                             RE::FxDelegateHandler::CallbackProcessor* a_cbReg)
             {
-                set.reason = "GetFirstConsoleCommand() returned null";
-                return set;
+                ConsoleCallbackProxy proxy(a_cbReg);
+                _original(a_this, &proxy);
             }
 
-            for (std::uint16_t i = 0; i < kTableCapacity && set.found < std::size(kCommands); ++i)
-            {
-                auto& entry = first[i];
-                ++set.scanned;
-
-                // A reclaimed entry must keep a readable function name: the engine's own
-                // lookup calls strlen() on it for every entry it scans, so a null there
-                // would be a fault waiting to happen. Only well-formed entries qualify.
-                if (entry.functionName == nullptr)
-                {
-                    continue;
-                }
-
-                // Classify using the marker the SDK documents, so the report reflects
-                // the engine's own view of the table rather than our guess about it.
-                const char* help = entry.helpString;
-                if (help == nullptr || help[0] == '\0')
-                {
-                    ++set.emptyEntries;
-                    set.slots[set.found++] = &entry;
-                }
-                else if (help[std::strlen(help) - 1] == '0')
-                {
-                    ++set.deadEntries;
-                    set.slots[set.found++] = &entry;
-                }
-                else
-                {
-                    ++set.liveEntries;
-                }
-            }
-
-            if (set.found < std::size(kCommands))
-            {
-                set.reason = "not enough reclaimable entries in the console command table";
-            }
-            else
-            {
-                set.reason = "ok";
-            }
-            return set;
-        }
+            static inline REL::Relocation<decltype(Hook)> _original;
+        };
 
     } // namespace
 
@@ -1395,116 +1364,15 @@ namespace TrueGaze::Integrations
             return;
         }
 
-        const auto slots = FindReclaimableSlots();
-
-        logger::info("[TrueGaze] Console table scan: scanned={} live={} dead={} empty={} "
-                     "reclaimable={} (needed {})",
-                     slots.scanned, slots.liveEntries, slots.deadEntries, slots.emptyEntries,
-                     slots.found, std::size(kCommands));
-
-        if (slots.found < std::size(kCommands))
-        {
-            // Registering a partial command set would be worse than registering none:
-            // some commands would work and others would "not be found", with no way to
-            // tell which. Refuse entirely, and say exactly why - with the counts above
-            // as the evidence.
-            logger::warn("[TrueGaze] Found only {} reclaimable console entries but need {}. No "
-                         "commands were registered. Everything still works from TrueGaze.ini "
-                         "and TrueGazeConfig.html. ({})",
-                         slots.found, std::size(kCommands), slots.reason);
-            return;
-        }
-
-        size_t i = 0;
-        std::array<std::uint32_t, std::size(kCommands)> boundOpcodes{};
-        for (const auto& def : kCommands)
-        {
-            auto& entry = *slots.slots[i];
-
-            // Preserve the slot's existing opcode BEFORE clearing the entry.
-            //
-            // `SCRIPT_OUTPUT output` is the command's unique function ID - the SDK
-            // comment says so outright ("basically the unique id for the function,
-            // there's ~5000 of these"), and the console dispatches by it
-            // (kConsoleOpBase = 0x0100). Zeroing the whole entry wiped it, and the
-            // engine then reported exactly what a zero opcode means:
-            //
-            //     Unknown function code 0
-            //
-            // The reclaimed slot already carried a unique, engine-allocated opcode, so
-            // keeping it is both correct and free. Allocating a fresh one would require
-            // knowing the engine's allocator, which is not documented - reusing the
-            // slot's own ID needs no new knowledge at all.
-            const auto preservedOpcode = entry.output;
-
-            // Overwrite every field. The engine's parser reads the whole entry, and a
-            // field left carrying its old value would be a real defect - not cosmetic.
-            entry = RE::SCRIPT_FUNCTION{};
-
-            // Restore the opcode first, so the entry is never observable without one.
-            entry.output = preservedOpcode;
-
-            entry.functionName = def.name;
-            entry.shortName = def.name;
-
-            // Both name fields are set to the token the player actually types.
-            //
-            // The SDK's own `LocateConsoleCommand(std::string_view a_longName)` matches
-            // against `functionName`, and its parameter name suggests the engine may
-            // treat that field as the canonical name. We do not know for certain which
-            // field the engine's parser matches, so setting BOTH to the same short token
-            // makes the command reachable either way. Requiring the user to guess
-            // "TrueGazeRays" instead of the documented "stgv" would be a poor outcome for
-            // no benefit - nothing here needs a namespaced long form.
-            //
-            // The readable description therefore lives where it belongs: in helpString.
-            // Live-command marker required by the engine's own scan (see MakeLiveHelpString).
-            entry.helpString = MakeLiveHelpString(i, def.help);
-
-            entry.referenceFunction = false;
-            entry.numParams = 0;
-            entry.params = nullptr;
-
-            // The one unavoidable conversion, kept to a single line so there is exactly
-            // one place to look. It changes only the noexcept part of the pointer type;
-            // the handler stays non-throwing in fact, which is what the noexcept on its
-            // declaration guarantees.
-            entry.executeFunction = reinterpret_cast<RE::SCRIPT_FUNCTION::Execute_t*>(def.handler);
-
-            entry.compileFunction = nullptr;
-            entry.conditionFunction = nullptr;
-            entry.editorFilter = false;
-            entry.invalidatesCellList = false;
-
-            // Record the opcode actually bound, for the install report below.
-            boundOpcodes[i] = static_cast<std::uint32_t>(entry.output);
-
-            ++i;
-        }
+        REL::Relocation<std::uintptr_t> consoleVtable{RE::VTABLE_Console[0]};
+        constexpr std::size_t kAcceptSlot = 0x01; // RE::FxDelegateHandler::Accept (SE/AE/VR)
+        ConsoleAcceptHook::_original = consoleVtable.write_vfunc(kAcceptSlot, ConsoleAcceptHook::Hook);
 
         g_installed = true;
-
-        // Report the reclaim honestly: how many dead/empty slots were reused, and the
-        // opcode each command now answers to. If a command still fails, the opcode is
-        // the first thing to compare against the engine's own dispatch table.
-        logger::info("[TrueGaze] Registered {} console command(s) by reclaiming {} dead/empty "
-                     "console-table entries. Type 'stghelp' or 'stgstatus' at the console (~).",
-                     std::size(kCommands), slots.found);
-        logger::info("[TrueGaze] Bound opcodes: {}",
-                     [&]
-                     {
-                         std::string s;
-                         for (size_t n = 0; n < std::size(kCommands); ++n)
-                         {
-                             s += (n ? ", " : "");
-                             s += kCommands[n].name;
-                             s += "=0x";
-                             char buf[16]{0};
-                             std::snprintf(buf, sizeof(buf), "%X", boundOpcodes[n]);
-                             s += buf;
-                         }
-                         return s;
-                     }());
+        logger::info("[TrueGaze] Registered {} console command(s) via non-destructive "
+                     "Console::Accept Scaleform hook (0 vanilla commands modified). "
+                     "Type 'stghelp' or 'stgstatus' at the console (~).",
+                     std::size(kCommands));
     }
 
     bool ConsoleCommands::IsInstalled() noexcept

@@ -1,4 +1,4 @@
-﻿# ============================================================================
+# ============================================================================
 #  TrueGazeBridgeServer.ps1
 #  Native PowerShell Automation & Bridge Server for TrueGaze Configurator
 #  Provides REST APIs for:
@@ -54,21 +54,20 @@ function Get-SkyrimInstallation {
     }
     catch {}
 
-    # 3. Steam libraryfolders.vdf probing across all system drives
-    $steamRoots = @(
-        'C:\Program Files (x86)\Steam',
-        'C:\Program Files\Steam',
-        'G:\Program Files (x86)\Steam',
-        'D:\Steam',
-        'E:\Steam',
-        'F:\Steam'
-    )
-    # Also check registry for SteamPath
+    # 3. Steam libraryfolders.vdf probing across system drives + SteamPath registry (ARCH-03)
+    $steamRoots = [System.Collections.Generic.List[string]]::new()
     try {
         $sp = (Get-ItemProperty 'HKCU:\Software\Valve\Steam' -Name 'SteamPath' -ErrorAction SilentlyContinue).SteamPath
-        if ($sp) { $steamRoots += ($sp -replace '/', '\') }
+        if ($sp) { $steamRoots.Add(($sp -replace '/', '\')) }
     }
     catch {}
+    foreach ($drive in @('C', 'D', 'E', 'F', 'G', 'H')) {
+        if (Test-Path "$drive`:\") {
+            $steamRoots.Add("$drive`:\Program Files (x86)\Steam")
+            $steamRoots.Add("$drive`:\Program Files\Steam")
+            $steamRoots.Add("$drive`:\Steam")
+        }
+    }
 
     foreach ($sr in $steamRoots) {
         $drive = Split-Path $sr -Qualifier
@@ -227,6 +226,7 @@ function Send-JsonResponse($response, $data, [int]$statusCode = 200) {
     $response.StatusCode = $statusCode
     $response.ContentType = 'application/json; charset=utf-8'
     $response.Headers.Add('Cache-Control', 'no-store')
+    $response.Headers.Add('X-Content-Type-Options', 'nosniff')
     
     $json = $data | ConvertTo-Json -Depth 6
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
@@ -239,6 +239,7 @@ function Send-TextResponse($response, [string]$text, [string]$contentType = 'tex
     $response.StatusCode = $statusCode
     $response.ContentType = $contentType
     $response.Headers.Add('Cache-Control', 'no-store')
+    $response.Headers.Add('X-Content-Type-Options', 'nosniff')
 
     # Use Latin-1 (ISO-8859-1) encoding to preserve Skyrim INI byte fidelity (e.g. ™ trademark on line 1)
     $encoding = [System.Text.Encoding]::GetEncoding('iso-8859-1')
@@ -256,6 +257,11 @@ function Send-FileResponse($response, [string]$filePath, [string]$contentType = 
     $response.StatusCode = 200
     $response.ContentType = $contentType
     $response.Headers.Add('Cache-Control', 'no-store')
+    $response.Headers.Add('X-Content-Type-Options', 'nosniff')
+    if ($contentType -like 'text/html*') {
+        # SEC-02/SEC-03: Restrictive CSP blocks external scripts/frames/exfiltration.
+        $response.Headers.Add('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'")
+    }
     if ($injectToken -and $contentType -like 'text/html*') {
         $html = [System.IO.File]::ReadAllText($filePath, [System.Text.Encoding]::UTF8)
         $meta = "<meta name=`"tg-bridge-token`" content=`"$injectToken`">"
@@ -373,7 +379,8 @@ try {
                 Send-FileResponse $response $img 'image/jpeg'
             }
             elseif ($urlPath -eq '/api/scan') {
-                if (-not (Test-LocalRequest $request $Port $script:BridgeToken)) {
+                # SEC-03: Require session token on /api/scan (Config UI already sends bridgeHeaders()).
+                if (-not (Test-LocalRequest $request $Port $script:BridgeToken -RequireToken)) {
                     Send-JsonResponse $response @{ error = 'Forbidden' } 403
                     continue
                 }
@@ -405,9 +412,32 @@ try {
                     Send-JsonResponse $response @{ error = 'Forbidden' } 403
                     continue
                 }
-                $reader = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::GetEncoding('iso-8859-1'))
-                $content = $reader.ReadToEnd()
-                $reader.Close()
+                # SEC-03: Cap INI POST body at 256 KB to prevent unbounded memory DoS.
+                $maxIniBytes = 262144
+                if ($request.ContentLength64 -gt $maxIniBytes) {
+                    Send-JsonResponse $response @{ error = 'Payload Too Large (max 256 KB)' } 413
+                    continue
+                }
+                $ms = [System.IO.MemoryStream]::new()
+                $buf = New-Object byte[] 8192
+                $totalRead = 0
+                $tooLarge = $false
+                while (($n = $request.InputStream.Read($buf, 0, $buf.Length)) -gt 0) {
+                    $totalRead += $n
+                    if ($totalRead -gt $maxIniBytes) {
+                        $tooLarge = $true
+                        break
+                    }
+                    $ms.Write($buf, 0, $n)
+                }
+                if ($tooLarge) {
+                    $ms.Dispose()
+                    Send-JsonResponse $response @{ error = 'Payload Too Large (max 256 KB)' } 413
+                    continue
+                }
+                $latin1 = [System.Text.Encoding]::GetEncoding('iso-8859-1')
+                $content = $latin1.GetString($ms.ToArray())
+                $ms.Dispose()
 
                 $scan = Get-FullSystemScan
                 $target = Resolve-AllowedIniPath $request.QueryString['path'] $scan
@@ -426,7 +456,15 @@ try {
                     Copy-Item -Path $target -Destination $bak -Force
                 }
 
-                [System.IO.File]::WriteAllText($target, $content, [System.Text.Encoding]::GetEncoding('iso-8859-1'))
+                # SEC-03: Atomic temp-file write + move to avoid truncated INI on crash/interrupt.
+                $tmpTarget = "$target.tmp.$([System.Guid]::NewGuid().ToString('N'))"
+                [System.IO.File]::WriteAllText($tmpTarget, $content, $latin1)
+                if (Test-Path $target) {
+                    [System.IO.File]::Replace($tmpTarget, $target, "$target.bak", $true)
+                }
+                else {
+                    [System.IO.File]::Move($tmpTarget, $target)
+                }
                 Send-JsonResponse $response @{
                     success   = $true
                     path      = $target
@@ -446,6 +484,7 @@ try {
                     continue
                 }
 
+                $dataDir = Join-Path $scan.game.path 'Data'
                 $pluginsDir = $scan.game.pluginsDir
                 if (-not (Test-Path $pluginsDir)) {
                     New-Item -ItemType Directory -Path $pluginsDir -Force | Out-Null
@@ -465,11 +504,30 @@ try {
                     Copy-Item -Path $scan.repo.iniPath -Destination $destIni -Force
                 }
 
+                # ARCH-01: Deploy full mod payload (SWFs, meshes/TrueGaze, textures/TrueGaze, OAR, ESL, SEQ, Voice)
+                $deployedExtras = [System.Collections.Generic.List[string]]::new()
+                $skyrimRoot = Join-Path $projectRoot 'skyrim'
+                foreach ($relDir in @('Interface', 'meshes\TrueGaze', 'textures\TrueGaze', 'meshes\actors\character\animations\OpenAnimationReplacer\TrueGaze', 'SEQ', 'Sound\Voice\TrueGaze_ExpandedPlay.esp')) {
+                    $srcDir = Join-Path $skyrimRoot $relDir
+                    if (Test-Path $srcDir) {
+                        $dstDir = Join-Path $dataDir $relDir
+                        New-Item -ItemType Directory -Path $dstDir -Force | Out-Null
+                        Copy-Item -Path (Join-Path $srcDir '*') -Destination $dstDir -Recurse -Force
+                        $deployedExtras.Add($relDir)
+                    }
+                }
+                $srcEsl = Join-Path $skyrimRoot 'TrueGaze_ExpandedPlay.esp'
+                if (Test-Path $srcEsl) {
+                    Copy-Item -LiteralPath $srcEsl -Destination (Join-Path $dataDir 'TrueGaze_ExpandedPlay.esp') -Force
+                    $deployedExtras.Add('TrueGaze_ExpandedPlay.esp')
+                }
+
                 Send-JsonResponse $response @{
-                    success     = $true
-                    deployedDll = (Join-Path $pluginsDir 'TrueGaze.dll')
-                    deployedIni = $destIni
-                    dllSize     = (Get-Item (Join-Path $pluginsDir 'TrueGaze.dll')).Length
+                    success        = $true
+                    deployedDll    = (Join-Path $pluginsDir 'TrueGaze.dll')
+                    deployedIni    = $destIni
+                    deployedAssets = @($deployedExtras)
+                    dllSize        = (Get-Item (Join-Path $pluginsDir 'TrueGaze.dll')).Length
                 }
             }
             elseif ($urlPath -eq '/api/launch' -and $method -eq 'POST') {
@@ -541,21 +599,35 @@ try {
                 $docs = Get-SkyrimDocumentsInfo
                 $tail = 60
                 if ($request.QueryString['lines']) {
-                    [int]::TryParse($request.QueryString['lines'], [ref]$tail) | Out-Null
+                    $parsedTail = 60
+                    if ([int]::TryParse($request.QueryString['lines'], [ref]$parsedTail)) {
+                        $tail = $parsedTail
+                    }
                 }
+                # SEC-03: Clamp lines to [1, 2000] (prevents negative-index HTTP 500) and
+                # read only the tail ring instead of buffering an unbounded log file into RAM.
+                $tail = [Math]::Min(2000, [Math]::Max(1, $tail))
                 if ($docs.logExists) {
                     $lines = @()
                     try {
                         $fs = [System.IO.FileStream]::new($docs.logPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+                        # Seek to at most last 512 KB of the log to keep response latency & RAM bounded.
+                        $maxTailBytes = 524288L
+                        if ($fs.Length -gt $maxTailBytes) {
+                            $null = $fs.Seek(-$maxTailBytes, [System.IO.SeekOrigin]::End)
+                        }
                         $sr = [System.IO.StreamReader]::new($fs, [System.Text.Encoding]::UTF8)
-                        $allLines = [System.Collections.Generic.List[string]]::new()
+                        if ($fs.Length -gt $maxTailBytes -and -not $sr.EndOfStream) {
+                            $null = $sr.ReadLine() # discard partial leading line
+                        }
+                        $ring = [System.Collections.Generic.Queue[string]]::new($tail + 1)
                         while (-not $sr.EndOfStream) {
-                            $allLines.Add($sr.ReadLine())
+                            $ring.Enqueue($sr.ReadLine())
+                            if ($ring.Count -gt $tail) { $null = $ring.Dequeue() }
                         }
                         $sr.Close()
                         $fs.Close()
-                        $startIdx = [Math]::Max(0, $allLines.Count - $tail)
-                        $lines = @($allLines.GetRange($startIdx, $allLines.Count - $startIdx))
+                        $lines = @($ring.ToArray())
                     }
                     catch {
                         $lines = @("Error reading log: $($_.Exception.Message)")
@@ -576,7 +648,8 @@ try {
                 }
             }
             elseif ($urlPath -eq '/api/shutdown' -and $method -eq 'POST') {
-                if (-not (Test-LocalRequest $request $Port $script:BridgeToken)) {
+                # SEC-03: Require session token on /api/shutdown.
+                if (-not (Test-LocalRequest $request $Port $script:BridgeToken -RequireToken)) {
                     Send-JsonResponse $response @{ error = 'Forbidden' } 403
                     continue
                 }

@@ -164,37 +164,37 @@ namespace TrueGaze::ExpandedPlay
             }};
         }
 
-        // Bespoke Riverwood First-Slice NPC profiles (ActorBase low-24 FormIDs in Skyrim.esm)
+        // Bespoke Riverwood First-Slice NPC profiles (verified Skyrim.esm NPC_ Base FormIDs, CRIT-09)
         switch (baseFormIdLow24 & 0x00FFFFFFu)
         {
-        case 0x01347Bu: // Camilla Valerius
+        case 0x01347Bu: // Camilla Valerius (Skyrim.esm EDID=CamillaValerius)
             return NpcAffinityProfile{{AffinityTier::Love, AffinityTier::Like, AffinityTier::Hate,
                                        AffinityTier::Dislike, AffinityTier::Dislike,
                                        AffinityTier::Like}};
-        case 0x01347Cu: // Lucan Valerius
+        case 0x01347Au: // Lucan Valerius (Skyrim.esm EDID=LucanValerius)
             return NpcAffinityProfile{{AffinityTier::Like, AffinityTier::Dislike, AffinityTier::Hate,
                                        AffinityTier::Love, AffinityTier::Like,
                                        AffinityTier::Dislike}};
-        case 0x013475u: // Alvor
+        case 0x013475u: // Alvor (Skyrim.esm EDID=Alvor)
             return NpcAffinityProfile{{AffinityTier::Like, AffinityTier::Like, AffinityTier::Dislike,
                                        AffinityTier::Love, AffinityTier::Hate, AffinityTier::Like}};
-        case 0x013478u: // Orgnar
+        case 0x013479u: // Orgnar (Skyrim.esm EDID=Orgnar)
             return NpcAffinityProfile{{AffinityTier::Dislike, AffinityTier::Love, AffinityTier::Like,
                                        AffinityTier::Dislike, AffinityTier::Like,
                                        AffinityTier::Dislike}};
-        case 0x013485u: // Delphine
+        case 0x013478u: // Delphine (Skyrim.esm EDID=Delphine; RefID 0x013485 is NOT an ActorBase)
             return NpcAffinityProfile{{AffinityTier::Dislike, AffinityTier::Hate, AffinityTier::Love,
                                        AffinityTier::Like, AffinityTier::Dislike,
                                        AffinityTier::Hate}};
-        case 0x01347Fu: // Sven
+        case 0x01347Fu: // Sven (Skyrim.esm EDID=Sven)
             return NpcAffinityProfile{{AffinityTier::Love, AffinityTier::Love, AffinityTier::Hate,
                                        AffinityTier::Like, AffinityTier::Dislike,
                                        AffinityTier::Like}};
-        case 0x013480u: // Faendal
+        case 0x013480u: // Faendal (Skyrim.esm EDID=Faendal)
             return NpcAffinityProfile{{AffinityTier::Like, AffinityTier::Dislike,
                                        AffinityTier::Dislike, AffinityTier::Love,
                                        AffinityTier::Dislike, AffinityTier::Love}};
-        case 0x013479u: // Gerdur
+        case 0x01347Cu: // Gerdur (Skyrim.esm EDID=Gerdur)
             return NpcAffinityProfile{{AffinityTier::Like, AffinityTier::Like, AffinityTier::Hate,
                                        AffinityTier::Dislike, AffinityTier::Hate,
                                        AffinityTier::Love}};

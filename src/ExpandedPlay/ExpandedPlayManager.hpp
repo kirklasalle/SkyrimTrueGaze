@@ -4,7 +4,9 @@
 #include "ExpandedPlay/CombatAndCreatureSight.hpp"
 #include "ExpandedPlay/DemeanorController.hpp"
 #include "ExpandedPlay/ExpandedPlayTypes.hpp"
+#include "ExpandedPlay/FactionSight.hpp"
 #include "ExpandedPlay/GazeLedger.hpp"
+#include "ExpandedPlay/NpcVoiceResponder.hpp"
 #include "ExpandedPlay/PersuasionTransactions.hpp"
 #include "ExpandedPlay/PresenceSignature.hpp"
 #include "ExpandedPlay/ResponseLadder.hpp"
@@ -77,6 +79,7 @@ namespace TrueGaze::ExpandedPlay
         NpcCooldownTracker _kindredCooldown{};
         NpcCooldownTracker _combatSightCooldown{};
         NpcCooldownTracker _creatureSightCooldown{};
+        NpcCooldownTracker _factionSightCooldown{};
         std::vector<uint32_t> _awardedCreatureMilestones{};
 
         float _sessionElapsedSec{0.0f};
@@ -102,6 +105,18 @@ namespace TrueGaze::ExpandedPlay
         int32_t _lastBribeCostGold{0};
         uint32_t _activeNeutralWitnessCount{0};
         uint32_t _activeLawWitnessCount{0};
+        uint32_t _activeLawWitnessActorId{0};
+        int8_t _activeLawWitnessDirSign{0};
+        float _activeGuardGlanceRangeMeters{12.0f};
+        bool _persuasionProbeActive{false};
+        bool _persuasionGuardGlanceActive{false};
+        bool _slyBribeArmedNow{false};
+        float _lastDiscoveryCheckSec{-100.0f};
+        float _lastNoteInventoryCheckSec{-100.0f};
+        bool _visitedSleepingGiantThisSession{false};
+        float _innLeftGameDay{-1.0f};
+        bool _pendingInnNoteHandoff{false};
+        uint32_t _pendingInnNoteSpeakerId{0};
         bool _probeTellSent{false};
         bool _txCommittedForHold{false};
         float _lastStrength{0.0f};

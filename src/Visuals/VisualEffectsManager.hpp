@@ -41,8 +41,10 @@ namespace TrueGaze::Visuals
     public:
         static VisualEffectsManager& Get() noexcept
         {
-            static VisualEffectsManager instance;
-            return instance;
+            // CRIT-08: Immortal singleton prevents DLL_PROCESS_DETACH from invoking
+            // NiRefObject::DecRefCount() after Skyrim's allocator has torn down.
+            static auto* instance = new VisualEffectsManager();
+            return *instance;
         }
 
         VisualEffectsManager(const VisualEffectsManager&) = delete;

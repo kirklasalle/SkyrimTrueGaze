@@ -104,6 +104,167 @@ namespace TrueGaze::ExpandedPlay
             return false;
         }
 
+        [[nodiscard]] bool IsInFactionId(const RE::Actor* actor, uint32_t formId) noexcept
+        {
+            if (!actor || formId == 0u)
+            {
+                return false;
+            }
+            auto* fact = RE::TESForm::LookupByID<RE::TESFaction>(static_cast<RE::FormID>(formId));
+            return fact && actor->IsInFaction(fact);
+        }
+
+        [[nodiscard]] uint32_t InspectActorFactionBits(RE::Actor* actor,
+                                                       bool isPlayer) noexcept
+        {
+            if (!actor)
+            {
+                return FactionBits::kNone;
+            }
+            uint32_t bits = FactionBits::kNone;
+            if (IsInFactionId(actor, VanillaFactionIds::kDarkBrotherhood))
+                bits |= FactionBits::kDarkBrotherhood;
+            if (IsInFactionId(actor, VanillaFactionIds::kThievesGuild))
+                bits |= FactionBits::kThievesGuild;
+            if (IsInFactionId(actor, VanillaFactionIds::kCompanions))
+                bits |= FactionBits::kCompanions;
+            if (IsInFactionId(actor, VanillaFactionIds::kCompanionsCircle) ||
+                IsInFactionId(actor, VanillaFactionIds::kPlayerWerewolf))
+            {
+                bits |= FactionBits::kCompanions | FactionBits::kCompanionsCircle;
+            }
+            if (IsInFactionId(actor, VanillaFactionIds::kCollegeOfWinterhold))
+                bits |= FactionBits::kCollegeWinterhold;
+            if (IsInFactionId(actor, VanillaFactionIds::kCWImperial) ||
+                IsInFactionId(actor, VanillaFactionIds::kCWImperialNpc))
+                bits |= FactionBits::kImperialLegion;
+            if (IsInFactionId(actor, VanillaFactionIds::kCWSons))
+                bits |= FactionBits::kStormcloaks;
+            if (IsInFactionId(actor, VanillaFactionIds::kBardsCollege))
+                bits |= FactionBits::kBardsCollege;
+            if (isPlayer)
+            {
+                if (auto* ms05 = RE::TESForm::LookupByID<RE::TESQuest>(
+                        static_cast<RE::FormID>(VanillaFactionIds::kBardsCollegeQuest));
+                    ms05 && ms05->IsCompleted())
+                {
+                    bits |= FactionBits::kBardsCollege;
+                }
+            }
+            if (IsInFactionId(actor, VanillaFactionIds::kVampirePC) ||
+                IsInFactionId(actor, VanillaFactionIds::kVampireFaction))
+            {
+                bits |= FactionBits::kVampire;
+            }
+            else if (auto* vampKw = RE::TESForm::LookupByID<RE::BGSKeyword>(
+                         static_cast<RE::FormID>(VanillaFactionIds::kVampireKeyword));
+                     vampKw && actor->HasKeyword(vampKw))
+            {
+                bits |= FactionBits::kVampire;
+            }
+            if (IsInFactionId(actor, VanillaFactionIds::kVigilantOfStendarr))
+                bits |= FactionBits::kVigilant;
+
+            // Runtime-optional Dawnguard detection (zero hard DLC dependency)
+            actor->VisitFactions(
+                [&](RE::TESFaction* f, std::int8_t rank) -> bool
+                {
+                    if (f && rank >= 0)
+                    {
+                        const char* nm = f->GetName();
+                        if (nm && ContainsIgnoreCase(nm, "Dawnguard"))
+                        {
+                            bits |= FactionBits::kDawnguard;
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+            return bits;
+        }
+
+        void InspectWornFactionArmor(RE::Actor* actor, bool& dbGear, bool& tgGear,
+                                     bool& collegeRobes, bool& impArmor, bool& scArmor,
+                                     bool& hunterGear) noexcept
+        {
+            dbGear = tgGear = collegeRobes = impArmor = scArmor = hunterGear = false;
+            if (!actor)
+            {
+                return;
+            }
+            using Slot = RE::BGSBipedObjectForm::BipedObjectSlot;
+            constexpr Slot kSlots[] = {Slot::kBody, Slot::kHead, Slot::kHair};
+            for (const auto slot : kSlots)
+            {
+                auto* worn = actor->GetWornArmor(slot, true);
+                if (!worn)
+                {
+                    continue;
+                }
+                const char* nm = worn->GetName();
+                if (!nm || nm[0] == '\0')
+                {
+                    continue;
+                }
+                if (ContainsIgnoreCase(nm, "Shrouded") ||
+                    ContainsIgnoreCase(nm, "Dark Brotherhood"))
+                    dbGear = true;
+                if (ContainsIgnoreCase(nm, "Thieves Guild") ||
+                    ContainsIgnoreCase(nm, "Nightingale") || ContainsIgnoreCase(nm, "Guild Master"))
+                    tgGear = true;
+                if (ContainsIgnoreCase(nm, "College") || ContainsIgnoreCase(nm, "Archmage") ||
+                    ContainsIgnoreCase(nm, "Mage Robes") || ContainsIgnoreCase(nm, "Necromancer"))
+                    collegeRobes = true;
+                if (ContainsIgnoreCase(nm, "Imperial") || ContainsIgnoreCase(nm, "Penitus"))
+                    impArmor = true;
+                if (ContainsIgnoreCase(nm, "Stormcloak"))
+                    scArmor = true;
+                if (ContainsIgnoreCase(nm, "Dawnguard") || ContainsIgnoreCase(nm, "Vigilant"))
+                    hunterGear = true;
+            }
+        }
+
+        [[nodiscard]] bool HasStartedElderScrollOrMothQuest() noexcept
+        {
+            constexpr uint32_t kVanillaScrollQuests[] = {
+                0x0002D516u, // MQ205 Elder Knowledge
+                0x0002D512u  // DA04 Discerning the Transmundane
+            };
+            for (const uint32_t qid : kVanillaScrollQuests)
+            {
+                if (auto* q = RE::TESForm::LookupByID<RE::TESQuest>(static_cast<RE::FormID>(qid)))
+                {
+                    if (q->IsRunning() || q->IsCompleted() || q->GetCurrentStageID() > 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+            // Optional Dawnguard Prophet quest (runtime EditorID lookup; zero hard DLC master)
+            constexpr const char* kOptionalProphetIds[] = {"DLC1VQ03Hunter", "DLC1VQ03Vampire"};
+            for (const char* edid : kOptionalProphetIds)
+            {
+                if (auto* q = RE::TESForm::LookupByEditorID<RE::TESQuest>(edid))
+                {
+                    if (q->IsRunning() || q->IsCompleted() || q->GetCurrentStageID() > 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        [[nodiscard]] bool IsDaylightNow() noexcept
+        {
+            if (auto* cal = RE::Calendar::GetSingleton())
+            {
+                const float hr = cal->GetHour();
+                return hr >= 6.0f && hr < 20.0f;
+            }
+            return true;
+        }
+
         [[nodiscard]] bool IsCourtOrTempleLocation(const RE::TESForm* locForm) noexcept
         {
             const auto* loc = locForm ? locForm->As<RE::BGSLocation>() : nullptr;
@@ -369,7 +530,8 @@ namespace TrueGaze::ExpandedPlay
             return posture;
         }
 
-        [[nodiscard]] CreatureArchetype InspectActorCreatureArchetype(const RE::Actor* actor) noexcept
+        [[nodiscard]] CreatureArchetype
+        InspectActorCreatureArchetype(const RE::Actor* actor) noexcept
         {
             if (!actor)
             {
@@ -381,18 +543,17 @@ namespace TrueGaze::ExpandedPlay
             const char* edid = race ? race->GetFormEditorID() : nullptr;
             const char* rname = race ? race->GetName() : nullptr;
             const bool humanoid =
-                (edid && (ContainsIgnoreCase(edid, "NordRace") ||
-                          ContainsIgnoreCase(edid, "ImperialRace") ||
-                          ContainsIgnoreCase(edid, "BretonRace") ||
-                          ContainsIgnoreCase(edid, "RedguardRace") ||
-                          ContainsIgnoreCase(edid, "HighElfRace") ||
-                          ContainsIgnoreCase(edid, "WoodElfRace") ||
-                          ContainsIgnoreCase(edid, "DarkElfRace") ||
-                          ContainsIgnoreCase(edid, "OrcRace") ||
-                          ContainsIgnoreCase(edid, "KhajiitRace") ||
-                          ContainsIgnoreCase(edid, "ArgonianRace") ||
-                          ContainsIgnoreCase(edid, "ElderRace") ||
-                          ContainsIgnoreCase(edid, "Vampire"))) ||
+                (edid &&
+                 (ContainsIgnoreCase(edid, "NordRace") ||
+                  ContainsIgnoreCase(edid, "ImperialRace") ||
+                  ContainsIgnoreCase(edid, "BretonRace") ||
+                  ContainsIgnoreCase(edid, "RedguardRace") ||
+                  ContainsIgnoreCase(edid, "HighElfRace") ||
+                  ContainsIgnoreCase(edid, "WoodElfRace") ||
+                  ContainsIgnoreCase(edid, "DarkElfRace") || ContainsIgnoreCase(edid, "OrcRace") ||
+                  ContainsIgnoreCase(edid, "KhajiitRace") ||
+                  ContainsIgnoreCase(edid, "ArgonianRace") ||
+                  ContainsIgnoreCase(edid, "ElderRace") || ContainsIgnoreCase(edid, "Vampire"))) ||
                 actor->IsChild();
             if (humanoid)
             {
@@ -540,6 +701,12 @@ namespace TrueGaze::ExpandedPlay
         _tacticalBuffActive = false;
         _stateDirty = false;
         _hadFocusedActor = false;
+        _lastDiscoveryCheckSec = -100.0f;
+        _lastNoteInventoryCheckSec = -100.0f;
+        _visitedSleepingGiantThisSession = false;
+        _innLeftGameDay = -1.0f;
+        _pendingInnNoteHandoff = false;
+        _pendingInnNoteSpeakerId = 0u;
         ExpandedPlayModifiers::Get().SetTransientTacticalBonuses({});
         ResponseLadder::ClearAllTransientExpressions();
     }
@@ -547,12 +714,21 @@ namespace TrueGaze::ExpandedPlay
     void ExpandedPlayManager::OnGameLoaded() noexcept
     {
         const auto saved = CoSaveSerializer::Get().SnapshotState();
-        std::lock_guard lock(g_diagMutex);
-        _presenceSig.Load(saved.sign);
-        _ledger.LoadFromVector(saved.ledger);
-        _awakening = saved.awakening;
-        _demeanorCtrl.Update(saved.sign.demeanorMode, saved.sign.activeDemeanor, _lastDemeanorCtx,
-                             0.0f, nullptr);
+        bool innRumorDone = false;
+        AwakeningState loadedAwakening{};
+        {
+            std::lock_guard lock(g_diagMutex);
+            _presenceSig.Load(saved.sign);
+            _ledger.LoadFromVector(saved.ledger);
+            _awakening = saved.awakening;
+            loadedAwakening = _awakening;
+            innRumorDone = (_awakening.discoveryHintsMask & DiscoveryHintBits::kInnRumor) != 0u;
+            _demeanorCtrl.Update(saved.sign.demeanorMode, saved.sign.activeDemeanor,
+                                 _lastDemeanorCtx, 0.0f, nullptr);
+        }
+        AwakeningRitual::Get().EnsurePilgrimageQuestRunning();
+        AwakeningRitual::Get().SyncPilgrimageQuestProgress(loadedAwakening, false);
+        AwakeningRitual::Get().SetInnRumorInfoSaidOnce(innRumorDone);
     }
 
     void ExpandedPlayManager::OnBeforeSave() noexcept
@@ -716,10 +892,9 @@ namespace TrueGaze::ExpandedPlay
                 else
                 {
                     GazeReticle::Get().NotifyMilestone(
-                        std::format(
-                            "Moth-silk stills your sight - TrueGaze active [Stage {}: {}].",
-                            static_cast<unsigned>(newCaps.stage),
-                            AwakeningStageName(newCaps.stage)),
+                        std::format("Moth-silk stills your sight - TrueGaze active [Stage {}: {}].",
+                                    static_cast<unsigned>(newCaps.stage),
+                                    AwakeningStageName(newCaps.stage)),
                         0xFFD966u, "MAGAltarsBlessingFireA2D", true);
                 }
             }
@@ -757,6 +932,13 @@ namespace TrueGaze::ExpandedPlay
             hud.demeanorPinned = _demeanorCtrl.IsPinned();
             hud.demeanorPinRemainingSec = _demeanorCtrl.PinRemainingSec();
             hud.frostVignetteAlpha = _frostVignetteAlpha;
+            hud.enablePersuasionVisuals = ep.enablePersuasionVisuals;
+            hud.persuasionVectorId = static_cast<uint8_t>(_lastPersuasionVector);
+            hud.persuasionAffinityId = static_cast<uint8_t>(_lastAffinityTier);
+            hud.persuasionProbeActive = _persuasionProbeActive && _hadFocusedActor;
+            hud.persuasionGuardGlance = _persuasionGuardGlanceActive && _hadFocusedActor;
+            hud.guardGlanceDirSign = _activeLawWitnessDirSign;
+            hud.slyBribeArmed = _slyBribeArmedNow && _hadFocusedActor;
         }
         GazeReticle::Get().UpdateFrame(hud);
 #else
@@ -824,10 +1006,9 @@ namespace TrueGaze::ExpandedPlay
         // Probe Sanctuary location, player focus relic, studied Canticle, and spell cast
         // outside g_diagMutex so RE inventory/location queries never hold our internal lock.
         const uint8_t sanctuaryBit = AwakeningRitual::Get().CurrentPlayerSanctuaryBit();
-        const std::string sanctuaryName =
-            (sanctuaryBit != SanctuaryBits::kNone)
-                ? AwakeningRitual::Get().CurrentPlayerSanctuaryName()
-                : std::string{};
+        const std::string sanctuaryName = (sanctuaryBit != SanctuaryBits::kNone)
+                                              ? AwakeningRitual::Get().CurrentPlayerSanctuaryName()
+                                              : std::string{};
         const bool playerWearingFocus = AwakeningRitual::Get().IsPlayerWearingFocus();
         const bool ceremonyCastNow = AwakeningRitual::Get().ConsumePendingCeremonyCast();
         const bool hasStudiedBookNow =
@@ -836,12 +1017,14 @@ namespace TrueGaze::ExpandedPlay
             (focusFormId != 0u) ? AwakeningRitual::Get().DoesActorCarrySightRelic(focusFormId)
                                 : false;
 
-        // Zero-cell-conflict Sanctuary Relic Discovery & automatic Sight of the First Canticle
-        // spell learning (outside g_diagMutex so RE container/placement calls stay lock-free).
+        // Zero-cell-conflict Sanctuary Relic Discovery (outside g_diagMutex so RE
+        // container/placement calls stay lock-free). Sleeping Giant Inn hands its note
+        // exclusively through speaking with Orgnar or Delphine below.
         uint8_t newlyDiscoveredSanctuaryBit = SanctuaryBits::kNone;
         std::string newlyDiscoveredRelicName;
         bool newlyDiscoveredPlaced = false;
-        if (sanctuaryBit != SanctuaryBits::kNone && !playerInCombat && !inDialogue &&
+        if (sanctuaryBit != SanctuaryBits::kNone &&
+            sanctuaryBit != SanctuaryBits::kSleepingGiantInn && !playerInCombat && !inDialogue &&
             AwakeningRitual::Get().IsEslPluginLoaded() &&
             (savedSnapshot.awakening.discoveredSanctuaryRelicsMask & sanctuaryBit) == 0u &&
             _lastSanctuaryBit == sanctuaryBit && _sanctuaryStillnessSec >= 1.5f)
@@ -851,28 +1034,329 @@ namespace TrueGaze::ExpandedPlay
                 sanctuaryBit, newlyDiscoveredRelicName);
         }
 
+        // Sight of the First Canticle is taught ONLY once Key I (The Word) has been earned
+        // by finding and studying The First Canticle of the Eye or an Elder Scroll tome.
         bool newlyLearnedCanticleSpell = false;
         if (AwakeningRitual::Get().IsEslPluginLoaded() &&
-            (savedSnapshot.awakening.tumblerMask != 0u ||
-             savedSnapshot.awakening.discoveredSanctuaryRelicsMask != 0u ||
-             newlyDiscoveredSanctuaryBit != SanctuaryBits::kNone))
+            (savedSnapshot.awakening.tumblerMask & TumblerBits::kWord) != 0u)
         {
             newlyLearnedCanticleSpell = AwakeningRitual::Get().EnsureCanticleSpellLearned();
         }
 
-        std::lock_guard lock(g_diagMutex);
+        // Ensure "The Moth Priest's Pilgrimage" quest is running and keep journal objectives synced.
+        AwakeningRitual::Get().SyncPilgrimageQuestProgress(savedSnapshot.awakening, false);
+
+        // =========================================================================
+        // THREE-METHOD QUEST & NOTE DISCOVERY (WP-11D / v2.1.0):
+        //   Method 1: Sleeping Giant Inn — physical wax-sealed note placed right on
+        //             the bar counter beside Orgnar (pick up or read) OR ask Orgnar /
+        //             Delphine the dedicated top-level topic ("Have any quiet travelers
+        //             or Moth Priests passed through?").
+        //   Method 2: Vanilla Skyrim Courier (WICourier 0x00039F82) — if you enter
+        //             the Sleeping Giant Inn and leave without taking the note, Skyrim's
+        //             real Courier tracks you down within 1 Skyrim day with the note.
+        //   Method 3: Direct Sanctuary Stillness (any of Skyrim's other 6 Sanctuaries)
+        //             OR Elder Scroll / Moth quest discovery (MQ205, DA04, Dawnguard
+        //             Prophet) — grants the living checklist note & begins the Quest
+        //             even if you never set foot in Riverwood.
+        // Note: NONE of these methods teaches Sight of the First Canticle early; the
+        //       spell is learned ONLY by finding & studying The First Canticle of the
+        //       Eye (Arcanaeum) or an Elder Scroll tome (Key I: The Word).
+        // =========================================================================
+        bool deliverInnNoteNow = false;
+        bool innNoteDelivered = false;
+        const char* questStartSource = "BarNote";
+        uint32_t innNoteSpeakerId = dialogueActorId;
+        bool markBarNotePlacedNow = false;
+        bool markInnLeftNow = false;
+        bool markCourierSentNow = false;
+
+        const bool questAlreadyStarted =
+            (savedSnapshot.awakening.discoveryHintsMask & DiscoveryHintBits::kInnRumor) != 0u;
+
+        if (!questAlreadyStarted)
+        {
+            // Method 1A: Place the physical sealed note right on the Sleeping Giant Inn bar
+            if (sanctuaryBit == SanctuaryBits::kSleepingGiantInn)
+            {
+                _visitedSleepingGiantThisSession = true;
+                if (AwakeningRitual::Get().IsEslPluginLoaded())
+                {
+                    if (AwakeningRitual::Get().PlaceNoteOnSleepingGiantBar())
+                    {
+                        markBarNotePlacedNow = true;
+                    }
+                }
+            }
+            else if (_visitedSleepingGiantThisSession &&
+                     (savedSnapshot.awakening.discoveryHintsMask &
+                      DiscoveryHintBits::kInnVisitedLeft) == 0u)
+            {
+                // Player visited the Sleeping Giant Inn and left without taking the note!
+                markInnLeftNow = true;
+                _innLeftGameDay = gameDays;
+            }
+
+            // Method 1B: Orgnar / Delphine dialogue completion ("It's all in this note.")
+            const uint32_t noteInfoId = AwakeningRitual::Get().GetInnNoteInfoFormId();
+            if (noteInfoId != 0u && topicMgr)
+            {
+                const bool spokenNow =
+                    (topicMgr->currentTopicInfo &&
+                     static_cast<uint32_t>(topicMgr->currentTopicInfo->GetFormID()) == noteInfoId) ||
+                    (topicMgr->lastTopicInfo &&
+                     static_cast<uint32_t>(topicMgr->lastTopicInfo->GetFormID()) == noteInfoId);
+                if (spokenNow)
+                {
+                    deliverInnNoteNow = true;
+                    questStartSource = "OrgnarDialogue";
+                    innNoteDelivered =
+                        AwakeningRitual::Get().GrantInnNoteToPlayerOnly(questStartSource);
+                    AwakeningRitual::Get().RemovePlacedBarNoteIfStillInWorld();
+                }
+            }
+
+            // Method 1C & 2B: Player picked up the note from the bar, read it on the bar,
+            // OR received it from Skyrim's vanilla Courier!
+            if (!deliverInnNoteNow && (_sessionElapsedSec - _lastNoteInventoryCheckSec) >= 0.5f)
+            {
+                _lastNoteInventoryCheckSec = _sessionElapsedSec;
+                const bool openedNote = AwakeningRitual::Get().ConsumeCassianNoteOpened();
+                const bool hasNote = AwakeningRitual::Get().IsPlayerCarryingCassianNote();
+                if (hasNote || openedNote)
+                {
+                    deliverInnNoteNow = true;
+                    innNoteDelivered = hasNote;
+                    questStartSource =
+                        ((savedSnapshot.awakening.discoveryHintsMask &
+                          DiscoveryHintBits::kCourierSent) != 0u)
+                            ? "SkyrimCourier"
+                            : "SleepingGiantBar";
+                    if (!hasNote && openedNote)
+                    {
+                        innNoteDelivered =
+                            AwakeningRitual::Get().GrantInnNoteToPlayerOnly(questStartSource);
+                    }
+                    AwakeningRitual::Get().RemovePlacedBarNoteIfStillInWorld();
+                }
+            }
+
+            // Method 2A: Dispatch Skyrim's real vanilla WICourier within 1 Skyrim day after
+            // leaving the Sleeping Giant Inn without taking the note
+            if (!deliverInnNoteNow && sanctuaryBit != SanctuaryBits::kSleepingGiantInn &&
+                !playerInCombat && !inDialogue &&
+                ((savedSnapshot.awakening.discoveryHintsMask &
+                  DiscoveryHintBits::kInnVisitedLeft) != 0u ||
+                 markInnLeftNow) &&
+                (savedSnapshot.awakening.discoveryHintsMask & DiscoveryHintBits::kCourierSent) ==
+                    0u)
+            {
+                if (_innLeftGameDay < 0.0f)
+                {
+                    // Loaded from a save where the player already left the Inn earlier
+                    _innLeftGameDay = gameDays;
+                }
+                const float daysSinceLeft = gameDays - _innLeftGameDay;
+                // 0.25 Skyrim days = 6 in-game hours (reliably delivers within 1 Skyrim day!)
+                if (daysSinceLeft >= 0.25f)
+                {
+                    if (AwakeningRitual::Get().DispatchCourierWithCassianNote())
+                    {
+                        markCourierSentNow = true;
+                    }
+                }
+            }
+
+            // Method 3A: Direct Sanctuary Stillness at any of Skyrim's other 6 Sanctuaries
+            // (zero Riverwood visit needed!)
+            if (!deliverInnNoteNow && sanctuaryBit != SanctuaryBits::kNone &&
+                sanctuaryBit != SanctuaryBits::kSleepingGiantInn && !playerInCombat && !inDialogue &&
+                _lastSanctuaryBit == sanctuaryBit && _sanctuaryStillnessSec >= 3.0f)
+            {
+                deliverInnNoteNow = true;
+                questStartSource = "SanctuaryDiscovery";
+                innNoteDelivered =
+                    AwakeningRitual::Get().GrantInnNoteToPlayerOnly(questStartSource);
+                AwakeningRitual::Get().RemovePlacedBarNoteIfStillInWorld();
+            }
+
+            if (deliverInnNoteNow)
+            {
+                AwakeningState startedState = savedSnapshot.awakening;
+                startedState.discoveryHintsMask = static_cast<uint8_t>(
+                    startedState.discoveryHintsMask | DiscoveryHintBits::kInnRumor);
+                AwakeningRitual::Get().SyncPilgrimageQuestProgress(startedState, true);
+            }
+        }
+        else
+        {
+            _pendingInnNoteHandoff = false;
+            _pendingInnNoteSpeakerId = 0u;
+        }
+
+        // Method 3B: Throttled in-world discovery check for vanilla Elder Scroll / Moth quests
+        // (MQ205 Elder Knowledge, DA04 Discerning the Transmundane, Dawnguard Prophet)
+        bool checkElderScrollQuestNow = false;
+        if ((_sessionElapsedSec - _lastDiscoveryCheckSec) >= 4.0f)
+        {
+            _lastDiscoveryCheckSec = _sessionElapsedSec;
+            if ((savedSnapshot.awakening.discoveryHintsMask &
+                 DiscoveryHintBits::kElderScrollQuest) == 0u)
+            {
+                checkElderScrollQuestNow = HasStartedElderScrollOrMothQuest();
+                if (checkElderScrollQuestNow && !questAlreadyStarted && !deliverInnNoteNow)
+                {
+                    deliverInnNoteNow = true;
+                    questStartSource = "ElderScrollQuest";
+                    innNoteDelivered =
+                        AwakeningRitual::Get().GrantInnNoteToPlayerOnly(questStartSource);
+                    AwakeningState startedState = savedSnapshot.awakening;
+                    startedState.discoveryHintsMask = static_cast<uint8_t>(
+                        startedState.discoveryHintsMask | DiscoveryHintBits::kInnRumor);
+                    AwakeningRitual::Get().SyncPilgrimageQuestProgress(startedState, true);
+                }
+            }
+        }
+
+        // WP-11C: Inspect player & focused NPC factions and worn attire outside g_diagMutex
+        const uint32_t playerFactionBits =
+            ep.moduleFactionSight ? InspectActorFactionBits(player, true) : FactionBits::kNone;
+        const uint32_t targetFactionBits = (ep.moduleFactionSight && target)
+                                               ? InspectActorFactionBits(target, false)
+                                               : FactionBits::kNone;
+        bool pDbGear = false, pTgGear = false, pCollegeRobes = false, pImpArmor = false,
+             pScArmor = false, pHunterGear = false;
+        if (ep.moduleFactionSight && playerFactionBits != FactionBits::kNone)
+        {
+            InspectWornFactionArmor(player, pDbGear, pTgGear, pCollegeRobes, pImpArmor, pScArmor,
+                                    pHunterGear);
+        }
+        const bool targetIsPriestOrVigilant =
+            target && (IsInFactionId(target, VanillaFactionIds::kJobPriest) ||
+                       IsInFactionId(target, VanillaFactionIds::kVigilantOfStendarr));
+        const bool targetIsMerchant =
+            target && (IsInFactionId(target, VanillaFactionIds::kJobMerchant) ||
+                       IsInFactionId(target, VanillaFactionIds::kJobInnkeeper));
+        const bool targetIsUndead =
+            target && ((targetFactionBits & FactionBits::kVampire) != 0u ||
+                       (RE::TESForm::LookupByID<RE::BGSKeyword>(
+                            static_cast<RE::FormID>(VanillaFactionIds::kUndeadKeyword)) &&
+                        target->HasKeyword(RE::TESForm::LookupByID<RE::BGSKeyword>(
+                            static_cast<RE::FormID>(VanillaFactionIds::kUndeadKeyword)))));
+        const bool isDaylight = IsDaylightNow();
+
+        std::unique_lock lock(g_diagMutex);
         // Preserve booksFullyStudiedCount / Tumbler A (The Word) updates from BookStudyTracker.
         _presenceSig.Load(savedSnapshot.sign);
         _awakening.tumblerMask =
             static_cast<uint8_t>(_awakening.tumblerMask | savedSnapshot.awakening.tumblerMask);
         _awakening.visitedSanctuariesMask = static_cast<uint8_t>(
             _awakening.visitedSanctuariesMask | savedSnapshot.awakening.visitedSanctuariesMask);
-        _awakening.discoveredSanctuaryRelicsMask = static_cast<uint8_t>(
-            _awakening.discoveredSanctuaryRelicsMask |
-            savedSnapshot.awakening.discoveredSanctuaryRelicsMask);
+        _awakening.discoveredSanctuaryRelicsMask =
+            static_cast<uint8_t>(_awakening.discoveredSanctuaryRelicsMask |
+                                 savedSnapshot.awakening.discoveredSanctuaryRelicsMask);
+        _awakening.discoveryHintsMask = static_cast<uint8_t>(
+            _awakening.discoveryHintsMask | savedSnapshot.awakening.discoveryHintsMask);
         if (savedSnapshot.awakening.ceremonyCompleted)
         {
             _awakening.ceremonyCompleted = true;
+        }
+
+        // WP-11D: Track bar note placement, Inn departure courier timer, and Courier dispatch
+        if (markBarNotePlacedNow &&
+            MarkDiscoveryHintShown(_awakening, DiscoveryHintBits::kBarNotePlaced))
+        {
+            _stateDirty = true;
+            SyncPersistentStateToSerializer();
+            GazeReticle::Get().NotifyMilestone(
+                "A wax-sealed note rests on the Sleeping Giant's bar beside Orgnar.", 0xA6D8FFu, "",
+                false);
+            Engine::TraceLogger::Get().LogExpandedPlayEvent(
+                _sessionElapsedSec, "BAR_NOTE_PLACED", 0u, "SleepingGiantInn", 0u, 0.0f,
+                "bar_note_placed_beside_orgnar");
+        }
+        if (markInnLeftNow &&
+            MarkDiscoveryHintShown(_awakening, DiscoveryHintBits::kInnVisitedLeft))
+        {
+            _stateDirty = true;
+            SyncPersistentStateToSerializer();
+            Engine::TraceLogger::Get().LogExpandedPlayEvent(
+                _sessionElapsedSec, "INN_LEFT_COURIER_ARMED", 0u, "SleepingGiantInn", 0u, gameDays,
+                "courier_armed_within_one_day");
+        }
+        if (markCourierSentNow &&
+            MarkDiscoveryHintShown(_awakening, DiscoveryHintBits::kCourierSent))
+        {
+            _stateDirty = true;
+            SyncPersistentStateToSerializer();
+            Engine::TraceLogger::Get().LogExpandedPlayEvent(
+                _sessionElapsedSec, "COURIER_DISPATCHED", 0x00039F82u, "WICourier", 0u, gameDays,
+                "cassian_note_sent_to_courier");
+        }
+
+        // WP-11D: Three-Method Quest & Note Discovery -> Living Note in inventory + Moth Priest
+        // Presence Blessing (+2 Max Presence) + "The Moth Priest's Pilgrimage" begins in Journal!
+        if (deliverInnNoteNow &&
+            MarkDiscoveryHintShown(_awakening, DiscoveryHintBits::kInnRumor))
+        {
+            if (checkElderScrollQuestNow)
+            {
+                (void)MarkDiscoveryHintShown(_awakening, DiscoveryHintBits::kElderScrollQuest);
+            }
+            _presenceSig.AwardMaxPresence(2.0f, gameDays, false);
+            _stateDirty = true;
+            SyncPersistentStateToSerializer();
+
+            const std::string_view srcView(questStartSource);
+            std::string innMsg;
+            if (srcView == "SleepingGiantBar")
+            {
+                innMsg = "Moth Priest's Presence blesses you -- Found Brother Cassian's Note on "
+                         "the Sleeping Giant's bar. Read it to begin the TrueGaze Pilgrimage.";
+            }
+            else if (srcView == "SkyrimCourier")
+            {
+                innMsg = "Moth Priest's Presence blesses you -- The Courier delivered Brother "
+                         "Cassian's Note. Read it in your inventory to begin the TrueGaze "
+                         "Pilgrimage.";
+            }
+            else if (srcView == "SanctuaryDiscovery")
+            {
+                innMsg = "Moth Priest's Presence blesses you at this Sanctuary -- Received Brother "
+                         "Cassian's Note. Read it in your inventory to begin the TrueGaze "
+                         "Pilgrimage.";
+            }
+            else if (srcView == "ElderScrollQuest")
+            {
+                innMsg = "Moth Priest's Presence stirs with the Elder Scrolls -- Received Brother "
+                         "Cassian's Note. Read it in your inventory to begin the TrueGaze "
+                         "Pilgrimage.";
+            }
+            else if (innNoteDelivered)
+            {
+                innMsg = "Moth Priest's Presence blesses you -- Received Brother Cassian's Note. "
+                         "Read it in your inventory to begin the TrueGaze Pilgrimage.";
+            }
+            else
+            {
+                innMsg = "Moth Priest's Presence blesses you at the Sleeping Giant Inn -- "
+                         "The TrueGaze Pilgrimage begins.";
+            }
+
+            GazeReticle::Get().NotifyMilestone(innMsg, 0xFFD966u, "MAGAltarsBlessingFireA2D", true);
+            Engine::TraceLogger::Get().LogExpandedPlayEvent(
+                _sessionElapsedSec, "INN_NOTE_BLESSING", innNoteSpeakerId, questStartSource, 0u,
+                0.0f, "note_received_and_presence_blessed");
+        }
+        else if (checkElderScrollQuestNow &&
+                 MarkDiscoveryHintShown(_awakening, DiscoveryHintBits::kElderScrollQuest))
+        {
+            _stateDirty = true;
+            SyncPersistentStateToSerializer();
+            GazeReticle::Get().NotifyMilestone(
+                "The Elder Scrolls demand stillness before vision - seek The First Canticle of "
+                "the Eye in Skyrim's Sanctuaries.",
+                0xA6D8FFu, "UIQuestUpdate", true);
         }
 
         if (newlyDiscoveredSanctuaryBit != SanctuaryBits::kNone &&
@@ -899,9 +1383,9 @@ namespace TrueGaze::ExpandedPlay
             GazeReticle::Get().NotifyMilestone(
                 "Spell learned: Sight of the First Canticle (Illusion, 0 Magicka).", 0xA6D8FFu,
                 "UISkillsGlowSD", true);
-            Engine::TraceLogger::Get().LogExpandedPlayEvent(
-                _sessionElapsedSec, "CANTICLE_SPELL_LEARNED", 0u, "", 0u, 0.0f,
-                "Sight of the First Canticle");
+            Engine::TraceLogger::Get().LogExpandedPlayEvent(_sessionElapsedSec,
+                                                            "CANTICLE_SPELL_LEARNED", 0u, "", 0u,
+                                                            0.0f, "Sight of the First Canticle");
         }
 
         const auto publishAwakeningEvent = [&](const AwakeningEventResult& ev, const char* tag)
@@ -973,8 +1457,8 @@ namespace TrueGaze::ExpandedPlay
                 if (_awakening.diegeticToggleOn)
                 {
                     GazeReticle::Get().NotifyMilestone(
-                        "The First Canticle opens - TrueGaze Expanded active [Stage 4].",
-                        0xFFD966u, "MAGAltarsBlessingFireA2D", true);
+                        "The First Canticle opens - TrueGaze Expanded active [Stage 4].", 0xFFD966u,
+                        "MAGAltarsBlessingFireA2D", true);
                 }
                 else
                 {
@@ -1021,9 +1505,9 @@ namespace TrueGaze::ExpandedPlay
                         "incomplete glyphs={} sanctuary={} vessel={} book={}",
                         FormatTumblerGlyphs(_awakening), inSanctuary ? "yes" : "no",
                         playerWearingFocus ? "yes" : "no", hasStudiedBookNow ? "yes" : "no");
-                    Engine::TraceLogger::Get().LogExpandedPlayEvent(
-                        _sessionElapsedSec, "RITUAL_CHECK_INCOMPLETE", 0u, "", 0u, 0.0f,
-                        detail.c_str());
+                    Engine::TraceLogger::Get().LogExpandedPlayEvent(_sessionElapsedSec,
+                                                                    "RITUAL_CHECK_INCOMPLETE", 0u,
+                                                                    "", 0u, 0.0f, detail.c_str());
                     logger::info("[TrueGaze::ExpandedPlay] Sight of the First Canticle cast "
                                  "(incomplete): {}",
                                  detail);
@@ -1436,8 +1920,8 @@ namespace TrueGaze::ExpandedPlay
             cin.alreadyAwardedMilestone = alreadyAwarded;
 
             const auto cres = EvaluateCreatureSight(cin, actorName);
-            if (cres.triggered && _creatureSightCooldown.TryConsume(focusFormId, _sessionElapsedSec,
-                                                                    5.0f))
+            if (cres.triggered &&
+                _creatureSightCooldown.TryConsume(focusFormId, _sessionElapsedSec, 5.0f))
             {
                 if (cres.buffs.HasAny())
                 {
@@ -1466,8 +1950,8 @@ namespace TrueGaze::ExpandedPlay
                 Engine::TraceLogger::Get().LogExpandedPlayEvent(
                     _sessionElapsedSec, "CREATURE_SIGHT", focusFormId, actorName, regionId,
                     _focusDwellSec, cDetail.c_str());
-                logger::info("[TrueGaze::ExpandedPlay] Creature Sight '{}' ({:08X}): {}",
-                             actorName, focusFormId, cDetail);
+                logger::info("[TrueGaze::ExpandedPlay] Creature Sight '{}' ({:08X}): {}", actorName,
+                             focusFormId, cDetail);
             }
             if (!targetInCombat)
             {
@@ -1476,7 +1960,8 @@ namespace TrueGaze::ExpandedPlay
             }
         }
 
-        // 2. Combat Sight (Weapon Wind-Up, Spell Charge, Shield Rhythm, Footwork) + Pre-Combat Brandish
+        // 2. Combat Sight (Weapon Wind-Up, Spell Charge, Shield Rhythm, Footwork) + Pre-Combat
+        // Brandish
         if (ep.moduleSocialReactions &&
             (targetInCombat || (!targetInCombat && targetPosture.IsLethalBrandish())))
         {
@@ -1522,14 +2007,14 @@ namespace TrueGaze::ExpandedPlay
                         GazeReticle::Get().TriggerAwakeningPulse(csRes.colorRgb);
                     }
                 }
-                const std::string csDetail = std::format(
-                    "kind={} blk={:.0f} ward={:.0f} off={:.0f} arm={:.0f} dist={:.1f}m",
-                    static_cast<unsigned>(csRes.kind), csRes.buffs.blockBonus,
-                    csRes.buffs.resistMagicBonus, csRes.buffs.offenseBonus, csRes.buffs.armorBonus,
-                    distanceMeters);
-                Engine::TraceLogger::Get().LogExpandedPlayEvent(
-                    _sessionElapsedSec, "COMBAT_SIGHT", focusFormId, actorName, regionId,
-                    _focusDwellSec, csDetail.c_str());
+                const std::string csDetail =
+                    std::format("kind={} blk={:.0f} ward={:.0f} off={:.0f} arm={:.0f} dist={:.1f}m",
+                                static_cast<unsigned>(csRes.kind), csRes.buffs.blockBonus,
+                                csRes.buffs.resistMagicBonus, csRes.buffs.offenseBonus,
+                                csRes.buffs.armorBonus, distanceMeters);
+                Engine::TraceLogger::Get().LogExpandedPlayEvent(_sessionElapsedSec, "COMBAT_SIGHT",
+                                                                focusFormId, actorName, regionId,
+                                                                _focusDwellSec, csDetail.c_str());
                 logger::info("[TrueGaze::ExpandedPlay] Combat Sight '{}' ({:08X}): {}", actorName,
                              focusFormId, csDetail);
             }
@@ -1674,6 +2159,87 @@ namespace TrueGaze::ExpandedPlay
 
         _lastPersuasionVector = activeVec;
         _lastAffinityTier = affinityProfile.ForVector(activeVec);
+        _slyBribeArmedNow = slyBribeCadence;
+
+        // WP-11C: Evaluate Faction Sight (strengths, authentic drawbacks & civilian masking)
+        FactionSightOutcome factionOut{};
+        if (ep.moduleFactionSight && playerFactionBits != FactionBits::kNone &&
+            liveCaps.expandedActive)
+        {
+            FactionSightInput fin{};
+            fin.playerFactions = playerFactionBits;
+            fin.observerFactions = targetFactionBits;
+            fin.stage = liveCaps.stage;
+            fin.wearingDarkBrotherhoodGear = pDbGear;
+            fin.wearingThievesGuildGear = pTgGear;
+            fin.wearingCollegeRobes = pCollegeRobes;
+            fin.wearingImperialArmor = pImpArmor;
+            fin.wearingStormcloakArmor = pScArmor;
+            fin.wearingDawnguardOrVigilantGear = pHunterGear;
+            fin.observerIsGuard = target->IsGuard();
+            fin.observerIsMerchant = targetIsMerchant;
+            fin.observerIsPriestOrVigilant = targetIsPriestOrVigilant;
+            fin.observerIsUndeadOrVampire = targetIsUndead;
+            fin.observerIsNordTraditionalist = (culture == ObserverCulture::Nord);
+            fin.observerIsChild = ictx.isChild;
+            fin.inJarlCourtOrShop = ctx.inJarlCourtOrTemple || targetIsMerchant;
+            fin.isDaylight = isDaylight;
+            fin.playerSneaking = playerSneaking;
+            fin.inCombat = playerInCombat;
+            fin.regionId = regionId;
+            fin.activeDemeanor = activeDemeanor;
+            fin.dwellSec = _focusDwellSec;
+            fin.distanceMeters = distanceMeters;
+            fin.playerDominanceAxis = _presenceSig.Signature().dominance;
+
+            factionOut = EvaluateFactionSight(fin, actorName);
+            _activeGuardGlanceRangeMeters = factionOut.guardGlanceRangeMeters;
+
+            if (factionOut.tacticalBuffs.HasAny())
+            {
+                _tacticalBuffExpiresSessionSec = _sessionElapsedSec + 4.0f;
+                _tacticalBuffActive = true;
+                ExpandedPlayModifiers::Get().SetTransientTacticalBonuses(factionOut.tacticalBuffs);
+            }
+
+            if ((factionOut.strengthTriggered || factionOut.drawbackTriggered) &&
+                _factionSightCooldown.TryConsume(focusFormId, _sessionElapsedSec, 14.0f))
+            {
+                if (ep.moduleRelationshipMemory)
+                {
+                    _ledger.ApplyImpressionDelta(focusFormId, factionOut.socialDelta, gameDays,
+                                                 locId, isMutual);
+                    _stateDirty = true;
+                }
+                if (ep.enableImpressionWhispers && !factionOut.whisper.empty())
+                {
+                    GazeReticle::Get().PushWhisper(factionOut.whisper, factionOut.whisperColorRgb);
+                }
+                Engine::TraceLogger::Get().LogExpandedPlayEvent(
+                    _sessionElapsedSec,
+                    factionOut.drawbackTriggered ? "FACTION_SIGHT_DRAWBACK" : "FACTION_SIGHT",
+                    focusFormId, actorName, regionId, _focusDwellSec, factionOut.whisper.c_str());
+            }
+        }
+        else
+        {
+            _activeGuardGlanceRangeMeters = 12.0f;
+        }
+
+        // Deferred voice bark request (dispatched cleanly after unlocking g_diagMutex)
+        uint32_t pendingVoiceActorId = 0u;
+        VoiceEventKind pendingVoiceKind = VoiceEventKind::None;
+        if (factionOut.suggestVoiceScrutiny)
+        {
+            pendingVoiceActorId = focusFormId;
+            pendingVoiceKind = VoiceEventKind::FactionScrutiny;
+        }
+        else if (interpResult.interpretation == Interpretation::IntrusionLeer &&
+                 interpResult.strength >= 0.45f)
+        {
+            pendingVoiceActorId = focusFormId;
+            pendingVoiceKind = VoiceEventKind::IntrusionStare;
+        }
 
         // Evaluate Phase-1 Probe BEFORE Rung-2 ResponseLadder so only ONE authoritative
         // FaceGen expression writer runs per tick (eliminating 10 Hz expression fighting).
@@ -1684,6 +2250,8 @@ namespace TrueGaze::ExpandedPlay
             probe = EvaluateProbeTell(activeVec, affinityProfile, _focusDwellSec,
                                       _activeLawWitnessCount, ictx.isChild);
         }
+        _persuasionProbeActive = probe.active;
+        _persuasionGuardGlanceActive = probe.active && probe.guardGlanceInterrupt;
 
         const Impressions imp =
             _ledger.Find(focusFormId) ? _ledger.Find(focusFormId)->impressions : Impressions{};
@@ -1733,12 +2301,64 @@ namespace TrueGaze::ExpandedPlay
             }
             if (distanceMeters <= kMaxFaceExpressionRangeMeters && probe.morphWeight > 0.005f)
             {
-                ResponseLadder::ApplyTransientExpression(focusFormId, probe.morphMood,
-                                                         std::clamp(probe.morphWeight, 0.0f, 0.45f),
-                                                         1.5f, _sessionElapsedSec);
+                // WP-11A: Slightly stronger, clearly readable Phase-1 micro-expressions (up to
+                // 0.62)
+                float boostedWeight = probe.morphWeight;
+                if (probe.affinity == AffinityTier::Love)
+                {
+                    boostedWeight = std::max(boostedWeight, 0.58f);
+                }
+                else if (probe.affinity == AffinityTier::Hate || probe.guardGlanceInterrupt)
+                {
+                    boostedWeight = std::max(boostedWeight, 0.56f);
+                }
+                ResponseLadder::ApplyTransientExpression(
+                    focusFormId, probe.morphMood, std::clamp(boostedWeight, 0.0f, 0.62f), 1.5f,
+                    _sessionElapsedSec);
             }
             if (!_probeTellSent)
             {
+                // WP-11A: Physical NPC micro-gesture & Guard's Glance eye-dart
+                if (auto* rt = Engine::GazeEngine::Get().FindActor(focusFormId))
+                {
+                    if (probe.guardGlanceInterrupt)
+                    {
+                        rt->persuasionYawBiasDeg = (_activeLawWitnessDirSign < 0) ? -24.0f : 24.0f;
+                        rt->persuasionPitchBiasDeg = 0.0f;
+                        rt->persuasionGestureDurationSec = 0.65f;
+                        rt->persuasionGestureTimerSec = 0.65f;
+                    }
+                    else if (probe.affinity == AffinityTier::Love ||
+                             probe.affinity == AffinityTier::Like)
+                    {
+                        rt->persuasionYawBiasDeg = 0.0f;
+                        rt->persuasionPitchBiasDeg =
+                            (probe.affinity == AffinityTier::Love) ? -6.5f : -4.0f;
+                        rt->persuasionGestureDurationSec = 0.55f;
+                        rt->persuasionGestureTimerSec = 0.55f;
+                    }
+                    else
+                    {
+                        rt->persuasionYawBiasDeg =
+                            (probe.affinity == AffinityTier::Hate) ? 12.0f : 7.0f;
+                        rt->persuasionPitchBiasDeg = 2.0f;
+                        rt->persuasionGestureDurationSec = 0.70f;
+                        rt->persuasionGestureTimerSec = 0.70f;
+                    }
+                }
+
+                if (probe.guardGlanceInterrupt)
+                {
+                    pendingVoiceActorId =
+                        (_activeLawWitnessActorId != 0u) ? _activeLawWitnessActorId : focusFormId;
+                    pendingVoiceKind = VoiceEventKind::GuardGlance;
+                }
+                else if (probe.affinity == AffinityTier::Hate)
+                {
+                    pendingVoiceActorId = focusFormId;
+                    pendingVoiceKind = VoiceEventKind::IntrusionStare;
+                }
+
                 const std::string detail = std::format(
                     "vec={} aff={} guardGlance={} mood={} weight={:.2f} dist={:.1f}m",
                     PersuasionVectorName(probe.vector), AffinityTierName(probe.affinity),
@@ -1794,7 +2414,23 @@ namespace TrueGaze::ExpandedPlay
             txIn.noveltyMultiplier =
                 _txSaturation.NoveltyMultiplier(focusFormId, activeVec, _sessionElapsedSec);
 
-            const auto txOut = EvaluateTransactionCommit(txIn);
+            auto txOut = EvaluateTransactionCommit(txIn);
+            // Apply WP-11C Faction Sight speech & bribe multipliers
+            if (ep.moduleFactionSight)
+            {
+                if (txOut.computedBribeCostGold > 0)
+                {
+                    txOut.computedBribeCostGold =
+                        std::max<int32_t>(10, static_cast<int32_t>(std::lround(
+                                                  static_cast<float>(txOut.computedBribeCostGold) *
+                                                  factionOut.bribeCostMultiplier)));
+                }
+                txOut.speechBarterDelta *= factionOut.barterSpeechMultiplier;
+                if (activeVec == PersuasionVector::Coerce)
+                {
+                    txOut.speechBarterDelta *= factionOut.coerceAuthorityMultiplier;
+                }
+            }
             if (txOut.computedBribeCostGold > 0)
             {
                 _lastBribeCostGold = txOut.computedBribeCostGold;
@@ -1820,6 +2456,44 @@ namespace TrueGaze::ExpandedPlay
                 ExpandedPlayModifiers::Get().SetTransientRapportSpeechBonus(
                     txOut.speechBarterDelta);
                 _stateDirty = true;
+
+                // WP-11A Persuasion Commit Bloom & Sound + WP-11B Voice Response selection
+                if (txOut.type == TransactionType::SlyBribePrime)
+                {
+                    if (ep.enablePersuasionVisuals)
+                    {
+                        GazeReticle::Get().TriggerPersuasionBloom(0xFFD966u, "ITMGoldUpSD");
+                    }
+                    pendingVoiceActorId = focusFormId;
+                    pendingVoiceKind = VoiceEventKind::WarmCommit;
+                }
+                else if (txOut.type == TransactionType::StandDownGrace)
+                {
+                    if (ep.enablePersuasionVisuals)
+                    {
+                        GazeReticle::Get().TriggerPersuasionBloom(0xE6D8B8u, "UIMenuOKSD");
+                    }
+                    pendingVoiceActorId = focusFormId;
+                    pendingVoiceKind = VoiceEventKind::StandDownGrace;
+                }
+                else if (activeVec == PersuasionVector::Coerce)
+                {
+                    if (ep.enablePersuasionVisuals)
+                    {
+                        GazeReticle::Get().TriggerPersuasionBloom(0xFF9966u, "UIMenuFocus");
+                    }
+                    pendingVoiceActorId = focusFormId;
+                    pendingVoiceKind = VoiceEventKind::ArmedCoerce;
+                }
+                else
+                {
+                    if (ep.enablePersuasionVisuals)
+                    {
+                        GazeReticle::Get().TriggerPersuasionBloom(0x5CE68Au, "UISkillsGlowSD");
+                    }
+                    pendingVoiceActorId = focusFormId;
+                    pendingVoiceKind = VoiceEventKind::WarmCommit;
+                }
 
                 const std::string txDetail =
                     std::format("type={} vec={} aff={} bribe={}g speech={:+.1f} +pres={:.2f} "
@@ -1858,6 +2532,13 @@ namespace TrueGaze::ExpandedPlay
                                                                 _focusDwellSec, blkDetail.c_str());
                 logger::info("[TrueGaze::ExpandedPlay] Tx blocked '{}' ({:08X}): {}", actorName,
                              focusFormId, blkDetail);
+                if (ep.enablePersuasionVisuals)
+                {
+                    GazeReticle::Get().TriggerPersuasionBloom(0xFF4D4Du, "UIMenuCancelSD");
+                }
+                pendingVoiceActorId =
+                    (_activeLawWitnessActorId != 0u) ? _activeLawWitnessActorId : focusFormId;
+                pendingVoiceKind = VoiceEventKind::GuardGlance;
                 if (ep.enableImpressionWhispers && !_probeTellSent)
                 {
                     GazeReticle::Get().PushWhisper(
@@ -1900,6 +2581,16 @@ namespace TrueGaze::ExpandedPlay
         }
 
         SyncPersistentStateToSerializer();
+        const float voiceNowSec = _sessionElapsedSec;
+        lock.unlock();
+
+        // WP-11B: Restrained vanilla voiced NPC reaction (dispatched outside g_diagMutex)
+        if (pendingVoiceActorId != 0u && pendingVoiceKind != VoiceEventKind::None)
+        {
+            NpcVoiceResponder::Get().TrySpeak(pendingVoiceActorId, pendingVoiceKind, voiceNowSec,
+                                              inDialogue, playerSneaking,
+                                              ep.enableNpcVoiceResponses);
+        }
 #else
         (void)gameDays;
 #endif
@@ -1952,14 +2643,19 @@ namespace TrueGaze::ExpandedPlay
         constexpr int kMaxWitnessChecks = 6;
         uint32_t neutralWitnesses = 0u;
         uint32_t lawWitnesses = 0u;
+        uint32_t nearestLawWitnessId = 0u;
+        int8_t nearestLawWitnessDirSign = 0;
+        float nearestLawWitnessDist = 999999.0f;
         uint32_t kindredAllies = 0u;
         uint32_t flankingHostiles = 0u;
         RE::Actor* firstKindredAlly = nullptr;
 
         StageCapabilities witnessCaps{};
+        float guardRangeMeters = 12.0f;
         {
             std::lock_guard lock(g_diagMutex);
             witnessCaps = ResolveStageCapabilities(_awakening, ep.unlockMode);
+            guardRangeMeters = std::clamp(_activeGuardGlanceRangeMeters, 12.0f, 20.0f);
         }
 
         const bool playerInCombatNow = player->IsInCombat();
@@ -1977,12 +2673,12 @@ namespace TrueGaze::ExpandedPlay
             }
             auto actorPtr = handle.get();
             auto* other = actorPtr.get();
-            if (!other || other == player || other == target || other->IsDead() ||
-                other->IsChild())
+            if (!other || other == player || other == target || other->IsDead() || other->IsChild())
             {
                 continue;
             }
-            if (pPos.GetDistance(other->GetPosition()) > 12.0f * kUnitsPerMeter)
+                const float distUnits = pPos.GetDistance(other->GetPosition());
+            if (distUnits > guardRangeMeters * kUnitsPerMeter)
             {
                 continue;
             }
@@ -2018,11 +2714,22 @@ namespace TrueGaze::ExpandedPlay
             if (other->IsGuard())
             {
                 ++lawWitnesses;
+                if (distUnits < nearestLawWitnessDist)
+                {
+                    nearestLawWitnessDist = distUnits;
+                    nearestLawWitnessId = otherId;
+                    const RE::NiPoint3 gPos = other->GetPosition();
+                    const float pYaw = player->GetAngleZ();
+                    const float rightX = std::cos(pYaw);
+                    const float rightY = -std::sin(pYaw);
+                    const float sideDot = (gPos.x - pPos.x) * rightX + (gPos.y - pPos.y) * rightY;
+                    nearestLawWitnessDirSign = (sideDot < 0.0f) ? -1 : 1;
+                }
             }
-            else
-            {
-                ++neutralWitnesses;
-            }
+                else if (distUnits <= 12.0f * kUnitsPerMeter)
+                {
+                    ++neutralWitnesses;
+                }
 
             if (!trackSocialTriangle)
             {
@@ -2133,6 +2840,8 @@ namespace TrueGaze::ExpandedPlay
             std::lock_guard lock(g_diagMutex);
             _activeNeutralWitnessCount = neutralWitnesses;
             _activeLawWitnessCount = lawWitnesses;
+            _activeLawWitnessActorId = nearestLawWitnessId;
+            _activeLawWitnessDirSign = nearestLawWitnessDirSign;
             _activeKindredAllyCount = kindredAllies;
         }
 #else

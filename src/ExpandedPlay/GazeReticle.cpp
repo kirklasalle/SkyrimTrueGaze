@@ -22,6 +22,7 @@ namespace TrueGaze::ExpandedPlay
         constexpr const char* kReticleMenu = "TrueGazeReticle";
         constexpr float kWhisperLifetimeSec = 4.2f;
         constexpr float kAwakeningPulseLifetimeSec = 1.5f;
+        constexpr float kPersuasionBloomLifetimeSec = 0.42f;
 
         std::mutex g_reticleMutex;
         ReticleHudSnapshot g_snapshot{};
@@ -32,6 +33,9 @@ namespace TrueGaze::ExpandedPlay
         bool g_whisperDirty{false};
         float g_awakeningPulseRemainingSec{0.0f};
         uint32_t g_awakeningPulseColor{0xFFD966u};
+        float g_persuasionBloomRemainingSec{0.0f};
+        uint32_t g_persuasionBloomColor{0xFFD966u};
+        float g_phasePulseClockSec{0.0f};
         bool g_errorReported{false};
         bool g_lastMenuShown{false};
         bool g_menuSinkInstalled{false};
@@ -79,9 +83,9 @@ namespace TrueGaze::ExpandedPlay
         class ReticleMenuVisibilitySink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
         {
         public:
-            RE::BSEventNotifyControl ProcessEvent(
-                const RE::MenuOpenCloseEvent* a_event,
-                RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
+            RE::BSEventNotifyControl
+            ProcessEvent(const RE::MenuOpenCloseEvent* a_event,
+                         RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
             {
                 if (!a_event || a_event->menuName == kReticleMenu)
                 {
@@ -92,7 +96,8 @@ namespace TrueGaze::ExpandedPlay
                     if (BookStudyTracker::Get().IsBookOpen())
                     {
                         // Keep GazeReticleMenu alive (with cleared canvas & hidden text) while
-                        // BookMenu is open so AdvanceMovie safely drives BookStudyTracker::TickLiveStudy().
+                        // BookMenu is open so AdvanceMovie safely drives
+                        // BookStudyTracker::TickLiveStudy().
                         return RE::BSEventNotifyControl::kContinue;
                     }
                     if (auto* ui = RE::UI::GetSingleton(); ui && ui->IsMenuOpen(kReticleMenu))
@@ -210,8 +215,7 @@ namespace TrueGaze::ExpandedPlay
                 // and CursorMenu (13). NEVER set kDontHideCursorWhenTopmost (which increments
                 // UI::numDontHideCursorWhenTopmost like DialogueMenu/CraftingMenu and suppresses
                 // Skyrim's world crosshair activation prompts on doors/NPCs/containers).
-                menuFlags.set(RE::UI_MENU_FLAGS::kAlwaysOpen,
-                              RE::UI_MENU_FLAGS::kRequiresUpdate,
+                menuFlags.set(RE::UI_MENU_FLAGS::kAlwaysOpen, RE::UI_MENU_FLAGS::kRequiresUpdate,
                               RE::UI_MENU_FLAGS::kAllowSaving);
                 depthPriority = 0;
                 inputContext = Context::kNone;
@@ -223,8 +227,8 @@ namespace TrueGaze::ExpandedPlay
                     return;
                 }
 
-                const auto makeFormat = [&](RE::GFxValue& fmt, const char* font, double size,
-                                            const char* align)
+                const auto makeFormat =
+                    [&](RE::GFxValue& fmt, const char* font, double size, const char* align)
                 {
                     uiMovie->CreateObject(&fmt, "TextFormat");
                     return fmt.IsObject() && fmt.SetMember("font", RE::GFxValue(font)) &&
@@ -234,11 +238,12 @@ namespace TrueGaze::ExpandedPlay
                 };
 
                 if (!makeFormat(_demeanorFmt, "$EverywhereFont", 14.0, "right") ||
-                    !makeFormat(_whisperFmt, "$EverywhereMediumFont", 16.0, "center"))
-                {
-                    ReportOnce("TextFormat creation");
-                    return;
-                }
+                    !makeFormat(_whisperFmt, "$EverywhereMediumFont", 16.0, "center") ||
+                    !makeFormat(_vectorFmt, "$EverywhereFont", 12.0, "center"))
+                    {
+                        ReportOnce("TextFormat creation");
+                        return;
+                    }
 
                 _ready = true;
             }
@@ -252,15 +257,17 @@ namespace TrueGaze::ExpandedPlay
                     return;
                 }
 
-                const float dt =
-                    (std::isfinite(a_interval) && a_interval > 0.0f)
-                        ? std::min(a_interval, 0.1f)
-                        : 0.016f;
+                const float dt = (std::isfinite(a_interval) && a_interval > 0.0f)
+                                     ? std::min(a_interval, 0.1f)
+                                     : 0.016f;
 
                 ReticleHudSnapshot snap{};
                 float pulse01 = 0.0f;
                 float awakeningPulse01 = 0.0f;
                 uint32_t awakeningPulseColor = 0xFFD966u;
+                float persuasionBloom01 = 0.0f;
+                uint32_t persuasionBloomColor = 0xFFD966u;
+                float phaseClock = 0.0f;
                 std::string whisperCopy;
                 uint32_t whisperColor = 0xE6D8B8u;
                 float whisperRem = 0.0f;
@@ -268,8 +275,10 @@ namespace TrueGaze::ExpandedPlay
                 {
                     std::lock_guard lock(g_reticleMutex);
                     snap = g_snapshot;
-                    pulse01 = g_pulseState.Step(snap.enabled && snap.targetValid && snap.isMutualGaze,
-                                                dt);
+                    pulse01 = g_pulseState.Step(
+                        snap.enabled && snap.targetValid && snap.isMutualGaze, dt);
+                    g_phasePulseClockSec += dt;
+                    phaseClock = g_phasePulseClockSec;
                     if (g_whisperRemainingSec > 0.0f)
                     {
                         g_whisperRemainingSec = std::max(0.0f, g_whisperRemainingSec - dt);
@@ -279,10 +288,17 @@ namespace TrueGaze::ExpandedPlay
                         g_awakeningPulseRemainingSec =
                             std::max(0.0f, g_awakeningPulseRemainingSec - dt);
                     }
-                    awakeningPulse01 =
-                        std::clamp(g_awakeningPulseRemainingSec / kAwakeningPulseLifetimeSec,
-                                   0.0f, 1.0f);
+                    if (g_persuasionBloomRemainingSec > 0.0f)
+                    {
+                        g_persuasionBloomRemainingSec =
+                            std::max(0.0f, g_persuasionBloomRemainingSec - dt);
+                    }
+                    awakeningPulse01 = std::clamp(
+                        g_awakeningPulseRemainingSec / kAwakeningPulseLifetimeSec, 0.0f, 1.0f);
                     awakeningPulseColor = g_awakeningPulseColor;
+                    persuasionBloom01 = std::clamp(
+                        g_persuasionBloomRemainingSec / kPersuasionBloomLifetimeSec, 0.0f, 1.0f);
+                    persuasionBloomColor = g_persuasionBloomColor;
                     whisperCopy = g_whisperText;
                     whisperColor = g_whisperColor;
                     whisperRem = g_whisperRemainingSec;
@@ -314,6 +330,7 @@ namespace TrueGaze::ExpandedPlay
                 {
                     HideText(_demeanorField);
                     HideText(_whisperField);
+                    HideText(_vectorField);
                     return;
                 }
 
@@ -346,7 +363,8 @@ namespace TrueGaze::ExpandedPlay
                 // 1. Optional staring-contest frost perimeter vignette
                 if (snap.enabled && snap.frostVignetteAlpha > 0.01f)
                 {
-                    const float borderAlpha = std::clamp(snap.frostVignetteAlpha, 0.0f, 1.0f) * 35.0f;
+                    const float borderAlpha =
+                        std::clamp(snap.frostVignetteAlpha, 0.0f, 1.0f) * 35.0f;
                     SetLineStyle(_canvas, 14.0f, 0x99D9FFu, borderAlpha);
                     MoveTo(_canvas, 8.0f, 8.0f);
                     LineTo(_canvas, 1272.0f, 8.0f);
@@ -373,7 +391,8 @@ namespace TrueGaze::ExpandedPlay
                     SetLineStyle(_canvas, 1.8f, color, baseAlpha);
                     DrawArc(_canvas, cx, cy, 14.0f, 0.0f, kTwoPi, 16);
 
-                    // 4 dwell threshold ticks (Glance->Look, Look->Gaze, Gaze->Stare, Stare->Fixation)
+                    // 4 dwell threshold ticks (Glance->Look, Look->Gaze, Gaze->Stare,
+                    // Stare->Fixation)
                     SetLineStyle(_canvas, 1.0f, color, std::min(70.0f, baseAlpha * 1.8f));
                     for (int t = 0; t < 4; ++t)
                     {
@@ -404,6 +423,99 @@ namespace TrueGaze::ExpandedPlay
                         SetLineStyle(_canvas, 0.5f + 2.0f * pulse01, color, pulse01 * 75.0f);
                         DrawArc(_canvas, cx, cy, pulseRadius, 0.0f, kTwoPi, 16);
                     }
+
+                    // WP-11A Real-Time Persuasion Phase-1 Resonance Halo, Guard's Glance Chevron
+                    // & Commit Radial Bloom
+                    bool showedVectorTag = false;
+                    if (snap.enablePersuasionVisuals)
+                    {
+                        if (snap.persuasionProbeActive || snap.persuasionGuardGlance ||
+                            snap.slyBribeArmed)
+                        {
+                            const uint32_t affCol = PersuasionAffinityColorRgb(
+                                snap.persuasionAffinityId, snap.persuasionGuardGlance);
+                            const float breath = 0.65f + 0.35f * std::sin(phaseClock * 6.0f);
+                            const float ringAlpha =
+                                std::min(88.0f, (baseAlpha * 2.4f + 24.0f) * breath);
+                            SetLineStyle(_canvas, snap.persuasionGuardGlance ? 2.6f : 1.8f, affCol,
+                                         ringAlpha);
+                            DrawArc(_canvas, cx, cy, 29.0f, 0.0f, kTwoPi, 20);
+
+                            // Crisp outer danger ticks on Hate / Guard's Glance
+                            if (snap.persuasionGuardGlance || snap.persuasionAffinityId == 0u)
+                            {
+                                SetLineStyle(_canvas, 2.0f, 0xFF4D4Du, 85.0f * breath);
+                                for (int k = 0; k < 4; ++k)
+                                {
+                                    const float a =
+                                        0.25f * std::numbers::pi_v<float> +
+                                        0.5f * std::numbers::pi_v<float> * static_cast<float>(k);
+                                    MoveTo(_canvas, cx + 31.0f * std::cos(a),
+                                           cy + 31.0f * std::sin(a));
+                                    LineTo(_canvas, cx + 38.0f * std::cos(a),
+                                           cy + 38.0f * std::sin(a));
+                                }
+                            }
+
+                            // Sly Bribe armed golden corner brackets
+                            if (snap.slyBribeArmed && !snap.persuasionGuardGlance)
+                            {
+                                SetLineStyle(_canvas, 1.8f, 0xFFD966u, 80.0f * breath);
+                                DrawArc(_canvas, cx, cy, 33.0f, -0.35f, 0.70f, 6);
+                                DrawArc(_canvas, cx, cy, 33.0f, std::numbers::pi_v<float> - 0.35f,
+                                        0.70f, 6);
+                            }
+
+                            // Directional Guard's Glance warning chevron (< left / > right)
+                            if (snap.persuasionGuardGlance)
+                            {
+                                const float dir = (snap.guardGlanceDirSign < 0) ? -1.0f : 1.0f;
+                                const float vx = cx + dir * 46.0f;
+                                SetLineStyle(_canvas, 2.6f, 0xFF5555u, 92.0f * breath);
+                                MoveTo(_canvas, vx - dir * 8.0f, cy - 10.0f);
+                                LineTo(_canvas, vx + dir * 4.0f, cy);
+                                LineTo(_canvas, vx - dir * 8.0f, cy + 10.0f);
+                            }
+                        }
+
+                        if (persuasionBloom01 > 0.01f)
+                        {
+                            const float prog = 1.0f - persuasionBloom01;
+                            const float rBloom = 24.0f + prog * 34.0f;
+                            SetLineStyle(_canvas, 1.2f + 2.6f * persuasionBloom01,
+                                         persuasionBloomColor, persuasionBloom01 * 90.0f);
+                            DrawArc(_canvas, cx, cy, rBloom, 0.0f, kTwoPi, 20);
+                        }
+
+                        if (snap.persuasionVectorId != 0u && snap.dwellSec >= 0.35f)
+                        {
+                            std::string tag =
+                                snap.persuasionGuardGlance
+                                    ? "Guard Watching!"
+                                    : std::string(PersuasionVectorTag(snap.persuasionVectorId));
+                            if (!tag.empty())
+                            {
+                                const uint32_t tagCol =
+                                    (snap.persuasionProbeActive || snap.persuasionGuardGlance)
+                                        ? PersuasionAffinityColorRgb(snap.persuasionAffinityId,
+                                                                     snap.persuasionGuardGlance)
+                                        : (snap.slyBribeArmed ? 0xFFD966u : 0xE6D8B8u);
+                                ShowText(_vectorField, _vectorFmt, tag, tag != _lastVectorText,
+                                         static_cast<double>(cx - 75.0f),
+                                         static_cast<double>(cy + 34.0f), 150.0, tagCol, 85.0);
+                                _lastVectorText = std::move(tag);
+                                showedVectorTag = true;
+                            }
+                        }
+                    }
+                    if (!showedVectorTag)
+                    {
+                        HideText(_vectorField);
+                    }
+                }
+                else
+                {
+                    HideText(_vectorField);
                 }
 
                 // 3. Third-person Demeanor indicator (also shown in 1st-person while pinned)
@@ -412,15 +524,16 @@ namespace TrueGaze::ExpandedPlay
                     std::string demeanorLine;
                     if (snap.demeanorPinned)
                     {
-                        const int secs = std::max(1, static_cast<int>(std::ceil(snap.demeanorPinRemainingSec)));
+                        const int secs =
+                            std::max(1, static_cast<int>(std::ceil(snap.demeanorPinRemainingSec)));
                         demeanorLine = std::format("Demeanor: {} [Pinned {}s]",
                                                    DemeanorName(snap.activeDemeanor), secs);
                     }
                     else
                     {
-                        demeanorLine = std::format("Demeanor: {} [{}]",
-                                                   DemeanorName(snap.activeDemeanor),
-                                                   DemeanorModeName(snap.demeanorMode));
+                        demeanorLine =
+                            std::format("Demeanor: {} [{}]", DemeanorName(snap.activeDemeanor),
+                                        DemeanorModeName(snap.demeanorMode));
                     }
                     const uint32_t dColor = snap.demeanorPinned ? 0xFFD966u : 0xE6D8B8u;
                     ShowText(_demeanorField, _demeanorFmt, demeanorLine,
@@ -476,8 +589,8 @@ namespace TrueGaze::ExpandedPlay
                     return true;
                 }
                 std::array<RE::GFxValue, 6> args{RE::GFxValue(name), RE::GFxValue(depth),
-                                                 RE::GFxValue(x), RE::GFxValue(y), RE::GFxValue(w),
-                                                 RE::GFxValue(h)};
+                                                 RE::GFxValue(x),    RE::GFxValue(y),
+                                                 RE::GFxValue(w),    RE::GFxValue(h)};
                 if (!root.Invoke("createTextField", nullptr, args.data(), args.size()) ||
                     !root.GetMember(name, &field) ||
                     !field.SetMember("selectable", RE::GFxValue(false)) ||
@@ -492,10 +605,12 @@ namespace TrueGaze::ExpandedPlay
 
             bool EnsureTextFields(RE::GFxValue& root) noexcept
             {
-                return EnsureTextField(root, _demeanorField, "demeanorTxt", 1.0, 950.0, 26.0,
-                                       300.0, 26.0) &&
+                return EnsureTextField(root, _demeanorField, "demeanorTxt", 1.0, 950.0, 26.0, 300.0,
+                                       26.0) &&
                        EnsureTextField(root, _whisperField, "whisperTxt", 2.0, 340.0, 580.0, 600.0,
-                                       30.0);
+                                       30.0) &&
+                       EnsureTextField(root, _vectorField, "vectorTxt", 3.0, 565.0, 394.0, 150.0,
+                                       22.0);
             }
 
             static void HideText(RE::GFxValue& field) noexcept
@@ -520,7 +635,8 @@ namespace TrueGaze::ExpandedPlay
                     field.SetText(text.c_str());
                     field.Invoke("setTextFormat", nullptr, &fmt, 1);
                 }
-                field.SetMember("textColor", RE::GFxValue(static_cast<double>(colorRgb & 0x00FFFFFFu)));
+                field.SetMember("textColor",
+                                RE::GFxValue(static_cast<double>(colorRgb & 0x00FFFFFFu)));
                 RE::GFxValue::DisplayInfo info;
                 info.SetVisible(true);
                 info.SetPosition(x, y);
@@ -532,10 +648,13 @@ namespace TrueGaze::ExpandedPlay
             RE::GFxValue _canvas{};
             RE::GFxValue _demeanorFmt{};
             RE::GFxValue _whisperFmt{};
+            RE::GFxValue _vectorFmt{};
             RE::GFxValue _demeanorField{};
             RE::GFxValue _whisperField{};
+            RE::GFxValue _vectorField{};
             std::string _lastDemeanorText{};
             std::string _lastWhisperText{};
+            std::string _lastVectorText{};
         };
 #endif
     } // namespace
@@ -573,6 +692,7 @@ namespace TrueGaze::ExpandedPlay
             g_whisperRemainingSec = 0.0f;
             g_whisperDirty = false;
             g_awakeningPulseRemainingSec = 0.0f;
+            g_persuasionBloomRemainingSec = 0.0f;
         }
         g_lastMenuShown = false;
         if (auto* queue = RE::UIMessageQueue::GetSingleton())
@@ -593,9 +713,8 @@ namespace TrueGaze::ExpandedPlay
         {
             std::lock_guard lock(g_reticleMutex);
             g_snapshot = snapshot;
-            hasActiveFeedback =
-                (g_awakeningPulseRemainingSec > 0.0f) ||
-                (g_whisperRemainingSec > 0.0f && !g_whisperText.empty());
+            hasActiveFeedback = (g_awakeningPulseRemainingSec > 0.0f) ||
+                                (g_whisperRemainingSec > 0.0f && !g_whisperText.empty());
         }
 
         const bool bookOpen = BookStudyTracker::Get().IsBookOpen();
@@ -617,8 +736,7 @@ namespace TrueGaze::ExpandedPlay
                     {
                         g_lastMenuShown = true;
                         const std::string detail = std::format(
-                            "show dontHideCursor={} hudOpen={}",
-                            ui->numDontHideCursorWhenTopmost,
+                            "show dontHideCursor={} hudOpen={}", ui->numDontHideCursorWhenTopmost,
                             ui->IsMenuOpen(RE::HUDMenu::MENU_NAME) ? "yes" : "no");
                         Engine::TraceLogger::Get().LogExpandedPlayEvent(
                             Engine::TraceLogger::Get().DurationSeconds(), "RETICLE_MENU", 0u, "",
@@ -673,6 +791,24 @@ namespace TrueGaze::ExpandedPlay
         g_awakeningPulseRemainingSec = kAwakeningPulseLifetimeSec;
 #else
         (void)colorRgb;
+#endif
+    }
+
+    void GazeReticle::TriggerPersuasionBloom(uint32_t colorRgb, const char* soundEditorId) noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        {
+            std::lock_guard lock(g_reticleMutex);
+            g_persuasionBloomColor = colorRgb & 0x00FFFFFFu;
+            g_persuasionBloomRemainingSec = kPersuasionBloomLifetimeSec;
+        }
+        if (soundEditorId && soundEditorId[0] != '\0')
+        {
+            RE::PlaySound(soundEditorId);
+        }
+#else
+        (void)colorRgb;
+        (void)soundEditorId;
 #endif
     }
 

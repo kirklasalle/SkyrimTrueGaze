@@ -1,6 +1,18 @@
+param(
+    [string]$GamePath = ''
+)
 $ErrorActionPreference = 'Stop'
-$gameData = 'G:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\Data'
-$project = 'd:\Projects\SkyrimTrueGaze'
+$project = Split-Path -Parent $PSScriptRoot
+if (-not $GamePath) {
+    foreach ($k in 'HKLM:\SOFTWARE\WOW6432Node\Bethesda Softworks\Skyrim Special Edition', 'HKLM:\SOFTWARE\Bethesda Softworks\Skyrim Special Edition') {
+        if (Test-Path $k) {
+            $p = (Get-ItemProperty $k -Name 'Installed Path' -ErrorAction SilentlyContinue).'Installed Path'
+            if ($p -and (Test-Path (Join-Path $p 'SkyrimSE.exe'))) { $GamePath = $p.TrimEnd('\'); break }
+        }
+    }
+}
+if (-not $GamePath) { throw 'Skyrim installation not found; pass -GamePath.' }
+$gameData = Join-Path $GamePath 'Data'
 
 if (Get-Process SkyrimSE -ErrorAction SilentlyContinue) {
     Write-Output 'GAME RUNNING - ABORT CLEAN INSTALL'
@@ -11,11 +23,12 @@ $installFiles = @(
     @{ Source = "$project\skyrim\SKSE\Plugins\TrueGaze.dll"; Destination = "$gameData\SKSE\Plugins\TrueGaze.dll" },
     @{ Source = "$project\skyrim\Interface\TrueGazeIncoming.swf"; Destination = "$gameData\Interface\TrueGazeIncoming.swf" },
     @{ Source = "$project\skyrim\Interface\TrueGazeReticle.swf"; Destination = "$gameData\Interface\TrueGazeReticle.swf" },
-    @{ Source = "$project\scratch\arrow_extract\meshes\marker_arrow.nif"; Destination = "$gameData\meshes\marker_arrow.nif" },
     @{ Source = "$project\skyrim\meshes\TrueGaze\GazeRegionPanel.nif"; Destination = "$gameData\meshes\TrueGaze\GazeRegionPanel.nif" },
     @{ Source = "$project\skyrim\meshes\TrueGaze\GazeBeam.nif"; Destination = "$gameData\meshes\TrueGaze\GazeBeam.nif" },
     @{ Source = "$project\skyrim\textures\TrueGaze\GazeBeamGlow.dds"; Destination = "$gameData\textures\TrueGaze\GazeBeamGlow.dds" },
-    @{ Source = "$project\skyrim\textures\TrueGaze\GazeRegionPanel.dds"; Destination = "$gameData\textures\TrueGaze\GazeRegionPanel.dds" }
+    @{ Source = "$project\skyrim\textures\TrueGaze\GazeRegionPanel.dds"; Destination = "$gameData\textures\TrueGaze\GazeRegionPanel.dds" },
+    @{ Source = "$project\skyrim\TrueGaze_ExpandedPlay.esp"; Destination = "$gameData\TrueGaze_ExpandedPlay.esp" },
+    @{ Source = "$project\skyrim\SEQ\TrueGaze_ExpandedPlay.seq"; Destination = "$gameData\SEQ\TrueGaze_ExpandedPlay.seq" }
 )
 
 # Preserve user configuration; only back it up before replacing TrueGaze-owned binaries/assets.

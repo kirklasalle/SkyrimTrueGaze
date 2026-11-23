@@ -1,5 +1,23 @@
 # TrueGaze™ — Project Status & In-Engine Audit
 
+## 2026-11-23 Principal-Engineer Audit Remediation & v2.1.0 Readiness
+
+- **Audit Remediation Complete (All Release Blockers Closed in Code & Packaging):** See [`docs/AUDIT_REMEDIATION_LOG.md`](AUDIT_REMEDIATION_LOG.md) for full traceability across `SEC-01`–`SEC-05`, `CRIT-01`–`CRIT-11`, `ARCH-01`–`ARCH-03`, and `DOC-01`–`DOC-06`.
+  - Clean-room IP compliance (`SEC-01`): removed extracted `marker_arrow.nif` and replaced extracted `.fuz` files with programmatically generated clean-room timing `.wav`s (`scripts/Build-ExpandedPlayEsl.py`).
+  - Non-destructive console registration (`CRIT-01`): `ConsoleCommands.cpp` now hooks `RE::Console::Accept` (`VTABLE_Console[0]` slot `0x01`) with zero modifications to `RE::SCRIPT_FUNCTION`.
+  - Save-game safety (`CRIT-04`): `PlayerCharacter::SaveGame` (`slot 0x0E`) strips `kTemporary` `ExpandedPlayModifiers` strictly *before* `.ess` serialization and restores them synchronously after.
+  - Skyrim VR (`1.4.15`) first-party readiness (`CRIT-07`, `CRIT-11`): `VrController.cpp` reads live 6DOF `VR_NODE_DATA::HmdNode` with canonical `125.0` fallback; `AwakeningRitual.cpp` uses non-null VM pointers + full `Quest` VM fallback on VR.
+  - Security & CI hardening (`SEC-02`–`SEC-05`): eliminated DOM XSS in `TrueGazeConfig.html`, hardened `TrueGazeBridgeServer.ps1` (CSP, token enforcement on `/api/scan` & `/api/shutdown`, 256 KB cap + atomic write, bounded log tail, full asset deploy), wired `verify_charter.py` into `Invoke-CiGate.ps1`, and unified `Package-Release.ps1` (`SEQ` + clean-room `Sound/Voice`).
+- **R&D Program Established:** Created [`docs/RD_INNOVATION_PROGRAM.md`](RD_INNOVATION_PROGRAM.md) formalizing the 5-track R&D process (`NOV-01`–`NOV-05`) with Skyrim VR as the first-party HCEP reference platform.
+- **Live SE/AE 1.7.104.0 Verified (2026-11-23, 12-min gameplay session):**
+  - `469,440` ticks, `27,783` target resolutions (`none 0`), `0` errors, `0` SEH faults, `0` frame-budget warnings, and `0` anchor failures (`Deploy-TrueGaze.ps1 -PostRun`: `12 Passed`, `2 Warnings` for expected `GeometricHeadSocket` fallback, `0 Failed`).
+  - Live `Console::Accept` dispatch of `stgtrace` (`0 vanilla commands modified`), clean exit while tracing active (`16,179` events, `4,427.0 KB`, `bad_json=0`, per-frame `ts=[133.148s, 405.121s]`), and `PlayerCharacter::SaveGame` (`slot 0x0E`) + `scripts/inspect_ess_actor_values.py` clean baseline across 4 `.ess` saves (`modifiers=0`, `0` leaked AV blocks).
+  - Updated `AwakeningRitual::GrantInnNoteToPlayerOnly(const char* source)` to log the exact `questStartSource`.
+- **Remaining Optional Field Gates:**
+  1. `CRIT-04` Stage-4 `modifiers > 0` `.ess` stress test & abrupt-uninstall round-trip (protocol in `docs/AUDIT_REMEDIATION_LOG.md`).
+  2. Live Skyrim VR `1.4.15` in-headset validation of `HmdNode` 6DOF ray alignment, `Console::Accept` `stg*` commands, and `AwakeningRitual` VR quest progression (once SKSEVR + VR Address Library are installed).
+  3. Pre-`MQ205`/`DA04`/`Prophet` save test of `WICourier` dispatch & clean-room `.wav` subtitle pacing at Sleeping Giant Inn.
+
 ## 2026-11-17 Due-Diligence Remediation (Phases 0–3, Unreleased)
 
 - **Verified by build & automated tests:** All 6 standalone CTest suites (`IncomingGazeTests`,

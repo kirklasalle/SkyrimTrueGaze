@@ -1,6 +1,7 @@
 #include "Engine/TraceLogger.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <format>
 #include <iostream>
@@ -15,12 +16,22 @@
 
 namespace TrueGaze::Engine
 {
+    namespace
+    {
+        [[nodiscard]] inline float SafeFloat(float v) noexcept
+        {
+            return std::isfinite(v) ? v : 0.0f;
+        }
+    } // namespace
 
     TraceLogger::TraceLogger() = default;
 
     TraceLogger::~TraceLogger()
     {
-        StopTracing();
+        if (!_abandoned.load(std::memory_order_relaxed))
+        {
+            StopTracing();
+        }
     }
 
     void TraceLogger::SetConfig(bool traceGazeTick, bool traceSaccades, bool traceRegionChanges,
@@ -40,7 +51,7 @@ namespace TrueGaze::Engine
     void TraceLogger::StartTracing(const std::filesystem::path& customPath,
                                   const std::vector<uint32_t>& actorFilters) noexcept
     {
-        if (_active.load(std::memory_order_relaxed))
+        if (_active.load(std::memory_order_relaxed) || (_workerThread && _workerThread->joinable()))
         {
             StopTracing();
         }
@@ -117,7 +128,7 @@ namespace TrueGaze::Engine
         }
 
         _active.store(true, std::memory_order_release);
-        _workerThread = std::thread(&TraceLogger::WorkerLoop, this);
+        _workerThread = std::make_unique<std::thread>(&TraceLogger::WorkerLoop, this);
 
 #if __has_include(<spdlog/spdlog.h>)
         logger::info("[TrueGaze] Trace logging STARTED -> '{}' (filtering {} actors, cap={} MB).",
@@ -128,16 +139,22 @@ namespace TrueGaze::Engine
 
     void TraceLogger::StopTracing() noexcept
     {
+        if (_abandoned.load(std::memory_order_relaxed))
+        {
+            return;
+        }
+
         const bool wasActive = _active.exchange(false, std::memory_order_acq_rel);
 
         _stopping.store(true, std::memory_order_release);
         _cv.notify_all();
 
-        const bool hadWorker = _workerThread.joinable();
+        const bool hadWorker = _workerThread && _workerThread->joinable();
         if (hadWorker)
         {
-            _workerThread.join();
+            _workerThread->join();
         }
+        _workerThread.reset();
 
         const bool hadFile = _fileStream.is_open();
         if (hadFile)
@@ -152,12 +169,23 @@ namespace TrueGaze::Engine
         }
 
 #if __has_include(<spdlog/spdlog.h>)
-        logger::info("[TrueGaze] Trace logging STOPPED. {} events written ({:.2f} MB) to '{}'.",
+        logger::info("[TrueGaze] Trace logging STOPPED. {} events written ({:.2f} MB, {} dropped) to '{}'.",
                      _totalEvents.load(std::memory_order_relaxed),
                      static_cast<double>(_totalBytesWritten.load(std::memory_order_relaxed)) /
                          (1024.0 * 1024.0),
-                     _logPath.string());
+                     _droppedEvents.load(std::memory_order_relaxed), _logPath.string());
 #endif
+    }
+
+    void TraceLogger::Abandon() noexcept
+    {
+        _abandoned.store(true, std::memory_order_release);
+        _active.store(false, std::memory_order_release);
+        _stopping.store(true, std::memory_order_release);
+        _cv.notify_all();
+        // Deliberately release the thread wrapper so process teardown never calls
+        // std::thread::join() under Windows Loader Lock or std::terminate().
+        (void)_workerThread.release();
     }
 
     void TraceLogger::Flush() noexcept
@@ -203,7 +231,8 @@ namespace TrueGaze::Engine
             // Auto-stop at hard cap (Schema 2.0 § 2)
             _active.store(false, std::memory_order_release);
 #if __has_include(<spdlog/spdlog.h>)
-            logger::warn("[TrueGaze] Trace log reached 100 MB hard cap. Auto-stopping trace.");
+            logger::warn("[TrueGaze] Trace log reached {} MB hard cap. Auto-stopping trace.",
+                         _maxFileSizeBytes / (1024ULL * 1024ULL));
 #endif
             _cv.notify_all();
             return;
@@ -211,6 +240,13 @@ namespace TrueGaze::Engine
 
         {
             std::lock_guard<std::mutex> lock(_bufferMutex);
+            const size_t maxBuffered = std::max<size_t>(_bufferSize * 16, 4096);
+            if (_buffer.size() >= maxBuffered)
+            {
+                _droppedEvents.fetch_add(1, std::memory_order_relaxed);
+                _cv.notify_one();
+                return;
+            }
             _buffer.push_back(std::move(jsonLine));
             if (_buffer.size() >= _bufferSize)
             {
@@ -262,9 +298,11 @@ namespace TrueGaze::Engine
                 if (totalBytes >= _maxFileSizeBytes)
                 {
                     _active.store(false, std::memory_order_release);
+                    _fileStream.flush();
+                    _fileStream.close();
 #if __has_include(<spdlog/spdlog.h>)
                     logger::warn("[TrueGaze] Trace log reached {} MB hard cap. Auto-stopped.",
-                                 _maxFileSizeBytes / (1024 * 1024));
+                                 _maxFileSizeBytes / (1024ULL * 1024ULL));
 #endif
                     break;
                 }
@@ -300,14 +338,16 @@ namespace TrueGaze::Engine
             return;
         }
 
-        const std::string targetStr =
-            (targetId != 0) ? std::format("0x{:08X}", targetId) : "null";
+        const std::string targetJson =
+            (targetId != 0) ? std::format("\"0x{:08X}\"", targetId) : "null";
 
         std::string line = std::format(
-            R"({{"t":"GAZE_TICK","schema":2,"hitSemantics":"{}","ts":{:.3f},"actor":"0x{:08X}","target":"{}","yaw":{:.2f},"pitch":{:.2f},"eyeYaw":{:.2f},"eyePitch":{:.2f},"region":{},"hitRegion":{},"mode":"{}","lod":{},"mutual":{},"mutualSec":{:.2f},"headPct":{:.2f},"dt":{:.4f}}})",
+            R"({{"t":"GAZE_TICK","schema":2,"hitSemantics":"{}","ts":{:.3f},"actor":"0x{:08X}","target":{},"yaw":{:.2f},"pitch":{:.2f},"eyeYaw":{:.2f},"eyePitch":{:.2f},"region":{},"hitRegion":{},"mode":"{}","lod":{},"mutual":{},"mutualSec":{:.2f},"headPct":{:.2f},"dt":{:.4f}}})",
             hitRegion == 255 ? "retiredSelfPanel" : "legacySelfPanel",
-            ts, actorId, targetStr, yaw, pitch, eyeYaw, eyePitch, region, hitRegion,
-            (modeStr ? modeStr : "UNKNOWN"), lod, mutual ? "true" : "false", mutualSec, headPct, dt);
+            SafeFloat(ts), actorId, targetJson, SafeFloat(yaw), SafeFloat(pitch),
+            SafeFloat(eyeYaw), SafeFloat(eyePitch), region, hitRegion,
+            (modeStr ? modeStr : "UNKNOWN"), lod, mutual ? "true" : "false",
+            SafeFloat(mutualSec), SafeFloat(headPct), SafeFloat(dt));
 
         Enqueue(std::move(line));
     }
@@ -494,12 +534,13 @@ namespace TrueGaze::Engine
             return out;
         };
 
-        const std::string actorStr =
-            (actorId != 0u) ? std::format("0x{:08X}", actorId) : "null";
+        const std::string actorJson =
+            (actorId != 0u) ? std::format("\"0x{:08X}\"", actorId) : "null";
         std::string line = std::format(
-            R"({{"t":"EXPANDED_PLAY","ts":{:.3f},"action":"{}","actor":"{}","name":"{}","region":{},"dwellSec":{:.2f},"detail":"{}"}})",
-            ts, escapeJson(action ? action : "UNKNOWN"), actorStr,
-            escapeJson(actorName ? actorName : ""), regionId, dwellSec, escapeJson(detail));
+            R"({{"t":"EXPANDED_PLAY","ts":{:.3f},"action":"{}","actor":{},"name":"{}","region":{},"dwellSec":{:.2f},"detail":"{}"}})",
+            SafeFloat(ts), escapeJson(action ? action : "UNKNOWN"), actorJson,
+            escapeJson(actorName ? actorName : ""), regionId, SafeFloat(dwellSec),
+            escapeJson(detail));
 
         Enqueue(std::move(line));
     }
@@ -517,15 +558,16 @@ namespace TrueGaze::Engine
             return;
         }
 
-        const std::string targetStr =
-            (targetId != 0u) ? std::format("0x{:08X}", targetId) : "null";
+        const std::string targetJson =
+            (targetId != 0u) ? std::format("\"0x{:08X}\"", targetId) : "null";
         std::string line = std::format(
-            R"({{"t":"VISUAL_EYE_SYNC","ts":{:.3f},"actor":"0x{:08X}","target":"{}","prio":{},"solvedYaw":{:.2f},"solvedPitch":{:.2f},"fgHeadDeg":{:.2f},"fgPitchDeg":{:.2f},"fgMod3":[{:.3f},{:.3f},{:.3f},{:.3f}],"arrowYaw":{:.2f},"arrowPitch":{:.2f},"headRawCorr":{:.2f},"headSmoothCorr":{:.2f},"refDeg":{:.1f},"seated":{}}})",
-            ts, actorId, targetStr, static_cast<unsigned>(priority),
-            solvedEyeYaw, solvedEyePitch, fgHeadingDeg, fgPitchDeg,
-            fgMod3L, fgMod3R, fgMod3U, fgMod3D,
-            arrowYaw, arrowPitch, rawHeadCorrYaw, smoothHeadCorrYaw,
-            refHeadingDeg, isSeated ? "true" : "false");
+            R"({{"t":"VISUAL_EYE_SYNC","ts":{:.3f},"actor":"0x{:08X}","target":{},"prio":{},"solvedYaw":{:.2f},"solvedPitch":{:.2f},"fgHeadDeg":{:.2f},"fgPitchDeg":{:.2f},"fgMod3":[{:.3f},{:.3f},{:.3f},{:.3f}],"arrowYaw":{:.2f},"arrowPitch":{:.2f},"headRawCorr":{:.2f},"headSmoothCorr":{:.2f},"refDeg":{:.1f},"seated":{}}})",
+            SafeFloat(ts), actorId, targetJson, static_cast<unsigned>(priority),
+            SafeFloat(solvedEyeYaw), SafeFloat(solvedEyePitch), SafeFloat(fgHeadingDeg),
+            SafeFloat(fgPitchDeg), SafeFloat(fgMod3L), SafeFloat(fgMod3R), SafeFloat(fgMod3U),
+            SafeFloat(fgMod3D), SafeFloat(arrowYaw), SafeFloat(arrowPitch),
+            SafeFloat(rawHeadCorrYaw), SafeFloat(smoothHeadCorrYaw),
+            SafeFloat(refHeadingDeg), isSeated ? "true" : "false");
 
         Enqueue(std::move(line));
     }

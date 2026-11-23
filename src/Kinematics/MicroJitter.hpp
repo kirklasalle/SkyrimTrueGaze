@@ -115,12 +115,18 @@ namespace TrueGaze::Kinematics
                 return;
             }
 
-            const float theta = state.reversionRate;
-            const float sigma = VolatilityFor(state.amplitudeDeg, theta);
+            const float theta = (std::isfinite(state.reversionRate) && state.reversionRate > 1e-4f)
+                                    ? state.reversionRate
+                                    : 1e-4f;
+            const float amp = (std::isfinite(state.amplitudeDeg) && state.amplitudeDeg >= 0.0f)
+                                  ? state.amplitudeDeg
+                                  : 0.0f;
+            const float sigma = VolatilityFor(amp, theta);
 
             // Exact discretisation of the OU process over one fixed step.
             const float decay = std::exp(-theta * kFixedStep);
-            const float noiseScale = sigma * std::sqrt((1.0f - decay * decay) / (2.0f * theta));
+            const float varianceTerm = std::max(0.0f, (1.0f - decay * decay) / (2.0f * theta));
+            const float noiseScale = sigma * std::sqrt(varianceTerm);
 
             std::normal_distribution<float> dist(0.0f, 1.0f);
 

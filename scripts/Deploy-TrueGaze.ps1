@@ -208,7 +208,16 @@ if ($NoBuild) {
     Write-Info 'Skipped (-NoBuild).'
 }
 else {
-    if (-not $env:VCPKG_ROOT) { $env:VCPKG_ROOT = 'D:\vcpkg' }
+    if (-not $env:VCPKG_ROOT) {
+        $vcpkgCandidate = @('C:\vcpkg', 'D:\vcpkg', 'C:\dev\vcpkg', (Join-Path $env:USERPROFILE 'vcpkg')) |
+            Where-Object { Test-Path (Join-Path $_ 'scripts\buildsystems\vcpkg.cmake') } |
+            Select-Object -First 1
+        if ($vcpkgCandidate) { $env:VCPKG_ROOT = $vcpkgCandidate }
+    }
+    if (-not $env:VCPKG_ROOT) {
+        Write-Bad "VCPKG_ROOT is not set and vcpkg was not found in standard locations. Set `$env:VCPKG_ROOT and retry."
+        exit 1
+    }
     Write-Info "VCPKG_ROOT = $env:VCPKG_ROOT"
 
     Push-Location $projectRoot
@@ -364,6 +373,28 @@ if (Test-Path $oarSource) {
     New-Item -ItemType Directory -Path $oarTarget -Force | Out-Null
     Copy-Item -Path $oarSource -Destination $oarTarget -Force
     Write-Ok "OAR conditions -> $oarTarget"
+}
+
+$repoVoice = Join-Path $projectRoot 'skyrim\Sound\Voice\TrueGaze_ExpandedPlay.esp'
+if (Test-Path $repoVoice) {
+    $destVoice = Join-Path $deploymentRoot 'Sound\Voice\TrueGaze_ExpandedPlay.esp'
+    if ((Test-Path $destVoice) -and -not $ModPath) {
+        Remove-Item -Path $destVoice -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    New-Item -ItemType Directory -Path $destVoice -Force | Out-Null
+    Copy-Item -Path (Join-Path $repoVoice '*') -Destination $destVoice -Recurse -Force
+    $voiceCount = (Get-ChildItem -Path $destVoice -File -Recurse).Count
+    Write-Ok "Dialogue voice assets -> $destVoice ($voiceCount file(s))"
+}
+
+$repoSeq = Join-Path $projectRoot 'skyrim\SEQ\TrueGaze_ExpandedPlay.seq'
+if (Test-Path $repoSeq) {
+    $destSeqDir = Join-Path $deploymentRoot 'SEQ'
+    New-Item -ItemType Directory -Path $destSeqDir -Force | Out-Null
+    $destSeq = Join-Path $destSeqDir 'TrueGaze_ExpandedPlay.seq'
+    Copy-Item -LiteralPath $repoSeq -Destination $destSeq -Force
+    $seqBytes = (Get-Item $destSeq).Length
+    Write-Ok "Start-Game-Enabled Quest SEQ -> $destSeq ($seqBytes bytes)"
 }
 
 $eslSource = Join-Path $projectRoot 'skyrim\TrueGaze_ExpandedPlay.esp'

@@ -243,6 +243,9 @@ namespace TrueGaze::Engine
         bool moduleMatureReactions{false};
         bool modulePresenceProgression{true};
         bool enableKindredSight{true};
+        bool moduleFactionSight{true};
+        bool enableNpcVoiceResponses{true};
+        bool enablePersuasionVisuals{true};
         bool enableReticle{true};
         float reticleOpacity{0.22f};
         float reticleMagnetismStrength{0.35f};
@@ -269,6 +272,9 @@ namespace TrueGaze::Engine
             out.moduleMatureReactions = moduleMatureReactions;
             out.modulePresenceProgression = modulePresenceProgression;
             out.enableKindredSight = enableKindredSight;
+            out.moduleFactionSight = moduleFactionSight;
+            out.enableNpcVoiceResponses = enableNpcVoiceResponses;
+            out.enablePersuasionVisuals = enablePersuasionVisuals;
             out.enableReticle = enableReticle;
             out.reticleOpacity = reticleOpacity;
             out.reticleMagnetismStrength = reticleMagnetismStrength;

@@ -123,16 +123,17 @@ struct SkyrimFeedbackPacket
 
 ## 4. Concurrency & Thread-Safety Model
 
-To guarantee **zero frame drops** in Skyrim:
+To guarantee **zero frame drops** and **zero C++ data races** in Skyrim:
 
-1. **Background I/O Worker**: The Named Pipe client runs on a dedicated high-priority background thread (`std::jthread`).
-2. **Double-Buffered Lock-Free Exchange**:
-   * The background thread writes incoming packets into an atomic triple-buffer or double-buffer.
-   * The main game thread reads the latest valid packet using `std::atomic<TelemetryPacket*>::load(std::memory_order_acquire)` in under **10 nanoseconds**.
-   * The game's render and animation loops **never block or wait for I/O**.
+1. **Background I/O Worker**: The Named Pipe server runs on a dedicated overlapped-I/O background worker thread (`std::unique_ptr<std::thread>`, abandoned cleanly via `Stop(JoinPolicy::Abandon)` from `std::atexit` before Windows Loader Lock teardown).
+2. **Synchronized 3-Slot Ring Exchange (`SRWLOCK`)**:
+   * The background thread writes validated 64-byte packets into a 3-slot buffer under an exclusive Win32 `SRWLOCK` (`SRWLOCK_INIT`, trivially destructible POD safe under `Stop(Abandon)`).
+   * The main game thread copies the latest published slot under a shared `SRWLOCK` in ~10–15 nanoseconds with zero torn reads and zero C++ undefined behavior across x86-64 and ARM64.
+   * Outbound feedback (`SkyrimFeedbackPacket`) is selected once per frame in `GazeEngine::EndFrame()` (one player-centered NPC focus packet per frame, preventing 256-slot ring overflow) and pushed to a bounded ring drained asynchronously by the worker.
+   * The game's render and animation loops **never block or wait for pipe I/O**.
 3. **Auto-Fallback / Degraded Mode**:
    * If the pipe is disconnected or `HCEP.App` is closed, `TrueGaze.dll` automatically switches to **Mode 1: Autonomous Edge** within 1 frame.
-   * Reconnection attempts occur in the background once every 3.0 seconds without user intervention.
+   * Reconnection attempts occur in the background at the configured interval (clamped to `[0.05 s, 60.0 s]`, default `3.0 s`) without user intervention.
 
 ---
 
@@ -192,7 +193,7 @@ logged as `unknown`.
 | :--- | :--- |
 | Bad magic / version | Frame silently dropped (counter-worthy; see audit P3-5 rejection counters). |
 | CRC mismatch | Frame dropped. CRC protects against accidental corruption, not adversaries. |
-| NaN / Inf / out-of-range values | `ValidateTelemetryPacket()` rejects; warn logged (rate-limited). |
+| NaN / Inf / out-of-range values | `ValidateTelemetryPacket()` rejects; warn logged (rate-limited to at most once per 5 seconds with suppressed count, `SEC-04`). |
 | Stale (> 500 ms since last valid frame) | Fusion suppressed; camera/crosshair authority resumes. |
 | Both eyes blinking | Fusion suppressed (gaze is a prediction while eyes are closed — S4). |
 | Convergence outside 0.3–6.0 m | Flagged implausible in diagnostics; not fused. |
@@ -201,7 +202,7 @@ logged as `unknown`.
 
 | Control | Status |
 | :--- | --- |
-| Pipe access control | ✅ User-scoped SDDL (`D:(A;;GA;;;OW)`), honest fallback warning (rate-limited to once per session, R14 E1.3). |
+| Pipe access control | ✅ Fail-closed current-user `TokenUser` SID DACL (`D:(A;;GA;;;<user-sid>)`) + `PIPE_REJECT_REMOTE_CLIENTS` + `FILE_FLAG_FIRST_PIPE_INSTANCE`. Pipe creation refuses to proceed if the DACL cannot be constructed. |
 | Payload encryption | ❌ Plaintext — acceptable at single-user local scope; documented here rather than implied. |
 | Authentication | ❌ CRC only. A same-session malicious process can inject data; bounded by semantic validation. |
 | Stale-data protection | ✅ 500 ms freshness gate (documented contract). |

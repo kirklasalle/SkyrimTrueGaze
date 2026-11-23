@@ -45,7 +45,7 @@ namespace TrueGaze::ExpandedPlay
         };
 
         constexpr float kMoodSwitchHoldSec = 0.65f;
-        constexpr float kRampRatePerSec    = 1.80f;
+        constexpr float kRampRatePerSec = 1.80f;
 
         std::mutex g_exprMutex;
         std::array<ActiveExpressionSlot, 12> g_activeExprs{};
@@ -70,7 +70,7 @@ namespace TrueGaze::ExpandedPlay
                 if (!faceGen->exprOverride && faceGen->expressionKeyFrame.values &&
                     moodIdx < faceGen->expressionKeyFrame.count)
                 {
-                    faceGen->expressionKeyFrame.SetValue(moodIdx, std::clamp(weight, 0.0f, 0.50f));
+                    faceGen->expressionKeyFrame.SetValue(moodIdx, std::clamp(weight, 0.0f, 0.65f));
                     faceGen->expressionKeyFrame.isUpdated = true;
                 }
             }
@@ -88,7 +88,7 @@ namespace TrueGaze::ExpandedPlay
             return;
         }
         const auto moodIdx = static_cast<std::uint32_t>(mood);
-        const float clampedTarget = std::clamp(weight, 0.0f, 0.45f);
+        const float clampedTarget = std::clamp(weight, 0.0f, 0.62f);
         const float safeDur =
             (std::isfinite(durationSec) && durationSec > 0.4f) ? durationSec : 2.0f;
         const float safeNow = std::isfinite(nowSessionSec) ? nowSessionSec : 0.0f;
@@ -174,9 +174,8 @@ namespace TrueGaze::ExpandedPlay
         }
         if (moodChangedLog)
         {
-            const std::string detail =
-                std::format("mood={} targetWeight={:.2f} dur={:.1f}s", moodIdx, clampedTarget,
-                            safeDur);
+            const std::string detail = std::format("mood={} targetWeight={:.2f} dur={:.1f}s",
+                                                   moodIdx, clampedTarget, safeDur);
             Engine::TraceLogger::Get().LogExpandedPlayEvent(safeNow, "EXPRESSION_SET", actorFormId,
                                                             "", 0u, 0.0f, detail.c_str());
             logger::debug("[TrueGaze::ExpandedPlay] Expression {:08X}: {}", actorFormId, detail);
@@ -256,9 +255,8 @@ namespace TrueGaze::ExpandedPlay
             if (ops[i].cleared)
             {
                 const std::string detail = std::format("mood={} reset=0.00", ops[i].moodIndex);
-                Engine::TraceLogger::Get().LogExpandedPlayEvent(safeNow, "EXPRESSION_RESET",
-                                                                ops[i].actorFormId, "", 0u, 0.0f,
-                                                                detail.c_str());
+                Engine::TraceLogger::Get().LogExpandedPlayEvent(
+                    safeNow, "EXPRESSION_RESET", ops[i].actorFormId, "", 0u, 0.0f, detail.c_str());
             }
         }
 #else
@@ -312,7 +310,8 @@ namespace TrueGaze::ExpandedPlay
                 runtime->hasModeOverride = true;
                 if (decision.rung1.lockMutualReciprocity)
                 {
-                    runtime->crosshairHoldTimerSec = std::max(runtime->crosshairHoldTimerSec, 0.35f);
+                    runtime->crosshairHoldTimerSec =
+                        std::max(runtime->crosshairHoldTimerSec, 0.35f);
                 }
                 if (decision.rung1.forceAversion)
                 {
@@ -381,8 +380,8 @@ namespace TrueGaze::ExpandedPlay
     }
 
     bool ResponseLadder::TryInitiateEyeContactGreeting(uint32_t actorFormId,
-                                                     std::string_view actorName,
-                                                     bool whispersEnabled) noexcept
+                                                       std::string_view actorName,
+                                                       bool whispersEnabled) noexcept
     {
 #if __has_include(<RE/Skyrim.h>)
         if (actorFormId == 0u)
@@ -404,8 +403,8 @@ namespace TrueGaze::ExpandedPlay
         if (activated && whispersEnabled)
         {
             const std::string_view who = actorName.empty() ? "They" : actorName;
-            GazeReticle::Get().PushWhisper(
-                std::format("{} meets your eyes in greeting.", who), 0xE6D8B8u);
+            GazeReticle::Get().PushWhisper(std::format("{} meets your eyes in greeting.", who),
+                                           0xE6D8B8u);
         }
         return activated;
 #else

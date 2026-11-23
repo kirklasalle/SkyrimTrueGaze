@@ -41,6 +41,43 @@ namespace TrueGaze::ExpandedPlay
         uint64_t g_announcedAbsorbedMask{0u};
         uint32_t g_announcedEnteredSpread{0xFFFFFFFFu};
         int32_t g_lastRawScaleformPage{-1};
+        bool g_pendingNoteInject{false};
+        std::string g_pendingNoteText{};
+
+        [[nodiscard]] bool TryInjectLivingNoteIntoBookMenu(const std::string& markup) noexcept
+        {
+            auto* ui = RE::UI::GetSingleton();
+            if (!ui || !ui->IsMenuOpen(RE::BookMenu::MENU_NAME))
+            {
+                return false;
+            }
+            auto bookMenu = ui->GetMenu<RE::BookMenu>();
+            if (!bookMenu)
+            {
+                return false;
+            }
+            auto& rt = bookMenu->GetRuntimeData();
+            if (!rt.book || !rt.bookInitialized)
+            {
+                return false;
+            }
+            // Force single-sheet Parchment Note mode (bNote=true) so Scaleform book.swf never
+            // formats Brother Cassian's Note as a 2-page leather book spread.
+            rt.isNote = true;
+            std::array<RE::GFxValue, 2> args{RE::GFxValue(markup.c_str()), RE::GFxValue(true)};
+            const bool ok =
+                rt.book->Invoke("_root.BookMenuInstance.SetBookText", nullptr, args.data(),
+                                args.size()) ||
+                rt.book->Invoke("_root.BookMenu_mc.SetBookText", nullptr, args.data(),
+                                args.size());
+            if (ok)
+            {
+                logger::info("[TrueGaze::ExpandedPlay] Living Awakening Note refreshed in BookMenu "
+                             "(isNote=yes, len={}).",
+                             markup.size());
+            }
+            return ok;
+        }
 
         struct LiveStudyNotice
         {
@@ -363,13 +400,6 @@ namespace TrueGaze::ExpandedPlay
                 }
 
                 const auto& cfg = Engine::ConfigManager::GetSingleton();
-                if (!cfg.expandedPlayEnabled || !cfg.moduleBookStudy)
-                {
-                    std::lock_guard lock(g_studyMutex);
-                    g_menuOpen = false;
-                    return RE::BSEventNotifyControl::kContinue;
-                }
-
                 if (a_event->opening)
                 {
                     auto* book = RE::BookMenu::GetTargetForm();
@@ -377,14 +407,75 @@ namespace TrueGaze::ExpandedPlay
                     {
                         return RE::BSEventNotifyControl::kContinue;
                     }
+                    const uint32_t bookId = static_cast<uint32_t>(book->GetFormID());
+                    const char* bookTitle = book->GetName() ? book->GetName() : "";
+
+                    // Living Awakening Checklist Note (TGZ_Note_CassianRumor): dynamically inject
+                    // the live [X]/[ ] checklist whenever the player opens the note from anywhere.
+                    if (AwakeningRitual::Get().IsCassianNoteFormId(bookId, bookTitle))
+                    {
+                        AwakeningRitual::Get().MarkCassianNoteOpened();
+                        const auto saved = CoSaveSerializer::Get().SnapshotState();
+                        const auto epCfg = cfg.SnapshotExpandedPlay();
+                        const uint8_t sBit = AwakeningRitual::Get().CurrentPlayerSanctuaryBit();
+                        const bool inSanctuary = (sBit != SanctuaryBits::kNone);
+                        const std::string sName =
+                            inSanctuary ? AwakeningRitual::Get().CurrentPlayerSanctuaryName()
+                                        : std::string{};
+                        const bool wearingFocus = AwakeningRitual::Get().IsPlayerWearingFocus();
+                        const bool hasStudied =
+                            AwakeningRitual::Get().IsPlayerCarryingStudiedCanticle();
+                        const auto rank =
+                            ClassifyScholarshipRank(saved.sign.booksFullyStudiedCount);
+
+                        std::string liveMarkup = FormatCassianLivingNoteMarkup(
+                            saved.awakening, epCfg.unlockMode, inSanctuary, sName, wearingFocus,
+                            hasStudied, saved.sign.presence.maximum, rank);
+
+                        // Update BookMenu's static description buffer immediately (covers frame-0
+                        // initialization) AND schedule Scaleform SetBookText injection once
+                        // bookInitialized becomes true.
+                        RE::BookMenu::GetDescription() = liveMarkup.c_str();
+                        const bool injectedNow = TryInjectLivingNoteIntoBookMenu(liveMarkup);
+                        {
+                            std::lock_guard lock(g_studyMutex);
+                            g_menuOpen = false;
+                            g_session = {};
+                            g_pendingNoteInject = !injectedNow;
+                            g_pendingNoteText = injectedNow ? std::string{} : std::move(liveMarkup);
+                            g_bookOpenAtomic.store(g_pendingNoteInject, std::memory_order_release);
+                        }
+                        if (g_pendingNoteInject)
+                        {
+                            if (auto* ui = RE::UI::GetSingleton();
+                                ui && !ui->IsMenuOpen("TrueGazeReticle"))
+                            {
+                                if (auto* queue = RE::UIMessageQueue::GetSingleton())
+                                {
+                                    queue->AddMessage(RE::BSFixedString("TrueGazeReticle"),
+                                                      RE::UI_MESSAGE_TYPE::kShow, nullptr);
+                                }
+                            }
+                        }
+                        logger::info("[TrueGaze::ExpandedPlay] Opened Living Awakening Note "
+                                     "({:08X}, injectedImmediate={}).",
+                                     bookId, injectedNow ? "yes" : "pending");
+                        return RE::BSEventNotifyControl::kContinue;
+                    }
+
+                    if (!cfg.expandedPlayEnabled || !cfg.moduleBookStudy)
+                    {
+                        std::lock_guard lock(g_studyMutex);
+                        g_menuOpen = false;
+                        return RE::BSEventNotifyControl::kContinue;
+                    }
+
                     const auto& desc = RE::BookMenu::GetDescription();
                     const char* text = desc.c_str() ? desc.c_str() : "";
                     const bool teachesSkill = book->TeachesSkill();
                     const uint32_t skillAv =
                         teachesSkill ? static_cast<uint32_t>(book->GetSkill()) : 0u;
                     const bool isRare = IsRareLoreTitle(book->GetName());
-                    const uint32_t bookId = static_cast<uint32_t>(book->GetFormID());
-                    const char* bookTitle = book->GetName() ? book->GetName() : "";
 
                     size_t spreadCount = 0u;
                     LiveStudyNotice openNotice{};
@@ -449,9 +540,12 @@ namespace TrueGaze::ExpandedPlay
                 bool wasRareBook = false;
                 {
                     std::lock_guard lock(g_studyMutex);
+                    g_pendingNoteInject = false;
+                    g_pendingNoteText.clear();
                     if (!g_menuOpen || !g_session.IsActive())
                     {
                         g_menuOpen = false;
+                        g_bookOpenAtomic.store(false, std::memory_order_release);
                         return RE::BSEventNotifyControl::kContinue;
                     }
 
@@ -525,7 +619,15 @@ namespace TrueGaze::ExpandedPlay
 
                 if (wordEvent.progressed && !wordEvent.whisper.empty())
                 {
-                    GazeReticle::Get().NotifyMilestone(wordEvent.whisper, wordEvent.whisperColorRgb,
+                    // ONLY finding and reading The First Canticle / Elder Scroll tome teaches
+                    // the Sight of the First Canticle spell!
+                    const bool taughtSpell = AwakeningRitual::Get().EnsureCanticleSpellLearned();
+                    const std::string msg =
+                        taughtSpell
+                            ? std::format("{} -- Spell learned: Sight of the First Canticle!",
+                                          wordEvent.whisper)
+                            : wordEvent.whisper;
+                    GazeReticle::Get().NotifyMilestone(msg, wordEvent.whisperColorRgb,
                                                        "UISkillIncreaseSD", true);
                 }
                 else if (rankUp)
@@ -693,6 +795,8 @@ namespace TrueGaze::ExpandedPlay
         g_lastSummary = {};
 #if __has_include(<RE/Skyrim.h>)
         g_menuOpen = false;
+        g_pendingNoteInject = false;
+        g_pendingNoteText.clear();
         g_bookOpenAtomic.store(false, std::memory_order_release);
         g_session  = {};
         g_clock.Reset(0u, 0.0f);
@@ -716,6 +820,32 @@ namespace TrueGaze::ExpandedPlay
         {
             return;
         }
+
+        // Handle deferred Scaleform SetBookText injection for the Living Awakening Note once
+        // BookMenu finishes initializing book.swf (runs on game thread via AdvanceMovie).
+        std::string noteToInject;
+        {
+            std::lock_guard lock(g_studyMutex);
+            if (g_pendingNoteInject && !g_pendingNoteText.empty())
+            {
+                noteToInject = g_pendingNoteText;
+            }
+        }
+        if (!noteToInject.empty())
+        {
+            if (TryInjectLivingNoteIntoBookMenu(noteToInject))
+            {
+                std::lock_guard lock(g_studyMutex);
+                g_pendingNoteInject = false;
+                g_pendingNoteText.clear();
+                if (!g_menuOpen)
+                {
+                    g_bookOpenAtomic.store(false, std::memory_order_release);
+                }
+            }
+            return;
+        }
+
         LiveStudyNotice notice{};
         {
             std::lock_guard lock(g_studyMutex);

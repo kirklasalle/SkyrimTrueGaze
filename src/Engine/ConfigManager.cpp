@@ -267,6 +267,12 @@ namespace TrueGaze::Engine
             ReadBool("ExpandedPlay", "bModulePresenceProgression", modulePresenceProgression, p);
         enableKindredSight =
             ReadBool("ExpandedPlay", "bEnableKindredSight", enableKindredSight, p);
+        moduleFactionSight =
+            ReadBool("ExpandedPlay", "bModuleFactionSight", moduleFactionSight, p);
+        enableNpcVoiceResponses =
+            ReadBool("ExpandedPlay", "bEnableNpcVoiceResponses", enableNpcVoiceResponses, p);
+        enablePersuasionVisuals =
+            ReadBool("ExpandedPlay", "bEnablePersuasionVisuals", enablePersuasionVisuals, p);
         enableReticle = ReadBool("ExpandedPlay", "bEnableReticle", enableReticle, p);
         reticleOpacity = ReadFloat("ExpandedPlay", "fReticleOpacity", reticleOpacity, p);
         reticleMagnetismStrength =
@@ -812,6 +818,9 @@ namespace TrueGaze::Engine
         WriteBool("ExpandedPlay", "bModuleMatureReactions", moduleMatureReactions);
         WriteBool("ExpandedPlay", "bModulePresenceProgression", modulePresenceProgression);
         WriteBool("ExpandedPlay", "bEnableKindredSight", enableKindredSight);
+        WriteBool("ExpandedPlay", "bModuleFactionSight", moduleFactionSight);
+        WriteBool("ExpandedPlay", "bEnableNpcVoiceResponses", enableNpcVoiceResponses);
+        WriteBool("ExpandedPlay", "bEnablePersuasionVisuals", enablePersuasionVisuals);
         WriteBool("ExpandedPlay", "bEnableReticle", enableReticle);
         WriteFloat("ExpandedPlay", "fReticleOpacity", reticleOpacity);
         WriteFloat("ExpandedPlay", "fReticleMagnetismStrength", reticleMagnetismStrength);

@@ -72,17 +72,33 @@ were deployed without launching Skyrim. The prior files have a hash-verified
 rollback backup; the user INI is unchanged. Continue the controlled game tests;
 do not publish this as a verified release.
 
+**November 23, 2026 — v2.1.0 WP-11 & Principal-Engineer Audit Remediation:** All
+131 INI/web keys, five presets, and 30 console commands are synchronized with
+executable regression checks (`Test-ConfiguratorParity.ps1` + `ConfiguratorTests.js`),
+all 7 CTest suites, and cryptographic charter verification (`verify_charter.py`).
+All audit-identified release blockers (`SEC-01`–`SEC-05`, `CRIT-01`–`CRIT-11`,
+`ARCH-01`–`ARCH-03`, `DOC-01`–`DOC-06`) have been remediated in code, packaging,
+and documentation (see [`docs/AUDIT_REMEDIATION_LOG.md`](docs/AUDIT_REMEDIATION_LOG.md)).
+A dedicated 5-track R&D Innovation Program (`NOV-01`–`NOV-05`) anchored on Skyrim VR
+as the first-party HCEP reference platform has been established in
+[`docs/RD_INNOVATION_PROGRAM.md`](docs/RD_INNOVATION_PROGRAM.md). Live in-game
+SE/AE/VR field certification (including ReSaver `.ess` save verification and VR
+headset testing) remains the final release gate before tagging public v2.1.0.
+
 **Architect & Product Owner:** Kirk LaSalle  
 **Repository:** `https://github.com/kirklasalle/SkyrimTrueGaze`  
-**Current Milestone:** v2.0.0 — Expanded Play, Real-Time Oblivion Persuasion, Staged Lore Awakening & Combat/Creature Sight  
-**Last Updated:** November 22, 2026
+**Current Milestone:** v2.1.0 — WP-11 (Faction Sight, Voices, Visuals, Rumors), Principal-Engineer Hardening & VR-First HCEP R&D Program  
+**Last Updated:** November 23, 2026
 
+**R&D Innovation Program (NOV-01–NOV-05):** [`docs/RD_INNOVATION_PROGRAM.md`](docs/RD_INNOVATION_PROGRAM.md)  
+**Principal-Engineer Audit Remediation Log:** [`docs/AUDIT_REMEDIATION_LOG.md`](docs/AUDIT_REMEDIATION_LOG.md)  
+**WP-11 Design & Spec:** [`docs/WP11_FACTION_SIGHT_VOICE_PERSUASION_DESIGN.md`](docs/WP11_FACTION_SIGHT_VOICE_PERSUASION_DESIGN.md)  
 **Expanded Play & Awakening plan:** [`docs/IMPLEMENTATION_PLAN_EXPANDED_PLAY_G0_G3.md`](docs/IMPLEMENTATION_PLAN_EXPANDED_PLAY_G0_G3.md)  
 **Lore & Pilgrimage Chronicle:** [`docs/TRUEGAZE_LORE_AND_STORY.md`](docs/TRUEGAZE_LORE_AND_STORY.md)  
 **Real-Time Persuasion GDD:** [`docs/REALTIME_PERSUASION_AND_TRANSACTIONS_GDD.md`](docs/REALTIME_PERSUASION_AND_TRANSACTIONS_GDD.md)  
 **Current SOTA plan:** [`docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md`](docs/IMPLEMENTATION_PLAN_SOTA_RUNTIME_TO_RELEASE.md)  
 **Current engineering plan:** [`docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md`](docs/IMPLEMENTATION_PLAN_2026-09-27_CONFIGURATOR_CATEGORY_PRESETS.md)  
-**Latest audit:** [`docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md`](docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md) (configurator) · [`docs/AUDIT_REPORT_2026-09-26.md`](docs/AUDIT_REPORT_2026-09-26.md) (codebase)
+**Latest audits:** [`docs/AUDIT_REMEDIATION_LOG.md`](docs/AUDIT_REMEDIATION_LOG.md) (2026-11-23) · [`docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md`](docs/AUDIT_REPORT_2026-09-27_CONFIGURATOR.md) · [`docs/AUDIT_REPORT_2026-09-26.md`](docs/AUDIT_REPORT_2026-09-26.md)
 
 ---
 

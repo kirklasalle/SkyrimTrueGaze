@@ -236,6 +236,11 @@ namespace TrueGaze::Bridge
 
         std::array<TelemetrySlot, SLOT_COUNT> _slots{};
 
+        /// CRIT-05: Lightweight Windows SRWLOCK (trivially destructible POD so
+        /// Stop(Abandon) stays 100% safe) eliminating the formal C++ data race
+        /// and missing acquire fence between _slots[index] copy and epoch check.
+        mutable SRWLOCK _slotLock = SRWLOCK_INIT;
+
         /// Index of the most recently published slot. Starts at SLOT_COUNT meaning
         /// "nothing published yet", so the reader never mistakes slot 0's zeroed
         /// contents for real data.

@@ -65,7 +65,9 @@ namespace TrueGaze::Visuals
         uint64_t g_frameMenuState{0};
         DiagnosticMenuPolicy g_menuPolicy;
         VisualTuning g_tuning{};
-        std::unordered_map<uint32_t, WorldReceiver> g_receivers;
+        // CRIT-08: Immortal heap holder so DLL_PROCESS_DETACH never invokes
+        // NiRefObject::DecRefCount() on receiver NiPointers after Skyrim teardown.
+        auto& g_receivers = *(new std::unordered_map<uint32_t, WorldReceiver>{});
         uint32_t g_receiverOverflow{0};
         std::atomic<uint64_t> g_failures{0};
         std::mutex g_uiMutex;

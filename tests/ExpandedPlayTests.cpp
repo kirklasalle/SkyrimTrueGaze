@@ -1,19 +1,21 @@
-#include "TestSupport.hpp"
 #include "ExpandedPlay/AwakeningRitual.hpp"
 #include "ExpandedPlay/BookStudyTracker.hpp"
-#include "ExpandedPlay/CombatAndCreatureSight.hpp"
 #include "ExpandedPlay/CoSaveSerializer.hpp"
+#include "ExpandedPlay/CombatAndCreatureSight.hpp"
 #include "ExpandedPlay/DemeanorController.hpp"
 #include "ExpandedPlay/ExpandedPlayConfig.hpp"
 #include "ExpandedPlay/ExpandedPlayModifiers.hpp"
 #include "ExpandedPlay/ExpandedPlayTypes.hpp"
+#include "ExpandedPlay/FactionSight.hpp"
 #include "ExpandedPlay/GazeLedger.hpp"
 #include "ExpandedPlay/GazeReticle.hpp"
 #include "ExpandedPlay/InterpretationEngine.hpp"
+#include "ExpandedPlay/NpcVoiceResponder.hpp"
 #include "ExpandedPlay/PerceptionGate.hpp"
 #include "ExpandedPlay/PersuasionTransactions.hpp"
 #include "ExpandedPlay/PresenceSignature.hpp"
 #include "ExpandedPlay/ResponseLadder.hpp"
+#include "TestSupport.hpp"
 
 #include <cassert>
 #include <cmath>
@@ -78,7 +80,8 @@ namespace
                            "IntrusionLeer") == 0);
         assert(std::strcmp(EP::RelationshipTierName(EP::RelationshipTier::Spouse), "Spouse") == 0);
         assert(std::strcmp(EP::PresenceTierName(EP::PresenceTier::Legendary), "Legendary") == 0);
-        assert(std::strcmp(EP::ScholarshipRankName(EP::ScholarshipRank::Canticle), "Canticle") == 0);
+        assert(std::strcmp(EP::ScholarshipRankName(EP::ScholarshipRank::Canticle), "Canticle") ==
+               0);
     }
 
     void TestDwellClassification()
@@ -186,19 +189,19 @@ namespace
         assert(!ps.HasMeaningfulState());
 
         EP::SignRecordData src{};
-        src.presence.canticleAwakened     = true;
-        src.presence.current              = 31.5f;
-        src.presence.maximum              = 47.0f;
-        src.presence.shakenUntilGameDays  = 12.25f;
-        src.presence.timidDebuff          = true;
+        src.presence.canticleAwakened = true;
+        src.presence.current = 31.5f;
+        src.presence.maximum = 47.0f;
+        src.presence.shakenUntilGameDays = 12.25f;
+        src.presence.timidDebuff = true;
         src.presence.dailyGainAccumulated = 2.5f;
-        src.presence.lastGainGameDay      = 10.0f;
-        src.signature                     = {42.0f, -15.5f, 18.0f, 61.0f};
-        src.activeDemeanor                = EP::Demeanor::Stern;
-        src.demeanorMode                  = EP::DemeanorMode::Manual;
-        src.booksFullyStudiedCount        = 17u;
-        src.skillBoostActorValue          = 21u;
-        src.skillBoostExpiresGameDays     = 14.5f;
+        src.presence.lastGainGameDay = 10.0f;
+        src.signature = {42.0f, -15.5f, 18.0f, 61.0f};
+        src.activeDemeanor = EP::Demeanor::Stern;
+        src.demeanorMode = EP::DemeanorMode::Manual;
+        src.booksFullyStudiedCount = 17u;
+        src.skillBoostActorValue = 21u;
+        src.skillBoostExpiresGameDays = 14.5f;
 
         const auto bytes = EP::EncodeSignRecord(src);
         EP::SignRecordData dst{};
@@ -223,12 +226,12 @@ namespace
 
         // Corrupt out-of-range / NaN floats & invalid enums must clamp safely.
         EP::SignRecordData dirty{};
-        dirty.presence.maximum      = 250.0f;
-        dirty.presence.current      = 999.0f;
-        dirty.signature.warmth      = std::numeric_limits<float>::quiet_NaN();
-        dirty.signature.restraint   = -900.0f;
-        dirty.activeDemeanor        = static_cast<EP::Demeanor>(88);
-        dirty.demeanorMode          = static_cast<EP::DemeanorMode>(77);
+        dirty.presence.maximum = 250.0f;
+        dirty.presence.current = 999.0f;
+        dirty.signature.warmth = std::numeric_limits<float>::quiet_NaN();
+        dirty.signature.restraint = -900.0f;
+        dirty.activeDemeanor = static_cast<EP::Demeanor>(88);
+        dirty.demeanorMode = static_cast<EP::DemeanorMode>(77);
         const auto dirtyBytes = EP::EncodeSignRecord(dirty);
         EP::SignRecordData cleaned{};
         assert(EP::DecodeSignRecord(dirtyBytes, EP::kSerializationVersion, cleaned));
@@ -248,22 +251,22 @@ namespace
     void TestCoSaveLedgerRoundTripAndFormIdResolution()
     {
         EP::GazeLedgerEntry camilla{};
-        camilla.npcFormId        = 0x0001347Bu;
+        camilla.npcFormId = 0x0001347Bu;
         camilla.lastSeenGameDays = 5.5f;
-        camilla.lruSequence      = 42u;
-        camilla.impressions      = {25.0f, 40.0f, -5.0f, 0.0f, 12.0f, 0.0f};
-        camilla.permanentFloor   = {5.0f, 10.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-        camilla.recognized       = true;
-        camilla.eventCount       = 2u;
-        camilla.eventHead        = 2u;
+        camilla.lruSequence = 42u;
+        camilla.impressions = {25.0f, 40.0f, -5.0f, 0.0f, 12.0f, 0.0f};
+        camilla.permanentFloor = {5.0f, 10.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        camilla.recognized = true;
+        camilla.eventCount = 2u;
+        camilla.eventHead = 2u;
         camilla.notableEvents[0] = {EP::NotableEventType::FirstMutualGaze, 4.0f, 0x0001677Au, 0u};
         camilla.notableEvents[1] = {EP::NotableEventType::TriangleWitnessed, 5.5f, 0x0001677Au,
                                     0x00013492u};
 
         EP::GazeLedgerEntry missingModNpc{};
-        missingModNpc.npcFormId        = 0xFE005123u;
+        missingModNpc.npcFormId = 0xFE005123u;
         missingModNpc.lastSeenGameDays = 6.0f;
-        missingModNpc.lruSequence      = 43u;
+        missingModNpc.lruSequence = 43u;
 
         const std::vector<EP::GazeLedgerEntry> src{camilla, missingModNpc};
         const auto bytes = EP::EncodeLedgerRecord(src);
@@ -302,16 +305,16 @@ namespace
     void TestCoSaveBookRoundTripAndTruncationSafety()
     {
         EP::BookStudyEntry canticle{};
-        canticle.bookFormId          = 0x05001001u;
-        canticle.pagesReadMask       = 0b1011ULL;
-        canticle.totalSpreads        = 4u;
-        canticle.fullStudyAwarded    = false;
+        canticle.bookFormId = 0x05001001u;
+        canticle.pagesReadMask = 0b1011ULL;
+        canticle.totalSpreads = 4u;
+        canticle.fullStudyAwarded = false;
         canticle.lastStudiedGameDays = 7.75f;
 
         EP::BookStudyEntry missingBook{};
-        missingBook.bookFormId    = 0xFE012345u;
+        missingBook.bookFormId = 0xFE012345u;
         missingBook.pagesReadMask = 0xFFULL;
-        missingBook.totalSpreads  = 8u;
+        missingBook.totalSpreads = 8u;
 
         const std::vector<EP::BookStudyEntry> src{canticle, missingBook};
         const auto bytes = EP::EncodeBookRecord(src);
@@ -579,7 +582,8 @@ namespace
         {
             for (float dwell : kDwells)
             {
-                for (uint8_t t = 0; t <= static_cast<uint8_t>(EP::RelationshipTier::Subordinate); ++t)
+                for (uint8_t t = 0; t <= static_cast<uint8_t>(EP::RelationshipTier::Subordinate);
+                     ++t)
                 {
                     EP::InterpretationContext childCtx{};
                     childCtx.isChild = true;
@@ -587,7 +591,8 @@ namespace
                     childCtx.isMutual = true;
                     childCtx.tier = static_cast<EP::RelationshipTier>(t);
 
-                    const auto res = EP::InterpretationEngine::EvaluateLook(region, dwell, childCtx);
+                    const auto res =
+                        EP::InterpretationEngine::EvaluateLook(region, dwell, childCtx);
                     assert(res.interpretation != EP::Interpretation::Attraction);
                     assert(res.interpretation != EP::Interpretation::IntrusionLeer);
                     if (EP::IsBodyRegion(region))
@@ -779,7 +784,8 @@ namespace
 
         // Spouse jealousy & Riverwood Sven/Camilla/Faendal triangle hook
         assert(ledger.RecordWitnessedInteraction(0x2001u, EP::WitnessRole::Spouse, 0x1002u,
-                                                 EP::Interpretation::Attraction, 1.0f, 2.0f, 0x777u));
+                                                 EP::Interpretation::Attraction, 1.0f, 2.0f,
+                                                 0x777u));
         const auto* spouse = ledger.Find(0x2001u);
         assert(spouse != nullptr && spouse->impressions.unease >= 15.0f &&
                spouse->notableEvents[0].type == EP::NotableEventType::SpouseJealousy);
@@ -799,8 +805,8 @@ namespace
                                    static_cast<float>(id), 0u, 0u);
         }
         assert(lru.PersistentCount() == EP::GazeLedger::kMaxPersistentEntries);
-        assert(lru.Find(0x9001u) == nullptr);  // oldest evicted
-        assert(lru.Find(0x9208u) != nullptr);  // newest retained
+        assert(lru.Find(0x9001u) == nullptr); // oldest evicted
+        assert(lru.Find(0x9208u) != nullptr); // newest retained
     }
 
     void TestPresenceSignatureDiminishingReturnsAndTitles()
@@ -868,13 +874,12 @@ namespace
 
         // Session: speed-flip spread 0 (< 1.5s), read spread 1 & 2 slowly (>= 2.5s)
         EP::BookStudySession session;
-        session.Begin(0x12345u,
-                      "First page.[pagebreak]Second page.[pagebreak]Third page.",
-                      true, 21u /*Illusion*/, true /*rare canticle*/);
+        session.Begin(0x12345u, "First page.[pagebreak]Second page.[pagebreak]Third page.", true,
+                      21u /*Illusion*/, true /*rare canticle*/);
         assert(session.IsActive() && session.SpreadCount() == 3u);
 
-        session.RecordSpreadDwell(0u, 0.8f, false); // ignored speed-flip
-        session.RecordSpreadDwell(1u, 3.0f, true);  // valid + True Reader scan
+        session.RecordSpreadDwell(0u, 0.8f, false);  // ignored speed-flip
+        session.RecordSpreadDwell(1u, 3.0f, true);   // valid + True Reader scan
         session.RecordSpreadDwell(2u, 60.0f, false); // capped at 45s AFK, still valid (>= 2.5s)
 
         EP::BookStudyEntry entry{};
@@ -887,9 +892,8 @@ namespace
         assert(studiedBooks == 4u);
 
         // Re-open book and actually read spread 0 -> reaches 3/3 (100% >= 80%), unlocks rank!
-        session.Begin(0x12345u,
-                      "First page.[pagebreak]Second page.[pagebreak]Third page.",
-                      true, 21u, true);
+        session.Begin(0x12345u, "First page.[pagebreak]Second page.[pagebreak]Third page.", true,
+                      21u, true);
         session.RecordSpreadDwell(0u, 3.0f, false);
         const auto s2 = session.Finalize(entry, studiedBooks, 5.0f);
         assert(s2.newlyCreditedSpreads == 1u);
@@ -900,16 +904,14 @@ namespace
         assert(entry.fullStudyAwarded);
 
         // Immediate re-read (< 7 days) yields 0 duplicate credit; >= 7 days grants 25% refresh
-        session.Begin(0x12345u,
-                      "First page.[pagebreak]Second page.[pagebreak]Third page.",
-                      true, 21u, true);
+        session.Begin(0x12345u, "First page.[pagebreak]Second page.[pagebreak]Third page.", true,
+                      21u, true);
         session.RecordSpreadDwell(0u, 4.0f, false);
         const auto sDup = session.Finalize(entry, studiedBooks, 6.0f);
         assert(sDup.newlyCreditedSpreads == 0u && sDup.refreshedSpreads == 0u);
 
-        session.Begin(0x12345u,
-                      "First page.[pagebreak]Second page.[pagebreak]Third page.",
-                      true, 21u, true);
+        session.Begin(0x12345u, "First page.[pagebreak]Second page.[pagebreak]Third page.", true,
+                      21u, true);
         session.RecordSpreadDwell(0u, 4.0f, false);
         const auto sRefresh = session.Finalize(entry, studiedBooks, 13.0f);
         assert(sRefresh.refreshedSpreads == 1u && sRefresh.presenceAwarded > 0.0f);
@@ -936,8 +938,8 @@ namespace
             EP::Impressions imp{};
             imp.warmth = 18.0f;
 
-            const EP::InterpretationResult warm{
-                EP::Interpretation::Warmth, 0.70f, EP::DwellBand::Gaze, true};
+            const EP::InterpretationResult warm{EP::Interpretation::Warmth, 0.70f,
+                                                EP::DwellBand::Gaze, true};
             const auto dw = EP::EvaluateResponseLadder(
                 warm, EP::Demeanor::Warm, EP::PresenceTier::Steady, imp, true, true, true, true);
             assert(dw.rung1.applyModeOverride && dw.rung1.hcepMode == 1u);
@@ -958,8 +960,8 @@ namespace
                    !dwCool.rung4.emitAiNpcBridge);
 
             // Challenge
-            const EP::InterpretationResult chal{
-                EP::Interpretation::Challenge, 0.80f, EP::DwellBand::Stare, true};
+            const EP::InterpretationResult chal{EP::Interpretation::Challenge, 0.80f,
+                                                EP::DwellBand::Stare, true};
             const auto dc = EP::EvaluateResponseLadder(
                 chal, EP::Demeanor::Stern, EP::PresenceTier::Noticed, imp, true, false, true, true);
             assert(dc.rung1.applyModeOverride && dc.rung1.hcepMode == 0u &&
@@ -968,35 +970,36 @@ namespace
             assert(!dc.rung4.emitWhisper && dc.rung4.emitModEvent && dc.rung4.emitAiNpcBridge);
 
             // IntrusionLeer
-            const EP::InterpretationResult leer{
-                EP::Interpretation::IntrusionLeer, 0.75f, EP::DwellBand::Stare, true};
-            const auto dl = EP::EvaluateResponseLadder(
-                leer, EP::Demeanor::Courteous, EP::PresenceTier::Unnoticed, imp, true, true, false,
-                true);
+            const EP::InterpretationResult leer{EP::Interpretation::IntrusionLeer, 0.75f,
+                                                EP::DwellBand::Stare, true};
+            const auto dl = EP::EvaluateResponseLadder(leer, EP::Demeanor::Courteous,
+                                                       EP::PresenceTier::Unnoticed, imp, true, true,
+                                                       false, true);
             assert(dl.rung1.forceAversion && dl.rung1.hcepMode == 4u &&
                    dl.rung1.aversionRegionId == EP::Region::LRPeriph);
             assert(dl.rung2.mood == EP::FaceExpressionMood::Disgusted);
             assert(dl.rung4.emitWhisper && dl.rung4.emitModEvent && !dl.rung4.emitAiNpcBridge);
 
             // Suspicion, Compassion, Deference
-            const EP::InterpretationResult susp{
-                EP::Interpretation::Suspicion, 0.50f, EP::DwellBand::Gaze, true};
-            assert(EP::EvaluateResponseLadder(susp, EP::Demeanor::Evasive, EP::PresenceTier::Noticed,
-                                              imp, true, true, true, true)
+            const EP::InterpretationResult susp{EP::Interpretation::Suspicion, 0.50f,
+                                                EP::DwellBand::Gaze, true};
+            assert(EP::EvaluateResponseLadder(susp, EP::Demeanor::Evasive,
+                                              EP::PresenceTier::Noticed, imp, true, true, true,
+                                              true)
                        .rung2.mood == EP::FaceExpressionMood::Puzzled);
 
-            const EP::InterpretationResult comp{
-                EP::Interpretation::Compassion, 0.60f, EP::DwellBand::Look, true};
+            const EP::InterpretationResult comp{EP::Interpretation::Compassion, 0.60f,
+                                                EP::DwellBand::Look, true};
             const auto dComp = EP::EvaluateResponseLadder(
                 comp, EP::Demeanor::Warm, EP::PresenceTier::Noticed, imp, true, true, true, true);
             assert(dComp.rung1.hcepMode == 3u && dComp.rung2.mood == EP::FaceExpressionMood::Sad);
             assert(!dComp.rung4.emitModEvent); // Look < Gaze
 
-            const EP::InterpretationResult def{
-                EP::Interpretation::Deference, 0.50f, EP::DwellBand::Look, true};
-            const auto dDef = EP::EvaluateResponseLadder(
-                def, EP::Demeanor::Deferential, EP::PresenceTier::Noticed, imp, true, true, true,
-                true);
+            const EP::InterpretationResult def{EP::Interpretation::Deference, 0.50f,
+                                               EP::DwellBand::Look, true};
+            const auto dDef =
+                EP::EvaluateResponseLadder(def, EP::Demeanor::Deferential,
+                                           EP::PresenceTier::Noticed, imp, true, true, true, true);
             assert(dDef.rung1.forceAversion && dDef.rung2.mood == EP::FaceExpressionMood::Neutral);
 
             // Social module disabled blocks Rungs 1, 2, 4
@@ -1124,30 +1127,40 @@ namespace
     {
         // 1. Riverwood cast profiles & universal deterministic fallback
         {
-            const auto camilla = EP::ResolveNpcAffinityProfile(
-                0x01347Bu, EP::ObserverCulture::Imperial, EP::RelationshipTier::Stranger, false,
-                false);
+            const auto camilla =
+                EP::ResolveNpcAffinityProfile(0x01347Bu, EP::ObserverCulture::Imperial,
+                                              EP::RelationshipTier::Stranger, false, false);
             assert(camilla.ForVector(EP::PersuasionVector::Admire) == EP::AffinityTier::Love);
             assert(camilla.ForVector(EP::PersuasionVector::Coerce) == EP::AffinityTier::Hate);
 
-            const auto delphine = EP::ResolveNpcAffinityProfile(
-                0x013485u, EP::ObserverCulture::Breton, EP::RelationshipTier::Stranger, false,
-                false);
+            const auto delphine =
+                EP::ResolveNpcAffinityProfile(0x013478u, EP::ObserverCulture::Breton,
+                                              EP::RelationshipTier::Stranger, false, false);
             assert(delphine.ForVector(EP::PersuasionVector::Coerce) == EP::AffinityTier::Love);
             assert(delphine.ForVector(EP::PersuasionVector::Joke) == EP::AffinityTier::Hate);
 
-            const auto lucan = EP::ResolveNpcAffinityProfile(
-                0x01347Cu, EP::ObserverCulture::Imperial, EP::RelationshipTier::Stranger, false,
-                false);
+            const auto orgnar =
+                EP::ResolveNpcAffinityProfile(0x013479u, EP::ObserverCulture::Nord,
+                                              EP::RelationshipTier::Stranger, false, false);
+            assert(orgnar.ForVector(EP::PersuasionVector::Joke) == EP::AffinityTier::Love);
+            assert(orgnar.ForVector(EP::PersuasionVector::Admire) == EP::AffinityTier::Dislike);
+
+            const auto lucan =
+                EP::ResolveNpcAffinityProfile(0x01347Au, EP::ObserverCulture::Imperial,
+                                              EP::RelationshipTier::Stranger, false, false);
             assert(lucan.ForVector(EP::PersuasionVector::Boast) == EP::AffinityTier::Love);
             assert(lucan.ForVector(EP::PersuasionVector::SlyBribe) == EP::AffinityTier::Like);
 
+            const auto gerdur =
+                EP::ResolveNpcAffinityProfile(0x01347Cu, EP::ObserverCulture::Nord,
+                                              EP::RelationshipTier::Stranger, false, false);
+            assert(gerdur.ForVector(EP::PersuasionVector::Plea) == EP::AffinityTier::Love);
+            assert(gerdur.ForVector(EP::PersuasionVector::Coerce) == EP::AffinityTier::Hate);
+
             const auto guardA = EP::ResolveNpcAffinityProfile(
-                0x0ABCDEFu, EP::ObserverCulture::Nord, EP::RelationshipTier::Superior, true,
-                false);
+                0x0ABCDEFu, EP::ObserverCulture::Nord, EP::RelationshipTier::Superior, true, false);
             const auto guardB = EP::ResolveNpcAffinityProfile(
-                0x0ABCDEFu, EP::ObserverCulture::Nord, EP::RelationshipTier::Superior, true,
-                false);
+                0x0ABCDEFu, EP::ObserverCulture::Nord, EP::RelationshipTier::Superior, true, false);
             assert(guardA.ForVector(EP::PersuasionVector::Coerce) == EP::AffinityTier::Hate);
             assert(guardA.tiers == guardB.tiers);
         }
@@ -1173,10 +1186,10 @@ namespace
             tracker.Observe(0x5001u, EP::Region::RightHand, false, 10.0f);
             tracker.Observe(0x5001u, EP::Region::LeftEye, false, 11.2f);
             assert(tracker.IsSlyBribeCadenceActive(0x5001u, 11.5f));
-            assert(EP::ClassifyPersuasionVector(
-                       EP::Region::LeftEye, EP::Demeanor::Courteous, false, false, false,
-                       EP::PresenceTier::Noticed, false, false, true, false) ==
-                   EP::PersuasionVector::SlyBribe);
+            assert(EP::ClassifyPersuasionVector(EP::Region::LeftEye, EP::Demeanor::Courteous, false,
+                                                false, false, EP::PresenceTier::Noticed, false,
+                                                false, true,
+                                                false) == EP::PersuasionVector::SlyBribe);
 
             tracker.Reset();
             tracker.Observe(0x5002u, EP::Region::LeftEye, true, 20.0f);
@@ -1195,9 +1208,9 @@ namespace
 
         // 4. Phase 1 Probe Tell & "Guard's Glance" witness interrupt
         {
-            const auto camilla = EP::ResolveNpcAffinityProfile(
-                0x01347Bu, EP::ObserverCulture::Imperial, EP::RelationshipTier::Stranger, false,
-                false);
+            const auto camilla =
+                EP::ResolveNpcAffinityProfile(0x01347Bu, EP::ObserverCulture::Imperial,
+                                              EP::RelationshipTier::Stranger, false, false);
             const auto loveProbe =
                 EP::EvaluateProbeTell(EP::PersuasionVector::Admire, camilla, 0.80f, 0u, false);
             assert(loveProbe.active && loveProbe.affinity == EP::AffinityTier::Love);
@@ -1281,8 +1294,7 @@ namespace
             const float d1 = ledger.SetTargetDelta(0x14u, 107, scholar + 6.0f);
             assert(std::abs(d1 - (scholar + 6.0f)) < 1e-5f);
             const auto teardown = ledger.CollectTeardownDeltas();
-            assert(teardown.size() == 1u &&
-                   std::abs(teardown[0].delta + scholar + 6.0f) < 1e-5f);
+            assert(teardown.size() == 1u && std::abs(teardown[0].delta + scholar + 6.0f) < 1e-5f);
         }
 
         // 7. Multi-channel ApplyImpressionDelta (StandDownGrace & SlyBribePrime)
@@ -1290,8 +1302,8 @@ namespace
             EP::GazeLedger gl;
             EP::Impressions standDown{};
             standDown.respect = 2.5f;
-            standDown.warmth  = 1.8f;
-            standDown.fear    = -2.0f;
+            standDown.warmth = 1.8f;
+            standDown.fear = -2.0f;
             gl.ApplyImpressionDelta(0x8801u, standDown, 5.0f, 0x777u, true);
             const auto* entry = gl.Find(0x8801u);
             assert(entry != nullptr && entry->recognized);
@@ -1350,11 +1362,12 @@ namespace
             assert(EP::ParseUnlockMode("invalid", &valid) == EP::UnlockMode::Ritual && !valid);
         }
 
-        // 2. All 24 order-independent permutations of the 4 tumblers -> Stage 0->1->2->3->3 -> Ceremony->4
+        // 2. All 24 order-independent permutations of the 4 tumblers -> Stage 0->1->2->3->3 ->
+        // Ceremony->4
         {
-            std::array<uint8_t, 4> bits{
-                EP::TumblerBits::kWord, EP::TumblerBits::kVessel,
-                EP::TumblerBits::kSharedSight, EP::TumblerBits::kPilgrimage};
+            std::array<uint8_t, 4> bits{EP::TumblerBits::kWord, EP::TumblerBits::kVessel,
+                                        EP::TumblerBits::kSharedSight,
+                                        EP::TumblerBits::kPilgrimage};
             std::sort(bits.begin(), bits.end());
             int permutations = 0;
             do
@@ -1373,7 +1386,8 @@ namespace
                        !c1.allowPersuasionProbes && !c1.allowTransactions &&
                        !c1.allowPredatoryDemeanor);
                 assert(std::abs(c1.maxPresenceCap - 39.0f) < 1e-4f);
-                assert(EP::ClampDemeanorToStage(EP::Demeanor::Stern, c1) == EP::Demeanor::Courteous);
+                assert(EP::ClampDemeanorToStage(EP::Demeanor::Stern, c1) ==
+                       EP::Demeanor::Courteous);
 
                 // 2nd tumbler -> Stage 2
                 const auto e2 = EP::MarkTumbler(st, bits[1], EP::UnlockMode::Ritual, "Key 2");
@@ -1384,7 +1398,8 @@ namespace
                        c2.allowSternEvasiveDemeanor && !c2.allowTransactions &&
                        !c2.allowKindredSight);
                 assert(EP::ClampDemeanorToStage(EP::Demeanor::Stern, c2) == EP::Demeanor::Stern);
-                assert(EP::ClampDemeanorToStage(EP::Demeanor::Predatory, c2) == EP::Demeanor::Stern);
+                assert(EP::ClampDemeanorToStage(EP::Demeanor::Predatory, c2) ==
+                       EP::Demeanor::Stern);
 
                 // 3rd tumbler -> Stage 3
                 const auto e3 = EP::MarkTumbler(st, bits[2], EP::UnlockMode::Ritual, "Key 3");
@@ -1405,12 +1420,15 @@ namespace
                        e4.newStage == EP::AwakeningStage::LivingGlyph);
 
                 // Ceremony requires Sanctuary + Focus + Studied Book
-                assert(!EP::TryCompleteSanctuaryCeremony(st, false, true, true, EP::UnlockMode::Ritual)
-                            .progressed);
-                assert(!EP::TryCompleteSanctuaryCeremony(st, true, false, true, EP::UnlockMode::Ritual)
-                            .progressed);
-                assert(!EP::TryCompleteSanctuaryCeremony(st, true, true, false, EP::UnlockMode::Ritual)
-                            .progressed);
+                assert(
+                    !EP::TryCompleteSanctuaryCeremony(st, false, true, true, EP::UnlockMode::Ritual)
+                         .progressed);
+                assert(
+                    !EP::TryCompleteSanctuaryCeremony(st, true, false, true, EP::UnlockMode::Ritual)
+                         .progressed);
+                assert(
+                    !EP::TryCompleteSanctuaryCeremony(st, true, true, false, EP::UnlockMode::Ritual)
+                         .progressed);
 
                 const auto cer =
                     EP::TryCompleteSanctuaryCeremony(st, true, true, true, EP::UnlockMode::Ritual);
@@ -1427,8 +1445,10 @@ namespace
 
         // 3. Base-Skyrim Sanctuaries (7 zero-DLC sites) & 2-shrine Pilgrimage tumbler
         {
-            assert(EP::MatchSanctuaryBit("Sleeping Giant Inn") == EP::SanctuaryBits::kSleepingGiantInn);
-            assert(EP::MatchSanctuaryBit("Temple of Kynareth") == EP::SanctuaryBits::kTempleOfKynareth);
+            assert(EP::MatchSanctuaryBit("Sleeping Giant Inn") ==
+                   EP::SanctuaryBits::kSleepingGiantInn);
+            assert(EP::MatchSanctuaryBit("Temple of Kynareth") ==
+                   EP::SanctuaryBits::kTempleOfKynareth);
             assert(EP::MatchSanctuaryBit("Eldergleam Sanctuary") == EP::SanctuaryBits::kEldergleam);
             assert(EP::MatchSanctuaryBit("Temple of Mara") == EP::SanctuaryBits::kTempleOfMara);
             assert(EP::MatchSanctuaryBit("Temple of the Divines") ==
@@ -1438,15 +1458,15 @@ namespace
             assert(EP::MatchSanctuaryBit("Whiterun") == EP::SanctuaryBits::kNone);
 
             EP::AwakeningState st{};
-            const auto v1 = EP::RecordSanctuaryStillness(
-                st, EP::SanctuaryBits::kSleepingGiantInn, EP::UnlockMode::Ritual);
+            const auto v1 = EP::RecordSanctuaryStillness(st, EP::SanctuaryBits::kSleepingGiantInn,
+                                                         EP::UnlockMode::Ritual);
             assert(v1.progressed && (st.tumblerMask & EP::TumblerBits::kPilgrimage) == 0u);
             // Revisiting same shrine does not light Pilgrimage
             const auto v1Dup = EP::RecordSanctuaryStillness(
                 st, EP::SanctuaryBits::kSleepingGiantInn, EP::UnlockMode::Ritual);
             assert(!v1Dup.progressed);
-            const auto v2 = EP::RecordSanctuaryStillness(
-                st, EP::SanctuaryBits::kEldergleam, EP::UnlockMode::Ritual);
+            const auto v2 = EP::RecordSanctuaryStillness(st, EP::SanctuaryBits::kEldergleam,
+                                                         EP::UnlockMode::Ritual);
             assert(v2.progressed && (st.tumblerMask & EP::TumblerBits::kPilgrimage) != 0u);
         }
 
@@ -1527,7 +1547,8 @@ namespace
 
     void TestSmartBrandishingCombatAndCreatureSight()
     {
-        // 1. Smart Brandishing: peaceful utility (Canticle spell / torch / healing) != lethal brandish
+        // 1. Smart Brandishing: peaceful utility (Canticle spell / torch / healing) != lethal
+        // brandish
         {
             EP::ActorHeldPosture canticle{};
             canticle.handsRaised = true;
@@ -1554,7 +1575,8 @@ namespace
             assert(fireball.IsLethalBrandish() && fireball.HasHostileSpell());
         }
 
-        // 2. Combat Sight: Stage 1 gated off; Stage 2+ reads Weapon Wind-Up, Spell Charge, Shield, Footwork
+        // 2. Combat Sight: Stage 1 gated off; Stage 2+ reads Weapon Wind-Up, Spell Charge, Shield,
+        // Footwork
         {
             EP::CombatSightInput base{};
             base.stage = EP::AwakeningStage::FirstGlimmer;
@@ -1615,10 +1637,14 @@ namespace
         // 3. Creature Sight: Prey Gentle Sight, Predator Kyne's Stillness, Dragon Dov's Weight
         {
             assert(EP::ClassifyCreatureArchetype("ElkRace", false) == EP::CreatureArchetype::Prey);
-            assert(EP::ClassifyCreatureArchetype("WolfRace", false) == EP::CreatureArchetype::Predator);
-            assert(EP::ClassifyCreatureArchetype("DragonRace", false) == EP::CreatureArchetype::Dragon);
-            assert(EP::ClassifyCreatureArchetype("DragonPriestRace", false) != EP::CreatureArchetype::Dragon);
-            assert(EP::ClassifyCreatureArchetype("NordRace", true) == EP::CreatureArchetype::Humanoid);
+            assert(EP::ClassifyCreatureArchetype("WolfRace", false) ==
+                   EP::CreatureArchetype::Predator);
+            assert(EP::ClassifyCreatureArchetype("DragonRace", false) ==
+                   EP::CreatureArchetype::Dragon);
+            assert(EP::ClassifyCreatureArchetype("DragonPriestRace", false) !=
+                   EP::CreatureArchetype::Dragon);
+            assert(EP::ClassifyCreatureArchetype("NordRace", true) ==
+                   EP::CreatureArchetype::Humanoid);
 
             // Prey Gentle Sight -> Sneak bonus when unarmed & Deferential
             EP::CreatureSightInput prey{};
@@ -1655,7 +1681,7 @@ namespace
         // 4. Sanctuary Relic Discovery mapping & backward-compatible AWKN v1 co-save round-trip
         {
             assert(EP::GetSanctuaryRelicSpec(EP::SanctuaryBits::kSleepingGiantInn).slot ==
-                   EP::SanctuaryRelicSlot::FirstCanticle);
+                   EP::SanctuaryRelicSlot::None);
             assert(EP::GetSanctuaryRelicSpec(EP::SanctuaryBits::kTempleOfKynareth).slot ==
                    EP::SanctuaryRelicSlot::AmuletMoth);
             assert(EP::GetSanctuaryRelicSpec(EP::SanctuaryBits::kEldergleam).slot ==
@@ -1672,19 +1698,255 @@ namespace
             EP::AwakeningState aw{};
             assert(EP::MarkSanctuaryRelicDiscovered(aw, EP::SanctuaryBits::kTempleOfKynareth));
             assert(!EP::MarkSanctuaryRelicDiscovered(aw, EP::SanctuaryBits::kTempleOfKynareth));
+            assert(EP::MarkDiscoveryHintShown(aw, EP::DiscoveryHintBits::kInnRumor));
+            assert(!EP::MarkDiscoveryHintShown(aw, EP::DiscoveryHintBits::kInnRumor));
+            assert(EP::MarkDiscoveryHintShown(aw, EP::DiscoveryHintBits::kBarNotePlaced));
+            assert(!EP::MarkDiscoveryHintShown(aw, EP::DiscoveryHintBits::kBarNotePlaced));
+            assert(EP::MarkDiscoveryHintShown(aw, EP::DiscoveryHintBits::kInnVisitedLeft));
+            assert(EP::MarkDiscoveryHintShown(aw, EP::DiscoveryHintBits::kCourierSent));
             assert(aw.HasAnyProgress());
 
-            const auto bytes9 = EP::EncodeAwakeningRecord(aw);
-            assert(bytes9.size() == 9u);
-            EP::AwakeningState decoded9{};
-            assert(EP::DecodeAwakeningRecord(bytes9, EP::kSerializationVersion, decoded9));
-            assert(decoded9.discoveredSanctuaryRelicsMask == EP::SanctuaryBits::kTempleOfKynareth);
+            const auto bytes10 = EP::EncodeAwakeningRecord(aw);
+            assert(bytes10.size() == 10u);
+            EP::AwakeningState decoded10{};
+            assert(EP::DecodeAwakeningRecord(bytes10, EP::kSerializationVersion, decoded10));
+            assert(decoded10.discoveredSanctuaryRelicsMask == EP::SanctuaryBits::kTempleOfKynareth);
+            const uint8_t expectedHints =
+                static_cast<uint8_t>(EP::DiscoveryHintBits::kInnRumor |
+                                     EP::DiscoveryHintBits::kBarNotePlaced |
+                                     EP::DiscoveryHintBits::kInnVisitedLeft |
+                                     EP::DiscoveryHintBits::kCourierSent);
+            assert(decoded10.discoveryHintsMask == expectedHints);
 
-            // Legacy 8-byte AWKN v1 record remains 100% readable
-            std::vector<uint8_t> legacy8(bytes9.begin(), bytes9.begin() + 8);
+            // Legacy 9-byte and 8-byte AWKN v1 records remain 100% readable
+            std::vector<uint8_t> legacy9(bytes10.begin(), bytes10.begin() + 9);
+            EP::AwakeningState decoded9{};
+            assert(EP::DecodeAwakeningRecord(legacy9, EP::kSerializationVersion, decoded9));
+            assert(decoded9.discoveredSanctuaryRelicsMask == EP::SanctuaryBits::kTempleOfKynareth);
+            assert(decoded9.discoveryHintsMask == EP::DiscoveryHintBits::kNone);
+
+            std::vector<uint8_t> legacy8(bytes10.begin(), bytes10.begin() + 8);
             EP::AwakeningState decoded8{};
             assert(EP::DecodeAwakeningRecord(legacy8, EP::kSerializationVersion, decoded8));
             assert(decoded8.discoveredSanctuaryRelicsMask == EP::SanctuaryBits::kNone);
+        }
+    }
+
+    void TestWp11FactionVoicePersuasionAndDiscovery()
+    {
+        // 1. WP-11A Persuasion HUD visual color & tag mapping
+        {
+            assert(EP::PersuasionAffinityColorRgb(3u, false) == 0x5CE68Au); // Love
+            assert(EP::PersuasionAffinityColorRgb(0u, false) == 0xFF4D4Du); // Hate
+            assert(EP::PersuasionAffinityColorRgb(3u, true) == 0xFF5555u); // Guard Glance overrides
+            assert(std::string_view(EP::PersuasionVectorTag(6u)) == "Sly Bribe");
+            assert(std::string_view(EP::PersuasionVectorTag(0u)).empty());
+        }
+
+        // 2. WP-11B Restraint-driven NPC Voice Budget
+        {
+            EP::VoiceResponseBudget budget;
+            EP::VoiceBudgetInput in{};
+            in.actorFormId = 0x1001u;
+            in.kind = EP::VoiceEventKind::GuardGlance;
+            in.nowSessionSec = 100.0f;
+            in.featureEnabled = true;
+
+            // Suppressed if speaking, in dialogue, child, dead, combat, or feature off
+            auto speaking = in;
+            speaking.actorSpeaking = true;
+            assert(!budget.TryApprove(speaking));
+
+            auto child = in;
+            child.actorIsChild = true;
+            assert(!budget.TryApprove(child));
+
+            auto sneakingWarm = in;
+            sneakingWarm.kind = EP::VoiceEventKind::WarmCommit;
+            sneakingWarm.playerSneaking = true;
+            assert(!budget.TryApprove(sneakingWarm));
+
+            // Find an approving entropy seed and confirm both global (18s) and per-NPC (60s)
+            // cooldowns
+            bool approved = false;
+            for (uint32_t seed = 1u; seed < 50u; ++seed)
+            {
+                auto tryIn = in;
+                tryIn.entropySeed = seed;
+                if (budget.TryApprove(tryIn))
+                {
+                    approved = true;
+                    break;
+                }
+            }
+            assert(approved);
+
+            // Global cooldown blocks another NPC 5s later
+            auto otherNpcSoon = in;
+            otherNpcSoon.actorFormId = 0x1002u;
+            otherNpcSoon.nowSessionSec = 105.0f;
+            for (uint32_t seed = 1u; seed < 30u; ++seed)
+            {
+                otherNpcSoon.entropySeed = seed;
+                assert(!budget.TryApprove(otherNpcSoon));
+            }
+
+            // Per-NPC cooldown still blocks original NPC at +30s (< 60s)
+            auto sameNpcMid = in;
+            sameNpcMid.nowSessionSec = 130.0f;
+            for (uint32_t seed = 1u; seed < 30u; ++seed)
+            {
+                sameNpcMid.entropySeed = seed;
+                assert(!budget.TryApprove(sameNpcMid));
+            }
+        }
+
+        // 3. WP-11C Faction Sight: all 7 major factions (strengths, drawbacks & civilian masking)
+        {
+            // Dark Brotherhood: sneaking mark study poise vs. unmasked citizen dread vs. civilian
+            // mask
+            EP::FactionSightInput db{};
+            db.playerFactions = EP::FactionBits::kDarkBrotherhood;
+            db.stage = EP::AwakeningStage::SteadySight;
+            db.playerSneaking = true;
+            db.regionId = EP::Region::Torso;
+            db.dwellSec = 2.0f;
+            db.distanceMeters = 6.0f;
+            const auto dbMark = EP::EvaluateFactionSight(db, "Vittoria");
+            assert(dbMark.strengthTriggered && dbMark.tacticalBuffs.sneakBonus >= 10.0f &&
+                   dbMark.tacticalBuffs.offenseBonus >= 8.0f);
+
+            db.playerSneaking = false;
+            db.wearingDarkBrotherhoodGear = true;
+            db.regionId = EP::Region::LeftEye;
+            db.observerIsGuard = true;
+            const auto dbDrawback = EP::EvaluateFactionSight(db, "Whiterun Guard");
+            assert(dbDrawback.drawbackTriggered && dbDrawback.socialDelta.suspicion > 0.0f &&
+                   dbDrawback.suggestVoiceScrutiny);
+
+            db.wearingDarkBrotherhoodGear = false;
+            db.activeDemeanor = EP::Demeanor::Courteous;
+            const auto dbMasked = EP::EvaluateFactionSight(db, "Whiterun Guard");
+            assert(dbMasked.maskedByCivilianDemeanor && !dbMasked.drawbackTriggered);
+
+            // Thieves Guild: belt/hand pickpocket poise, 18m Guard's Glance, 0.80x bribe vs shop
+            // scrutiny
+            EP::FactionSightInput tg{};
+            tg.playerFactions = EP::FactionBits::kThievesGuild;
+            tg.stage = EP::AwakeningStage::FirstGlimmer;
+            tg.regionId = EP::Region::RightHand;
+            tg.dwellSec = 1.0f;
+            tg.distanceMeters = 3.0f;
+            const auto tgPoise = EP::EvaluateFactionSight(tg, "Belethor");
+            assert(tgPoise.strengthTriggered && tgPoise.tacticalBuffs.pickpocketBonus >= 12.0f);
+            assert(tgPoise.guardGlanceRangeMeters >= 18.0f && tgPoise.bribeCostMultiplier < 0.85f);
+
+            tg.wearingThievesGuildGear = true;
+            tg.observerIsMerchant = true;
+            tg.dwellSec = 2.0f;
+            const auto tgScrutiny = EP::EvaluateFactionSight(tg, "Belethor");
+            assert(tgScrutiny.drawbackTriggered && tgScrutiny.socialDelta.suspicion > 0.0f);
+
+            // Companions: peer respect vs evasive frown + Circle beast-blood citizen unease
+            EP::FactionSightInput comp{};
+            comp.playerFactions = EP::FactionBits::kCompanions | EP::FactionBits::kCompanionsCircle;
+            comp.observerFactions = EP::FactionBits::kCompanions;
+            comp.stage = EP::AwakeningStage::SteadySight;
+            comp.regionId = EP::Region::LeftEye;
+            comp.dwellSec = 2.0f;
+            comp.activeDemeanor = EP::Demeanor::Evasive;
+            const auto compEvasive = EP::EvaluateFactionSight(comp, "Vilkas");
+            assert(compEvasive.drawbackTriggered && compEvasive.socialDelta.respect < 0.0f);
+            assert(compEvasive.meleeCombatSightMultiplier > 1.2f);
+
+            // College of Winterhold: combat magicka regen + book speed vs Nord skepticism
+            EP::FactionSightInput col{};
+            col.playerFactions = EP::FactionBits::kCollegeWinterhold;
+            col.stage = EP::AwakeningStage::SteadySight;
+            col.inCombat = true;
+            col.dwellSec = 0.5f;
+            const auto colCombat = EP::EvaluateFactionSight(col, "Necromancer");
+            assert(colCombat.tacticalBuffs.magickaRegenBonus >= 15.0f &&
+                   colCombat.bookStudyRateMultiplier > 1.15f);
+
+            col.inCombat = false;
+            col.wearingCollegeRobes = true;
+            col.observerIsNordTraditionalist = true;
+            col.activeDemeanor = EP::Demeanor::Stern;
+            col.dwellSec = 2.5f;
+            const auto colNord = EP::EvaluateFactionSight(col, "Windhelm Citizen");
+            assert(colNord.drawbackTriggered && colNord.socialDelta.unease > 0.0f);
+
+            // Civil War: rival uniform scrutiny
+            EP::FactionSightInput cw{};
+            cw.playerFactions = EP::FactionBits::kImperialLegion;
+            cw.observerFactions = EP::FactionBits::kStormcloaks;
+            cw.wearingImperialArmor = true;
+            cw.stage = EP::AwakeningStage::FirstGlimmer;
+            cw.dwellSec = 2.0f;
+            const auto cwRival = EP::EvaluateFactionSight(cw, "Stormcloak Guard");
+            assert(cwRival.drawbackTriggered && cwRival.socialDelta.suspicion > 0.0f);
+
+            // Bards College: stronger barter speech, lower coerce
+            EP::FactionSightInput bard{};
+            bard.playerFactions = EP::FactionBits::kBardsCollege;
+            bard.stage = EP::AwakeningStage::FirstGlimmer;
+            const auto bardOut = EP::EvaluateFactionSight(bard, "Lucan");
+            assert(bardOut.barterSpeechMultiplier >= 1.25f &&
+                   bardOut.coerceAuthorityMultiplier <= 0.75f);
+
+            // Vampires vs Vigilants/Dawnguard in daylight
+            EP::FactionSightInput vamp{};
+            vamp.playerFactions = EP::FactionBits::kVampire;
+            vamp.observerIsPriestOrVigilant = true;
+            vamp.isDaylight = true;
+            vamp.stage = EP::AwakeningStage::FirstGlimmer;
+            vamp.dwellSec = 2.0f;
+            const auto vampDay = EP::EvaluateFactionSight(vamp, "Vigilant Carcette");
+            assert(vampDay.drawbackTriggered && vampDay.socialDelta.suspicion >= 2.5f &&
+                   vampDay.vampireBlinkScale < 0.7f);
+
+            // Child safety gate holds unconditionally on Faction Sight too
+            vamp.observerIsChild = true;
+            assert(!EP::EvaluateFactionSight(vamp, "Lucia").drawbackTriggered);
+        }
+
+        // 4. WP-11D Living Innkeeper's Note dynamic checklist formatting
+        {
+            EP::AwakeningState aw{};
+            const auto note0 = EP::FormatCassianLivingNoteMarkup(
+                aw, EP::UnlockMode::Ritual, false, "", false, false, 20.0f,
+                EP::ScholarshipRank::Novice);
+            assert(note0.find("Arcanaeum") != std::string::npos);
+            assert(note0.find("Sight of the First Canticle spell") != std::string::npos);
+            assert(note0.find("Stage 0: Dormant (0/4 Keys Lit)") != std::string::npos);
+            assert(note0.find("[ ] The Word") != std::string::npos);
+            assert(note0.find("[ ] The Vessel") != std::string::npos);
+            assert(note0.find("[ ] Shared Sight") != std::string::npos);
+            assert(note0.find("[ ] The Pilgrimage (0/2)") != std::string::npos);
+            for (unsigned char c : note0)
+            {
+                assert(c < 128u); // Pure ASCII for Skyrim BookMenu fonts
+            }
+
+            (void)EP::MarkTumbler(aw, EP::TumblerBits::kWord, EP::UnlockMode::Ritual, "Word");
+            (void)EP::MarkTumbler(aw, EP::TumblerBits::kVessel, EP::UnlockMode::Ritual, "Vessel");
+            const auto note2 = EP::FormatCassianLivingNoteMarkup(
+                aw, EP::UnlockMode::Ritual, true, "Temple of Kynareth", true, true, 42.0f,
+                EP::ScholarshipRank::Acolyte);
+            assert(note2.find("Stage 2: Steady Sight (2/4 Keys Lit)") != std::string::npos);
+            assert(note2.find("[X] The Word") != std::string::npos);
+            assert(note2.find("[X] The Vessel") != std::string::npos);
+            assert(note2.find("[X] Inside Sanctuary (Temple of Kynareth)") != std::string::npos);
+            assert(note2.find("[X] Wearing a Vessel relic") != std::string::npos);
+            assert(note2.find("[X] Carrying your studied Canticle tome") != std::string::npos);
+
+            EP::ForceUnlockAllForConsole(aw);
+            const auto note4 = EP::FormatCassianLivingNoteMarkup(
+                aw, EP::UnlockMode::Ritual, true, "Temple of Kynareth", true, true, 100.0f,
+                EP::ScholarshipRank::Canticle);
+            assert(note4.find("Stage 4: Canticle Awakened (4/4 Keys Lit)") != std::string::npos);
+            assert(note4.find("[X] Final Sanctuary Ceremony -- Complete!") != std::string::npos);
         }
     }
 } // namespace
@@ -1711,6 +1973,7 @@ int main()
     TestOblivionRealtimePersuasionAndTransactions();
     TestAwakeningRitualStagedProgressionAndCoSave();
     TestSmartBrandishingCombatAndCreatureSight();
+    TestWp11FactionVoicePersuasionAndDiscovery();
 
     std::cout << "ExpandedPlayTests: all checks passed.\n";
     return 0;

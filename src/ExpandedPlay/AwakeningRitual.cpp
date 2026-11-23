@@ -32,6 +32,12 @@ namespace TrueGaze::ExpandedPlay
         constexpr uint32_t kEslLocalRingQuietSight = 0x000806u;
         constexpr uint32_t kEslLocalSilverMoth = 0x000807u;
         constexpr uint32_t kEslLocalMothRibbon = 0x000808u;
+        constexpr uint32_t kEslLocalCassianNote = 0x000809u;
+        constexpr uint32_t kEslLocalNoteTopic = 0x00080Au;
+        constexpr uint32_t kEslLocalNoteInfo = 0x00080Bu;
+        constexpr uint32_t kEslLocalPilgrimageQuest = 0x00080Cu;
+        constexpr uint32_t kEslLocalRumorTopic = 0x00080Eu;
+        constexpr uint32_t kEslLocalRumorInfo = 0x00080Fu;
 
         // Verified base Skyrim.esm vanilla fallback FormIDs (zero DLC dependency)
         constexpr uint32_t kVanillaBookEffectsOfScrolls = 0x0003010Bu;
@@ -48,6 +54,18 @@ namespace TrueGaze::ExpandedPlay
         std::atomic<uint32_t> g_eslFormRing{0};
         std::atomic<uint32_t> g_eslFormMedallion{0};
         std::atomic<uint32_t> g_eslFormRibbon{0};
+        std::atomic<uint32_t> g_eslFormCassianNote{0};
+        std::atomic<uint32_t> g_eslFormNoteTopic{0};
+        std::atomic<uint32_t> g_eslFormNoteInfo{0};
+        std::atomic<uint32_t> g_eslFormPilgrimageQuest{0};
+        std::atomic<uint32_t> g_eslFormRumorTopic{0};
+        std::atomic<uint32_t> g_eslFormRumorInfo{0};
+        std::atomic<bool> g_questStartLogged{false};
+        std::atomic<uint32_t> g_lastDispatchedQuestStage{0};
+        std::atomic<uint32_t> g_dispatchedObjDisplayedMask{0};
+        std::atomic<uint32_t> g_dispatchedObjCompletedMask{0};
+        std::atomic<uint32_t> g_placedBarNoteRefId{0};
+        std::atomic<bool> g_cassianNoteOpenedFlag{false};
 
         std::atomic<bool> g_ceremonyCastPending{false};
         std::atomic<bool> g_diegeticTogglePending{false};
@@ -61,7 +79,9 @@ namespace TrueGaze::ExpandedPlay
         std::mutex g_equipMutex;
         std::chrono::steady_clock::time_point g_lastRelicToggleAt{};
         bool g_sinksInstalled{false};
-        RE::NiPointer<RE::NiNode> g_openBookTemplate{};
+        // CRIT-08: Immortal heap holder so DLL_PROCESS_DETACH never invokes
+        // NiRefObject::DecRefCount() after Skyrim's heap allocator has torn down.
+        RE::NiPointer<RE::NiNode>& g_openBookTemplate = *(new RE::NiPointer<RE::NiNode>{});
         bool g_openBookDemandAttempted{false};
         bool g_leftBookAttached1P{false};
         bool g_leftBookAttached3P{false};
@@ -329,10 +349,25 @@ namespace TrueGaze::ExpandedPlay
 
                     if (a_event->equipped && !cfg.expandedPlayEnabled)
                     {
-                        cfg.expandedPlayEnabled = true;
-                        logger::info("[TrueGaze::ExpandedPlay] Bespoke relic '{}' awakened "
-                                     "Expanded Play diegetically.",
-                                     baseForm ? baseForm->GetName() : "Relic");
+                        // CRIT-08: Marshal ConfigManager mutation onto the game thread
+                        // instead of writing non-atomic bool from Skyrim's event thread.
+                        if (auto* tasks = SKSE::GetTaskInterface())
+                        {
+                            const std::string relicName =
+                                (baseForm && baseForm->GetName()) ? baseForm->GetName() : "Relic";
+                            tasks->AddTask(
+                                [relicName]()
+                                {
+                                    auto& mainCfg = Engine::ConfigManager::GetSingleton();
+                                    if (!mainCfg.expandedPlayEnabled)
+                                    {
+                                        mainCfg.expandedPlayEnabled = true;
+                                        logger::info("[TrueGaze::ExpandedPlay] Bespoke relic '{}' awakened "
+                                                     "Expanded Play diegetically.",
+                                                     relicName);
+                                    }
+                                });
+                        }
                     }
 
                     // Equipping toggles ON; unequipping after Stage 4 lets the player quiet
@@ -368,10 +403,18 @@ namespace TrueGaze::ExpandedPlay
                     return RE::BSEventNotifyControl::kContinue;
                 }
 
-                auto& cfg = Engine::ConfigManager::GetSingleton();
+                const auto& cfg = Engine::ConfigManager::GetSingleton();
                 if (!cfg.expandedPlayEnabled)
                 {
-                    cfg.expandedPlayEnabled = true;
+                    // CRIT-08: Marshal ConfigManager mutation onto the game thread.
+                    if (auto* tasks = SKSE::GetTaskInterface())
+                    {
+                        tasks->AddTask(
+                            []()
+                            {
+                                Engine::ConfigManager::GetSingleton().expandedPlayEnabled = true;
+                            });
+                    }
                 }
                 // All Cast events (missing requirements check, Final Ceremony, or post-Stage-4
                 // diegetic toggle) are handled cleanly on the game tick inside ExpandedPlayManager.
@@ -424,13 +467,35 @@ namespace TrueGaze::ExpandedPlay
                 g_eslFormRibbon.store(static_cast<uint32_t>(data->LookupFormID(
                                           kEslLocalMothRibbon, kOptionalEslPluginName)),
                                       std::memory_order_relaxed);
+                g_eslFormCassianNote.store(static_cast<uint32_t>(data->LookupFormID(
+                                               kEslLocalCassianNote, kOptionalEslPluginName)),
+                                           std::memory_order_relaxed);
+                g_eslFormNoteTopic.store(static_cast<uint32_t>(data->LookupFormID(
+                                             kEslLocalNoteTopic, kOptionalEslPluginName)),
+                                         std::memory_order_relaxed);
+                g_eslFormNoteInfo.store(static_cast<uint32_t>(data->LookupFormID(
+                                            kEslLocalNoteInfo, kOptionalEslPluginName)),
+                                        std::memory_order_relaxed);
+                g_eslFormPilgrimageQuest.store(
+                    static_cast<uint32_t>(
+                        data->LookupFormID(kEslLocalPilgrimageQuest, kOptionalEslPluginName)),
+                    std::memory_order_relaxed);
+                g_eslFormRumorTopic.store(static_cast<uint32_t>(data->LookupFormID(
+                                              kEslLocalRumorTopic, kOptionalEslPluginName)),
+                                          std::memory_order_relaxed);
+                g_eslFormRumorInfo.store(static_cast<uint32_t>(data->LookupFormID(
+                                             kEslLocalRumorInfo, kOptionalEslPluginName)),
+                                         std::memory_order_relaxed);
                 logger::info(
                     "[TrueGaze::ExpandedPlay] Optional ESL '{}' DETECTED (Power={:08X}, "
                     "Book={:08X}, Amulet={:08X}, Browband={:08X}, Ring={:08X}, Medallion={:08X}, "
-                    "Ribbon={:08X}).",
+                    "Ribbon={:08X}, Quest={:08X}, RumorTopic={:08X}, RumorInfo={:08X}, "
+                    "NoteInfo={:08X}).",
                     kOptionalEslPluginName, g_eslFormPower.load(), g_eslFormBook.load(),
                     g_eslFormAmulet.load(), g_eslFormBrowband.load(), g_eslFormRing.load(),
-                    g_eslFormMedallion.load(), g_eslFormRibbon.load());
+                    g_eslFormMedallion.load(), g_eslFormRibbon.load(),
+                    g_eslFormPilgrimageQuest.load(), g_eslFormRumorTopic.load(),
+                    g_eslFormRumorInfo.load(), g_eslFormNoteInfo.load());
             }
             else
             {
@@ -461,11 +526,28 @@ namespace TrueGaze::ExpandedPlay
         g_diegeticTogglePending.store(false, std::memory_order_release);
         g_diegeticToggleDesired.store(true, std::memory_order_release);
         g_canticleSpellCheckedLearned.store(false, std::memory_order_release);
+        g_questStartLogged.store(false, std::memory_order_release);
+        g_lastDispatchedQuestStage.store(0u, std::memory_order_release);
+        g_dispatchedObjDisplayedMask.store(0u, std::memory_order_release);
+        g_dispatchedObjCompletedMask.store(0u, std::memory_order_release);
+        g_placedBarNoteRefId.store(0u, std::memory_order_release);
+        g_cassianNoteOpenedFlag.store(false, std::memory_order_release);
     }
 
     bool AwakeningRitual::IsEslPluginLoaded() const noexcept
     {
         return g_eslLoaded.load(std::memory_order_acquire);
+    }
+
+    bool AwakeningRitual::IsCassianNoteFormId(uint32_t formId,
+                                              std::string_view title) const noexcept
+    {
+        const uint32_t noteId = g_eslFormCassianNote.load(std::memory_order_relaxed);
+        if (noteId != 0u && formId == noteId)
+        {
+            return true;
+        }
+        return !title.empty() && AwakeningDetail::ContainsICase(title, "Moth Priest's Passage");
     }
 
     bool AwakeningRitual::IsPlayerWearingFocus() const noexcept
@@ -808,6 +890,696 @@ namespace TrueGaze::ExpandedPlay
 #endif
     }
 
+    uint32_t AwakeningRitual::GetInnRumorInfoFormId() const noexcept
+    {
+        return g_eslFormRumorInfo.load(std::memory_order_relaxed);
+    }
+
+    uint32_t AwakeningRitual::GetInnNoteInfoFormId() const noexcept
+    {
+        return g_eslFormNoteInfo.load(std::memory_order_relaxed);
+    }
+
+    void AwakeningRitual::EnsurePilgrimageQuestRunning() noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        const uint32_t questId = g_eslFormPilgrimageQuest.load(std::memory_order_relaxed);
+        if (questId == 0u)
+        {
+            return;
+        }
+        auto* quest = RE::TESForm::LookupByID<RE::TESQuest>(static_cast<RE::FormID>(questId));
+        if (!quest)
+        {
+            return;
+        }
+        if (!quest->IsRunning() && !quest->IsCompleted())
+        {
+            bool started = false;
+            quest->EnsureQuestStarted(started, true);
+            if (!quest->IsRunning())
+            {
+                quest->Start();
+            }
+            if (!quest->IsRunning())
+            {
+                if (auto* vm = RE::BSScript::Internal::VirtualMachine::GetSingleton())
+                {
+                    if (auto* policy = vm->GetObjectHandlePolicy())
+                    {
+                        const auto handle =
+                            policy->GetHandleForObject(RE::TESQuest::FORMTYPE, quest);
+                        if (handle != policy->EmptyHandle())
+                        {
+                            auto* args = RE::MakeFunctionArguments();
+                            RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> cb;
+                            vm->DispatchMethodCall(handle, RE::BSFixedString("Quest"),
+                                                   RE::BSFixedString("Start"), args, cb);
+                        }
+                    }
+                }
+            }
+        }
+        if (!g_questStartLogged.exchange(true, std::memory_order_acq_rel))
+        {
+            const uint32_t topicId = g_eslFormRumorTopic.load(std::memory_order_relaxed);
+            const uint32_t noteTopicId = g_eslFormNoteTopic.load(std::memory_order_relaxed);
+            const uint32_t rumorInfoId = g_eslFormRumorInfo.load(std::memory_order_relaxed);
+            const uint32_t noteInfoId = g_eslFormNoteInfo.load(std::memory_order_relaxed);
+            auto* rumorTopic =
+                (topicId != 0u)
+                    ? RE::TESForm::LookupByID<RE::TESTopic>(static_cast<RE::FormID>(topicId))
+                    : nullptr;
+            auto* noteTopic =
+                (noteTopicId != 0u)
+                    ? RE::TESForm::LookupByID<RE::TESTopic>(static_cast<RE::FormID>(noteTopicId))
+                    : nullptr;
+            auto* rumorInfo = (rumorInfoId != 0u)
+                                  ? RE::TESForm::LookupByID<RE::TESTopicInfo>(
+                                        static_cast<RE::FormID>(rumorInfoId))
+                                  : nullptr;
+            auto* noteInfo =
+                (noteInfoId != 0u)
+                    ? RE::TESForm::LookupByID<RE::TESTopicInfo>(static_cast<RE::FormID>(noteInfoId))
+                    : nullptr;
+            const std::size_t branchCount = quest->branchedDialogue[0].size();
+            logger::info(
+                "[TrueGaze::ExpandedPlay] Pilgrimage Quest {:08X} ('{}'): running={} "
+                "completed={} stage={} prio={} branches={} rumorTopic={:08X} rumorInfos={} "
+                "noteTopic={:08X} noteInfos={} rumorInfoLoaded={} noteInfoLoaded={}",
+                questId, quest->GetName() ? quest->GetName() : "TGZ_Pilgr",
+                quest->IsRunning() ? "yes" : "no", quest->IsCompleted() ? "yes" : "no",
+                quest->GetCurrentStageID(), static_cast<int>(quest->data.priority), branchCount,
+                topicId, rumorTopic ? rumorTopic->numTopicInfos : 0u, noteTopicId,
+                noteTopic ? noteTopic->numTopicInfos : 0u, rumorInfo ? "yes" : "no",
+                noteInfo ? "yes" : "no");
+        }
+#endif
+    }
+
+    void AwakeningRitual::SyncPilgrimageQuestProgress(const AwakeningState& state,
+                                                      bool startJournalIfEligible) noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        const uint32_t questId = g_eslFormPilgrimageQuest.load(std::memory_order_relaxed);
+        if (questId == 0u)
+        {
+            return;
+        }
+        auto* quest = RE::TESForm::LookupByID<RE::TESQuest>(static_cast<RE::FormID>(questId));
+        if (!quest)
+        {
+            return;
+        }
+
+        EnsurePilgrimageQuestRunning();
+
+        const bool shouldBeInJournal =
+            startJournalIfEligible ||
+            ((state.discoveryHintsMask & DiscoveryHintBits::kInnRumor) != 0u) ||
+            (state.tumblerMask != 0u) || state.ceremonyCompleted;
+        if (!shouldBeInJournal)
+        {
+            return;
+        }
+
+        // CRIT-07: SE/AE/VR-safe quest progression.
+        // On SE/AE, resolve the native TESQuest helpers with address != 0 checks and
+        // pass the real IVirtualMachine* (never nullptr) to SetObjectiveDisplayed /
+        // SetObjectiveCompleted. On Skyrim VR (or if any relocation ID is absent from
+        // VR Address Library), cleanly fall back to Skyrim's built-in Quest Papyrus
+        // native interface via DispatchMethodCall(questHandle, "Quest", ...) so VR
+        // players get full Pilgrimage journal progression with zero crashes.
+        auto* vm = RE::BSScript::Internal::VirtualMachine::GetSingleton();
+        auto* policy = vm ? vm->GetObjectHandlePolicy() : nullptr;
+        const auto questHandle =
+            (vm && policy) ? policy->GetHandleForObject(RE::TESQuest::FORMTYPE, quest) : 0ULL;
+        const bool hasQuestHandle = (vm && policy && questHandle != policy->EmptyHandle());
+
+        auto tryResolveAddr = [](REL::RelocationID id) noexcept -> std::uintptr_t
+        {
+            try
+            {
+                return id.address();
+            }
+            catch (...)
+            {
+                return 0;
+            }
+        };
+
+        using NativeSetStageFn = bool (*)(RE::TESQuest*, std::uint16_t);
+        using NativeSetActiveFn = void (*)(RE::TESQuest*, bool);
+        using NativeSetObjDisplayedFn = void (*)(RE::BSScript::IVirtualMachine*, std::uint32_t,
+                                                 RE::TESQuest*, std::uint16_t, bool, bool);
+        using NativeSetObjCompletedFn = void (*)(RE::BSScript::IVirtualMachine*, std::uint32_t,
+                                                 RE::TESQuest*, std::uint16_t, bool);
+
+        static const std::uintptr_t kSetStageAddr =
+            REL::Module::IsVR() ? 0 : tryResolveAddr(RELOCATION_ID(24482, 25004));
+        static const std::uintptr_t kSetActiveAddr =
+            REL::Module::IsVR() ? 0 : tryResolveAddr(RELOCATION_ID(24471, 24993));
+        static const std::uintptr_t kSetObjDisplayedAddr =
+            REL::Module::IsVR() ? 0 : tryResolveAddr(RELOCATION_ID(55635, 56682));
+        static const std::uintptr_t kSetObjCompletedAddr =
+            REL::Module::IsVR() ? 0 : tryResolveAddr(RELOCATION_ID(55634, 56681));
+
+        auto dispatchSetStage = [&](std::uint16_t stage) -> bool
+        {
+            if (kSetStageAddr != 0)
+            {
+                return reinterpret_cast<NativeSetStageFn>(kSetStageAddr)(quest, stage);
+            }
+            if (hasQuestHandle)
+            {
+                std::int32_t stageArg = static_cast<std::int32_t>(stage);
+                auto* args = RE::MakeFunctionArguments(std::move(stageArg));
+                RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> cb;
+                return vm->DispatchMethodCall(questHandle, RE::BSFixedString("Quest"),
+                                              RE::BSFixedString("SetStage"), args, cb);
+            }
+            return false;
+        };
+        auto dispatchSetActive = [&](bool active)
+        {
+            if (kSetActiveAddr != 0)
+            {
+                reinterpret_cast<NativeSetActiveFn>(kSetActiveAddr)(quest, active);
+                return;
+            }
+            if (hasQuestHandle)
+            {
+                bool activeArg = active;
+                auto* args = RE::MakeFunctionArguments(std::move(activeArg));
+                RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> cb;
+                (void)vm->DispatchMethodCall(questHandle, RE::BSFixedString("Quest"),
+                                             RE::BSFixedString("SetActive"), args, cb);
+            }
+        };
+        auto dispatchObjDisplayed = [&](std::uint16_t objIdx)
+        {
+            if (kSetObjDisplayedAddr != 0 && vm != nullptr)
+            {
+                reinterpret_cast<NativeSetObjDisplayedFn>(kSetObjDisplayedAddr)(
+                    vm, 0u, quest, objIdx, true, false);
+                return;
+            }
+            if (hasQuestHandle)
+            {
+                std::int32_t objArg = static_cast<std::int32_t>(objIdx);
+                bool dispArg = true;
+                bool forceArg = false;
+                auto* args = RE::MakeFunctionArguments(std::move(objArg), std::move(dispArg),
+                                                       std::move(forceArg));
+                RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> cb;
+                (void)vm->DispatchMethodCall(questHandle, RE::BSFixedString("Quest"),
+                                             RE::BSFixedString("SetObjectiveDisplayed"), args, cb);
+            }
+        };
+        auto dispatchObjCompleted = [&](std::uint16_t objIdx)
+        {
+            if (kSetObjCompletedAddr != 0 && vm != nullptr)
+            {
+                reinterpret_cast<NativeSetObjCompletedFn>(kSetObjCompletedAddr)(
+                    vm, 0u, quest, objIdx, true);
+                return;
+            }
+            if (hasQuestHandle)
+            {
+                std::int32_t objArg = static_cast<std::int32_t>(objIdx);
+                bool compArg = true;
+                auto* args = RE::MakeFunctionArguments(std::move(objArg), std::move(compArg));
+                RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> cb;
+                (void)vm->DispatchMethodCall(questHandle, RE::BSFixedString("Quest"),
+                                             RE::BSFixedString("SetObjectiveCompleted"), args, cb);
+            }
+        };
+
+        auto isObjDisplayedInEngine = [&](std::uint16_t idx) -> bool
+        {
+            for (auto* obj : quest->objectives)
+            {
+                if (obj && obj->index == idx)
+                {
+                    const auto st = obj->state.get();
+                    return st == RE::QUEST_OBJECTIVE_STATE::kDisplayed ||
+                           st == RE::QUEST_OBJECTIVE_STATE::kCompleted ||
+                           st == RE::QUEST_OBJECTIVE_STATE::kCompletedDisplayed;
+                }
+            }
+            return false;
+        };
+        auto isObjCompletedInEngine = [&](std::uint16_t idx) -> bool
+        {
+            for (auto* obj : quest->objectives)
+            {
+                if (obj && obj->index == idx)
+                {
+                    const auto st = obj->state.get();
+                    return st == RE::QUEST_OBJECTIVE_STATE::kCompleted ||
+                           st == RE::QUEST_OBJECTIVE_STATE::kCompletedDisplayed;
+                }
+            }
+            return false;
+        };
+
+        const uint32_t engineStage = quest->GetCurrentStageID();
+        if (engineStage < 10u)
+        {
+            const bool stageOk = dispatchSetStage(10u);
+            dispatchSetActive(true);
+            g_lastDispatchedQuestStage.store(quest->GetCurrentStageID(), std::memory_order_relaxed);
+            logger::info(
+                "[TrueGaze::ExpandedPlay] Started journal quest 'The Moth Priest's Pilgrimage' "
+                "(SetStage(10)={}, currentStage={}, active={}).",
+                stageOk ? "ok" : "false", quest->GetCurrentStageID(),
+                quest->IsActive() ? "yes" : "no");
+        }
+
+        uint32_t dispMask = g_dispatchedObjDisplayedMask.load(std::memory_order_relaxed);
+        uint32_t compMask = g_dispatchedObjCompletedMask.load(std::memory_order_relaxed);
+
+        struct ObjKeyPair
+        {
+            std::uint16_t objIndex;
+            uint32_t bit;
+            bool done;
+        };
+        const ObjKeyPair keyObjs[4] = {
+            {10u, 1u << 0, (state.tumblerMask & TumblerBits::kWord) != 0u},
+            {20u, 1u << 1, (state.tumblerMask & TumblerBits::kVessel) != 0u},
+            {30u, 1u << 2, (state.tumblerMask & TumblerBits::kSharedSight) != 0u},
+            {40u, 1u << 3, (state.tumblerMask & TumblerBits::kPilgrimage) != 0u},
+        };
+        for (const auto& ko : keyObjs)
+        {
+            if (!isObjDisplayedInEngine(ko.objIndex))
+            {
+                dispMask |= ko.bit;
+                dispatchObjDisplayed(ko.objIndex);
+            }
+            if ((ko.done || state.ceremonyCompleted) && !isObjCompletedInEngine(ko.objIndex))
+            {
+                compMask |= ko.bit;
+                dispatchObjCompleted(ko.objIndex);
+            }
+        }
+
+        const bool allFourKeysLit =
+            (CountLitTumblers(state.tumblerMask) >= 4u) || state.ceremonyCompleted;
+        if (allFourKeysLit)
+        {
+            if (quest->GetCurrentStageID() < 50u && !state.ceremonyCompleted)
+            {
+                (void)dispatchSetStage(50u);
+                g_lastDispatchedQuestStage.store(quest->GetCurrentStageID(),
+                                                 std::memory_order_relaxed);
+            }
+            constexpr uint32_t kObj50Bit = 1u << 4;
+            if (!isObjDisplayedInEngine(50u))
+            {
+                dispMask |= kObj50Bit;
+                dispatchObjDisplayed(50u);
+            }
+            if (state.ceremonyCompleted)
+            {
+                if (!isObjCompletedInEngine(50u))
+                {
+                    compMask |= kObj50Bit;
+                    dispatchObjCompleted(50u);
+                }
+                if (quest->GetCurrentStageID() < 100u && !quest->IsCompleted())
+                {
+                    (void)dispatchSetStage(100u);
+                    g_lastDispatchedQuestStage.store(quest->GetCurrentStageID(),
+                                                     std::memory_order_relaxed);
+                    logger::info("[TrueGaze::ExpandedPlay] Completed journal quest 'The Moth "
+                                 "Priest's Pilgrimage' (currentStage={}).",
+                                 quest->GetCurrentStageID());
+                }
+            }
+        }
+
+        g_dispatchedObjDisplayedMask.store(dispMask, std::memory_order_relaxed);
+        g_dispatchedObjCompletedMask.store(compMask, std::memory_order_relaxed);
+#else
+        (void)state;
+        (void)startJournalIfEligible;
+#endif
+    }
+
+    void AwakeningRitual::SetInnRumorInfoSaidOnce(bool said) noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        if (const uint32_t rumorId = g_eslFormRumorInfo.load(std::memory_order_relaxed);
+            rumorId != 0u)
+        {
+            if (auto* info =
+                    RE::TESForm::LookupByID<RE::TESTopicInfo>(static_cast<RE::FormID>(rumorId)))
+            {
+                info->saidOnce = said;
+            }
+        }
+        if (const uint32_t noteId = g_eslFormNoteInfo.load(std::memory_order_relaxed);
+            noteId != 0u)
+        {
+            if (auto* info =
+                    RE::TESForm::LookupByID<RE::TESTopicInfo>(static_cast<RE::FormID>(noteId)))
+            {
+                info->saidOnce = said;
+            }
+        }
+#else
+        (void)said;
+#endif
+    }
+
+    bool AwakeningRitual::IsPlayerCarryingCassianNote() const noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player || !IsEslPluginLoaded())
+        {
+            return false;
+        }
+        const uint32_t noteId = g_eslFormCassianNote.load(std::memory_order_relaxed);
+        if (noteId == 0u)
+        {
+            return false;
+        }
+        const auto inv = player->GetInventory();
+        for (const auto& [item, pair] : inv)
+        {
+            if (item && pair.first > 0 && static_cast<uint32_t>(item->GetFormID()) == noteId)
+            {
+                return true;
+            }
+        }
+#endif
+        return false;
+    }
+
+    void AwakeningRitual::MarkCassianNoteOpened() noexcept
+    {
+        g_cassianNoteOpenedFlag.store(true, std::memory_order_release);
+    }
+
+    bool AwakeningRitual::ConsumeCassianNoteOpened() noexcept
+    {
+        return g_cassianNoteOpenedFlag.exchange(false, std::memory_order_acq_rel);
+    }
+
+    bool AwakeningRitual::PlaceNoteOnSleepingGiantBar() noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player || !IsEslPluginLoaded() || IsPlayerCarryingCassianNote())
+        {
+            return false;
+        }
+        if (g_placedBarNoteRefId.load(std::memory_order_acquire) != 0u)
+        {
+            return true;
+        }
+        auto* cell = player->GetParentCell();
+        if (!cell)
+        {
+            return false;
+        }
+        const uint32_t noteId = g_eslFormCassianNote.load(std::memory_order_relaxed);
+        auto* noteObj =
+            (noteId != 0u)
+                ? RE::TESForm::LookupByID<RE::TESBoundObject>(static_cast<RE::FormID>(noteId))
+                : nullptr;
+        if (!noteObj)
+        {
+            return false;
+        }
+
+        // Check if an unpicked copy already sits in the Sleeping Giant Inn cell (after save/reload)
+        bool alreadyInCell = false;
+        cell->ForEachReference(
+            [&](RE::TESObjectREFR* ref) -> RE::BSContainer::ForEachResult
+            {
+                if (ref && !ref->IsDisabled() && !ref->IsDeleted() && ref->GetBaseObject() &&
+                    static_cast<uint32_t>(ref->GetBaseObject()->GetFormID()) == noteId)
+                {
+                    if (auto* playerBase = player->GetActorBase())
+                    {
+                        ref->extraList.SetOwner(playerBase);
+                    }
+                    g_placedBarNoteRefId.store(static_cast<uint32_t>(ref->GetFormID()),
+                                               std::memory_order_release);
+                    alreadyInCell = true;
+                    return RE::BSContainer::ForEachResult::kStop;
+                }
+                return RE::BSContainer::ForEachResult::kContinue;
+            });
+        if (alreadyInCell)
+        {
+            return true;
+        }
+
+        // Exact verified Skyrim.esm bar counter surface in RiverwoodSleepingGiantInn (0x000133C6):
+        //   BarStraight01 runs along X=-1159, bar top Z=78.3; Orgnar leans behind the bar at
+        //   CounterBarLeanMarker (-1213.2, 78.7). Front-row items sit along X=-1144; placing the
+        //   wax-sealed note at (-1144.0, 52.0, 79.5) puts it squarely on the open wooden counter
+        //   directly in front of Orgnar between the salmon platter (Y=38.3) and wine carafe (Y=65.8).
+        const RE::NiPoint3 barPos{-1144.0f, 52.0f, 79.5f};
+        const RE::NiPoint3 barAng{0.0f, 0.0f, 1.57f};
+
+        auto placedPtr = player->PlaceObjectAtMe(noteObj, false);
+        auto* placed = placedPtr.get();
+        if (!placed)
+        {
+            return false;
+        }
+        placed->SetPosition(barPos);
+        placed->SetAngle(barAng);
+        // Set explicit player ownership so reading/taking the note on the bar is NEVER marked as Steal!
+        if (auto* playerBase = player->GetActorBase())
+        {
+            placed->extraList.SetOwner(playerBase);
+        }
+        g_placedBarNoteRefId.store(static_cast<uint32_t>(placed->GetFormID()),
+                                   std::memory_order_release);
+        logger::info(
+            "[TrueGaze::ExpandedPlay] Placed Brother Cassian's Note (ref={:08X}) on the "
+            "Sleeping Giant Inn bar counter at ({:.1f}, {:.1f}, {:.1f}) with player ownership.",
+            static_cast<uint32_t>(placed->GetFormID()), barPos.x, barPos.y, barPos.z);
+        return true;
+#else
+        return false;
+#endif
+    }
+
+    void AwakeningRitual::RemovePlacedBarNoteIfStillInWorld() noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        const uint32_t refId = g_placedBarNoteRefId.exchange(0u, std::memory_order_acq_rel);
+        if (refId == 0u)
+        {
+            return;
+        }
+        auto* ref = RE::TESForm::LookupByID<RE::TESObjectREFR>(static_cast<RE::FormID>(refId));
+        if (!ref || ref->IsDeleted() || ref->IsDisabled() || !ref->GetParentCell())
+        {
+            return;
+        }
+        ref->Disable();
+        ref->SetDelete(true);
+#endif
+    }
+
+    bool AwakeningRitual::DispatchCourierWithCassianNote() noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        if (!IsEslPluginLoaded() || IsPlayerCarryingCassianNote())
+        {
+            return false;
+        }
+        const uint32_t noteId = g_eslFormCassianNote.load(std::memory_order_relaxed);
+        auto* noteForm =
+            (noteId != 0u) ? RE::TESForm::LookupByID(static_cast<RE::FormID>(noteId)) : nullptr;
+        // Verified Skyrim.esm QUST WICourier = 0x00039F82 (script: WICourierScript)
+        auto* courierQuest = RE::TESForm::LookupByID<RE::TESQuest>(static_cast<RE::FormID>(0x00039F82u));
+        auto* vm = RE::BSScript::Internal::VirtualMachine::GetSingleton();
+        auto* policy = vm ? vm->GetObjectHandlePolicy() : nullptr;
+        if (!noteForm || !courierQuest || !vm || !policy)
+        {
+            return false;
+        }
+        const auto handle = policy->GetHandleForObject(RE::TESQuest::FORMTYPE, courierQuest);
+        if (handle == policy->EmptyHandle())
+        {
+            return false;
+        }
+        RE::TESForm* itemArg = noteForm;
+        auto* args = RE::MakeFunctionArguments(std::move(itemArg));
+        RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> cb;
+        const bool ok = vm->DispatchMethodCall(handle, RE::BSFixedString("WICourierScript"),
+                                               RE::BSFixedString("addItemToContainer"), args, cb);
+        logger::info("[TrueGaze::ExpandedPlay] Dispatched vanilla Skyrim WICourier (00039F82) "
+                     "with Brother Cassian's Note ({:08X}): dispatched={}",
+                     noteId, ok ? "yes" : "no");
+        return ok;
+#else
+        return false;
+#endif
+    }
+
+    bool AwakeningRitual::GrantInnNoteToPlayerOnly(const char* source) noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player || !IsEslPluginLoaded())
+        {
+            return false;
+        }
+        const uint32_t noteId = g_eslFormCassianNote.load(std::memory_order_relaxed);
+        if (noteId == 0u)
+        {
+            return false;
+        }
+        auto* noteObj =
+            RE::TESForm::LookupByID<RE::TESBoundObject>(static_cast<RE::FormID>(noteId));
+        if (!noteObj)
+        {
+            return false;
+        }
+        const auto inv = player->GetInventory();
+        for (const auto& [item, pair] : inv)
+        {
+            if (item && pair.first > 0 && static_cast<uint32_t>(item->GetFormID()) == noteId)
+            {
+                return true;
+            }
+        }
+        player->AddObjectToContainer(noteObj, nullptr, 1, nullptr);
+        RE::PlaySound("ITMNoteUpSD");
+        const char* safeSource = (source && source[0] != '\0') ? source : "Unknown";
+        logger::info("[TrueGaze::ExpandedPlay] Granted '{}' ({:08X}) directly into player "
+                     "inventory (source={}).",
+                     noteObj->GetName() ? noteObj->GetName() : "Innkeeper's Note", noteId,
+                     safeSource);
+        return true;
+#else
+        (void)source;
+        return false;
+#endif
+    }
+
+    bool AwakeningRitual::GiveInnNoteToPlayerAndSpeak(uint32_t speakerActorFormId) noexcept
+    {
+#if __has_include(<RE/Skyrim.h>)
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player)
+        {
+            return false;
+        }
+
+        // 1. Add Innkeeper's Note: The Moth Priest's Passage directly to player inventory (not floor)
+        bool addedNote = false;
+        if (IsEslPluginLoaded())
+        {
+            if (const uint32_t noteId = g_eslFormCassianNote.load(std::memory_order_relaxed);
+                noteId != 0u)
+            {
+                if (auto* noteObj = RE::TESForm::LookupByID<RE::TESBoundObject>(
+                        static_cast<RE::FormID>(noteId)))
+                {
+                    bool alreadyHas = false;
+                    const auto inv = player->GetInventory();
+                    for (const auto& [item, pair] : inv)
+                    {
+                        if (item && pair.first > 0 &&
+                            static_cast<uint32_t>(item->GetFormID()) == noteId)
+                        {
+                            alreadyHas = true;
+                            break;
+                        }
+                    }
+                    if (!alreadyHas)
+                    {
+                        player->AddObjectToContainer(noteObj, nullptr, 1, nullptr);
+                        addedNote = true;
+                    }
+                }
+            }
+        }
+
+        // 2. Find Orgnar (BaseFormID 0x00013479, MaleBrute — 100% verified voiced fuz for
+        //    "It's all in this note.") or fallback to the speaking actor, and play the line.
+        RE::Actor* speaker =
+            (speakerActorFormId != 0u)
+                ? RE::TESForm::LookupByID<RE::Actor>(static_cast<RE::FormID>(speakerActorFormId))
+                : nullptr;
+        RE::Actor* orgnar = nullptr;
+        if (auto* pl = RE::ProcessLists::GetSingleton())
+        {
+            for (auto& h : pl->highActorHandles)
+            {
+                auto ptr = h.get();
+                auto* a = ptr.get();
+                if (!a || a->IsDead())
+                {
+                    continue;
+                }
+                const auto* base = a->GetActorBase();
+                const uint32_t baseLow =
+                    base ? (static_cast<uint32_t>(base->GetFormID()) & 0x00FFFFFFu) : 0u;
+                if (baseLow == 0x013479u) // Orgnar
+                {
+                    orgnar = a;
+                    break;
+                }
+            }
+        }
+        RE::Actor* voiceActor = orgnar ? orgnar : speaker;
+
+        bool spoke = false;
+        if (voiceActor && !voiceActor->IsDead())
+        {
+            const uint32_t topicId = g_eslFormNoteTopic.load(std::memory_order_relaxed);
+            auto* topic = (topicId != 0u)
+                              ? RE::TESForm::LookupByID<RE::TESTopic>(
+                                    static_cast<RE::FormID>(topicId))
+                              : RE::TESForm::LookupByID<RE::TESTopic>(
+                                    static_cast<RE::FormID>(0x000142B5u)); // DialogueGenericHello
+            auto* vm = RE::BSScript::Internal::VirtualMachine::GetSingleton();
+            auto* policy = vm ? vm->GetObjectHandlePolicy() : nullptr;
+            if (topic && vm && policy)
+            {
+                const auto handle = policy->GetHandleForObject(RE::Actor::FORMTYPE, voiceActor);
+                if (handle != policy->EmptyHandle())
+                {
+                    RE::TESTopic* topicArg = topic;
+                    RE::Actor* speakAsArg = nullptr;
+                    bool inHeadArg = false;
+                    auto* args = RE::MakeFunctionArguments(
+                        std::move(topicArg), std::move(speakAsArg), std::move(inHeadArg));
+                    RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback;
+                    spoke = vm->DispatchMethodCall(handle, RE::BSFixedString("ObjectReference"),
+                                                   RE::BSFixedString("Say"), args, callback);
+                }
+            }
+        }
+
+        if (addedNote)
+        {
+            RE::PlaySound("ITMNoteUpSD");
+        }
+        logger::info("[TrueGaze::ExpandedPlay] Sleeping Giant Inn note handoff: addedNote={} "
+                     "spoke={} voiceActor='{}'",
+                     addedNote ? "yes" : "no", spoke ? "yes" : "no",
+                     (voiceActor && voiceActor->GetName()) ? voiceActor->GetName() : "none");
+        return addedNote || spoke;
+#else
+        (void)speakerActorFormId;
+        return false;
+#endif
+    }
+
     bool AwakeningRitual::BestowSanctuaryRelicIfEslLoaded(uint8_t sanctuaryBit,
                                                           std::string& outRelicName) noexcept
     {
@@ -891,6 +1663,7 @@ namespace TrueGaze::ExpandedPlay
 
         outRelicName =
             (obj->GetName() && obj->GetName()[0] != '\0') ? obj->GetName() : spec.relicName;
+
         logger::info("[TrueGaze::ExpandedPlay] Sanctuary Discovery ({}): placed '{}' ({:08X}) "
                      "with Player ownership (zero cell edits).",
                      spec.sanctuaryTitle, outRelicName, formId);
@@ -917,7 +1690,8 @@ namespace TrueGaze::ExpandedPlay
         std::vector<uint32_t> formIds;
         if (eslLoaded)
         {
-            const std::array<uint32_t, 6> eslIds{g_eslFormBook.load(std::memory_order_relaxed),
+            const std::array<uint32_t, 7> eslIds{g_eslFormBook.load(std::memory_order_relaxed),
+                                                 g_eslFormCassianNote.load(std::memory_order_relaxed),
                                                  g_eslFormAmulet.load(std::memory_order_relaxed),
                                                  g_eslFormBrowband.load(std::memory_order_relaxed),
                                                  g_eslFormRing.load(std::memory_order_relaxed),

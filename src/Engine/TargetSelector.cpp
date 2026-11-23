@@ -58,11 +58,12 @@ namespace TrueGaze::Engine
 
         float WrapPi(float angle) noexcept
         {
-            while (angle > kPi)
-                angle -= kTwoPi;
-            while (angle < -kPi)
-                angle += kTwoPi;
-            return angle;
+            if (!std::isfinite(angle))
+            {
+                return 0.0f;
+            }
+            const float wrapped = std::remainder(angle, kTwoPi);
+            return std::isfinite(wrapped) ? wrapped : 0.0f;
         }
 
         /// Tests whether targetPos lies within the observer's natural forward visual cone.

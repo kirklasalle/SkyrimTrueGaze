@@ -25,6 +25,9 @@ namespace TrueGaze::ExpandedPlay
         bool moduleMatureReactions{false};
         bool modulePresenceProgression{true};
         bool enableKindredSight{true};
+        bool moduleFactionSight{true};
+        bool enableNpcVoiceResponses{true};
+        bool enablePersuasionVisuals{true};
 
         bool enableReticle{true};
         float reticleOpacity{0.22f};

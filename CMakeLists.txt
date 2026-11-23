@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 project(
     TrueGaze
-    VERSION 2.0.0
+    VERSION 2.1.0
     DESCRIPTION "True Gaze - Biological NPC Gaze, Biomechanical Kinematics & Expanded Play Engine for Skyrim SE/AE/VR (An HCEP Product)"
     LANGUAGES CXX
 )
@@ -235,6 +235,7 @@ set(TRUEGAZE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/ExpandedPlayManager.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/ExpandedPlayModifiers.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/GazeReticle.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/NpcVoiceResponder.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ExpandedPlay/ResponseLadder.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/ConsoleCommands.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Integrations/EfmBlinkController.cpp"

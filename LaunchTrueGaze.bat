@@ -13,7 +13,7 @@ set "PROJECT=%~dp0"
 if "%PROJECT:~-1%"=="\" set "PROJECT=%PROJECT:~0,-1%"
 set "SKYRIM="
 for /f "usebackq delims=" %%G in (`powershell -NoProfile -Command "foreach ($k in 'HKLM:\SOFTWARE\WOW6432Node\Bethesda Softworks\Skyrim Special Edition','HKLM:\SOFTWARE\Bethesda Softworks\Skyrim Special Edition') { if (Test-Path $k) { $p=(Get-ItemProperty $k -Name 'Installed Path' -EA 0).'Installed Path'; if ($p -and (Test-Path (Join-Path $p 'SkyrimSE.exe'))) { $p.TrimEnd('\'); break } } }" 2^>nul`) do if not defined SKYRIM set "SKYRIM=%%G"
-if not defined SKYRIM if exist "G:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\SkyrimSE.exe" set "SKYRIM=G:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition"
+if not defined SKYRIM if defined SKYRIM_PATH if exist "%SKYRIM_PATH%\SkyrimSE.exe" set "SKYRIM=%SKYRIM_PATH%"
 if not defined SKYRIM if exist "C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\SkyrimSE.exe" set "SKYRIM=C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition"
 set "PLUGINS=%SKYRIM%\Data\SKSE\Plugins"
 set PASS=0
@@ -177,22 +177,12 @@ set "SRC_MESHES=%PROJECT%\skyrim\meshes\TrueGaze"
 set "SRC_TEXTURES=%PROJECT%\skyrim\textures\TrueGaze"
 set "DEST_MESHES=%SKYRIM%\Data\meshes\TrueGaze"
 set "DEST_TEXTURES=%SKYRIM%\Data\textures\TrueGaze"
-set "SRC_ARROW=%PROJECT%\skyrim\meshes\marker_arrow.nif"
-if not exist "%SRC_ARROW%" set "SRC_ARROW=%PROJECT%\scratch\arrow_extract\meshes\marker_arrow.nif"
-set "DEST_ARROW=%SKYRIM%\Data\meshes\marker_arrow.nif"
 
 if not exist "%DEST_MESHES%" mkdir "%DEST_MESHES%" >nul 2>&1
 if not exist "%DEST_TEXTURES%" mkdir "%DEST_TEXTURES%" >nul 2>&1
-if not exist "%SKYRIM%\Data\meshes" mkdir "%SKYRIM%\Data\meshes" >nul 2>&1
 
 set ASSET_OK=1
-if exist "%SRC_ARROW%" (
-    copy /y "%SRC_ARROW%" "%DEST_ARROW%" >nul 2>&1
-    echo        Deployed marker_arrow.nif [primary beam]
-) else (
-    echo        FAIL - marker_arrow.nif not found in repo
-    set ASSET_OK=0
-)
+echo        Primary beam uses Skyrim's native BSA meshes\marker_arrow.nif (SEC-01 clean)
 if exist "%SRC_MESHES%\GazeBeam.nif" (
     copy /y "%SRC_MESHES%\GazeBeam.nif" "%DEST_MESHES%\GazeBeam.nif" >nul 2>&1
     echo        Deployed GazeBeam.nif
@@ -235,6 +225,23 @@ if not exist "%PROJECT%\skyrim\Interface\TrueGazeIncoming.swf" (
     ) else (
         echo        Deployed TrueGazeIncoming.swf
     )
+)
+if exist "%PROJECT%\skyrim\Interface\TrueGazeReticle.swf" (
+    copy /y "%PROJECT%\skyrim\Interface\TrueGazeReticle.swf" "%SKYRIM%\Data\Interface\TrueGazeReticle.swf" >nul 2>&1
+    echo        Deployed TrueGazeReticle.swf
+)
+if exist "%PROJECT%\skyrim\TrueGaze_ExpandedPlay.esp" (
+    copy /y "%PROJECT%\skyrim\TrueGaze_ExpandedPlay.esp" "%SKYRIM%\Data\TrueGaze_ExpandedPlay.esp" >nul 2>&1
+    echo        Deployed TrueGaze_ExpandedPlay.esp
+)
+if exist "%PROJECT%\skyrim\SEQ\TrueGaze_ExpandedPlay.seq" (
+    if not exist "%SKYRIM%\Data\SEQ" mkdir "%SKYRIM%\Data\SEQ" >nul 2>&1
+    copy /y "%PROJECT%\skyrim\SEQ\TrueGaze_ExpandedPlay.seq" "%SKYRIM%\Data\SEQ\TrueGaze_ExpandedPlay.seq" >nul 2>&1
+    echo        Deployed TrueGaze_ExpandedPlay.seq
+)
+if exist "%PROJECT%\skyrim\Sound\Voice\TrueGaze_ExpandedPlay.esp" (
+    xcopy /s /e /y /q "%PROJECT%\skyrim\Sound\Voice\TrueGaze_ExpandedPlay.esp" "%SKYRIM%\Data\Sound\Voice\TrueGaze_ExpandedPlay.esp\" >nul 2>&1
+    echo        Deployed clean-room voice timing WAVs
 )
 
 if !ASSET_OK! equ 1 (

@@ -2,6 +2,7 @@
 #include "Engine/AnimationHook.hpp"
 #include "Engine/ConfigManager.hpp"
 #include "Engine/GazeEngine.hpp"
+#include "Engine/TraceLogger.hpp"
 #include "ExpandedPlay/AwakeningRitual.hpp"
 #include "ExpandedPlay/BookStudyTracker.hpp"
 #include "ExpandedPlay/CoSaveSerializer.hpp"
@@ -31,8 +32,6 @@
 
 namespace
 {
-    std::unique_ptr<TrueGaze::Bridge::NamedPipeServer> g_pipeServer;
-
     /// Sink shared between InitializeLogging() and the SKSE::InitInfo we pass to
     /// SKSE::Init(). Owned here so the plugin has exactly one log file, one
     /// pattern, and one level policy from load to exit (see the logging-ownership
@@ -75,15 +74,18 @@ namespace
         // destroyed state — a use-after-free. Abandon instead leaves the
         // worker and its handles alive, flags the object so the destructor is
         // a no-op, and lets the OS reclaim everything at process exit.
-        // Ensure GazeEngine (and its NamedPipeServer) is constructed BEFORE registering
-        // the atexit handler: C++ destroys function-local statics in reverse order of
-        // construction, so atexit runs first and marks the bridge abandoned before
-        // ~GazeEngine() executes under Windows Loader Lock.
+        // Ensure GazeEngine (and its NamedPipeServer) and TraceLogger are constructed
+        // BEFORE registering the atexit handler: C++ destroys function-local statics
+        // in reverse order of construction, so atexit runs first and marks both
+        // background workers abandoned before destructors execute under Windows
+        // Loader Lock (R14 E1.1, CRIT-03).
         (void)TrueGaze::Engine::GazeEngine::Get();
+        (void)TrueGaze::Engine::TraceLogger::Get();
 
         std::atexit(
             []()
             {
+                TrueGaze::Engine::TraceLogger::Get().Abandon();
                 TrueGaze::Engine::GazeEngine::Get().StopBridge(
                     TrueGaze::Bridge::NamedPipeServer::JoinPolicy::Abandon);
             });

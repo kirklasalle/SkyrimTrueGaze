@@ -534,6 +534,7 @@ namespace TrueGaze::ExpandedPlay
         BinaryCodec::WriteU8(out, awkn.diegeticToggleOn ? 1u : 0u);
         BinaryCodec::WriteU32(out, awkn.followerRelicWitnessCount);
         BinaryCodec::WriteU8(out, static_cast<uint8_t>(awkn.discoveredSanctuaryRelicsMask & 0x7Fu));
+        BinaryCodec::WriteU8(out, static_cast<uint8_t>(awkn.discoveryHintsMask & 0x3Fu));
         return out;
     }
 
@@ -552,17 +553,25 @@ namespace TrueGaze::ExpandedPlay
         uint8_t toggleOn = 1;
         uint32_t witnessCount = 0;
         uint8_t discoveredRelics = 0;
+        uint8_t discoveryHints = 0;
         if (!r.ReadU8(tumblers) || !r.ReadU8(sanctuaries) || !r.ReadU8(ceremony) ||
             !r.ReadU8(toggleOn) || !r.ReadU32(witnessCount) || !r.Ok())
-            {
-                return false;
-            }
-        if (r.Remaining() == 1u)
+        {
+            return false;
+        }
+        if (r.Remaining() >= 1u)
         {
             if (!r.ReadU8(discoveredRelics))
             {
                 return false;
             }
+        }
+        if (r.Remaining() >= 1u)
+        {
+                if (!r.ReadU8(discoveryHints))
+                {
+                    return false;
+                }
         }
         if (!r.Ok() || r.Remaining() != 0u)
         {
@@ -574,6 +583,7 @@ namespace TrueGaze::ExpandedPlay
         outAwkn.diegeticToggleOn = (toggleOn != 0u);
         outAwkn.followerRelicWitnessCount = witnessCount;
         outAwkn.discoveredSanctuaryRelicsMask = static_cast<uint8_t>(discoveredRelics & 0x7Fu);
+        outAwkn.discoveryHintsMask = static_cast<uint8_t>(discoveryHints & 0x3Fu);
         return true;
     }
 

@@ -1,10 +1,22 @@
-$ErrorActionPreference = 'Stop'
-$gameData = 'G:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\Data'
-$paths = @(
-    'd:\Projects\SkyrimTrueGaze\build\windows-debug\Debug\TrueGaze.dll',
-    'd:\Projects\SkyrimTrueGaze\skyrim\SKSE\Plugins\TrueGaze.dll',
-    (Join-Path $gameData 'SKSE\Plugins\TrueGaze.dll')
+param(
+    [string]$GamePath = ''
 )
+$ErrorActionPreference = 'Stop'
+$proj = Split-Path -Parent $PSScriptRoot
+if (-not $GamePath) {
+    foreach ($k in 'HKLM:\SOFTWARE\WOW6432Node\Bethesda Softworks\Skyrim Special Edition', 'HKLM:\SOFTWARE\Bethesda Softworks\Skyrim Special Edition') {
+        if (Test-Path $k) {
+            $p = (Get-ItemProperty $k -Name 'Installed Path' -ErrorAction SilentlyContinue).'Installed Path'
+            if ($p -and (Test-Path (Join-Path $p 'SkyrimSE.exe'))) { $GamePath = $p.TrimEnd('\'); break }
+        }
+    }
+}
+$gameData = if ($GamePath) { Join-Path $GamePath 'Data' } else { '' }
+$paths = @(
+    (Join-Path $proj 'build\windows-release\Release\TrueGaze.dll'),
+    (Join-Path $proj 'skyrim\SKSE\Plugins\TrueGaze.dll')
+)
+if ($gameData) { $paths += (Join-Path $gameData 'SKSE\Plugins\TrueGaze.dll') }
 foreach ($path in $paths) {
     if (Test-Path $path) {
         $item = Get-Item $path

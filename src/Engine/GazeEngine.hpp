@@ -262,6 +262,16 @@ namespace TrueGaze::Engine
         bool _lastDeferActive{false};
         uint64_t _deferFrames{0};
 
+        // CRIT-11: Per-frame player-centered feedback candidate (emitted once per frame
+        // in EndFrame instead of once per ticked actor, avoiding 256-slot ring overflow).
+        struct PendingFeedback
+        {
+            bool valid{false};
+            float bestScore{1e9f};
+            Bridge::SkyrimFeedbackPacket packet{};
+        };
+        PendingFeedback _pendingFeedback{};
+
         CalibrationState _calState{};
 
         /// Actors unseen for longer than this are evicted to bound memory (NFR-3).

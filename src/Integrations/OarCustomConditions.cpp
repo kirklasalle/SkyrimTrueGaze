@@ -102,7 +102,8 @@ namespace TrueGaze::Integrations::OarCustomConditions
 
             RE::BSString GetArgument() const override
             {
-                return std::format("Mode == {}", _mode->GetArgument().data()).data();
+                return _mode ? std::format("Mode == {}", _mode->GetArgument().data()).data()
+                             : "Mode == <uninitialized>";
             }
 
             RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
@@ -120,7 +121,7 @@ namespace TrueGaze::Integrations::OarCustomConditions
                               [[maybe_unused]] void *a_subMod) const override
             {
                 uint8_t target = 0;
-                if (!a_refr || !ToIndex(_mode->GetNumericValue(a_refr), 4, target))
+                if (!a_refr || !_mode || !ToIndex(_mode->GetNumericValue(a_refr), 4, target))
                 {
                     return false;
                 }
@@ -159,7 +160,8 @@ namespace TrueGaze::Integrations::OarCustomConditions
 
             RE::BSString GetArgument() const override
             {
-                return std::format("MutualGazeHoldSec >= {}", _seconds->GetArgument().data()).data();
+                return _seconds ? std::format("MutualGazeHoldSec >= {}", _seconds->GetArgument().data()).data()
+                                : "MutualGazeHoldSec >= <uninitialized>";
             }
 
             RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
@@ -176,7 +178,7 @@ namespace TrueGaze::Integrations::OarCustomConditions
             bool EvaluateImpl(RE::TESObjectREFR *a_refr, [[maybe_unused]] RE::hkbClipGenerator *a_clipGenerator,
                               [[maybe_unused]] void *a_subMod) const override
             {
-                if (!a_refr)
+                if (!a_refr || !_seconds)
                 {
                     return false;
                 }
@@ -219,7 +221,8 @@ namespace TrueGaze::Integrations::OarCustomConditions
 
             RE::BSString GetArgument() const override
             {
-                return std::format("Region == {}", _region->GetArgument().data()).data();
+                return _region ? std::format("Region == {}", _region->GetArgument().data()).data()
+                               : "Region == <uninitialized>";
             }
 
             RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
@@ -237,7 +240,7 @@ namespace TrueGaze::Integrations::OarCustomConditions
                               [[maybe_unused]] void *a_subMod) const override
             {
                 uint8_t target = 0;
-                if (!a_refr || !ToIndex(_region->GetNumericValue(a_refr), 12, target))
+                if (!a_refr || !_region || !ToIndex(_region->GetNumericValue(a_refr), 12, target))
                 {
                     return false;
                 }
@@ -279,8 +282,10 @@ namespace TrueGaze::Integrations::OarCustomConditions
 
             RE::BSString GetArgument() const override
             {
-                return std::format("Interpretation == {}", _interpretation->GetArgument().data())
-                    .data();
+                return _interpretation
+                           ? std::format("Interpretation == {}", _interpretation->GetArgument().data())
+                                 .data()
+                           : "Interpretation == <uninitialized>";
             }
 
             RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
@@ -299,7 +304,8 @@ namespace TrueGaze::Integrations::OarCustomConditions
                               [[maybe_unused]] void *a_subMod) const override
             {
                 uint8_t target = 0;
-                if (!a_refr || !ToIndex(_interpretation->GetNumericValue(a_refr), 11, target))
+                if (!a_refr || !_interpretation ||
+                    !ToIndex(_interpretation->GetNumericValue(a_refr), 11, target))
                 {
                     return false;
                 }
@@ -340,7 +346,8 @@ namespace TrueGaze::Integrations::OarCustomConditions
 
             RE::BSString GetArgument() const override
             {
-                return std::format("Demeanor == {}", _demeanor->GetArgument().data()).data();
+                return _demeanor ? std::format("Demeanor == {}", _demeanor->GetArgument().data()).data()
+                                 : "Demeanor == <uninitialized>";
             }
 
             RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
@@ -359,7 +366,7 @@ namespace TrueGaze::Integrations::OarCustomConditions
                               [[maybe_unused]] void *a_subMod) const override
             {
                 uint8_t target = 0;
-                if (!a_refr || !ToIndex(_demeanor->GetNumericValue(a_refr), 5, target))
+                if (!a_refr || !_demeanor || !ToIndex(_demeanor->GetNumericValue(a_refr), 5, target))
                 {
                     return false;
                 }
@@ -398,7 +405,8 @@ namespace TrueGaze::Integrations::OarCustomConditions
 
             RE::BSString GetArgument() const override
             {
-                return std::format("PresenceTier >= {}", _tier->GetArgument().data()).data();
+                return _tier ? std::format("PresenceTier >= {}", _tier->GetArgument().data()).data()
+                             : "PresenceTier >= <uninitialized>";
             }
 
             RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
@@ -417,7 +425,7 @@ namespace TrueGaze::Integrations::OarCustomConditions
                               [[maybe_unused]] void *a_subMod) const override
             {
                 uint8_t minTier = 0;
-                if (!a_refr || !ToIndex(_tier->GetNumericValue(a_refr), 4, minTier))
+                if (!a_refr || !_tier || !ToIndex(_tier->GetNumericValue(a_refr), 4, minTier))
                 {
                     return false;
                 }
@@ -456,7 +464,9 @@ namespace TrueGaze::Integrations::OarCustomConditions
 
             RE::BSString GetArgument() const override
             {
-                return std::format("Impression >= {}", _threshold->GetArgument().data()).data();
+                return _threshold
+                           ? std::format("Impression >= {}", _threshold->GetArgument().data()).data()
+                           : "Impression >= <uninitialized>";
             }
 
             RE::BSString GetCurrent(RE::TESObjectREFR *a_refr) const override
@@ -474,7 +484,7 @@ namespace TrueGaze::Integrations::OarCustomConditions
                               [[maybe_unused]] RE::hkbClipGenerator *a_clipGenerator,
                               [[maybe_unused]] void *a_subMod) const override
             {
-                if (!a_refr)
+                if (!a_refr || !_threshold)
                 {
                     return false;
                 }

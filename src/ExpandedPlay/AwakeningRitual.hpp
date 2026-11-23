@@ -59,6 +59,18 @@ namespace TrueGaze::ExpandedPlay
         VanillaFocus       = 4  // Vanilla Skyrim.esm Divine Amulet / Circlet / Silver-Gold Ring
     };
 
+    /// @brief One-time diegetic in-world rumor & Elder Scroll quest discovery hints (WP-11D).
+    namespace DiscoveryHintBits
+    {
+        inline constexpr uint8_t kNone              = 0u;
+        inline constexpr uint8_t kInnRumor          = 1u << 0; // Pilgrimage Quest + Note received
+        inline constexpr uint8_t kElderScrollQuest  = 1u << 1; // MQ205 / DA04 / Dawnguard Prophet
+        inline constexpr uint8_t kSanctuaryArrival  = 1u << 2; // First entry into any Sanctuary
+        inline constexpr uint8_t kBarNotePlaced     = 1u << 3; // Physical note placed on Inn bar
+        inline constexpr uint8_t kInnVisitedLeft    = 1u << 4; // Left Inn without note -> Courier armed
+        inline constexpr uint8_t kCourierSent       = 1u << 5; // Vanilla Skyrim WICourier dispatched
+    } // namespace DiscoveryHintBits
+
     struct AwakeningState
     {
         uint8_t tumblerMask{TumblerBits::kNone};
@@ -67,14 +79,27 @@ namespace TrueGaze::ExpandedPlay
         bool diegeticToggleOn{true};
         uint32_t followerRelicWitnessCount{0};
         uint8_t discoveredSanctuaryRelicsMask{SanctuaryBits::kNone};
+        uint8_t discoveryHintsMask{DiscoveryHintBits::kNone};
 
         [[nodiscard]] bool HasAnyProgress() const noexcept
         {
             return tumblerMask != 0u || visitedSanctuariesMask != 0u || ceremonyCompleted ||
                    !diegeticToggleOn || followerRelicWitnessCount > 0u ||
-                   discoveredSanctuaryRelicsMask != 0u;
+                   discoveredSanctuaryRelicsMask != 0u || discoveryHintsMask != 0u;
         }
     };
+
+    /// @brief Marks a diegetic discovery rumor/quest hint as shown once per save.
+    [[nodiscard]] inline bool MarkDiscoveryHintShown(AwakeningState& state, uint8_t hintBit) noexcept
+    {
+        const uint8_t bit = static_cast<uint8_t>(hintBit & 0x3Fu);
+        if (bit == 0u || (state.discoveryHintsMask & bit) != 0u)
+        {
+            return false;
+        }
+        state.discoveryHintsMask = static_cast<uint8_t>(state.discoveryHintsMask | bit);
+        return true;
+    }
 
     enum class SanctuaryRelicSlot : uint8_t
     {
@@ -96,14 +121,15 @@ namespace TrueGaze::ExpandedPlay
     };
 
     /// @brief Maps each of Skyrim's 7 Sanctuaries to its canonical lore artifact.
+    /// Note: The Sleeping Giant Inn bestows only Brother Cassian's Living Note (via Orgnar) and
+    /// the lingering Moth Priest Presence blessing; The First Canticle of the Eye awaits in the
+    /// Arcanaeum (or any canon Elder Scroll / Moth tome across Skyrim).
     [[nodiscard]] constexpr SanctuaryRelicSpec GetSanctuaryRelicSpec(uint8_t sanctuaryBit) noexcept
     {
         switch (sanctuaryBit)
         {
         case SanctuaryBits::kSleepingGiantInn:
-            return {SanctuaryRelicSlot::FirstCanticle, "The First Canticle of the Eye",
-                    "Sleeping Giant Inn",
-                    "A weathered Moth primer awaits in Riverwood: The First Canticle of the Eye."};
+            return {}; // Inn grants Brother Cassian's Note from Orgnar + Moth Presence Blessing
         case SanctuaryBits::kTempleOfKynareth:
             return {SanctuaryRelicSlot::AmuletMoth, "Amulet of the Ancestor Moth",
                     "Temple of Kynareth",
@@ -611,6 +637,113 @@ namespace TrueGaze::ExpandedPlay
         return msg;
     }
 
+    /// @brief Formats the living Innkeeper's Note parchment (TGZ_Note_CassianRumor) with TrueGaze
+    /// lore intro AND a live-updating [X]/[ ] checklist matching FormatRitualStatusChecklist.
+    /// Uses pure ASCII & clean vanilla Skyrim BookMenu note markup (<p align="left">).
+    [[nodiscard]] inline std::string FormatCassianLivingNoteMarkup(
+        const AwakeningState& state, UnlockMode mode, bool inSanctuary,
+        std::string_view sanctuaryName, bool wearingFocus, bool carryingStudiedBook,
+        float presenceMax, ScholarshipRank scholarshipRank)
+    {
+        const auto stage = ComputeAwakeningStage(state, mode);
+        const uint8_t lit = CountLitTumblers(state.tumblerMask);
+        const uint8_t shrines = CountVisitedSanctuaries(state.visitedSanctuariesMask);
+
+        const bool hasWord   = (state.tumblerMask & TumblerBits::kWord) != 0u;
+        const bool hasVessel = (state.tumblerMask & TumblerBits::kVessel) != 0u;
+        const bool hasShared = (state.tumblerMask & TumblerBits::kSharedSight) != 0u;
+        const bool hasPilg   = (state.tumblerMask & TumblerBits::kPilgrimage) != 0u;
+
+        std::string out =
+            "<p align=\"left\">\r\n"
+            "Brother Cassian's Ledger of the TrueGaze\r\n\r\n"
+            "Before an Ancestor Moth acolyte reads an Elder Scroll, they learn the First "
+            "Canticle -- stillness of the eye that reads intention, steadies barter and "
+            "persuasion, anticipates blows in battle, and meets beasts and Dragons without "
+            "flinching.\r\n\r\n"
+            "The lingering Presence of my stay at the Sleeping Giant Inn has stirred your Sight. "
+            "Seek 'The First Canticle of the Eye' in Winterhold's Arcanaeum (or any Elder Scroll "
+            "tome in Skyrim) and read it slowly from start to finish to learn the Sight of the "
+            "First Canticle spell. The other Moth relics rest across Skyrim's Sanctuaries: "
+            "Temple of Kynareth (Amulet), Eldergleam (Browband), Temple of Mara (Ring), Temple "
+            "of the Divines (Medallion), and High Hrothgar (Ribbon).\r\n\r\n";
+
+        out += std::format(
+            "--- Awakening Status ---\r\n"
+            "Stage {}: {} ({}/4 Keys Lit)\r\n"
+            "Presence: {:.0f}/100  |  Moth's Stillness: {}\r\n\r\n"
+            "The Four Keys (complete in any order):\r\n",
+            static_cast<unsigned>(stage), AwakeningStageName(stage), lit, presenceMax,
+            ScholarshipRankName(scholarshipRank));
+
+        out += hasWord
+                   ? "[X] The Word -- Studied\r\n"
+                   : "[ ] The Word -- Read 'The First Canticle of the Eye' (or an Elder Scroll "
+                     "tome) slowly from start to finish.\r\n";
+
+        out += hasVessel
+                   ? "[X] The Vessel -- Attuned\r\n"
+                   : "[ ] The Vessel -- Wear the Amulet of the Ancestor Moth, Moth-Silk Browband, "
+                     "or a Divine Amulet/Circlet and hold an NPC's gaze for 3 breaths.\r\n";
+
+        out += hasShared
+                   ? "[X] Shared Sight -- Kindred Awakened\r\n"
+                   : "[ ] Shared Sight -- Trade or drop a Ring of Quiet Sight, Silver Moth "
+                     "Medallion, or Moth-Silk Ribbon beside a friendly NPC and meet their eyes.\r\n";
+
+        if (hasPilg)
+        {
+            out += std::format("[X] The Pilgrimage -- Completed ({}/2 Sanctuaries)\r\n", shrines);
+        }
+        else
+        {
+            out += std::format(
+                "[ ] The Pilgrimage ({}/2) -- Hold calm stillness in 2 Skyrim Sanctuaries.\r\n",
+                shrines);
+        }
+
+        out += "\r\nFinal Sanctuary Ceremony:\r\n";
+        if (state.ceremonyCompleted || stage == AwakeningStage::CanticleAwakened)
+        {
+            out += "[X] Final Sanctuary Ceremony -- Complete!\r\n\r\n"
+                   "All four keys stand aligned. You have awakened the full TrueGaze. Cast "
+                   "Sight of the First Canticle (or equip/unequip your Moth Vessel) anytime to "
+                   "veil or unveil the Sight.\r\n";
+        }
+        else
+        {
+            if (inSanctuary)
+            {
+                out += std::format("[X] Inside Sanctuary ({})\r\n",
+                                   sanctuaryName.empty() ? "Sacred Ground" : sanctuaryName);
+            }
+            else
+            {
+                out += "[ ] Stand inside any Skyrim Sanctuary\r\n";
+            }
+            out += wearingFocus ? "[X] Wearing a Vessel relic\r\n"
+                                : "[ ] Equip a Vessel (Amulet, Browband, or Circlet)\r\n";
+            out += carryingStudiedBook
+                       ? "[X] Carrying your studied Canticle tome\r\n"
+                       : "[ ] Carry your studied Canticle book in inventory\r\n";
+
+            if (lit < 4u)
+            {
+                out += "\r\nOpen this note anytime to check your progress. The Sight awakens in "
+                       "full once all four keys align.\r\n";
+            }
+            else
+            {
+                out += "\r\nAll four keys are lit! Stand inside any Sanctuary wearing your Vessel "
+                       "with your Canticle book and cast Sight of the First Canticle to complete "
+                       "Stage 4.\r\n";
+            }
+        }
+
+        out += "\r\n-- Brother Cassian\r\n</p>";
+        return out;
+    }
+
     struct DevDropResult
     {
         uint32_t itemsDropped{0};
@@ -629,6 +762,8 @@ namespace TrueGaze::ExpandedPlay
         void Reset() noexcept;
 
         [[nodiscard]] bool IsEslPluginLoaded() const noexcept;
+        [[nodiscard]] bool IsCassianNoteFormId(uint32_t formId,
+                                               std::string_view title = {}) const noexcept;
         [[nodiscard]] bool IsPlayerWearingFocus() const noexcept;
         [[nodiscard]] bool IsPlayerCarryingStudiedCanticle() const noexcept;
         [[nodiscard]] uint8_t CurrentPlayerSanctuaryBit() const noexcept;
@@ -640,6 +775,20 @@ namespace TrueGaze::ExpandedPlay
         void UpdateLeftHandBookVisual(bool expandedEnabled) noexcept;
         void DetachLeftHandBookVisual() noexcept;
         [[nodiscard]] bool EnsureCanticleSpellLearned() noexcept;
+        [[nodiscard]] uint32_t GetInnRumorInfoFormId() const noexcept;
+        [[nodiscard]] uint32_t GetInnNoteInfoFormId() const noexcept;
+        void EnsurePilgrimageQuestRunning() noexcept;
+        void SyncPilgrimageQuestProgress(const AwakeningState& state,
+                                         bool startJournalIfEligible) noexcept;
+        void SetInnRumorInfoSaidOnce(bool said) noexcept;
+        [[nodiscard]] bool IsPlayerCarryingCassianNote() const noexcept;
+        void MarkCassianNoteOpened() noexcept;
+        [[nodiscard]] bool ConsumeCassianNoteOpened() noexcept;
+        [[nodiscard]] bool PlaceNoteOnSleepingGiantBar() noexcept;
+        void RemovePlacedBarNoteIfStillInWorld() noexcept;
+        [[nodiscard]] bool DispatchCourierWithCassianNote() noexcept;
+        [[nodiscard]] bool GrantInnNoteToPlayerOnly(const char* source = "OrgnarDialogue") noexcept;
+        [[nodiscard]] bool GiveInnNoteToPlayerAndSpeak(uint32_t speakerActorFormId) noexcept;
         [[nodiscard]] bool BestowSanctuaryRelicIfEslLoaded(uint8_t sanctuaryBit,
                                                            std::string& outRelicName) noexcept;
         DevDropResult DropAllDevItemsInFrontOfPlayer() noexcept;

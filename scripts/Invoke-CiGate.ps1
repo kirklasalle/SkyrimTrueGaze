@@ -82,17 +82,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Tests failed (exit $LASTEXITCODE)." }
 
     # ---- Stage 4: Charter manifest ----------------------------------------
-    Write-Host '[4/6] Charter manifest verify...' -ForegroundColor Yellow
+    # SEC-04: Run the full cryptographic charter verifier (scripts/verify_charter.py)
+    # rather than merely checking JSON syntax.
+    Write-Host '[4/6] Charter manifest cryptographic verify...' -ForegroundColor Yellow
     $charterPath = Join-Path $repoRoot 'config/charter_manifest.json'
     if (-not (Test-Path $charterPath)) {
         throw "Charter manifest missing: $charterPath"
     }
-    try {
-        $null = Get-Content $charterPath -Raw | ConvertFrom-Json
-        Write-Host '      charter_manifest.json parses OK.' -ForegroundColor Green
-    }
-    catch {
-        throw "Charter manifest is not valid JSON: $($_.Exception.Message)"
+    & python (Join-Path $repoRoot 'scripts/verify_charter.py') --verbose
+    if ($LASTEXITCODE -ne 0) {
+        throw "Charter cryptographic integrity verification failed (exit $LASTEXITCODE)."
     }
 
     # ---- Stage 5: Doc consistency -----------------------------------------
@@ -198,7 +197,7 @@ try {
     }
     Write-Host '      HTML DEFAULTS match the shipped INI.' -ForegroundColor Green
 
-    # Copy sync: root and skyrim/ HTML must be identical.
+    # Copy sync: root and skyrim/ HTML (plus BridgeServer scripts) must be identical.
     $skyrimHtml = Join-Path $repoRoot 'skyrim/TrueGazeConfig.html'
     if (Test-Path $skyrimHtml) {
         $h1 = (Get-FileHash $htmlPath -Algorithm SHA256).Hash
@@ -207,6 +206,16 @@ try {
             throw 'Configurator copy sync: root and skyrim/TrueGazeConfig.html differ. Copy the root file to skyrim/.'
         }
         Write-Host '      root and skyrim/ HTML copies identical.' -ForegroundColor Green
+    }
+    $bridgeSrc = Join-Path $repoRoot 'scripts/TrueGazeBridgeServer.ps1'
+    $bridgeCopy = Join-Path $repoRoot 'skyrim/tools/TrueGazeConfig/TrueGazeBridgeServer.ps1'
+    if ((Test-Path $bridgeSrc) -and (Test-Path $bridgeCopy)) {
+        $b1 = (Get-FileHash $bridgeSrc -Algorithm SHA256).Hash
+        $b2 = (Get-FileHash $bridgeCopy -Algorithm SHA256).Hash
+        if ($b1 -ne $b2) {
+            throw 'Bridge server copy sync: scripts/TrueGazeBridgeServer.ps1 and skyrim/tools/TrueGazeConfig/TrueGazeBridgeServer.ps1 differ.'
+        }
+        Write-Host '      scripts/ and skyrim/tools/ BridgeServer copies identical.' -ForegroundColor Green
     }
 
     & node (Join-Path $repoRoot 'tests\ConfiguratorTests.js')

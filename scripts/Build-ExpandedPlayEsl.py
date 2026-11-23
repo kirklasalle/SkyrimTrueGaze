@@ -15,6 +15,7 @@ Run: python scripts/Build-ExpandedPlayEsl.py
 import os
 import struct
 import sys
+import wave
 from pathlib import Path
 
 
@@ -30,7 +31,17 @@ FORM_ARMO_BROWBAND_MOTH  = 0x01000805
 FORM_ARMO_RING_SIGHT     = 0x01000806
 FORM_ARMO_MEDALLION_MOTH = 0x01000807
 FORM_MISC_MOTH_RIBBON    = 0x01000808
-NEXT_OBJECT_ID           = 0x00000810
+FORM_BOOK_CASSIAN_NOTE   = 0x01000809
+FORM_DIAL_ALL_IN_NOTE    = 0x0100080A
+FORM_INFO_ALL_IN_NOTE    = 0x0100080B
+FORM_QUST_PILGRIMAGE     = 0x0100080C
+FORM_DLBR_INN_RUMOR      = 0x0100080D
+FORM_DIAL_INN_RUMOR      = 0x0100080E
+FORM_INFO_INN_RUMOR      = 0x0100080F
+FORM_DLBR_RUMOR_SHARED   = 0x01000810
+FORM_DIAL_RUMOR_SHARED   = 0x01000811
+FORM_INFO_RUMOR_SHARED   = 0x01000812
+NEXT_OBJECT_ID           = 0x00000820
 
 
 def subrec(tag: bytes, payload: bytes) -> bytes:
@@ -198,6 +209,53 @@ def build_book() -> bytes:
     return record(b"BOOK", FORM_BOOK_FIRST_CANTICLE, subs)
 
 
+def build_cassian_note() -> bytes:
+    # WP-11D living rumor & Awakening checklist note. When opened in-game with TrueGaze.dll
+    # loaded, BookStudyTracker dynamically updates its text with the player's live [X]/[ ]
+    # Awakening progress; this static text serves as a crisp fallback.
+    note_text = (
+        "<p align=\"left\">\r\n"
+        "Brother Cassian's Ledger of the TrueGaze\r\n\r\n"
+        "Before an Ancestor Moth acolyte reads an Elder Scroll, they learn the First Canticle -- "
+        "stillness of the eye that reads intention, steadies persuasion, anticipates blows in "
+        "battle, and meets beasts and Dragons without flinching.\r\n\r\n"
+        "The Four Keys (any order):\r\n"
+        "[ ] The Word -- Study 'The First Canticle of the Eye' slowly from start to finish.\r\n"
+        "[ ] The Vessel -- Equip a Moth relic (or Divine Amulet/Circlet) and hold an NPC's gaze "
+        "for 3 breaths.\r\n"
+        "[ ] Shared Sight -- Trade or drop a Ring of Quiet Sight, Silver Moth Medallion, or "
+        "Moth-Silk Ribbon beside a friendly NPC and meet their eyes.\r\n"
+        "[ ] The Pilgrimage -- Hold stillness in 2 Skyrim Sanctuaries (Sleeping Giant Inn, "
+        "Temple of Kynareth, Eldergleam, Temple of Mara, Temple of the Divines, High Hrothgar, "
+        "or the Arcanaeum).\r\n\r\n"
+        "-- Brother Cassian\r\n"
+        "</p>"
+    )
+    assert all(ord(ch) < 128 for ch in note_text), "Note text must remain pure ASCII"
+    # Match vanilla Skyrim.esm note records (WERoad08CourierLetter 0x001065F5 / ccBGSSSE051_BountyLetter):
+    #   - OBND = 12 zero bytes
+    #   - YNAM = 0x000C7A54 (ITMNoteUpSD parchment rustle sound)
+    #   - DATA = value 0, weight 0.0 (zero-value note is never marked as theft!)
+    #   - INAM = 0x00097788 (STAT HighPolyNote: Clutter\Books\Note01\Note01.nif) so BookMenu and
+    #            SkyUI inventory open it as a single-sheet Parchment Note (isNote=true), NOT a book!
+    obnd = bytes(12)
+    data = struct.pack("<BBHIIf", 0, 0, 0, 0xFFFFFFFF, 0, 0.0)
+    subs = [
+        subrec(b"EDID", zstr("TGZ_Note_CassianRumor")),
+        subrec(b"OBND", obnd),
+        subrec(b"FULL", zstr("Innkeeper's Note: The Moth Priest's Passage")),
+        subrec(b"MODL", zstr("Clutter\\Books\\Note01.nif")),
+        subrec(b"DESC", zstr(note_text)),
+        subrec(b"YNAM", u32(0x000C7A54)),  # ITMNoteUpSD
+        subrec(b"KSIZ", u32(1)),
+        subrec(b"KWDA", u32(0x000937A2)),  # VendorItemBook
+        subrec(b"DATA", data),
+        subrec(b"INAM", u32(0x00097788)),  # HighPolyNote (single-page parchment note in BookMenu!)
+        subrec(b"CNAM", zstr("A folded rumor note left by Brother Cassian at the Sleeping Giant Inn.")),
+    ]
+    return record(b"BOOK", FORM_BOOK_CASSIAN_NOTE, subs)
+
+
 def build_armo(
     form_id: int,
     edid: str,
@@ -242,6 +300,262 @@ def build_misc_ribbon() -> bytes:
         subrec(b"DATA", struct.pack("<If", 25, 0.1)),
     ]
     return record(b"MISC", FORM_MISC_MOTH_RIBBON, subs)
+
+
+def build_pilgrimage_quest() -> bytes:
+    # Native Skyrim Journal Quest: "The Moth Priest's Pilgrimage" (Side Quest, priority 25).
+    # Priority 25 sits just below DialogueRiverwood_Revised (priority 30) so Orgnar tells his
+    # two vanilla Riverwood rumors first, then offers our Moth Priest rumor as his 3rd rumor
+    # under "Heard any rumors lately?". Stage 0 stays invisible in the Quest Journal until
+    # Stage 10 starts upon receiving Brother Cassian's Note (or discovering a Canticle key).
+    # All stage & objective transitions are driven natively in C++ by TrueGaze.dll (zero Papyrus).
+    #
+    # DNAM (12 bytes, verified against Skyrim.esm MS13 0x00039645):
+    #   flags(u16)=0x0111 (kEnabled | kStartsEnabled | kRunOnce), priority(u8)=45 (fires as 3rd
+    #   rumor right after DA01Intro=60 and DBEntranceQuest=50), pad(u8)=0,
+    #   questDelayTime(f32)=0.0, questType(u32)=8 (kSideQuest)
+    dnam = struct.pack("<HBBII", 0x0111, 45, 0, 0, 8)
+
+    log_stage_10 = (
+        "Orgnar at the Sleeping Giant Inn passed me a sealed ledger left behind by Brother "
+        "Cassian, an Ancestor Moth Priest from Cyrodiil. Before reading an Elder Scroll, Moth "
+        "acolytes master the First Canticle of the Eye -- the TrueGaze. To awaken full TrueGaze "
+        "mastery, I must light all four keys of the First Canticle and perform the Awakening "
+        "Ceremony within a Skyrim Sanctuary."
+    )
+    log_stage_50 = (
+        "All four keys of Brother Cassian's First Canticle now stand lit. To complete the "
+        "Awakening, I must stand within any Sanctuary of Skyrim wearing my Vessel, carrying the "
+        "studied Canticle, and cast Sight of the First Canticle."
+    )
+    log_stage_100 = (
+        "I have completed all four keys of the First Canticle and performed the Awakening "
+        "Ceremony within a Sanctuary of Skyrim. The TrueGaze stands fully awakened."
+    )
+    objectives = [
+        (10, "Key I (The Word): Find and study The First Canticle of the Eye in Winterhold's Arcanaeum (or an Elder Scroll tome)"),
+        (20, "Key II (The Vessel): Equip a Moth Relic or Divine Amulet and hold an NPC's gaze for 3 breaths"),
+        (30, "Key III (Shared Sight): Share a Ring of Quiet Sight, Silver Moth Medallion, or Moth-Silk Ribbon with a friendly companion and meet their eyes"),
+        (40, "Key IV (The Pilgrimage): Hold stillness inside two Sanctuaries of Skyrim"),
+        (50, "Perform the Awakening Ceremony in any Sanctuary (cast Sight of the First Canticle while wearing your Vessel)"),
+    ]
+    for txt in (log_stage_10, log_stage_50, log_stage_100, *(t for _, t in objectives)):
+        assert all(ord(ch) < 128 for ch in txt), "Quest text must remain pure ASCII"
+
+    subs = [
+        subrec(b"EDID", zstr("TGZ_Pilgr")),  # 9 chars -> unambiguous voice prefix tgz_pilgr_
+        subrec(b"FULL", zstr("The Moth Priest's Pilgrimage")),
+        subrec(b"DNAM", dnam),
+        subrec(b"NEXT", b""),
+        # Stage 0: silent startup stage hosting Orgnar's 3rd rumor
+        subrec(b"INDX", struct.pack("<HBB", 0, 0, 0)),
+        subrec(b"QSDT", b"\x00"),
+        # Stage 10: Pilgrimage begun (displays Quest in Journal + 4 Key objectives)
+        subrec(b"INDX", struct.pack("<HBB", 10, 0, 0)),
+        subrec(b"QSDT", b"\x00"),
+        subrec(b"CNAM", zstr(log_stage_10)),
+        # Stage 50: All four keys lit -> Final Ceremony ready
+        subrec(b"INDX", struct.pack("<HBB", 50, 0, 0)),
+        subrec(b"QSDT", b"\x00"),
+        subrec(b"CNAM", zstr(log_stage_50)),
+        # Stage 100: Quest Completed (QSDT = 0x01 = Complete Quest)
+        subrec(b"INDX", struct.pack("<HBB", 100, 0, 0)),
+        subrec(b"QSDT", b"\x01"),
+        subrec(b"CNAM", zstr(log_stage_100)),
+    ]
+    for obj_idx, obj_text in objectives:
+        subs.append(subrec(b"QOBJ", struct.pack("<H", obj_idx)))
+        subs.append(subrec(b"FNAM", u32(0)))
+        subs.append(subrec(b"NNAM", zstr(obj_text)))
+    subs.append(subrec(b"ANAM", u32(0)))  # 0 aliases (zero alias-fill failure risk)
+    return record(b"QUST", FORM_QUST_PILGRIMAGE, subs)
+
+
+def build_inn_rumor_branches() -> list[bytes]:
+    # Two top-level Dialogue Branches owned by TGZ_Pilgr:
+    #   1) TGZ_InnRumorBranch (0x0100080D) -> dedicated top-level topic "Have any quiet travelers or Moth Priests passed through?"
+    #   2) TGZ_RumorBranch    (0x01000810) -> shared "Heard any rumors lately?" (SNAM=RUMO) 3rd rumor topic
+    b1 = record(
+        b"DLBR",
+        FORM_DLBR_INN_RUMOR,
+        [
+            subrec(b"EDID", zstr("TGZ_InnRumorBranch")),
+            subrec(b"QNAM", u32(FORM_QUST_PILGRIMAGE)),
+            subrec(b"TNAM", u32(0)),
+            subrec(b"DNAM", u32(1)),
+            subrec(b"SNAM", u32(FORM_DIAL_INN_RUMOR)),
+        ],
+    )
+    b2 = record(
+        b"DLBR",
+        FORM_DLBR_RUMOR_SHARED,
+        [
+            subrec(b"EDID", zstr("TGZ_RumorBranch")),
+            subrec(b"QNAM", u32(FORM_QUST_PILGRIMAGE)),
+            subrec(b"TNAM", u32(0)),
+            subrec(b"DNAM", u32(1)),
+            subrec(b"SNAM", u32(FORM_DIAL_RUMOR_SHARED)),
+        ],
+    )
+    return [b1, b2]
+
+
+def build_inn_rumor_and_note_dials() -> list[bytes]:
+    # Verified CTDAs from Skyrim.esm DA01IntroRumorsTopic (0x00024390) & DBRumorsTopic (0x000153B3):
+    #   1) GetStage(TGZ_Pilgr 0x0100080C) < 10.0f  (op=0x80 Less Than, AND, func=0x3A=58)
+    #   2) GetIsID(Orgnar 0x00013479) == 1.0f      (op=0x01 Equal | OR, func=0x48=72)
+    #   3) GetIsID(Delphine 0x00013478) == 1.0f    (op=0x00 Equal, AND, func=0x48=72)
+    ctda_stage_lt_10 = struct.pack(
+        "<B3xfHHIIIII", 0x80, 10.0, 0x003A, 0, FORM_QUST_PILGRIMAGE, 0, 0, 0, 0xFFFFFFFF
+    )
+    assert len(ctda_stage_lt_10) == 32
+    ctda_is_orgnar_or = bytes.fromhex(
+        "010000000000803f4800000079340100000000000000000000000000ffffffff"
+    )
+    ctda_is_delphine = bytes.fromhex(
+        "000000000000803f4800000078340100000000000000000000000000ffffffff"
+    )
+    enam_direct = struct.pack("<HH", 0x0200, 0)
+    enam_rumor_shared = struct.pack("<HH", 0x0002, 0)  # kSayOnce (matches DA01IntroRumorsTopic 0x00024528)
+    enam_note = struct.pack("<HH", 0x0200, 0)
+
+    # 1) Dedicated Top-Level Topic on Orgnar & Delphine (SNAM = CUST, DATA = 00000000)
+    #    Timed via clean-room programmatic 44100 Hz 16-bit mono PCM .wav (SEC-01: zero Bethesda BSA assets):
+    #    Sound/Voice/TrueGaze_ExpandedPlay.esp/{MaleBrute,FemaleUniqueDelphine}/tgz_pilgr_tgz_innrum_0000080f_1.wav
+    rumor_prompt = "Have any quiet travelers or Moth Priests passed through?"
+    rumor_dial_subs = [
+        subrec(b"EDID", zstr("TGZ_InnRum")),
+        subrec(b"FULL", zstr(rumor_prompt)),
+        subrec(b"PNAM", struct.pack("<f", 50.0)),
+        subrec(b"BNAM", u32(FORM_DLBR_INN_RUMOR)),
+        subrec(b"QNAM", u32(FORM_QUST_PILGRIMAGE)),
+        subrec(b"DATA", bytes.fromhex("00000000")),  # Category=Topic, Subtype=Custom (top-level!)
+        subrec(b"SNAM", b"CUST"),
+        subrec(b"TIFC", u32(1)),
+    ]
+    rumor_dial_rec = record(b"DIAL", FORM_DIAL_INN_RUMOR, rumor_dial_subs)
+
+    trdt_neutral_1 = bytes.fromhex("000000003200000000000000010000000000000001000000")
+    rumor_line = (
+        "A quiet Moth Priest from Cyrodiil passed through here not long ago. "
+        "Left a sealed note behind for anyone asking after the Ancestor Moths."
+    )
+    assert len(rumor_line) <= 148 and all(ord(ch) < 128 for ch in rumor_line)
+    rumor_info_subs = [
+        subrec(b"ENAM", enam_direct),
+        subrec(b"PNAM", u32(0)),
+        subrec(b"CNAM", b"\x00"),
+        subrec(b"TCLT", u32(FORM_DIAL_ALL_IN_NOTE)),  # Links to "A Moth Priest? May I see the note?"
+        subrec(b"TRDT", trdt_neutral_1),
+        subrec(b"NAM1", zstr(rumor_line)),
+        subrec(b"NAM2", b"\x00"),
+        subrec(b"NAM3", b"\x00"),
+        subrec(b"CTDA", ctda_stage_lt_10),
+        subrec(b"CTDA", ctda_is_orgnar_or),
+        subrec(b"CTDA", ctda_is_delphine),
+        subrec(b"RNAM", zstr(rumor_prompt)),
+    ]
+    rumor_info_rec = record(b"INFO", FORM_INFO_INN_RUMOR, rumor_info_subs)
+    rumor_child_grup = (
+        struct.pack("<4sIIIHH", b"GRUP", 24 + len(rumor_info_rec), FORM_DIAL_INN_RUMOR, 7, 0, 0)
+        + b"\x00\x00\x00\x00"
+        + rumor_info_rec
+    )
+
+    # 2) Shared "Heard any rumors lately?" 3rd Rumor Topic (SNAM = RUMO, DATA = 00000200)
+    #    Matches Skyrim.esm DA01IntroRumorsTopic (0x00024390) byte-for-byte:
+    #      - NO FULL subrecord on DIAL (so Creation Engine binds it to shared RUMO subtype!)
+    #      - NO RNAM subrecord on INFO (so MenuTopicManager pools it into "Heard any rumors lately?")
+    #    Timed via clean-room programmatic 44100 Hz 16-bit mono PCM .wav (SEC-01: zero Bethesda BSA assets):
+    #    Sound/Voice/TrueGaze_ExpandedPlay.esp/{MaleBrute,FemaleUniqueDelphine}/tgz_pilgr_tgz_rumtop_00000812_1.wav
+    shared_rumor_dial_subs = [
+        subrec(b"EDID", zstr("TGZ_RumTop")),
+        subrec(b"PNAM", struct.pack("<f", 50.0)),
+        subrec(b"BNAM", u32(FORM_DLBR_RUMOR_SHARED)),
+        subrec(b"QNAM", u32(FORM_QUST_PILGRIMAGE)),
+        subrec(b"DATA", bytes.fromhex("00000200")),  # Category=Topic, Subtype=RUMO (2)
+        subrec(b"SNAM", b"RUMO"),
+        subrec(b"TIFC", u32(1)),
+    ]
+    shared_rumor_dial_rec = record(b"DIAL", FORM_DIAL_RUMOR_SHARED, shared_rumor_dial_subs)
+
+    shared_rumor_info_subs = [
+        subrec(b"ENAM", enam_rumor_shared),
+        subrec(b"PNAM", u32(0)),
+        subrec(b"CNAM", b"\x00"),
+        subrec(b"TCLT", u32(FORM_DIAL_ALL_IN_NOTE)),  # Links to "A Moth Priest? May I see the note?"
+        subrec(b"TRDT", trdt_neutral_1),
+        subrec(b"NAM1", zstr(rumor_line)),
+        subrec(b"NAM2", b"\x00"),
+        subrec(b"NAM3", b"\x00"),
+        subrec(b"CTDA", ctda_stage_lt_10),
+        subrec(b"CTDA", ctda_is_orgnar_or),
+        subrec(b"CTDA", ctda_is_delphine),
+    ]
+    shared_rumor_info_rec = record(b"INFO", FORM_INFO_RUMOR_SHARED, shared_rumor_info_subs)
+    shared_rumor_child_grup = (
+        struct.pack(
+            "<4sIIIHH",
+            b"GRUP",
+            24 + len(shared_rumor_info_rec),
+            FORM_DIAL_RUMOR_SHARED,
+            7,
+            0,
+            0,
+        )
+        + b"\x00\x00\x00\x00"
+        + shared_rumor_info_rec
+    )
+
+    # 3) Linked follow-up player response -> Orgnar speaks vanilla voiced "It's all in this note."
+    note_prompt = "A Moth Priest? May I see the note?"
+    note_dial_subs = [
+        subrec(b"EDID", zstr("TGZ_AllInNote")),
+        subrec(b"FULL", zstr(note_prompt)),
+        subrec(b"PNAM", struct.pack("<f", 50.0)),
+        subrec(b"BNAM", u32(FORM_DLBR_INN_RUMOR)),
+        subrec(b"QNAM", u32(FORM_QUST_PILGRIMAGE)),
+        subrec(b"DATA", bytes.fromhex("00000000")),  # Category=Topic, Subtype=Custom
+        subrec(b"SNAM", b"CUST"),
+        subrec(b"TIFC", u32(1)),
+    ]
+    note_dial_rec = record(b"DIAL", FORM_DIAL_ALL_IN_NOTE, note_dial_subs)
+
+    note_info_subs = [
+        subrec(b"ENAM", enam_note),
+        subrec(b"PNAM", u32(0)),
+        subrec(b"CNAM", b"\x00"),
+        subrec(b"DNAM", u32(0x000DBA27)),  # Vanilla Shared Info: "It's all in this note." (MaleBrute .fuz)
+        subrec(b"CTDA", ctda_stage_lt_10),
+        subrec(b"CTDA", ctda_is_orgnar_or),
+        subrec(b"CTDA", ctda_is_delphine),
+        subrec(b"RNAM", zstr(note_prompt)),
+    ]
+    note_info_rec = record(b"INFO", FORM_INFO_ALL_IN_NOTE, note_info_subs)
+    note_child_grup = (
+        struct.pack("<4sIIIHH", b"GRUP", 24 + len(note_info_rec), FORM_DIAL_ALL_IN_NOTE, 7, 0, 0)
+        + b"\x00\x00\x00\x00"
+        + note_info_rec
+    )
+
+    return [
+        rumor_dial_rec + rumor_child_grup,
+        shared_rumor_dial_rec + shared_rumor_child_grup,
+        note_dial_rec + note_child_grup,
+    ]
+
+
+def build_silent_timing_wav(out_path: Path, duration_sec: float = 4.8) -> None:
+    # Clean 44100 Hz, 16-bit mono PCM silent timing WAV so Orgnar's Moth Priest rumor subtitle
+    # stays comfortably readable in vanilla Skyrim SE (zero Fuz Ro D-oh needed; skippable on click).
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    sample_rate = 44100
+    num_frames = int(sample_rate * duration_sec)
+    with wave.open(str(out_path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(b"\x00\x00" * num_frames)
 
 
 def build_plugin(out_path: Path) -> bytes:
@@ -310,19 +624,36 @@ def build_plugin(out_path: Path) -> bytes:
             weight=0.5,
         ),
     ]
-    book_recs = [build_book()]
+    book_recs = [build_book(), build_cassian_note()]
     misc_recs = [build_misc_ribbon()]
+    qust_recs = [build_pilgrimage_quest()]
+    dlbr_recs = build_inn_rumor_branches()
+    dial_blobs = build_inn_rumor_and_note_dials()
 
+    # Exact canonical Skyrim.esm top-level GRUP order: MGEF, SPEL, ARMO, BOOK, MISC, DIAL, QUST, DLBR
     groups = [
         grup(b"MGEF", mgef_recs),
         grup(b"SPEL", spel_recs),
         grup(b"ARMO", armo_recs),
         grup(b"BOOK", book_recs),
         grup(b"MISC", misc_recs),
+        grup(b"DIAL", dial_blobs),
+        grup(b"QUST", qust_recs),
+        grup(b"DLBR", dlbr_recs),
     ]
 
-    # HEDR.numRecords = total records + GRUP headers (standard TES4 convention)
-    num_records = len(groups) + len(mgef_recs) + len(spel_recs) + len(armo_recs) + len(book_recs) + len(misc_recs)
+    # HEDR.numRecords = total records + GRUP headers (including nested Topic Children GRUPs + DIALs + INFOs)
+    num_records = (
+        len(groups)
+        + len(mgef_recs)
+        + len(spel_recs)
+        + len(armo_recs)
+        + len(book_recs)
+        + len(misc_recs)
+        + len(qust_recs)
+        + len(dlbr_recs)
+        + 9  # 3 DIAL records + 3 Topic Children GRUPs (type 7) + 3 INFO records
+    )
     tes4_subs = [
         subrec(b"HEDR", struct.pack("<fII", 1.70, num_records, NEXT_OBJECT_ID)),
         subrec(b"CNAM", zstr("Kirk LaSalle (TrueGaze)")),
@@ -364,45 +695,68 @@ def verify_plugin(path: Path) -> None:
     pos = 24 + rsize
     seen_records = []
     grup_count = 0
-    while pos < len(data):
-        gt, gs, gl, gk = struct.unpack_from("<4sI4sI", data, pos)
-        assert gt == b"GRUP", f"Expected GRUP at {pos}, got {gt}"
-        grup_count += 1
-        end = pos + gs
-        pos += 24
-        while pos < end:
-            rt, rs, rf, rform, _, _, rv, _ = struct.unpack_from("<4sIIIHHHH", data, pos)
-            assert rv == SSE_FORM_VERSION
-            assert 0x01000800 <= rform <= 0x01000FFF, f"FormID 0x{rform:08X} outside ESL compact range!"
-            rbody = data[pos + 24 : pos + 24 + rs]
-            pos += 24 + rs
-            sp = 0
-            edid = ""
-            full = ""
-            while sp < len(rbody):
-                st = rbody[sp : sp + 4]
-                sl = struct.unpack_from("<H", rbody, sp + 4)[0]
-                sp += 6
-                if st == b"XXXX":
-                    sl = struct.unpack_from("<I", rbody, sp)[0]
-                    sp += 4
+
+    def walk_range(start_pos: int, end_pos: int) -> None:
+        nonlocal grup_count
+        p2 = start_pos
+        while p2 < end_pos:
+            tag = data[p2 : p2 + 4]
+            if tag == b"GRUP":
+                gs = struct.unpack_from("<I", data, p2 + 4)[0]
+                grup_count += 1
+                walk_range(p2 + 24, p2 + gs)
+                p2 += gs
+            else:
+                rt, rs, rf, rform, _, _, rv, _ = struct.unpack_from("<4sIIIHHHH", data, p2)
+                assert rv == SSE_FORM_VERSION
+                assert 0x01000800 <= rform <= 0x01000FFF, f"FormID 0x{rform:08X} outside ESL compact range!"
+                rbody = data[p2 + 24 : p2 + 24 + rs]
+                p2 += 24 + rs
+                sp = 0
+                edid = ""
+                full = ""
+                while sp < len(rbody):
                     st = rbody[sp : sp + 4]
+                    sl = struct.unpack_from("<H", rbody, sp + 4)[0]
                     sp += 6
-                sd = rbody[sp : sp + sl]
-                sp += sl
-                assert st != b"VMAD", f"Record {edid} must not contain Papyrus VMAD!"
-                if st == b"EDID":
-                    edid = sd.rstrip(b"\x00").decode("latin1")
-                elif st == b"FULL":
-                    full = sd.rstrip(b"\x00").decode("windows-1252")
-            seen_records.append((rt.decode(), rform, edid, full))
-        assert pos == end, f"GRUP size mismatch at {pos} vs {end}"
-    assert pos == len(data), f"Trailing bytes: {len(data) - pos}"
-    assert hedr_count == grup_count + len(seen_records), f"HEDR count mismatch: {hedr_count}"
+                    if st == b"XXXX":
+                        sl = struct.unpack_from("<I", rbody, sp)[0]
+                        sp += 4
+                        st = rbody[sp : sp + 4]
+                        sp += 6
+                    sd = rbody[sp : sp + sl]
+                    sp += sl
+                    assert st != b"VMAD", f"Record {edid} must not contain Papyrus VMAD!"
+                    if st == b"EDID":
+                        edid = sd.rstrip(b"\x00").decode("latin1")
+                    elif st == b"FULL":
+                        full = sd.rstrip(b"\x00").decode("windows-1252")
+                seen_records.append((rt.decode(), rform, edid, full))
+        assert p2 == end_pos, f"GRUP size mismatch at {p2} vs {end_pos}"
+
+    walk_range(pos, len(data))
+    assert hedr_count == grup_count + len(seen_records), f"HEDR count mismatch: {hedr_count} vs {grup_count + len(seen_records)}"
 
     print(f"Verified {path} ({len(data)} bytes) | ESL=YES | FormVer=44 | Masters={masters} | Zero Papyrus")
     for rt, fid, edid, full in seen_records:
         print(f"  {rt}  0x{fid:08X}  {edid:28s}  '{full}'")
+
+
+def build_seq_file(out_path: Path, quest_form_ids: list[int]) -> None:
+    # Verified directly against SkyrimSE.exe 1.7.104.0 LoadSEQFile (0x1401C7EA0) and Bethesda's
+    # ccbgssse005-goldbrand.seq: a flat array of 4-byte little-endian raw disk FormIDs (including
+    # the local master index byte, e.g., 0x0100080C). LoadSEQFile remaps each FormID via
+    # TESForm::ResolveFileFormID (0x1401E6D00) into the global SEQ hash table [0x142077E78] so
+    # TESDataHandler::ConstructObjectList (0x1401C0D77) enters GRUP(type=7) and loads all INFOs!
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    blob = b"".join(struct.pack("<I", fid) for fid in quest_form_ids)
+    out_path.write_bytes(blob)
+    assert out_path.read_bytes() == blob and len(blob) == 4 * len(quest_form_ids)
+
+
+def compute_reading_duration_sec(subtitle_text: str) -> float:
+    # Comfortable reading cadence (~15 chars/sec + 0.8s margin), bounded [3.5s, 9.5s].
+    return max(3.5, min(9.5, (len(subtitle_text) / 15.0) + 0.8))
 
 
 def main() -> int:
@@ -410,6 +764,37 @@ def main() -> int:
     out_path = repo_root / "skyrim" / "TrueGaze_ExpandedPlay.esp"
     build_plugin(out_path)
     verify_plugin(out_path)
+
+    seq_path = repo_root / "skyrim" / "SEQ" / "TrueGaze_ExpandedPlay.seq"
+    build_seq_file(seq_path, [FORM_QUST_PILGRIMAGE])
+    print(f"Generated SEQ file: {seq_path} ({seq_path.stat().st_size} bytes, quest=0x{FORM_QUST_PILGRIMAGE:08X})")
+
+    # SEC-01: Generate clean-room programmatic 44.1 kHz 16-bit mono PCM timing .wav files
+    # (zero Bethesda BSA extraction; GPL-3.0 & EULA compliant; exact subtitle reading duration
+    # with zero mismatched vanilla voice audio; works identically on SE, AE, and VR).
+    rumor_text = (
+        "A quiet Moth Priest from Cyrodiil passed through here not long ago. "
+        "Left a sealed note behind for anyone asking after the Ancestor Moths."
+    )
+    duration_sec = compute_reading_duration_sec(rumor_text)
+    voice_types = ("MaleBrute", "FemaleUniqueDelphine")
+    voice_targets = (
+        "tgz_pilgr_tgz_innrum_0000080f_1",
+        "tgz_pilgr_tgz_rumtop_00000812_1",
+    )
+    voice_root = repo_root / "skyrim" / "Sound" / "Voice" / "TrueGaze_ExpandedPlay.esp"
+    for vtype in voice_types:
+        vdir = voice_root / vtype
+        vdir.mkdir(parents=True, exist_ok=True)
+        for old_file in vdir.glob("*"):
+            old_file.unlink()
+        for stem in voice_targets:
+            wav_path = vdir / f"{stem}.wav"
+            build_silent_timing_wav(wav_path, duration_sec=duration_sec)
+            print(
+                f"Generated clean-room timing WAV: {wav_path} "
+                f"({wav_path.stat().st_size} bytes, {duration_sec:.2f}s)"
+            )
     return 0
 
 

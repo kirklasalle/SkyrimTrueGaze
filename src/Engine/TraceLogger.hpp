@@ -6,9 +6,11 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_set>
 #include <vector>
 #include "Visuals/IncomingGaze.hpp"
@@ -45,6 +47,11 @@ namespace TrueGaze::Engine
 
         /// @brief Stops tracing, flushes all pending events, and closes the file.
         void StopTracing() noexcept;
+
+        /// @brief Process-exit shutdown (CRIT-03): signals the worker to stop without
+        /// calling std::thread::join() under Windows Loader Lock. Marks the singleton
+        /// abandoned so ~TraceLogger() is a safe no-op during DLL_PROCESS_DETACH.
+        void Abandon() noexcept;
 
         /// @brief Forces an immediate flush of the memory buffer to disk.
         void Flush() noexcept;
@@ -157,9 +164,11 @@ namespace TrueGaze::Engine
 
         std::atomic<bool> _active{false};
         std::atomic<bool> _stopping{false};
+        std::atomic<bool> _abandoned{false};
         std::atomic<bool> _flushRequested{false};
         std::atomic<uint64_t> _totalEvents{0};
         std::atomic<uint64_t> _totalBytesWritten{0};
+        std::atomic<uint64_t> _droppedEvents{0};
 
         std::filesystem::path _logPath{};
         std::ofstream _fileStream{};
@@ -182,7 +191,7 @@ namespace TrueGaze::Engine
         mutable std::mutex _bufferMutex{};
         std::condition_variable _cv{};
         std::vector<std::string> _buffer{};
-        std::thread _workerThread{};
+        std::unique_ptr<std::thread> _workerThread{};
     };
 
 } // namespace TrueGaze::Engine

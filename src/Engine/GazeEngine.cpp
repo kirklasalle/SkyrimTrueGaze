@@ -55,14 +55,15 @@ namespace TrueGaze::Engine
         float g_eyeAnchorForwardCm = 8.0f;
         float g_eyeAnchorUpCm = 8.5f;
 
-        /// Wrap an angle in radians to (-pi, pi].
+        /// Wrap an angle in radians to (-pi, pi] in O(1) time; guards NaN/Inf (CRIT-06).
         float WrapPi(float radians) noexcept
         {
-            while (radians > kPi)
-                radians -= 2.0f * kPi;
-            while (radians < -kPi)
-                radians += 2.0f * kPi;
-            return radians;
+            if (!std::isfinite(radians))
+            {
+                return 0.0f;
+            }
+            const float wrapped = std::remainder(radians, 2.0f * kPi);
+            return std::isfinite(wrapped) ? wrapped : 0.0f;
         }
 
         struct RegionCalibrationSpec
@@ -540,13 +541,59 @@ namespace TrueGaze::Engine
 
     void GazeEngine::EndFrame(float deltaSeconds) noexcept
     {
+        const float safeDelta =
+            (std::isfinite(deltaSeconds) && deltaSeconds > 0.0f && deltaSeconds < 0.5f)
+                ? deltaSeconds
+                : 0.0f;
+
+        // CRIT-06: Advance global simulation clock & calibration sweep timer once per
+        // frame here in EndFrame (previously incremented per actor inside TickActor,
+        // causing timestamps to run Nx faster than wall time).
+        _gameTimeSec += safeDelta;
+
+        if (_calState.active && _calState.sweepActive && safeDelta > 0.0f)
+        {
+            _calState.sweepTimerSec += safeDelta;
+            if (_calState.sweepTimerSec >= 2.0f)
+            {
+                _calState.sweepTimerSec = 0.0f;
+                ++_calState.currentRegionIndex;
+                if (_calState.currentRegionIndex <
+                    static_cast<int>(std::size(kCalibrationSweepSpecs)))
+                {
+                    _calState.overrideYawDeg =
+                        kCalibrationSweepSpecs[_calState.currentRegionIndex].yawDeg;
+                    _calState.overridePitchDeg =
+                        kCalibrationSweepSpecs[_calState.currentRegionIndex].pitchDeg;
+                    logger::info("[TrueGaze::Cal] Sweep advancing to [{}/{}]: {} (yaw={:+.1f}, "
+                                 "pitch={:+.1f})",
+                                 _calState.currentRegionIndex + 1,
+                                 std::size(kCalibrationSweepSpecs),
+                                 kCalibrationSweepSpecs[_calState.currentRegionIndex].name,
+                                 _calState.overrideYawDeg, _calState.overridePitchDeg);
+                }
+                else
+                {
+                    logger::info("[TrueGaze::Cal] Angular sweep finished; incoming geometry "
+                                 "and ownership are NOT evaluated.");
+                    StopCalibration();
+                }
+            }
+        }
+
+        // CRIT-11: Emit at most one player-centered feedback packet per frame.
+        if (_pendingFeedback.valid && _pipe.IsConnected())
+        {
+            _pipe.SendFeedback(_pendingFeedback.packet);
+        }
+        _pendingFeedback = {};
+
         try
         {
-            if (ConfigManager::GetSingleton().enableTrueGaze && deltaSeconds > 0 &&
-                deltaSeconds < 0.5f)
-                Visuals::IncomingGazeManager::Get().EndFrame();
-            else
+            if (!ConfigManager::GetSingleton().enableTrueGaze)
                 Visuals::IncomingGazeManager::Get().Reset();
+            else if (safeDelta > 0.0f)
+                Visuals::IncomingGazeManager::Get().EndFrame();
         }
         catch (const std::exception& e)
         {
@@ -554,16 +601,16 @@ namespace TrueGaze::Engine
             Visuals::IncomingGazeManager::Get().AbandonFrame();
         }
 
-        if (deltaSeconds > 0.0f && deltaSeconds < 0.5f)
+        if (safeDelta > 0.0f)
         {
-            ExpandedPlay::ExpandedPlayManager::Get().Tick(deltaSeconds);
+            ExpandedPlay::ExpandedPlayManager::Get().Tick(safeDelta);
         }
 
         // Retire actors the hook did not touch this frame. Without this the map grows
         // without bound across a long session (NFR-3: memory footprint under 12 MB).
         for (auto it = _actors.begin(); it != _actors.end();)
         {
-            it->second.idleSec += deltaSeconds;
+            it->second.idleSec += safeDelta;
             if (it->second.idleSec > ACTOR_EVICTION_SEC)
             {
                 // Withdraw the applied bone transforms before dropping the state so
@@ -572,6 +619,8 @@ namespace TrueGaze::Engine
                 // The visual emitters are attached to the skeleton, so they must be
                 // detached here too or they would outlive the actor they annotate.
                 Visuals::VisualEffectsManager::Get().RemoveActor(it->first);
+                // CRIT-10: Keep OAR condition cache bounded alongside _actors.
+                Integrations::OarConditions::EvictActor(it->first);
                 // Audit F-03: drop the thread-safe API snapshot and any queued
                 // override so external callers see "unknown", not a frozen state.
                 API::Internal::ForgetActor(it->first);
@@ -768,6 +817,24 @@ namespace TrueGaze::Engine
         float pitchDeg = 0.0f;
         ComputeDeflection(actor, state, deltaSeconds, yawDeg, pitchDeg, speedScale, actorInCombat);
 
+        // --- WP-11A Persuasion Micro-Gesture & Guard's Glance Eye-Dart ---
+        if (state.persuasionGestureTimerSec > 0.0f)
+        {
+            const float dur = std::max(0.15f, state.persuasionGestureDurationSec);
+            const float u = std::clamp(1.0f - (state.persuasionGestureTimerSec / dur), 0.0f, 1.0f);
+            // Smooth bell pulse sin(pi * u) so micro-nods, aversions, and guard darts ramp cleanly
+            const float env = std::sin(3.14159265f * u);
+            yawDeg = std::clamp(yawDeg + state.persuasionYawBiasDeg * env, -65.0f, 65.0f);
+            pitchDeg = std::clamp(pitchDeg + state.persuasionPitchBiasDeg * env, -35.0f, 35.0f);
+            state.persuasionGestureTimerSec =
+                std::max(0.0f, state.persuasionGestureTimerSec - deltaSeconds);
+            if (state.persuasionGestureTimerSec <= 0.0f)
+            {
+                state.persuasionYawBiasDeg = 0.0f;
+                state.persuasionPitchBiasDeg = 0.0f;
+            }
+        }
+
         // --- Calibration Mode Override (A8 / Technical Design §8) ---
         if (_calState.active &&
             (_calState.targetActorFormId == 0 || _calState.targetActorFormId == formId))
@@ -779,36 +846,8 @@ namespace TrueGaze::Engine
             state.saccade.isBallistic = false;
             state.jitter.currentYawOffset = 0.0f;
             state.jitter.currentPitchOffset = 0.0f;
-
-            if (_calState.sweepActive)
-            {
-                _calState.sweepTimerSec += deltaSeconds;
-                if (_calState.sweepTimerSec >= 2.0f)
-                {
-                    _calState.sweepTimerSec = 0.0f;
-                    ++_calState.currentRegionIndex;
-                    if (_calState.currentRegionIndex <
-                        static_cast<int>(std::size(kCalibrationSweepSpecs)))
-                    {
-                        _calState.overrideYawDeg =
-                            kCalibrationSweepSpecs[_calState.currentRegionIndex].yawDeg;
-                        _calState.overridePitchDeg =
-                            kCalibrationSweepSpecs[_calState.currentRegionIndex].pitchDeg;
-                        logger::info("[TrueGaze::Cal] Sweep advancing to [{}/{}]: {} (yaw={:+.1f}, "
-                                     "pitch={:+.1f})",
-                                     _calState.currentRegionIndex + 1,
-                                     std::size(kCalibrationSweepSpecs),
-                                     kCalibrationSweepSpecs[_calState.currentRegionIndex].name,
-                                     _calState.overrideYawDeg, _calState.overridePitchDeg);
-                    }
-                    else
-                    {
-                        logger::info("[TrueGaze::Cal] Angular sweep finished; incoming geometry "
-                                     "and ownership are NOT evaluated.");
-                        StopCalibration();
-                    }
-                }
-            }
+            // Sweep timer advancement moved to EndFrame() so multi-actor cells do not
+            // accelerate the 2.0s dwell by N actors (CRIT-06).
         }
 
         // Gold Standard defer diagnostics: record the defer decision made by
@@ -822,7 +861,6 @@ namespace TrueGaze::Engine
         state.lastYawDeg = yawDeg;
         state.lastPitchDeg = pitchDeg;
         state.gazeRegion = ClassifyRegion(yawDeg, pitchDeg);
-        _gameTimeSec += deltaSeconds;
 
         // Trace Telemetry: Saccade onset and completion
         if (state.saccade.isBallistic && !state.wasInBallisticSaccade)
@@ -1468,30 +1506,35 @@ namespace TrueGaze::Engine
                 }
                 state.profileValid = true;
                 state.profileWasInCombat = combatNow;
+            }
 
-                // Blend the player's behavioural attention into their own profile:
-                // sustained face-attention (>= 5s accumulated) gradually warms the
-                // player's gaze — longer mutual-gaze holds, slower scanning — the
-                // same direction as a positive relationship, earned by behaviour.
-                if (actor->IsPlayerRef() && _tuning.enableCharacterProfiles)
+            // CRIT-06: Compute player behavioural warmth on a per-frame copy of
+            // state.profile so peaceful sustained attention updates continuously
+            // (previously trapped inside the combat-edge guard) without compounding.
+            auto profile = state.profile;
+            if (actor->IsPlayerRef() && _tuning.enableCharacterProfiles)
+            {
+                const float warmth = std::clamp(state.playerAttentionSec / 30.0f, 0.0f, 1.0f);
+                if (warmth > 0.0f)
                 {
-                    const float warmth = std::clamp(state.playerAttentionSec / 30.0f, 0.0f, 1.0f);
-                    if (warmth > 0.0f)
-                    {
-                        state.profile.mutualGazeThresholdMult *= (1.0f + 0.4f * warmth);
-                        state.profile.fixationScaleMult *= (1.0f + 0.25f * warmth);
-                        state.profile.modeBiasAffect += 0.3f * warmth;
-                    }
+                    profile.mutualGazeThresholdMult *= (1.0f + 0.4f * warmth);
+                    profile.fixationScaleMult *= (1.0f + 0.25f * warmth);
+                    profile.modeBiasAffect += 0.3f * warmth;
                 }
             }
-            const auto& profile = state.profile;
+
+            // CRIT-06: Seed the actor's scanpath RNG BEFORE drawing cgaRoll on first tick.
+            if (!state.triangle.rngSeeded)
+            {
+                Kinematics::SocialTriangle::SeedRng(state.triangle, state.rngSeed);
+            }
 
             // Apply the profile multipliers to this frame's parameters.
             // (Fixation duration and triangle weights are applied below where the
             // scanpath runs; aversion rate scales the CGA entry probability.)
             _frame.fixationScale = profile.fixationScaleMult;
             _frame.triangleEnabled = profile.triangleEnabled;
-            _frame.vertexWeights = profile.vertexWeights.data();
+            _frame.vertexWeights = state.profile.vertexWeights.data();
             _frame.cgaRoll = std::uniform_real_distribution<float>(0.0f, 1.0f)(state.triangle.rng);
         }
 
@@ -1804,9 +1847,11 @@ namespace TrueGaze::Engine
                 const float remDistSq = glideYaw * glideYaw + glidePitch * glidePitch;
                 if (state.eyeContactHit && remDistSq < 6.25f)
                 {
-                    constexpr float kMagneticSettle = 0.85f;
-                    state.saccade.currentYaw += glideYaw * kMagneticSettle;
-                    state.saccade.currentPitch += glidePitch * kMagneticSettle;
+                    // CRIT-06: Frame-rate independent magnetic lock (~0.85 per frame @ 60 Hz).
+                    const float magAlpha =
+                        1.0f - std::exp(-114.0f * std::max(0.0f, deltaSeconds));
+                    state.saccade.currentYaw += glideYaw * magAlpha;
+                    state.saccade.currentPitch += glidePitch * magAlpha;
                 }
                 else if (std::abs(glideYaw) < 0.02f && std::abs(glidePitch) < 0.02f)
                 {
@@ -2425,51 +2470,63 @@ namespace TrueGaze::Engine
             snap.hcepMode = state.hcepMode;
             snap.gazeRegion = state.gazeRegion;
             snap.isBlinking = state.blink.isBlinking;
-            snap.lodTier =
-                static_cast<uint8_t>(LodManager::GetLodTier(DistanceMetersForTier(actor)));
+            snap.lodTier = static_cast<uint8_t>(LodManager::GetLodTier(
+                DistanceMetersForTier(actor), _tuning.tier1DistanceMeters,
+                _tuning.tier2DistanceMeters));
             API::Internal::PublishTelemetry(actor->GetFormID(), snap);
         }
 
         if (_pipe.IsConnected())
         {
-            Bridge::SkyrimFeedbackPacket feedback{};
-            feedback.targetFormId = state.trackedTargetFormId;
+            // CRIT-11: Select a single player-centered NPC per frame (preferring the
+            // player's tracked target, else the closest NPC actively engaging the player)
+            // and emit once in EndFrame() to honor HCEP_BRIDGE_SPEC and prevent ring flood.
+            auto* player = RE::PlayerCharacter::GetSingleton();
+            const uint32_t playerFormId = player ? static_cast<uint32_t>(player->GetFormID()) : 0x14u;
+            const bool isPlayer = actor->IsPlayerRef();
+            const float distMeters = DistanceMetersForTier(actor);
 
-            // R14 E7.6 — real relationship rank. The packet contract documents
-            // "Relationship rank (-4 to +4)"; the previous hard-coded 0 told
-            // HCEP every NPC was neutral. Skyrim's own scale is
-            // BGSRelationship::RELATIONSHIP_LEVEL (0=Lover .. 8=Archnemesis),
-            // which we map onto the documented -4..+4 axis (Lover=+4,
-            // Archnemesis=-4). No relationship record -> 0 (neutral), which is
-            // also the honest answer for creatures (they have no TESNPC).
-            feedback.relationshipRank = RelationshipRankForActor(actor);
+            uint32_t reportTargetId = 0u;
+            RE::Actor* reportNpc = nullptr;
+            float candidateScore = 1e9f;
 
-            feedback.combatState = actor->IsInCombat() ? 1 : 0;
-
-            // R14 E7.8 — cache the dialogue-menu lookup once per frame. The
-            // singleton pointer and menu-open state cannot change mid-frame on
-            // the game thread, so re-resolving RE::UI::GetSingleton() per actor
-            // (hundreds of times per frame in a dense cell) was pure overhead.
-            static uint64_t s_dialogueFrameTag = 0;
-            static bool s_dialogueOpen = false;
-            if (s_dialogueFrameTag != _frameCounter)
+            if (isPlayer && state.trackedTargetFormId != 0u && state.trackedTargetFormId != playerFormId)
             {
-                s_dialogueFrameTag = _frameCounter;
-                auto* ui = RE::UI::GetSingleton();
-                s_dialogueOpen = ui && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME);
+                reportTargetId = state.trackedTargetFormId;
+                reportNpc = RE::TESForm::LookupByID<RE::Actor>(static_cast<RE::FormID>(reportTargetId));
+                candidateScore = -1000.0f; // Player's direct focus always wins
             }
-            feedback.isDialogueActive = s_dialogueOpen ? 1 : 0;
-            feedback.distanceToTarget = DistanceMetersForTier(actor);
-            feedback.mutualGazeAngle = state.lastYawDeg;
+            else if (!isPlayer && state.trackedTargetFormId == playerFormId)
+            {
+                reportTargetId = static_cast<uint32_t>(actor->GetFormID());
+                reportNpc = actor;
+                candidateScore = distMeters;
+            }
 
-            // R14 E7.6 — real frame number. The contract documents "Skyrim
-            // internal frame counter"; 0 told HCEP every feedback packet came
-            // from frame zero, making staleness detection on the desktop side
-            // impossible. The engine's monotonic frame counter is the closest
-            // available analogue and is exactly what orders our own packets.
-            feedback.gameFrameNumber = static_cast<uint32_t>(_frameCounter & 0xFFFFFFFFu);
+            if (reportTargetId != 0u && candidateScore < _pendingFeedback.bestScore)
+            {
+                Bridge::SkyrimFeedbackPacket feedback{};
+                feedback.targetFormId = reportTargetId;
+                feedback.relationshipRank = reportNpc ? RelationshipRankForActor(reportNpc) : 0;
+                feedback.combatState = (reportNpc && reportNpc->IsInCombat()) ? 1 : 0;
 
-            _pipe.SendFeedback(feedback);
+                static uint64_t s_dialogueFrameTag = 0;
+                static bool s_dialogueOpen = false;
+                if (s_dialogueFrameTag != _frameCounter)
+                {
+                    s_dialogueFrameTag = _frameCounter;
+                    auto* ui = RE::UI::GetSingleton();
+                    s_dialogueOpen = ui && ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME);
+                }
+                feedback.isDialogueActive = s_dialogueOpen ? 1 : 0;
+                feedback.distanceToTarget = reportNpc ? DistanceMetersForTier(reportNpc) : distMeters;
+                feedback.mutualGazeAngle = state.lastYawDeg;
+                feedback.gameFrameNumber = static_cast<uint32_t>(_frameCounter & 0xFFFFFFFFu);
+
+                _pendingFeedback.valid = true;
+                _pendingFeedback.bestScore = candidateScore;
+                _pendingFeedback.packet = feedback;
+            }
         }
     }
 

@@ -102,6 +102,16 @@ namespace TrueGaze::Integrations
         entry.updatedAt = now;
     }
 
+    void OarConditions::EvictActor(uint32_t actorFormId) noexcept
+    {
+        if (actorFormId == 0)
+        {
+            return;
+        }
+        std::unique_lock lock(g_cacheMutex);
+        g_actorGazeCache.erase(actorFormId);
+    }
+
     void OarConditions::ClearCache() noexcept
     {
         std::unique_lock lock(g_cacheMutex);

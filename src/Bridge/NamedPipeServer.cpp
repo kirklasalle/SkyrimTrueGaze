@@ -195,7 +195,11 @@ namespace TrueGaze::Bridge
         {
             _pipeName = pipeName;
         }
-        _reconnectIntervalSec = (reconnectIntervalSec > 0.05f) ? reconnectIntervalSec : 3.0f;
+        // CRIT-05: Guard NaN/Inf/extreme reconnect intervals before float->DWORD cast.
+        _reconnectIntervalSec =
+            (std::isfinite(reconnectIntervalSec) && reconnectIntervalSec >= 0.05f)
+                ? std::clamp(reconnectIntervalSec, 0.05f, 60.0f)
+                : 3.0f;
 
         if (!_shutdownEvent)
         {
@@ -373,41 +377,47 @@ namespace TrueGaze::Bridge
 
             _pipeHandle.store(hPipe, std::memory_order_release);
 
-            ResetEvent(_connectOverlapped.hEvent);
-            _connectOverlapped.Offset = 0;
-            _connectOverlapped.OffsetHigh = 0;
-
-            const BOOL connResult = ConnectNamedPipe(hPipe, &_connectOverlapped);
-            const DWORD connErr = GetLastError();
+            // CRIT-05: If Stop() already cleared _isRunning before _pipeHandle.store(hPipe),
+            // do NOT proceed into ConnectNamedPipe — fall straight through to cleanup so
+            // hPipe is guaranteed closed (prevents permanent FILE_FLAG_FIRST_PIPE_INSTANCE lockout).
             bool clientConnected = false;
+            if (_isRunning.load(std::memory_order_acquire))
+            {
+                ResetEvent(_connectOverlapped.hEvent);
+                _connectOverlapped.Offset = 0;
+                _connectOverlapped.OffsetHigh = 0;
 
-            if (connResult)
-            {
-                clientConnected = true;
-            }
-            else if (connErr == ERROR_PIPE_CONNECTED)
-            {
-                clientConnected = true;
-            }
-            else if (connErr == ERROR_IO_PENDING)
-            {
-                HANDLE waitEvents[2] = {_shutdownEvent, _connectOverlapped.hEvent};
-                DWORD waitRes = WaitForMultipleObjects(2, waitEvents, FALSE, INFINITE);
-                if (waitRes == WAIT_OBJECT_0)
+                const BOOL connResult = ConnectNamedPipe(hPipe, &_connectOverlapped);
+                const DWORD connErr = GetLastError();
+
+                if (connResult)
                 {
-                    // Shutdown requested while waiting for client connection
-                    CancelIoEx(hPipe, &_connectOverlapped);
-                    DWORD dummy = 0;
-                    GetOverlappedResult(hPipe, &_connectOverlapped, &dummy, TRUE);
-                    break;
+                    clientConnected = true;
                 }
-                else if (waitRes == WAIT_OBJECT_0 + 1)
+                else if (connErr == ERROR_PIPE_CONNECTED)
                 {
-                    DWORD bytesTransferred = 0;
-                    if (GetOverlappedResult(hPipe, &_connectOverlapped, &bytesTransferred, FALSE) ||
-                        GetLastError() == ERROR_PIPE_CONNECTED)
+                    clientConnected = true;
+                }
+                else if (connErr == ERROR_IO_PENDING)
+                {
+                    HANDLE waitEvents[2] = {_shutdownEvent, _connectOverlapped.hEvent};
+                    DWORD waitRes = WaitForMultipleObjects(2, waitEvents, FALSE, INFINITE);
+                    if (waitRes == WAIT_OBJECT_0)
                     {
-                        clientConnected = true;
+                        // Shutdown requested while waiting for client connection.
+                        // Do NOT break past the handle-cleanup block below (CRIT-05).
+                        CancelIoEx(hPipe, &_connectOverlapped);
+                        DWORD dummy = 0;
+                        GetOverlappedResult(hPipe, &_connectOverlapped, &dummy, TRUE);
+                    }
+                    else if (waitRes == WAIT_OBJECT_0 + 1)
+                    {
+                        DWORD bytesTransferred = 0;
+                        if (GetOverlappedResult(hPipe, &_connectOverlapped, &bytesTransferred, FALSE) ||
+                            GetLastError() == ERROR_PIPE_CONNECTED)
+                        {
+                            clientConnected = true;
+                        }
                     }
                 }
             }
@@ -504,7 +514,37 @@ namespace TrueGaze::Bridge
                     if (!ValidateTelemetryPacket(_incomingPacket))
                     {
                         ++framesRejectedSemantic;
-                        logger::warn("[TrueGaze] Rejected semantically invalid HCEP telemetry frame.");
+                        // SEC-04: Rate-limit semantic rejection warnings (max 1 per 5 s)
+                        // per HCEP_BRIDGE_SPEC so a local process cannot flood TrueGaze.log.
+                        static uint64_t s_lastSemanticWarnUs = 0;
+                        static uint64_t s_suppressedSemanticWarns = 0;
+                        const uint64_t nowUs = NowMicroseconds();
+                        if (s_lastSemanticWarnUs == 0 || (nowUs - s_lastSemanticWarnUs) >= 5'000'000ULL)
+                        {
+                            const uint64_t suppressed = s_suppressedSemanticWarns;
+                            s_suppressedSemanticWarns = 0;
+                            s_lastSemanticWarnUs = nowUs;
+                            if (suppressed > 0)
+                            {
+                                const std::string warnText = std::format(
+                                    "[TrueGaze] Rejected semantically invalid HCEP telemetry frame "
+                                    "({} additional rejections suppressed in last 5s).",
+                                    suppressed);
+#if __has_include(<RE/Skyrim.h>)
+                                logger::warn("{}", warnText);
+#else
+                                logger::warn(warnText);
+#endif
+                            }
+                            else
+                            {
+                                logger::warn("[TrueGaze] Rejected semantically invalid HCEP telemetry frame.");
+                            }
+                        }
+                        else
+                        {
+                            ++s_suppressedSemanticWarns;
+                        }
                         return;
                     }
 
@@ -523,13 +563,14 @@ namespace TrueGaze::Bridge
                     const uint32_t writeIdx =
                         (_writeIndex.load(std::memory_order_relaxed) + 1) % SLOT_COUNT;
 
+                    AcquireSRWLockExclusive(&_slotLock);
                     _slots[writeIdx].packet = _incomingPacket;
                     _slots[writeIdx].receivedAtUs = NowMicroseconds();
                     _slots[writeIdx].sequence = _incomingPacket.sequenceId;
-
                     _writeIndex.store(writeIdx, std::memory_order_relaxed);
                     _publishEpoch.fetch_add(1, std::memory_order_release);
                     _readyIndex.store(writeIdx, std::memory_order_release);
+                    ReleaseSRWLockExclusive(&_slotLock);
                 };
 
                 bool readPending = false;
@@ -737,44 +778,34 @@ namespace TrueGaze::Bridge
             return false;
         }
 
-        // Bounded retry: if the writer reuses the slot mid-copy we simply read again.
-        // With three slots this should never iterate more than a handful of times.
-        for (int attempt = 0; attempt < 8; ++attempt)
+        // CRIT-05: Shared SRWLOCK guarantees zero C++ data races and zero torn reads
+        // across all architectures (x86-64/ARM64) with ~10 ns uncontended overhead.
+        TelemetrySlot snapshot{};
+        bool hasSlot = false;
+        AcquireSRWLockShared(&_slotLock);
+        const uint32_t index = _readyIndex.load(std::memory_order_acquire);
+        if (index < SLOT_COUNT)
         {
-            const uint32_t epochBefore = _publishEpoch.load(std::memory_order_acquire);
-            const uint32_t index = _readyIndex.load(std::memory_order_acquire);
+            snapshot = _slots[index];
+            hasSlot = true;
+        }
+        ReleaseSRWLockShared(&_slotLock);
 
-            if (index >= SLOT_COUNT)
-            {
-                return false; // Nothing published yet
-            }
-
-            const TelemetrySlot snapshot = _slots[index];
-
-            const uint32_t epochAfter = _publishEpoch.load(std::memory_order_acquire);
-            if (epochBefore != epochAfter)
-            {
-                continue; // A publish happened during the copy; retry
-            }
-
-            if (snapshot.packet.magic != HCEP_MAGIC)
-            {
-                return false;
-            }
-
-            // Reject stale telemetry. If HCEP Desktop stops sending (crashed, paused,
-            // sensor unplugged) we must stop driving NPCs from frozen data.
-            const uint64_t now = NowMicroseconds();
-            if (now > snapshot.receivedAtUs && (now - snapshot.receivedAtUs) > TELEMETRY_TIMEOUT_US)
-            {
-                return false;
-            }
-
-            outPacket = snapshot.packet;
-            return true;
+        if (!hasSlot || snapshot.packet.magic != HCEP_MAGIC)
+        {
+            return false;
         }
 
-        return false;
+        // Reject stale telemetry. If HCEP Desktop stops sending (crashed, paused,
+        // sensor unplugged) we must stop driving NPCs from frozen data.
+        const uint64_t now = NowMicroseconds();
+        if (now > snapshot.receivedAtUs && (now - snapshot.receivedAtUs) > TELEMETRY_TIMEOUT_US)
+        {
+            return false;
+        }
+
+        outPacket = snapshot.packet;
+        return true;
     }
 
     void NamedPipeServer::SendFeedback(const SkyrimFeedbackPacket &feedback) noexcept

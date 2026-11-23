@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Package-Release.ps1 — builds the release packages for TrueGaze
 param(
     # Audit 2026-10-15 F-07: defaults to project(VERSION) in CMakeLists.txt
@@ -50,13 +50,26 @@ foreach ($assetDirectory in @("meshes\TrueGaze", "textures\TrueGaze")) {
     New-Item -ItemType Directory $target -Force | Out-Null
     Copy-Item (Join-Path $root ("skyrim\" + $assetDirectory + "\*")) $target -Force
 }
-$markerArrow = Join-Path $root "skyrim\meshes\marker_arrow.nif"
-if (Test-Path $markerArrow) {
-    Copy-Item $markerArrow (Join-Path $stageDir "meshes\marker_arrow.nif") -Force
-}
+# SEC-01: Do NOT redistribute Bethesda's vanilla marker_arrow.nif — Skyrim loads
+# meshes\marker_arrow.nif directly from the user's own Skyrim - Meshes0.bsa (and
+# clean-room meshes\TrueGaze\GazeBeam.nif is already staged above).
 $expandedEsl = Join-Path $root "skyrim\TrueGaze_ExpandedPlay.esp"
 if (Test-Path $expandedEsl) {
     Copy-Item $expandedEsl (Join-Path $stageDir "TrueGaze_ExpandedPlay.esp") -Force
+}
+# ARCH-01: Stage start-game-enabled quest .seq & clean-room timing .wav voice assets
+# so packaged releases match Deploy-TrueGaze.ps1 100%.
+$expandedSeq = Join-Path $root "skyrim\SEQ\TrueGaze_ExpandedPlay.seq"
+if (Test-Path $expandedSeq) {
+    $seqStageDir = Join-Path $stageDir "SEQ"
+    New-Item -ItemType Directory $seqStageDir -Force | Out-Null
+    Copy-Item $expandedSeq (Join-Path $seqStageDir "TrueGaze_ExpandedPlay.seq") -Force
+}
+$expandedVoice = Join-Path $root "skyrim\Sound\Voice\TrueGaze_ExpandedPlay.esp"
+if (Test-Path $expandedVoice) {
+    $voiceStageDir = Join-Path $stageDir "Sound\Voice\TrueGaze_ExpandedPlay.esp"
+    New-Item -ItemType Directory $voiceStageDir -Force | Out-Null
+    Copy-Item (Join-Path $expandedVoice "*") $voiceStageDir -Recurse -Force
 }
 
 # --- Configurator -------------------------------------------------------
@@ -69,7 +82,7 @@ Copy-Item (Join-Path $root "scripts\Launch-TrueGazeConfig.ps1")      $toolsDir -
 Copy-Item (Join-Path $root "scripts\TrueGazeBridgeServer.ps1")       $toolsDir -Force
 $docsDir = Join-Path $stageDir "docs"
 New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
-foreach ($doc in @("USER_GUIDE.md", "EXPANDED_PLAY_GUIDE.md", "TRUEGAZE_LORE_AND_STORY.md", "REALTIME_PERSUASION_AND_TRANSACTIONS_GDD.md", "GAMEPLAY_DESIGN_DOCUMENT.md", "IMPLEMENTATION_PLAN_EXPANDED_PLAY_G0_G3.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD.md", "CONFIGURATION_AUDIT.md", "INCOMING_GAZE_PANEL_DESIGN.md", "STATUS.md", "TEST_SCENARIO.md")) {
+foreach ($doc in @("USER_GUIDE.md", "EXPANDED_PLAY_GUIDE.md", "TRUEGAZE_LORE_AND_STORY.md", "REALTIME_PERSUASION_AND_TRANSACTIONS_GDD.md", "GAMEPLAY_DESIGN_DOCUMENT.md", "IMPLEMENTATION_PLAN_EXPANDED_PLAY_G0_G3.md", "WP11_FACTION_SIGHT_VOICE_PERSUASION_DESIGN.md", "RD_INNOVATION_PROGRAM.md", "AUDIT_REMEDIATION_LOG.md", "DEVELOPER_GUIDE.md", "CONSOLE_COMMANDS_CARD.md", "CONFIGURATION_AUDIT.md", "INCOMING_GAZE_PANEL_DESIGN.md", "STATUS.md", "TEST_SCENARIO.md")) {
     $docPath = Join-Path $root ("docs\" + $doc)
     if (Test-Path -LiteralPath $docPath) {
         Copy-Item -LiteralPath $docPath -Destination $docsDir

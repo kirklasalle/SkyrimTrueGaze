@@ -1062,7 +1062,11 @@
             <div class="sim-info">
                 <div class="sim-title">Real-Time Biological Eye Dynamics &amp; Kinematics</div>
                 <div class="sim-desc">
-                    Left and right eyes turn independently toward one target at a fixed virtual depth, converging inward as your pointer passes between them. Hold the pointer still for steady fixation; subtle shared jitter runs only in autonomous mode. Head motion and blinking are shared. Labels use the subject's anatomical sides (right eye on your left). This illustrative preview follows your tuning controls; it is not live game telemetry or clinically calibrated eye tracking.
+                    Left and right eyes turn independently toward one target at a fixed virtual depth, converging inward
+                    as your pointer passes between them. Hold the pointer still for steady fixation; subtle shared
+                    jitter runs only in autonomous mode. Head motion and blinking are shared. Labels use the subject's
+                    anatomical sides (right eye on your left). This illustrative preview follows your tuning controls;
+                    it is not live game telemetry or clinically calibrated eye tracking.
                 </div>
             </div>
         </div>
@@ -1289,6 +1293,9 @@
                 bModuleMatureReactions: ['bool', false, 'Opt-in mature social boundary reactions to intrusive stares (default off)'],
                 bModulePresenceProgression: ['bool', true, 'Enable Presence and 4-axis Gaze Signature progression'],
                 bEnableKindredSight: ['bool', true, 'Enable Kindred Sight follower/NPC relic resonance and Second Pair of Eyes guard warnings'],
+                bModuleFactionSight: ['bool', true, 'Enable Faction Sight strengths and authentic social drawbacks across all 7 major Skyrim faction groups'],
+                bEnableNpcVoiceResponses: ['bool', true, 'Enable restraint-driven vanilla voiced NPC reactions to notable TrueGaze social events'],
+                bEnablePersuasionVisuals: ['bool', true, 'Show active Persuasion vector tag, Phase 1 Love..Hate resonance halo, Guard Glance chevron and commit bloom on the reticle'],
                 bEnableReticle: ['bool', true, 'Show subtle 1st-person Gaze Reticle region glow, dwell ring and reciprocity pulse'],
                 fReticleOpacity: ['float', 0.22, '1st-person Gaze Reticle base opacity (0..1)', 0.0, 1.0, 0.02, '{v}'],
                 fReticleMagnetismStrength: ['float', 0.35, 'Soft social-triangle reticle magnetism in 1st person (0..1)', 0.0, 1.0, 0.05, '{v}'],
@@ -2205,6 +2212,8 @@
                     row.dataset.key = key;
 
                     let controlHtml = '';
+                    let safeTextVal = null;
+                    let safeDisplayVal = null;
 
                     if (type === 'bool') {
                         const isChecked = /^(true|1)$/i.test(String(val));
@@ -2218,13 +2227,15 @@
                     } else if (type === 'float' || type === 'int') {
                         const [min, max, step, fmt] = rest;
                         const numVal = Number(val);
-                        let displayVal = val;
+                        const safeNum = Number.isFinite(numVal) ? numVal : Number(dflt);
+                        let displayVal = String(val);
                         if (fmt) {
-                            displayVal = fmt.replace('{v}', type === 'int' ? numVal : numVal.toFixed(step < 0.1 ? 2 : 1));
+                            displayVal = fmt.replace('{v}', type === 'int' ? safeNum : safeNum.toFixed(step < 0.1 ? 2 : 1));
                         }
+                        safeDisplayVal = displayVal;
                         controlHtml = `
-                            <input type="range" data-role="input" min="${min}" max="${max}" step="${step}" value="${numVal}">
-                            <span class="slider-val" data-role="sliderval">${displayVal}</span>
+                            <input type="range" data-role="input" min="${min}" max="${max}" step="${step}" value="${safeNum}">
+                            <span class="slider-val" data-role="sliderval"></span>
                         `;
                     } else if (type === 'choice') {
                         const [choices] = rest;
@@ -2234,7 +2245,9 @@
                             </select>
                         `;
                     } else {
-                        controlHtml = `<input type="text" data-role="input" value="${val}">`;
+                        // SEC-02: Never interpolate raw INI text into innerHTML; assign via DOM .value below.
+                        safeTextVal = String(val);
+                        controlHtml = `<input type="text" data-role="input">`;
                     }
 
                     row.innerHTML = `
@@ -2250,6 +2263,13 @@
                             <span class="info-pill" data-tt="${tooltipKey}">❖ INFO</span>
                         </div>
                     `;
+
+                    if (safeTextVal !== null) {
+                        row.querySelector('[data-role=input]').value = safeTextVal;
+                    }
+                    if (safeDisplayVal !== null) {
+                        row.querySelector('[data-role=sliderval]').textContent = safeDisplayVal;
+                    }
 
                     body.appendChild(row);
 

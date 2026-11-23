@@ -2,6 +2,8 @@
 #include "ConfigManager.hpp"
 #include "EyeAimConstraint.hpp"
 #include "GazeEngine.hpp"
+#include "ExpandedPlay/ExpandedPlayManager.hpp"
+#include "ExpandedPlay/ExpandedPlayModifiers.hpp"
 #include "Visuals/IncomingGazeManager.hpp"
 
 #include <atomic>
@@ -273,8 +275,11 @@ namespace TrueGaze::Engine
             }
 
             // Anchoring EndFrame here drives actor eviction, bounds memory,
-            // and records accurate frame profiling metrics.
-            GazeEngine::Get().EndFrame(a_delta);
+            // and records accurate frame profiling metrics. Clamp hitch deltas
+            // (>= 0.5 s from alt-tab / loading stalls) to 0 so a single hitch
+            // does not purge every tracked actor (CRIT-06).
+            const float endFrameDelta = (a_delta > 0.0f && a_delta < 0.5f) ? a_delta : 0.0f;
+            GazeEngine::Get().EndFrame(endFrameDelta);
         }
 
 #ifdef _WIN32
@@ -328,10 +333,17 @@ namespace TrueGaze::Engine
         {
             static void Hook(RE::Actor* a_actor, float a_delta)
             {
-                // Advance the player's pristine baseline if on the main thread.
+                // Advance the player's pristine baseline if on the main thread,
+                // EXCEPT when the SEH circuit breaker has already tripped: calling
+                // WithdrawActor before checking the breaker bypassed SEH and crashed
+                // on Frame N+1 if a dangling bone pointer tripped the breaker (CRIT-02).
                 if constexpr (std::is_same_v<Tag, PlayerTag>)
                 {
-                    if (a_actor)
+                    if (s_sehBreakerTripped.load(std::memory_order_relaxed))
+                    {
+                        HandleSehBreakerTripped();
+                    }
+                    else if (a_actor)
                     {
                         EyeAimConstraint::WithdrawActor(a_actor->GetFormID());
                     }
@@ -476,6 +488,40 @@ namespace TrueGaze::Engine
                           name, updateSlot);
         }
 
+        /// CRIT-04: Pre-save vfunc hook on PlayerCharacter::SaveGame (TESForm slot 0x0E,
+        /// identical across SE 1.5.97, AE 1.6+, and VR 1.4.15).
+        /// SKSE's kSaveGame message fires AFTER .ess serialization completes, so stripping
+        /// modifiers there risked baking Active/ActorValue deltas into user saves. Stripping
+        /// strictly BEFORE _original() and restoring immediately AFTER guarantees zero
+        /// TrueGaze stat deltas ever persist into .ess files, even on abrupt uninstall.
+        struct PlayerSaveGameHook
+        {
+            static void Hook(RE::PlayerCharacter* a_this, RE::BGSSaveFormBuffer* a_buf)
+            {
+                GazeEngine::Get().ReleaseBones();
+                ExpandedPlay::ExpandedPlayManager::Get().OnBeforeSave();
+                ExpandedPlay::ExpandedPlayModifiers::Get().StripAllActiveModifiers();
+
+                _original(a_this, a_buf);
+
+                const auto& cfg = ConfigManager::GetSingleton();
+                if (cfg.expandedPlayEnabled)
+                {
+                    ExpandedPlay::ExpandedPlayModifiers::Get().SyncFromPersistentState(true);
+                }
+            }
+
+            static inline REL::Relocation<decltype(Hook)> _original;
+        };
+
+        void InstallPlayerSaveGameHook()
+        {
+            REL::Relocation<std::uintptr_t> table{RE::VTABLE_PlayerCharacter[0]};
+            constexpr std::size_t kSaveGameSlot = 0x0E; // RE::TESForm::SaveGame (SE/AE/VR)
+            PlayerSaveGameHook::_original = table.write_vfunc(kSaveGameSlot, PlayerSaveGameHook::Hook);
+            logger::info("[TrueGaze] Pre-save safety hook installed on PlayerCharacter::SaveGame (slot 0x0E).");
+        }
+
         template <class Hook>
         void InstallActorUpdateHook(const REL::VariantID& vtable, const char* name)
         {
@@ -569,14 +615,13 @@ namespace TrueGaze::Engine
             return;
         }
 
-        logger::info("[TrueGaze] Installing per-actor post-update gaze drivers...");
+        logger::info("[TrueGaze] Installing post-update player & pre-save gaze drivers...");
 
-        // Each concrete class owns a distinct vtable even when its slot points to
-        // the inherited Actor::Update implementation. Patching VTABLE_Actor alone
-        // does not affect Character or PlayerCharacter instances.
-        InstallActorUpdateHook<ActorHook>(RE::VTABLE_Actor[0], "Actor");
-        InstallActorUpdateHook<CharacterHook>(RE::VTABLE_Character[0], "Character");
+        // ARCH-02: Only hook PlayerCharacter::Update on the main thread (Actor::Update
+        // and Character::Update ran on Havok worker threads only to return immediately,
+        // adding per-actor overhead and unnecessary vtable conflict surface).
         InstallActorUpdateHook<PlayerHook>(RE::VTABLE_PlayerCharacter[0], "PlayerCharacter");
+        InstallPlayerSaveGameHook();
 
         // Post-animation main-thread hooks on TESCameraState::Update (slot 0x03 SE/AE, 0x04 VR).
         // Runs once per frame strictly AFTER ProcessLists::UpdateActors + BSTaskPool Havok

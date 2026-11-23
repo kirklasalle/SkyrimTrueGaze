@@ -109,6 +109,12 @@ namespace TrueGaze::Engine
         float modeOverrideTimerSec{0.0f};
         bool hasModeOverride{false};
 
+        /// WP-11A transient micro-gesture / Guard's Glance eye-dart override.
+        float persuasionYawBiasDeg{0.0f};
+        float persuasionPitchBiasDeg{0.0f};
+        float persuasionGestureTimerSec{0.0f};
+        float persuasionGestureDurationSec{0.6f};
+
         /// Timer for throttled 3D gaze ray diagnostic logging.
         float rayDebugTimerSec{0.0f};
 

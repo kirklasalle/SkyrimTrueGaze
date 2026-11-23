@@ -75,6 +75,9 @@ namespace TrueGaze::Integrations
                                              uint8_t presenceTier,
                                              float dominantImpression) noexcept;
 
+        /// @brief Removes a single actor from the condition cache upon eviction (CRIT-10).
+        static void EvictActor(uint32_t actorFormId) noexcept;
+
         /// @brief Drops all cached actor state. Call on cell change and game load.
         static void ClearCache() noexcept;
 

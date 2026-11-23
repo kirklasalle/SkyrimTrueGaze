@@ -122,8 +122,19 @@ function Install-WingetPackage {
     }
 
     Write-Info "Installing $DisplayName ($Id)..."
-    $cmd = "winget install --id $Id --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity $ExtraArgs"
-    $out = Invoke-Expression $cmd 2>&1
+    # SEC-05: Use direct argument splatting instead of Invoke-Expression under elevation.
+    $wingetArgs = @(
+        'install', '--id', $Id, '--exact', '--silent',
+        '--accept-package-agreements', '--accept-source-agreements',
+        '--disable-interactivity'
+    )
+    if (-not [string]::IsNullOrWhiteSpace($ExtraArgs)) {
+        $parsedExtra = [System.Management.Automation.PSParser]::Tokenize($ExtraArgs, [ref]$null) |
+            Where-Object { $_.Type -in @('CommandArgument', 'CommandParameter', 'String', 'Number') } |
+            ForEach-Object { $_.Content }
+        $wingetArgs += @($parsedExtra)
+    }
+    $out = & winget @wingetArgs 2>&1
     $rc = $LASTEXITCODE
 
     if ($rc -eq 0 -or $rc -eq -1978335189) {
